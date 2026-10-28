@@ -113,7 +113,18 @@ def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list
     for j, (name, prof) in enumerate(zip(columns, profiles)):
         if prof.kind == "empty":
             continue
-        keys = [match_key(prof, v) for v in prof.values]
+        cache: dict = {}
+        keys = []
+        for v in prof.values:
+            try:
+                k = cache[v]
+            except (KeyError, TypeError):
+                k = match_key(prof, v)
+                try:
+                    cache[v] = k
+                except TypeError:
+                    pass
+            keys.append(k)
         cols.append(Col(name=name, prof=prof, values=list(prof.values), keys=keys, origin=(table_id, j)))
     lines = [l if isinstance(l, tuple) else (table_id, l) for l in lines]
     n = len(lines)

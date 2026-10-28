@@ -43,6 +43,8 @@ def depends(groups: dict[str, list[int]], col: Col, n_groups_total: int) -> tupl
     that exists without it.
     """
     name_like = col.kind == "text" and col.role in ("name", "person", "street", "city")
+    present_n = sum(1 for k in col.keys if k is not None)
+    budget = max(1.0, (1 - CONSISTENCY) * present_n)  # disagreement we can afford before giving up
     total = agree = multi = 0
     filled_groups = 0
     for idxs in groups.values():
@@ -54,10 +56,13 @@ def depends(groups: dict[str, list[int]], col: Col, n_groups_total: int) -> tupl
         multi += 1
         cnt = Counter(vals)
         mode, mc = cnt.most_common(1)[0]
-        if name_like and mc < len(vals):
-            mc = sum(1 for v in vals if v == mode or name_similarity(v, mode) >= 0.88)
+        if name_like and mc < len(vals) and len(cnt) <= 3:
+            # a few spelling variants of one name ("Cafe"/"Café") still agree
+            mc = sum(c for v, c in cnt.items() if v == mode or _similar(v, mode))
         total += len(vals)
         agree += mc
+        if total - agree > budget:
+            return False, agree / total  # clearly not a dependency: stop early
     if multi == 0:
         # header fields filled only on the first row of each group (shop exports)
         ok = filled_groups >= 0.5 * n_groups_total and col.filled <= 1.05 * n_groups_total and multi == 0
@@ -68,6 +73,19 @@ def depends(groups: dict[str, list[int]], col: Col, n_groups_total: int) -> tupl
     err_group, err_base = 1.0 - cons, 1.0 - base
     ok = cons >= CONSISTENCY and err_group <= max(0.015, 0.3 * err_base)
     return ok, cons
+
+
+_SIM_CACHE: dict[tuple[str, str], bool] = {}
+
+
+def _similar(a: str, b: str) -> bool:
+    k = (a, b) if a <= b else (b, a)
+    r = _SIM_CACHE.get(k)
+    if r is None:
+        if len(_SIM_CACHE) > 200000:
+            _SIM_CACHE.clear()
+        r = _SIM_CACHE[k] = name_similarity(a, b) >= 0.88
+    return r
 
 
 def _mode_value(col: Col, idxs: list[int]):

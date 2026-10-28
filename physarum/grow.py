@@ -377,6 +377,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     tables = {r["id"]: r["source_id"] for r in c.execute("SELECT id, source_id FROM raw_tables").fetchall()}
     rid_of: dict[tuple[int, int], int] = {}
     seen_records: set[int] = set()
+    written: dict[int, dict] = {}
 
     # 1. identities -> record ids. An ident shared by several groups (two different people
     # called "Lena Neumann") identifies nobody and is not used.
@@ -439,7 +440,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
             alts = {aid: [[_jsonable(v), [[tables.get(x[0], 0), x[0], x[1]] for x in lines]] for v, lines in vs]
                     for aid, vs in g.alts.items()}
             srcs = sorted({tables.get(tl[0], 0) for tl in g.lines})
-            _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats)
+            _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written)
             stats["records"] += 1
 
     # 3. documents
@@ -490,13 +491,15 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     c.execute("DELETE FROM refs")
     type_spec = {t["id"]: t for t in model["types"]}
     ref_attrs = {(t["id"], a["id"]) for t in model["types"] for a in t["attrs"] if a["kind"] == "ref"}
-    rows = c.execute("SELECT id, type, data FROM records WHERE deleted=0 AND merged_into IS NULL").fetchall()
+    live = {}  # rid -> (type, data) for every live record; written ones come from memory
+    for row in c.execute("SELECT id, type, data FROM records WHERE deleted=0 AND merged_into IS NULL").fetchall():
+        rid = row["id"]
+        live[rid] = (row["type"], written[rid] if rid in written else (loads(row["data"]) or {}))
     batch = []
-    for row in rows:
-        data = loads(row["data"]) or {}
+    for rid, (tid, data) in live.items():
         for aid, v in data.items():
-            if (row["type"], aid) in ref_attrs and isinstance(v, int):
-                batch.append((row["id"], aid, v, "ref", None))
+            if (tid, aid) in ref_attrs and isinstance(v, int):
+                batch.append((rid, aid, v, "ref", None))
     for r in mrels:
         for gi, dgis in r.targets.items():
             src = rid_of.get((id(r.src), gi))
@@ -513,7 +516,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
             if dst:
                 batch.append((rid, "doc", dst, "mention", how))
     c.executemany("INSERT OR IGNORE INTO refs(from_id,attr,to_id,kind,how) VALUES(?,?,?,?,?)", batch)
-    _reindex(c, model)
+    _reindex(c, model, live)
     return stats
 
 
@@ -549,10 +552,15 @@ def _accepted_matches(store: Store, model: dict, c) -> list[tuple]:
     return out
 
 
-def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats):
-    row = c.execute("SELECT data, meta, origin, deleted FROM records WHERE id=?", (rid,)).fetchone()
-    cur = loads(row["data"]) or {}
-    meta = loads(row["meta"]) or {}
+def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written=None):
+    old_meta_json = None
+    if getattr(g, "new", False):
+        cur, meta = {}, {}
+    else:
+        row = c.execute("SELECT data, meta FROM records WHERE id=?", (rid,)).fetchone()
+        cur = loads(row["data"]) or {}
+        old_meta_json = row["meta"]
+        meta = loads(old_meta_json) or {}
     writers = meta.get("w", {})
     newest_src = max((src_added.get(s, "") for s in srcs), default="")
     changed = []
@@ -572,8 +580,14 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
             out.pop(aid)
     meta.update(w=writers, prov=prov, alts=alts, raw=raw, src=srcs, fuzzy=g.fuzzy or None)
     is_new = getattr(g, "new", False)
-    c.execute("UPDATE records SET data=?, meta=?, updated_at=?, deleted=0 WHERE id=?",
-              (dumps(out), dumps(meta), ts if (changed or is_new) else (row and ts), rid))
+    if written is not None:
+        written[rid] = out
+    meta_json = dumps(meta)
+    if is_new or changed or meta_json != old_meta_json:
+        c.execute("UPDATE records SET data=?, meta=?, updated_at=?, deleted=0 WHERE id=?",
+                  (dumps(out), meta_json, ts if (is_new or changed) else meta.get("_ts", ts), rid))
+    else:
+        c.execute("UPDATE records SET deleted=0 WHERE id=? AND deleted=1", (rid,))
     if is_new:
         stats["new"] += 1
         note = "eingelesen aus " + ", ".join(src_name.get(s, f"Quelle {s}") for s in srcs[:4]) + \
@@ -621,18 +635,15 @@ def record_text(spec: dict, data: dict, titles: dict[int, str] | None = None) ->
     return " ".join(parts)
 
 
-def _reindex(c, model: dict):
+def _reindex(c, model: dict, live: dict | None = None):
     c.execute("DELETE FROM search")
     specs = {t["id"]: t for t in model["types"]}
-    rows = c.execute("SELECT id, type, data FROM records WHERE deleted=0 AND merged_into IS NULL").fetchall()
-    titles = {}
-    for row in rows:
-        spec = specs.get(row["type"])
-        if spec:
-            titles[row["id"]] = record_title(spec, loads(row["data"]) or {}, row["id"])
+    if live is None:
+        live = {r["id"]: (r["type"], loads(r["data"]) or {}) for r in
+                c.execute("SELECT id, type, data FROM records WHERE deleted=0 AND merged_into IS NULL").fetchall()}
+    titles = {rid: record_title(specs[t], d, rid) for rid, (t, d) in live.items() if t in specs}
     c.executemany("INSERT INTO search(body, record_id, type) VALUES(?,?,?)",
-                  [(record_text(specs[r["type"]], loads(r["data"]) or {}, titles), r["id"], r["type"])
-                   for r in rows if r["type"] in specs])
+                  [(record_text(specs[t], d, titles), rid, t) for rid, (t, d) in live.items() if t in specs])
 
 
 def record_title(spec: dict, data: dict, rid: int | None = None) -> str:

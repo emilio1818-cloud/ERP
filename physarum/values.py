@@ -369,13 +369,13 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
         if kind == "number" and share(lambda x: bool(_CURRENCY.search(x)), s_all[:3000]) >= 0.3:
             kind = "money"
         if kind is None:
-            if hrole == "duration" and share(lambda x: parse_duration(x) is not None, s_all) >= 0.8:
+            if hrole == "duration" and share(lambda x: parse_duration(x) is not None, s_all[:3000]) >= 0.8:
                 kind = "duration"
-            elif share(lambda x: parse_bool(x) is not None and fold(x) not in ("0", "1", ""), s_all) >= 0.95 and \
-                    len({fold(x) for x in s_all}) <= 3:
+            elif share(lambda x: parse_bool(x) is not None and fold(x) not in ("0", "1", ""), s_all[:3000]) >= 0.95 and \
+                    len({fold(x) for x in s_all[:3000]}) <= 3:
                 kind = "bool"
             elif hrole == "phone" or share(lambda x: bool(_PHONE.match(x)) and sum(c.isdigit() for c in x) >= 6
-                                           and (x.startswith(("0", "+", "(")) or " " in x or "/" in x), s_all) >= 0.9:
+                                           and (x.startswith(("0", "+", "(")) or " " in x or "/" in x), s_all[:3000]) >= 0.9:
                 kind = "phone"
             else:
                 kind = "text"
@@ -413,17 +413,25 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
         # "12,50 EUR" mixed with "-" etc. already handled; leave as text
         pass
 
-    # parse all values ---------------------------------------------------------------
+    # parse all values (each distinct raw value once) -------------------------------------
     values = []
     unparsed = 0
+    cache: dict = {}
     for v in cells:
         if v is None:
             values.append(None)
             continue
-        x = _parse_as(kind, v, p)
-        if x is None:
-            unparsed += 1
-            x = str(v) if kind not in ("text", "id") else _as_text(v)
+        ck = (type(v), v) if not isinstance(v, (list, dict)) else None
+        if ck is not None and ck in cache:
+            x, bad = cache[ck]
+        else:
+            x = _parse_as(kind, v, p)
+            bad = x is None
+            if bad:
+                x = str(v) if kind not in ("text", "id") else _as_text(v)
+            if ck is not None:
+                cache[ck] = (x, bad)
+        unparsed += bad
         values.append(x)
     if kind == "percent_whole":
         kind = "percent"
@@ -449,17 +457,31 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
 
     # keys, counts, entropy -------------------------------------------------------------
     keys = []
+    kcache: dict = {}
     for x in values:
         if x is None:
             keys.append(None)
-        elif kind in ("date", "datetime"):
-            keys.append(x.isoformat() if isinstance(x, (date, datetime)) else norm_key(x))
+            continue
+        try:
+            hit = kcache.get(x)
+        except TypeError:
+            hit = None
+        if hit is not None:
+            keys.append(hit)
+            continue
+        if kind in ("date", "datetime"):
+            k = x.isoformat() if isinstance(x, (date, datetime)) else norm_key(x)
         elif kind in ("number", "money", "percent", "duration"):
-            keys.append(repr(round(float(x), 6)) if isinstance(x, (int, float)) else norm_key(x))
+            k = repr(round(float(x), 6)) if isinstance(x, (int, float)) else norm_key(x)
         elif kind == "email":
-            keys.append(str(x).strip().casefold())
+            k = str(x).strip().casefold()
         else:
-            keys.append(norm_key(x))
+            k = norm_key(x)
+        try:
+            kcache[x] = k
+        except TypeError:
+            pass
+        keys.append(k)
     p.keys = keys
     cnt = Counter(k for k in keys if k is not None)
     p.distinct = len(cnt)

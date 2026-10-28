@@ -83,6 +83,8 @@ def read_file(name: str, data: bytes) -> Digest:
             d.notes.append("OpenDocument-Tabellen (.ods) werden noch nicht gelesen – bitte als .xlsx speichern.")
         elif ext == ".json":
             _read_json(stem, data, d)
+        elif ext == ".xml":
+            _read_xml(stem, data, d)
         elif ext == ".eml":
             _read_eml(stem, data, d)
         elif ext == ".pdf":
@@ -533,7 +535,43 @@ def _read_eml(stem: str, data: bytes, d: Digest):
                          meta={"attachments": [a for a, _ in d.attachments]}))
 
 
+def _read_xml(stem: str, data: bytes, d: Digest):
+    try:
+        from defusedxml.ElementTree import fromstring  # no entity expansion, no external entities
+    except ImportError:  # pragma: no cover
+        from xml.etree.ElementTree import fromstring
+    from .einvoice import parse, to_tables
+
+    root = fromstring(data)
+    inv = parse(root)
+    if inv and inv.get("number"):
+        head, lines, doc = to_tables(inv, stem)
+        d.tables.append(head)
+        if lines is not None:
+            d.tables.append(lines)
+        d.docs.append(doc)
+        return
+    text = " ".join(t.strip() for t in root.itertext() if t and t.strip())
+    if text:
+        d.docs.append(RawDoc("xml", stem, text[:200000]))
+
+
+def _pdf_attachments(data: bytes, d: Digest):
+    """ZUGFeRD/Factur-X: the structured invoice travels inside the PDF."""
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(data))
+        for name, contents in (reader.attachments or {}).items():
+            for content in contents:
+                if name.lower().endswith(".xml") and content:
+                    d.attachments.append((name, content))
+    except Exception:
+        pass
+
+
 def _read_pdf(stem: str, data: bytes, d: Digest):
+    _pdf_attachments(data, d)
     texts, grids = [], []
     try:
         import pdfplumber

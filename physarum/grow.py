@@ -85,7 +85,7 @@ def _premerge(raw: list[dict]) -> list[dict]:
     for sig, ts in groups.items():
         if len(ts) == 1:
             t = ts[0]
-            out.append(dict(t, lines=[(t["id"], l) for l in t["lines"]], tables=[t["id"]]))
+            out.append(dict(t, lines=[(t["id"], l) for l in t["lines"]], tables=[t["id"]], sources=[t["source_name"]]))
             continue
         first = ts[0]
         rows, lines = [], []
@@ -93,12 +93,16 @@ def _premerge(raw: list[dict]) -> list[dict]:
             rows += t["rows"]
             lines += [(t["id"], l) for l in t["lines"]]
         stems = {t["name"].split(" › ")[0] for t in ts}
-        if len(stems) == 1 and all(t["sheet"] for t in ts):
+        if len({t["name"] for t in ts}) == 1:
+            label = first["name"]  # e.g. many e-invoices, one table each
+        elif len(stems) == 1 and all(t["sheet"] for t in ts):
             label = f"{first['name'].split(' › ')[0]} › " + " + ".join(t["sheet"] for t in ts)
         else:
             label = " + ".join(t["name"] for t in ts)
+        srcs = list(dict.fromkeys(t["source_name"] for t in ts))
+        source_name = srcs[0] if len(srcs) == 1 else f"{srcs[0]} + {len(srcs) - 1} weitere"
         out.append(dict(first, name=label, rows=rows, lines=lines, tables=[t["id"] for t in ts],
-                        source_id=max(t["source_id"] for t in ts)))
+                        source_id=max(t["source_id"] for t in ts), source_name=source_name, sources=srcs))
     return out
 
 
@@ -144,6 +148,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     progress(f"Lese {len(raw)} Tabellen …", 0.05)
     observations: list[Obs] = []
     table_meta = {}
+    by_name = {t["name"]: t["id"] for t in raw}
     for t in raw:
         profs = profile_table(t["columns"], t["rows"], t["meta"])
         o = obs_from_table(t["id"], t["name"], t["columns"], profs, t["lines"], source_id=t["source_id"])
@@ -156,11 +161,22 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
                     m = max(d.date() if isinstance(d, datetime) else d for d in ds)
                     newest = m if newest is None or m > newest else newest
         asof = asof_date(t["meta"].get("title")) or asof_date(t["source_name"])
-        table_meta[t["id"]] = dict(source=t["source_name"], name=t["name"], title=t["meta"].get("title"),
+        table_meta[t["id"]] = dict(source=t["source_name"], sources=t["sources"], name=t["name"], title=t["meta"].get("title"),
                                    added_at=t["added_at"], tables=t["tables"],
                                    asof=asof.isoformat() if asof else None,
                                    newest=newest.isoformat() if newest else None)
         o.asof = (asof or newest).isoformat() if (asof or newest) else None
+        st = t["meta"].get("structured")
+        if st == "einvoice-header":
+            o.concept, o.file_concept = "rechnung", "rechnung"
+            o.name_hint = ("Eingangsrechnung", "Eingangsrechnungen")
+        elif st == "einvoice-lines":
+            o.kind_hint = "line"
+            o.concept = None
+            o.name_hint = ("Eingangsrechnungsposition", "Eingangsrechnungspositionen")
+            parent = by_name.get(t["meta"].get("parent_table"))
+            if parent is not None:
+                o.links = [(t["meta"].get("parent_key"), f"T{parent}")]
         observations.extend(normalize(o, log))
     progress(f"{len(observations)} Beobachtungen nach dem Herauslösen eingebetteter Dinge", 0.25)
 
@@ -323,7 +339,8 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
         for m in t.members:
             meta = table_meta.get(m.table_id, {})
             members.append(dict(label=m.label, sig=obs_sig(m), rows=m.n, extracted=m.extracted_from is not None,
-                                determinant=m.determinant, source=meta.get("source"), title=meta.get("title"),
+                                determinant=m.determinant, source=meta.get("source"), sources=meta.get("sources"),
+                                title=meta.get("title"),
                                 tables=meta.get("tables", [m.table_id]), asof=meta.get("asof"),
                                 newest=meta.get("newest")))
         tmodel.append(dict(id=t.tid, name=t.name, plural=t.plural, concept=t.concept, kind=t.kind,

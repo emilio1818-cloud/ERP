@@ -81,7 +81,7 @@ def infer_processes(model: dict, records: dict, store=None, today: date | None =
         if spec["kind"] not in ("transaction",):
             continue
         recs = records.get(spec["id"], [])
-        if len(recs) < 5:
+        if len(recs) < 2:
             continue
         p = _infer_one(spec, recs, children.get(spec["id"], []), records, mention_map, by_id, today)
         if p:
@@ -138,7 +138,8 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today) -> dict | N
                          rel_kind=rel["kind"], attr=pd["id"], label=lab, name=src["name"], child_plural=src["plural"]))
     starts = {r["id"]: as_date(r["data"].get(start_attr["id"])) for r in recs}
     starts = {k: v for k, v in starts.items() if v}
-    if len(starts) < 5:
+    has_due = any(a.get("role") == "due" for a in spec["attrs"])
+    if len(starts) < (2 if has_due else 5):
         return None
     dates = _instance_dates(spec, recs, cand, records, mention_map)
     steps = []
@@ -169,7 +170,7 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today) -> dict | N
                 continue
             near = sum(1 for k in both if abs((a[k] - b[k]).days) <= 3) / len(both)
             same = sum(1 for k in both if a[k] == b[k]) / len(both)
-            if (fold(m["label"]) == fold(st["label"]) and near >= 0.8) or same >= 0.9:
+            if (fold(m["label"]) == fold(st["label"]) and near >= 0.8) or (same >= 0.9 and len(both) >= 10):
                 twin = m
                 break
         if twin:

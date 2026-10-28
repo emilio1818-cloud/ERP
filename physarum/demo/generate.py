@@ -679,6 +679,96 @@ def write_supplier_pdf(path: Path, today: date, purchases: list[dict]):
     c.save()
 
 
+def _supplier(name: str) -> dict:
+    return next(s for s in SUPPLIERS if s["name"] == name)
+
+
+def write_xrechnung_ubl(path: Path, p: dict):
+    """An incoming e-invoice in XRechnung (UBL) syntax."""
+    sup = _supplier(p["supplier"])
+    net = p["sum"]
+    tax = _round2(net * 0.07)
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<ubl:Invoice xmlns:ubl="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+ xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+ xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</cbc:CustomizationID>
+  <cbc:ID>{p['supplier_invoice']}</cbc:ID>
+  <cbc:IssueDate>{p['received'].isoformat()}</cbc:IssueDate>
+  <cbc:DueDate>{(p['received'] + timedelta(days=30)).isoformat()}</cbc:DueDate>
+  <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+  <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+  <cbc:BuyerReference>Röstwerk Hafenbohne</cbc:BuyerReference>
+  <cac:OrderReference><cbc:ID>{p['no']}</cbc:ID></cac:OrderReference>
+  <cac:AccountingSupplierParty><cac:Party>
+    <cac:PartyName><cbc:Name>{sup['name']}</cbc:Name></cac:PartyName>
+    <cac:PartyTaxScheme><cbc:CompanyID>DE811234567</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme>
+    <cac:PartyLegalEntity><cbc:RegistrationName>{sup['name']}</cbc:RegistrationName></cac:PartyLegalEntity>
+    <cac:Contact><cbc:ElectronicMail>{sup['email']}</cbc:ElectronicMail></cac:Contact>
+  </cac:Party></cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty><cac:Party><cac:PartyLegalEntity><cbc:RegistrationName>Röstwerk Hafenbohne GmbH</cbc:RegistrationName></cac:PartyLegalEntity></cac:Party></cac:AccountingCustomerParty>
+  <cac:PaymentMeans><cbc:PaymentMeansCode>58</cbc:PaymentMeansCode><cac:PayeeFinancialAccount><cbc:ID>{sup['iban']}</cbc:ID></cac:PayeeFinancialAccount></cac:PaymentMeans>
+  <cac:TaxTotal><cbc:TaxAmount currencyID="EUR">{tax:.2f}</cbc:TaxAmount></cac:TaxTotal>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="EUR">{net:.2f}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="EUR">{net:.2f}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="EUR">{net + tax:.2f}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="EUR">{net + tax:.2f}</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+  <cac:InvoiceLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:InvoicedQuantity unitCode="KGM">{p['kg']}</cbc:InvoicedQuantity>
+    <cbc:LineExtensionAmount currencyID="EUR">{net:.2f}</cbc:LineExtensionAmount>
+    <cac:Item><cbc:Name>Rohkaffee {p['origin']}</cbc:Name><cac:SellersItemIdentification><cbc:ID>RK-{p['origin'][:3].upper()}</cbc:ID></cac:SellersItemIdentification></cac:Item>
+    <cac:Price><cbc:PriceAmount currencyID="EUR">{p['price']:.2f}</cbc:PriceAmount></cac:Price>
+  </cac:InvoiceLine>
+</ubl:Invoice>
+"""
+    path.write_text(xml, encoding="utf-8")
+
+
+def write_zugferd_cii(path: Path, p: dict):
+    """An incoming e-invoice in ZUGFeRD/Factur-X (CII) syntax."""
+    sup = _supplier(p["supplier"])
+    net = p["sum"]
+    tax = _round2(net * 0.07)
+    d = p["received"].strftime("%Y%m%d")
+    due = (p["received"] + timedelta(days=14)).strftime("%Y%m%d")
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
+ xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
+ xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
+  <rsm:ExchangedDocument><ram:ID>{p['supplier_invoice']}</ram:ID><ram:TypeCode>380</ram:TypeCode>
+    <ram:IssueDateTime><udt:DateTimeString format="102">{d}</udt:DateTimeString></ram:IssueDateTime></rsm:ExchangedDocument>
+  <rsm:SupplyChainTradeTransaction>
+    <ram:IncludedSupplyChainTradeLineItem>
+      <ram:AssociatedDocumentLineDocument><ram:LineID>1</ram:LineID></ram:AssociatedDocumentLineDocument>
+      <ram:SpecifiedTradeProduct><ram:SellerAssignedID>GC-{p['origin'][:3].upper()}</ram:SellerAssignedID><ram:Name>Green Coffee {p['origin']}</ram:Name></ram:SpecifiedTradeProduct>
+      <ram:SpecifiedLineTradeAgreement><ram:NetPriceProductTradePrice><ram:ChargeAmount>{p['price']:.2f}</ram:ChargeAmount></ram:NetPriceProductTradePrice></ram:SpecifiedLineTradeAgreement>
+      <ram:SpecifiedLineTradeDelivery><ram:BilledQuantity unitCode="KGM">{p['kg']}</ram:BilledQuantity></ram:SpecifiedLineTradeDelivery>
+      <ram:SpecifiedLineTradeSettlement><ram:SpecifiedTradeSettlementLineMonetarySummation><ram:LineTotalAmount>{net:.2f}</ram:LineTotalAmount></ram:SpecifiedTradeSettlementLineMonetarySummation></ram:SpecifiedLineTradeSettlement>
+    </ram:IncludedSupplyChainTradeLineItem>
+    <ram:ApplicableHeaderTradeAgreement>
+      <ram:SellerTradeParty><ram:Name>{sup['name']}</ram:Name><ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">DE299876543</ram:ID></ram:SpecifiedTaxRegistration></ram:SellerTradeParty>
+      <ram:BuyerTradeParty><ram:Name>Röstwerk Hafenbohne GmbH</ram:Name></ram:BuyerTradeParty>
+      <ram:BuyerOrderReferencedDocument><ram:IssuerAssignedID>{p['no']}</ram:IssuerAssignedID></ram:BuyerOrderReferencedDocument>
+    </ram:ApplicableHeaderTradeAgreement>
+    <ram:ApplicableHeaderTradeSettlement>
+      <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
+      <ram:SpecifiedTradeSettlementPaymentMeans><ram:TypeCode>58</ram:TypeCode><ram:PayeePartyCreditorFinancialAccount><ram:IBANID>{sup['iban']}</ram:IBANID></ram:PayeePartyCreditorFinancialAccount></ram:SpecifiedTradeSettlementPaymentMeans>
+      <ram:SpecifiedTradePaymentTerms><ram:DueDateDateTime><udt:DateTimeString format="102">{due}</udt:DateTimeString></ram:DueDateDateTime></ram:SpecifiedTradePaymentTerms>
+      <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
+        <ram:LineTotalAmount>{net:.2f}</ram:LineTotalAmount><ram:TaxBasisTotalAmount>{net:.2f}</ram:TaxBasisTotalAmount>
+        <ram:TaxTotalAmount currencyID="EUR">{tax:.2f}</ram:TaxTotalAmount><ram:GrandTotalAmount>{net + tax:.2f}</ram:GrandTotalAmount>
+        <ram:DuePayableAmount>{net + tax:.2f}</ram:DuePayableAmount>
+      </ram:SpecifiedTradeSettlementHeaderMonetarySummation>
+    </ram:ApplicableHeaderTradeSettlement>
+  </rsm:SupplyChainTradeTransaction>
+</rsm:CrossIndustryInvoice>
+"""
+    path.write_text(xml, encoding="utf-8")
+
+
 def write_wartung(path: Path, today: date, customers: list[Customer], rng: random.Random):
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -731,6 +821,14 @@ def generate(out: Path, today: date | None = None, growth: bool = True) -> dict:
     mails = out / "Mails"
     write_mails(mails, today, customers, invoices, purchases)
     written += sorted(mails.glob("*.eml"))
+    # e-invoices received from suppliers (XRechnung UBL and ZUGFeRD CII)
+    einv = out / "E-Rechnungen"
+    einv.mkdir(exist_ok=True)
+    recent = [p for p in purchases if p["received"]][-4:]
+    for p in recent:
+        fn = einv / f"Rechnung_{p['supplier_invoice']}.xml"
+        (write_zugferd_cii if p["supplier"].startswith("Origin") else write_xrechnung_ubl)(fn, p)
+        written.append(fn)
     result = {"initial": written, "growth": []}
     if growth:
         gdir = out.parent / (out.name + "_spaeter")

@@ -91,8 +91,11 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict) -> li
     for attr, m in mentions.items():
         for dst, srcs in m.items():
             linked_bank.update(srcs)
+    specs = {t["id"]: t for t in model["types"]}
     for ip in procs:
         p, step = ip["p"], ip["step"]
+        party_attr = next((a for a in ip["spec"]["attrs"] if a["id"] == p["party"]), {})
+        outgoing = (specs.get(party_attr.get("ref")) or {}).get("concept") == "lieferant"
         paid = paid_dates(p, step, records, mentions)
         neg = set((p.get("status") or {}).get("negative") or [])
         sattr = (p.get("status") or {}).get("attr")
@@ -114,8 +117,9 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict) -> li
                     continue
                 amount = _num(row["data"].get(b["money"]["id"]))
                 when = as_date(row["data"].get(b["date"]["id"]))
-                if not amount or amount <= 0 or not when:
+                if not amount or not when or (amount < 0) != outgoing:
                     continue
+                amount = abs(amount)
                 party = row["data"].get(b["party"]["id"]) if b["party"] else None
                 cands = by_party.get(party, []) if isinstance(party, int) else []
                 if not cands and b["name"] is not None:

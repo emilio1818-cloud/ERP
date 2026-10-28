@@ -895,7 +895,8 @@ def create_app(folder: str | Path) -> Starlette:
         if rt.model:
             for t in rt.model["types"]:
                 for m in t["members"]:
-                    became[m.get("source")].append(t)
+                    for src in m.get("sources") or [m.get("source")]:
+                        became[src].append(t)
         docs = Counter(r["source_id"] for r in store.q("SELECT source_id FROM documents"))
         rows = []
         for s in srcs:

@@ -46,9 +46,26 @@ class DemoCompany(unittest.TestCase):
     def test_types_that_grew(self):
         names = {t["name"] for t in self.model["types"]}
         for n in ["Kunde", "Artikel", "Auftrag", "Auftragsposition", "Rechnung", "Kontobewegung", "Einkauf",
-                  "Lieferant", "Mitarbeiter", "Shop-Bestellung", "Shop-Bestellposition", "Dokument"]:
+                  "Lieferant", "Mitarbeiter", "Shop-Bestellung", "Shop-Bestellposition", "Dokument",
+                  "Eingangsrechnung", "Eingangsrechnungsposition"]:
             self.assertIn(n, names)
-        self.assertEqual(len(names), 12)  # nothing spurious
+        self.assertEqual(len(names), 14)  # nothing spurious
+
+    def test_einvoices_are_anchored(self):
+        """XRechnung (UBL) and ZUGFeRD (CII, also inside a PDF) become supplier invoices with lines."""
+        er = self.t("Eingangsrechnung")
+        self.assertEqual(len(self.rt.records[er["id"]]), 4)
+        refs = {a["name"]: next(t["name"] for t in self.model["types"] if t["id"] == a["ref"])
+                for a in er["attrs"] if a["kind"] == "ref"}
+        self.assertEqual(refs.get("Lieferant"), "Lieferant")
+        self.assertEqual(refs.get("Einkauf"), "Einkauf")
+        lines = self.t("Eingangsrechnungsposition")
+        parent = next(a for a in lines["attrs"] if a["kind"] == "ref")
+        self.assertEqual(parent["ref"], er["id"])
+        sup = self.a("Eingangsrechnung", "Lieferant")["id"]
+        self.assertTrue(all(isinstance(r["data"].get(sup), int) for r in self.rt.records[er["id"]]))
+        # not mixed up with order lines
+        self.assertFalse(any("E-Rechnung" in (m["label"] or "") + (m["source"] or "") for m in self.t("Auftragsposition")["members"]))
 
     def test_customers_merged_from_all_sources(self):
         k = self.t("Kunde")

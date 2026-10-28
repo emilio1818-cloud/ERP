@@ -124,4 +124,25 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 
 ## 8. Was die unabhängigen Reviews verändert haben
 
-*(wird nach den Review-Runden ergänzt)*
+### 8.1 Vor dem Bau: drei Konzept-Memos
+
+Drei Reviewer hatten nur die ursprüngliche Idee vor sich und kannten diesen Entwurf nicht: ein ERP-Praktiker mit 20 Jahren Mittelstand, ein Forscher für adaptive Systeme, Process Mining und MDL, und eine Inhaberin einer Kaffeerösterei. Daraus wurde übernommen:
+
+| Einwand / Idee | Quelle | Was daraus wurde |
+|---|---|---|
+| **„Fester Kern, wachsende Hülle.“** Ein System, das seinen buchhaltungsrelevanten Kern selbst umbaut, ist in Deutschland nicht betreibbar. | Praktiker | Ausgestellte Rechnungen sind festgeschrieben, Korrektur nur per Storno mit Grund. Datensätze mit Verweisen sind nicht löschbar. Gelernte Regeln wirken erst nach Zustimmung („Trampelpfade“). |
+| **Salienz beschneiden, nie Semantik**; μ > 1 macht das Netz zum Baum | Forscher | Physarum steuert nur Sichtbarkeit. Der erste Lauf mit μ = 1,6 hat tatsächlich den Belegfluss Rechnung → Auftrag weggeschnitten, deshalb gilt jetzt μ = 0,85 (redundantes, robustes Netz). Navigation mit Hysterese, nichts springt. |
+| **Erhaltungssätze als Hunger:** Wo Geld nicht aufgeht, fehlt ein Prozess oder eine Verknüpfung | Forscher | Bankabgleich auf drei Wegen: über Nummern im Verwendungszweck, über den Betrag (centgenau, mit Skonto oder als Summe zweier Rechnungen) und über veraltete Status („laut Kontoauszug bezahlt, im Buch offen“). |
+| **Eingegebene Bits pro Vorgang** als Nordstern; die Maske fragt nur, was nicht vorhersagbar ist | Forscher | Formulare belegen vor: Nummer, Datum, Status, Formeln, Preis aus dem Artikel, Fälligkeit aus dem Zahlungsziel des Kunden, „Wie beim letzten Mal“. |
+| **Aha-Moment:** „Café Linde bestellt sonst alle zwei Wochen, seit sieben Wochen nichts“ | Inhaberin | Rhythmus-Analyse je Kunde und Lieferant; dazu die Reichweite der Bestände. |
+| **Jede Zahl bis zur Quelle**, Geratenes sichtbar von Sicherem getrennt; Fragen mit Begründung, „Weiß nicht“, „Später“, nie zweimal | Inhaberin, Praktiker | Herkunft je Feld (Datei, Zeile), Markierungen „berechnet“, „abweichend“ und „nicht verknüpft“; Fragen nach Wirkung sortiert. |
+| **Manipulierte Eingangsrechnung** (neue IBAN, ähnliche Domain) | Praktiker | Warnung „Bankverbindung, an die nie gezahlt wurde“ und „Absender ähnlich, aber nicht gleich“. |
+| **Verfahrensdokumentation als Nebenprodukt** des Wachstums | Praktiker, Forscher | Seite „Verfahrensdokumentation“ aus Quellen, Regeln, Entscheidungen und Protokoll. |
+| Mahnwesen, Datenstand („Inventur vom 31.12. ist nicht der aktuelle Bestand“), Lücken im Nummernkreis | Praktiker, Inhaberin | Zahlungserinnerung als Entwurf (nie, wenn eine passende Zahlung wartet), „Stand“ je Quelle, die aktuellere Quelle gewinnt, Lückenprüfung nach GoBD. |
+
+Bewusst **nicht** übernommen:
+
+- Ein firmenübergreifender Struktur-Prior („Genom aus vielen Firmen“) passt nicht zum Versprechen „bleibt bei Ihnen“.
+- E-Rechnung (XRechnung/ZUGFeRD) und DATEV-Export stehen als nächste Schritte an.
+- Die LLM-Extraktion aus Freitext bleibt ein optionaler Baustein.
+- Der Schattenbetrieb über 4–8 Wochen ist eine organisatorische Frage. Unterstützt wird er dadurch, dass sich Quellen jederzeit herausnehmen und wieder aufnehmen lassen.

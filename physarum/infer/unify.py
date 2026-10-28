@@ -161,6 +161,11 @@ def obs_similarity(a: Obs, b: Obs) -> dict:
     ca, cb = a.concept, b.concept
     same_concept = ca is not None and ca == cb
     conflict = ca is not None and cb is not None and ca != cb
+    pa = {c.prof.concept for c in a.cols if c.prof.concept in ("kunde", "lieferant")}
+    pb = {c.prof.concept for c in b.cols if c.prof.concept in ("kunde", "lieferant")}
+    if pa and pb and not (pa & pb):
+        conflict = True  # invoices *to* customers are not invoices *from* suppliers
+        same_concept = False
     decision, reason = "no", ""
     if ident >= 0.5 and cont >= 0.3:
         decision, reason = "merge", why
@@ -190,6 +195,16 @@ def unify(observations: list[Obs], decisions: dict | None = None, log: list | No
     decisions = decisions or {}
     order = sorted(observations, key=lambda o: (o.extracted_from is not None, o.kind_hint == "line", -o.n))
     clusters: list[TypeDraft] = []
+    home: dict[str, TypeDraft] = {}  # obs id -> its cluster, to find the parents of lines
+
+    def parent_cluster(o: Obs):
+        for _col, target in o.links:
+            if target in home and home[target] is not None:
+                tgt = home[target]
+                if tgt.members and tgt.members[0].kind_hint != "line" and tgt.members[0].kind_hint != "party":
+                    return id(tgt)
+        return None
+
     for o in order:
         best, best_sim, best_dec = None, None, "no"
         for t in clusters:
@@ -197,6 +212,9 @@ def unify(observations: list[Obs], decisions: dict | None = None, log: list | No
                 continue  # entities pulled out of one table are different things by construction
             if t.kind == "line" or o.kind_hint == "line":
                 if not (t.members[0].kind_hint == "line" and o.kind_hint == "line"):
+                    continue
+                # order lines and invoice lines are different things: lines merge only under the same parent type
+                if parent_cluster(t.members[0]) != parent_cluster(o):
                     continue
             for m in t.members:
                 sim = obs_similarity(m, o)
@@ -212,6 +230,7 @@ def unify(observations: list[Obs], decisions: dict | None = None, log: list | No
         if best is not None and best_dec == "merge":
             t, m = best
             _add_member(t, o)
+            home[o.oid] = t
             t.merge_log.append(dict(obs=o.label, into=m.label, reason=best_sim["reason"], score=best_sim["score"]))
             if log is not None:
                 log.append(dict(kind="merge", a=m.label, a_name=m.name_hint, b=o.label, b_name=o.name_hint,
@@ -223,6 +242,7 @@ def unify(observations: list[Obs], decisions: dict | None = None, log: list | No
         t = TypeDraft(members=[])
         _add_member(t, o)
         clusters.append(t)
+        home[o.oid] = t
     for t in clusters:
         _finish(t)
     _dedupe_names(clusters)

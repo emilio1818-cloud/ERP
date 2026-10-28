@@ -30,6 +30,11 @@ const first = await page.$eval('#list-body tr[data-href]', (tr) => tr.dataset.hr
 await page.goto(base + first); await shot('07-datensatz');
 await page.goto(base + '/fragen'); await shot('08-fragen');
 await page.goto(base + '/quellen'); await shot('09-quellen');
+const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+await mobile.goto(base + '/'); await mobile.screenshot({ path: `${out}/10-handy-heute.png`, fullPage: false }); console.log('shot 10-handy-heute');
+await mobile.goto(base + first); await mobile.screenshot({ path: `${out}/11-handy-datensatz.png`, fullPage: false }); console.log('shot 11-handy-datensatz');
+const ord = nav.find((h) => true);
+await page.goto(base + '/t/' + (await page.$eval('.nav a[href^="/t/"]', (a) => a.getAttribute('href').split('/')[2])) + '/neu'); await shot('12-formular');
 await browser.close();
 
 })().catch((e) => { console.error(e); process.exit(1); });

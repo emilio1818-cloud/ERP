@@ -337,6 +337,10 @@ def _finish(t: TypeDraft):
                 break
         if t.title:
             break
+    for a in t.attrs:
+        # an identifier hiding under a generic header ("Name" holding #1001 in shop exports)
+        if a.kind == "id" and fold(a.name) in ("name", "bezeichnung", "titel", "title", "spalte 1"):
+            a.name = "Nummer"
     seen = {}
     for a in t.attrs:
         base_name = a.name

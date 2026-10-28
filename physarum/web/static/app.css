@@ -133,7 +133,8 @@ table { border-collapse: collapse; width: 100%; }
 .work { padding: 0; overflow: hidden; }
 .work summary { list-style: none; cursor: pointer; }
 .work summary::-webkit-details-marker { display: none; }
-.work header { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; }
+.home-grid { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); align-items: start; }
+.work header { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; flex-wrap: wrap; }
 .work header .what { flex: 1; min-width: 0; }
 .work header .what b { display: block; font-weight: 620; }
 .work header .what small { display: block; color: var(--muted); font-size: .82rem; margin-top: 2px; }
@@ -239,7 +240,9 @@ table { border-collapse: collapse; width: 100%; }
   .side.open { transform: none; }
   .topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
   .main { padding: 16px 16px 50px; }
-  .g2, .g3, .g4 { grid-template-columns: 1fr; }
+  .g2, .g3, .g4, .home-grid { grid-template-columns: 1fr; }
+  .work li { flex-wrap: wrap; }
+  .work li .t { flex-basis: 100%; white-space: normal; }
   .question .compare { grid-template-columns: 1fr; }
   h1 { font-size: 1.35rem; }
 }

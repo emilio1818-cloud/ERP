@@ -34,6 +34,8 @@
   <div class="row noprint">
     {% for ch in children %}{% set cs = model.types|selectattr('id', 'equalto', ch.src)|first %}<a class="btn" href="/t/{{ ch.src }}/neu?a_{{ ch.attr }}={{ rec.id }}">+ {{ cs.name }}</a>{% endfor %}
     <a class="btn ghost" href="/r/{{ rec.id }}/druck" target="_blank">Drucken</a>
+    {% if timeline and timeline.next and timeline.next.late and timeline.next.label == 'bezahlt' and not timeline.negative and not maybe_paid %}
+      <a class="btn" href="/r/{{ rec.id }}/erinnerung" target="_blank">Zahlungserinnerung</a>{% endif %}
     {% if lock %}
       <button class="btn ghost danger" onclick="var r=prompt('Grund für das Storno (wird protokolliert):'); if(r){this.dataset.body=JSON.stringify({reason:r}); this.dataset.post='/r/{{ rec.id }}/storno';}" data-body="{}">Stornieren</button>
     {% endif %}
@@ -44,6 +46,8 @@
 {% if error %}<div class="notice bad" style="margin-bottom:12px">{{ error }}</div>{% endif %}
 {% if request.query_params.get('neu') %}<div class="notice good" style="margin-bottom:12px">Angelegt. Vorbelegte und berechnete Felder sind gelb markiert.</div>{% endif %}
 {% if lock %}<div class="notice" style="margin-bottom:12px">{{ lock.reason }} Zahlung, Status und Notizen können Sie weiter eintragen.</div>{% endif %}
+{% if maybe_paid %}<div class="notice warn row between" style="margin-bottom:12px"><span>{{ maybe_paid.text }} <a href="/r/{{ maybe_paid.bank }}">Zahlung ansehen</a></span>
+  <button class="small primary" data-post="/fragen/{{ maybe_paid.qid }}" data-body='{"value": "yes"}'>Ja, zuordnen</button></div>{% endif %}
 
 {% if timeline %}
 <section class="card" aria-label="Ablauf">

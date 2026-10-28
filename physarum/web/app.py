@@ -313,6 +313,7 @@ def create_app(folder: str | Path) -> Starlette:
     # --- records ------------------------------------------------------------------------------------------
     async def record_view(request: Request):
         rt.ensure()
+        rt.work()  # fills pending payment proposals
         rid = int(request.path_params["rid"])
         rec = store.record(rid)
         if not rec or rec["deleted"]:
@@ -409,7 +410,9 @@ def create_app(folder: str | Path) -> Starlette:
         for rc in rt.model.get("reach", []):
             if rc["type"] == spec["id"]:
                 reach = rt.by_id.get(rid, {}).get("_reach")
+        maybe_paid = rt.pending_payments.get(rid) if hasattr(rt, "pending_payments") else None
         return dict(rec=rec, spec=spec, facts=facts, timeline=timeline, related=related, mentions=mentions, notes=notes,
+                    maybe_paid=maybe_paid,
                     changes=changes, src_files=src_files, lock=lock, children=children, party=party,
                     money_attr=money_attr, status_attr=rt.attr(spec["id"], status_attr) if status_attr else None,
                     line=line_child(spec), reach=reach)
@@ -520,7 +523,60 @@ def create_app(folder: str | Path) -> Starlette:
         return templates.TemplateResponse(request, "print.html", dict(ctx, request=request, company=company_name()))
 
     def company_name() -> str:
-        return store.kv_get("company") or "Ihre Firma"
+        """The company's own name: set by the user, or read off the title rows of its lists
+        ("Röstwerk Hafenbohne GmbH – Kundenliste")."""
+        name = store.kv_get("company")
+        if name:
+            return name
+        cands = Counter()
+        for t in store.q("SELECT meta FROM raw_tables"):
+            title = (loads(t["meta"]) or {}).get("title") or ""
+            for sep in (" – ", " - ", ": "):
+                if sep in title:
+                    head = title.split(sep)[0].strip()
+                    if 3 <= len(head) <= 60 and any(w in head for w in ("GmbH", "AG", "KG", "UG", "e.K.", "GbR", "OHG")):
+                        cands[head] += 1
+        return cands.most_common(1)[0][0] if cands else "Ihre Firma"
+
+    async def record_reminder(request: Request):
+        """A payment reminder letter for an overdue invoice; creating it is logged and sets the status."""
+        rt.ensure()
+        rid = int(request.path_params["rid"])
+        rec = store.record(rid)
+        spec = rt.spec(rec["type"])
+        rec["data"] = rt.by_id.get(rid, rec)["data"]
+        ctx = record_context(rec, spec, request)
+        tl = ctx["timeline"]
+        nxt = tl["next"] if tl else None
+        party = ctx["party"]
+        cust = rt.by_id.get(rec["data"].get(party["id"])) if party else None
+        addr = []
+        if cust:
+            cspec = rt.spec(cust["type"])
+            for role in ("name", "person", "street"):
+                a = next((x for x in cspec["attrs"] if x.get("role") == role and cust["data"].get(x["id"])), None)
+                if a:
+                    addr.append(str(cust["data"][a["id"]]))
+            z = next((x for x in cspec["attrs"] if x.get("role") == "zip" and cust["data"].get(x["id"])), None)
+            o = next((x for x in cspec["attrs"] if x.get("role") == "city" and cust["data"].get(x["id"])), None)
+            line = " ".join(str(cust["data"][x["id"]]) for x in (z, o) if x)
+            if line:
+                addr.append(line)
+        if request.method == "POST":
+            proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+            st = (proc or {}).get("status")
+            raw = {}
+            if st:
+                enum = (rt.attr(spec["id"], st["attr"]) or {}).get("enum") or []
+                dun = next((v for v in enum if fold(str(v)) in ("gemahnt", "mahnung", "erinnert", "1. mahnung")), None)
+                if dun and str(rec["data"].get(st["attr"])) != dun:
+                    raw[st["attr"]] = dun
+            if raw:
+                ops.update(rt, rid, raw, actor(request), note="Zahlungserinnerung erstellt")
+            ops.add_note(rt, rid, "Zahlungserinnerung erstellt", actor(request))
+            return JSONResponse(dict(toast="Erinnerung protokolliert.", reload=True))
+        return templates.TemplateResponse(request, "reminder.html", dict(ctx, request=request, company=company_name(),
+                                                                         address=addr, step=nxt, today=views.today_text()))
 
     # --- forms -------------------------------------------------------------------------------------------
     async def new_form(request: Request):
@@ -969,6 +1025,7 @@ def create_app(folder: str | Path) -> Starlette:
         Route("/r/{rid:int}/storno", record_storno, methods=["POST"]),
         Route("/r/{rid:int}/loeschen", record_delete, methods=["POST"]),
         Route("/r/{rid:int}/druck", record_print),
+        Route("/r/{rid:int}/erinnerung", record_reminder, methods=["GET", "POST"]),
         Route("/suche", search_page), Route("/api/suche", api_search), Route("/api/datensatz/{rid:int}", api_record),
         Route("/api/wie-letztes-mal", api_like_last),
         Route("/fragen", questions_page), Route("/fragen/{qid:int}", question_answer, methods=["POST"]),

@@ -48,9 +48,15 @@
         <ul>
           {% for it in g['items'][:8] %}
           <li>
-            <span class="t"><a href="/r/{{ it.rid }}">{{ it.title }}</a>{% if it.party %} <span class="muted">· {{ it.party }}</span>{% endif %}</span>
+            <span class="t"><a href="/r/{{ it.rid }}">{{ it.title }}</a>{% if it.party %} <span class="muted">· {{ it.party }}</span>{% endif %}
+              {% if it.maybe_paid %}<br><span class="tag guess">vielleicht schon bezahlt</span> <a class="faint" style="font-size:.82rem" href="/r/{{ it.maybe_paid.bank }}">passende Zahlung</a>{% endif %}</span>
             <span class="muted" style="font-size:.86rem">{{ reason(g, it) }}</span>
             {% if it.money %}<span class="num" style="min-width:90px; text-align:right">{{ money(it.money) }}</span>{% endif %}
+            {% if it.maybe_paid %}
+              <button class="small primary" data-post="/fragen/{{ it.maybe_paid.qid }}" data-body='{"value": "yes"}' title="{{ it.maybe_paid.text }}">Zahlung zuordnen</button>
+            {% elif g.kind == 'overdue' and g.step == 'bezahlt' %}
+              <a class="btn small ghost" href="/r/{{ it.rid }}/erinnerung" target="_blank" title="Zahlungserinnerung als Entwurf öffnen">Erinnern</a>
+            {% endif %}
             {% if g.action and g.action.kind == 'set_date' %}
               <button class="small" data-post="/r/{{ it.rid }}/schritt" data-body='{"attr": "{{ g.action.attr }}"}' title="Mit heutigem Datum eintragen">✓ {{ g.action.label }}</button>
             {% elif g.action and g.action.kind == 'create_child' %}

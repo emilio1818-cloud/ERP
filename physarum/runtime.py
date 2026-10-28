@@ -27,6 +27,7 @@ class Runtime:
         self.mentions: dict = {}
         self.backrefs: dict[int, list] = {}
         self.outrefs: dict[int, list] = {}
+        self.pending_payments: dict[int, dict] = {}
         self._work = None
         self._work_key = None
         self._net_at = 0.0
@@ -98,7 +99,16 @@ class Runtime:
             return self._work
         if not self.model:
             return []
-        self._work = compute_work(self.model, self.records, self.mentions, today, self.outrefs, self.titles)
+        pending = {}
+        from .store import loads
+        for q in self.store.q("SELECT id, payload FROM questions WHERE kind='payment_match' AND status='open'"):
+            pl = loads(q["payload"]) or {}
+            recs = pl.get("records") or []
+            for inv in recs[1:]:
+                pending[inv] = dict(qid=q["id"], bank=recs[0], text=pl.get("text"))
+        self.pending_payments = pending
+        self._work = compute_work(self.model, self.records, self.mentions, today, self.outrefs, self.titles,
+                                  pending_payments=pending)
         self._work_key = key
         return self._work
 

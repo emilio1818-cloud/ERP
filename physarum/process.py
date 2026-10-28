@@ -385,7 +385,8 @@ def _reach_specs(model, records) -> list[dict]:
 # --- runtime: what needs to be done today ---------------------------------------------------------------
 
 def compute_work(model: dict, records: dict, mention_refs: dict, today: date | None = None,
-                 outrefs: dict | None = None, titles_in: dict | None = None) -> list[dict]:
+                 outrefs: dict | None = None, titles_in: dict | None = None,
+                 pending_payments: dict | None = None) -> list[dict]:
     from .grow import record_title
 
     today = today or date.today()
@@ -485,6 +486,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 x["title"] = title(x["rid"])
                 pv = r["data"].get(party) if party else None
                 x["party"] = title(pv) if isinstance(pv, int) and pv in by_id else None
+                if pending_payments and x["rid"] in pending_payments:
+                    x["maybe_paid"] = pending_payments[x["rid"]]  # a transfer without reference fits: do not dun
             if kind == "overdue":
                 head = f"{spec['plural']} {st['phrase']} – überfällig"
                 sev = 3

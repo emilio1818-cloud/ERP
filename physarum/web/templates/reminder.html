@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>Zahlungserinnerung {{ title(rec.id) }}</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>body{background:#fff;color:#111;padding:48px 56px;max-width:800px;margin:auto;font-size:15px}
+.addr{margin:40px 0 36px;line-height:1.5} .meta{text-align:right;color:#444} h1{font-size:1.25rem;margin-top:28px}
+table{margin:18px 0} td{padding:4px 18px 4px 0}</style>
+</head><body>
+<div class="noprint" style="background:var(--accent-soft);padding:10px 14px;border-radius:10px;margin-bottom:24px">
+  Entwurf – bitte prüfen. <button class="small primary" data-post="/r/{{ rec.id }}/erinnerung">Als versendet protokollieren</button>
+  <button class="small" onclick="window.print()">Drucken</button></div>
+<div style="color:#555;font-size:.85rem">{{ company }}</div>
+<div class="addr">{% for l in address %}{{ l }}<br>{% endfor %}</div>
+<div class="meta">{{ today }}</div>
+<h1>Zahlungserinnerung zu {{ spec.name }} {{ title(rec.id) }}</h1>
+<p>Sehr geehrte Damen und Herren,</p>
+<p>bei der Durchsicht unserer Buchhaltung ist uns aufgefallen, dass folgender Betrag noch offen ist:</p>
+<table>
+  {% for f in facts if f.value is not none and (f.attr.kind in ('money','date','id') or f.attr.role == 'due') %}
+  <tr><td>{{ f.attr.name }}</td><td><b>{{ fmt(f.attr, f.value, link=False) }}</b></td></tr>
+  {% endfor %}
+</table>
+{% if step and step.due %}<p>Die Zahlung war fällig am {{ display(step.due.isoformat(), 'date') }}.</p>{% endif %}
+<p>Sicher handelt es sich um ein Versehen. Bitte überweisen Sie den Betrag in den nächsten Tagen unter Angabe der Rechnungsnummer.
+Sollten Sie die Zahlung bereits veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
+<p>Mit freundlichen Grüßen<br><br>{{ company }}</p>
+<script src="/static/app.js"></script>
+</body></html>

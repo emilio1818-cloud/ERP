@@ -119,10 +119,78 @@ class Runtime:
             for inv in recs[1:]:
                 pending[inv] = dict(qid=q["id"], bank=recs[0], text=pl.get("text"))
         self.pending_payments = pending
-        self._work = compute_work(self.model, self.records, self.mentions, today, self.outrefs, self.titles,
-                                  pending_payments=pending, ledger=self.ledger)
+        work = compute_work(self.model, self.records, self.mentions, today, self.outrefs, self.titles,
+                            pending_payments=pending, ledger=self.ledger)
+        work += self.integrity()
+        work.sort(key=lambda g: (-g["severity"], -(g["amount"] or 0), -g["count"]))
+        self._work = work
         self._work_key = key
         return self._work
+
+    def integrity(self) -> list[dict]:
+        """Issued documents and what the files say about them: deviations that were not taken over,
+        a number given twice, a document that no longer appears in any file."""
+        from .behavior import _foreign_numbers
+        from .ops import LOCKED_CONCEPTS
+        from .text import norm_key
+
+        items = []
+        gone = {r["record_id"] for r in self.store.q(
+            "SELECT c.record_id FROM changes c WHERE c.kind='gone' AND c.id = (SELECT MAX(id) FROM changes "
+            "WHERE record_id=c.record_id AND kind IN ('gone','import'))")}
+        for spec in self.model["types"]:
+            if spec.get("concept") not in LOCKED_CONCEPTS:
+                continue
+            key = spec.get("key")
+            # a supplier's numbers are unique per supplier only
+            party = next((a["id"] for a in spec["attrs"] if a["kind"] == "ref"
+                          and (self.spec(a.get("ref")) or {}).get("kind") == "master"), None) \
+                if _foreign_numbers(spec, self.model) else None
+            by_number = defaultdict(list)
+            missing = {}
+            for m in spec.get("members", []):
+                v = m.get("versions") or {}
+                for k in v.get("vanished") or []:
+                    missing[norm_key(k)] = v.get("vanished_from")
+            for r in self.records.get(spec["id"], []):
+                meta = r.get("meta") or {}
+                if meta.get("draft"):
+                    continue
+                for aid, (v, src) in (meta.get("conflicts") or {}).items():
+                    a = next((x for x in spec["attrs"] if x["id"] == aid), None)
+                    if a:
+                        items.append(dict(rid=r["id"], title=self.title(r["id"]), days=0, money=None, party=None,
+                                          reason=f"„{src}“ nennt für {a['name']} einen anderen Wert – nicht übernommen, "
+                                                 f"die Rechnung ist festgeschrieben", sev=3))
+                if key and r["data"].get(key) is not None:
+                    by_number[(r["data"].get(party) if party else None, norm_key(r["data"][key]))].append(r)
+                if r["id"] in gone:
+                    items.append(dict(rid=r["id"], title=self.title(r["id"]), days=0, money=None, party=None,
+                                      reason="steht in keiner eingelesenen Datei mehr – im anderen Programm gelöscht?", sev=2))
+                elif key and missing and r.get("origin") == "import" and norm_key(r["data"].get(key)) in missing:
+                    items.append(dict(rid=r["id"], title=self.title(r["id"]), days=0, money=None, party=None,
+                                      reason=f"fehlt in der neuesten Fassung von „{missing[norm_key(r['data'].get(key))]}“ – "
+                                             f"im anderen Programm gelöscht? Ausgestellte Rechnungen bleiben hier erhalten", sev=2))
+            for num, rs in by_number.items():
+                if len(rs) > 1 and not any((r.get("meta") or {}).get("storno_of") for r in rs):
+                    for r in rs:
+                        here = r.get("origin") == "user"
+                        items.append(dict(rid=r["id"], title=self.title(r["id"]), days=0, money=None, party=None,
+                                          reason=f"Nummer {r['data'][key]} gibt es {len(rs)}-mal"
+                                                 + (" – diese wurde hier ausgestellt" if here else " – aus einer Datei"),
+                                          sev=3))
+        if not items:
+            return []
+        seen, uniq = set(), []
+        for x in items:
+            if (x["rid"], x["reason"]) not in seen:
+                seen.add((x["rid"], x["reason"]))
+                uniq.append(x)
+        return [dict(id="integrity", type=self.by_id[uniq[0]["rid"]]["type"], kind="integrity",
+                     severity=max(x["sev"] for x in uniq), title="Prüfen: Ihre Dateien widersprechen ausgestellten Belegen",
+                     count=len({x["rid"] for x in uniq}), amount=None, items=uniq[:50], action=None,
+                     explain="Festgeschriebene Rechnungen ändert Physarum beim Einlesen nicht. Was abweicht, steht hier – "
+                             "klären Sie es im anderen Programm oder mit einer Stornorechnung.")]
 
     def refresh_network(self, force: bool = False):
         """Usage changes the organism: recompute Physarum conductivities every few minutes."""

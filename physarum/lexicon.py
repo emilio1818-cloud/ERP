@@ -442,3 +442,27 @@ def dative_plural(plural: str) -> str:
     """„zwischen den Aufträgen“, „mit den Artikeln“ – German plural nouns take -n in the dative."""
     p = plural.strip()
     return p if not p or p.endswith(("n", "s")) or not p[-1].isalpha() else p + "n"
+
+
+_UNNAMED = re.compile(r"^(?:spalte|column|col|feld|field|unnamed)[\s_:]*\d+$", re.I)
+
+
+def is_unnamed(header: str | None) -> bool:
+    """'Spalte 2' was made up by the reader for a column without a heading: nobody can say what it means."""
+    return bool(header) and bool(_UNNAMED.match(str(header).strip()))
+
+
+# a status that says a step happened, in the firm's words
+STEP_STATES = {
+    "berechnet": {"abgerechnet", "berechnet", "fakturiert", "in rechnung gestellt", "rechnung gestellt", "invoiced", "billed"},
+    "geliefert": {"geliefert", "versendet", "versandt", "zugestellt", "ausgeliefert", "delivered", "shipped", "fulfilled"},
+    "versendet": {"versendet", "versandt", "verschickt", "shipped", "fulfilled"},
+    "erledigt": {"erledigt", "fertig", "abgeschlossen", "done", "completed", "finished"},
+    "eingegangen": {"eingegangen", "geliefert", "erhalten", "received"},
+}
+
+
+def status_reaches(step_label: str, value) -> bool:
+    """Does the status value say that this step has happened? ('abgerechnet' -> berechnet)"""
+    v = " ".join(fold(str(value or "")).split())
+    return bool(v) and v in {" ".join(fold(x).split()) for x in STEP_STATES.get(fold(step_label), ())}

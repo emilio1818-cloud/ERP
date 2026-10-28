@@ -9,10 +9,10 @@ from __future__ import annotations
 import re
 import statistics
 from collections import Counter, defaultdict
-from datetime import date
+from datetime import date, timedelta
 
 from .text import fold, tokens
-from .values import parse_duration, as_date
+from .values import add_months, as_date, interval_months, parse_duration, parse_period
 
 NUMERIC = ("number", "money", "percent", "duration")
 NICE = [0.07, 0.19, 0.16, 0.05, 1.07, 1.19, 1.16, 0.5, 2, 3, 4, 5, 6, 10, 12, 20, 24, 25, 30, 50, 60, 100, 1000, 0.01, 0.1]
@@ -271,6 +271,50 @@ def find_date_offsets(spec: dict, recs: list[dict], model: dict, records: dict) 
     return out
 
 
+def _period_style(v) -> str:
+    s = fold(str(v or "")).strip()
+    return "kw" if s.startswith(("kw", "woche", "kalenderwoche")) else "q" if s[:1] == "q" or "quartal" in s else \
+        "alpha" if s[:1].isalpha() else "num"
+
+
+def find_period_next(spec: dict, recs: list[dict]) -> list[dict]:
+    """'Nächste Wartung' = 'Letzte Wartung' + 'Intervall' (jährlich, halbjährlich …) – learned when the
+    firm's own list says so; it then moves on by itself when a maintenance is entered."""
+    out = []
+    pers = [a for a in spec["attrs"] if a.get("period") and a.get("role") == "due"]
+    dates = [a for a in spec["attrs"] if a["kind"] in ("date", "datetime") and a.get("role") != "due"]
+    ivs = [a for a in spec["attrs"] if a["kind"] == "text" and a.get("enum") and not a.get("period")]
+    for p in pers:
+        best = None
+        for d in dates:
+            for iv in ivs + [None]:
+                if iv is None and best and best["args"][1:] and best["share"] >= 0.8:
+                    break  # the list's own interval column says what is meant, even if the data deviates
+                ok = n = 0
+                for r in recs:
+                    last, per = as_date(r["data"].get(d["id"])), parse_period(r["data"].get(p["id"]))
+                    k = interval_months(r["data"].get(iv["id"])) if iv else 12
+                    if not (last and per and k):
+                        continue
+                    n += 1
+                    nxt = add_months(last, k)
+                    if per[0] - timedelta(days=31) <= nxt <= per[1] + timedelta(days=31):
+                        ok += 1
+                if n >= 5 and ok >= 0.8 * n and (best is None or ok / n > best["share"]):
+                    style = Counter(_period_style(r["data"].get(p["id"])) for r in recs
+                                    if parse_period(r["data"].get(p["id"]))).most_common(1)[0][0]
+                    like = next(str(r["data"][p["id"]]) for r in recs if parse_period(r["data"].get(p["id"]))
+                                and _period_style(r["data"][p["id"]]) == style)
+                    best = dict(attr=p["id"], op="period_next", args=[d["id"]] + ([iv["id"]] if iv else []),
+                                months=None if iv else 12, like=like, share=round(ok / n, 3), n=n, on_change=True,
+                                text=f"{p['name']} = {d['name']} + " + (iv["name"] if iv else "1 Jahr"))
+            if best and best["share"] >= 0.95:
+                break
+        if best:
+            out.append(best)
+    return out
+
+
 _NUMBERING = re.compile(r"^(?P<pre>\D*?)(?P<year>(?:19|20)\d\d|\d\d(?=[-/_.]\d))?(?P<sep>[-/_.]?)(?P<num>\d+)$")
 
 
@@ -479,6 +523,7 @@ def infer_behavior(model: dict, records: dict, today: date | None = None):
         t["formulas"] = find_formulas(t, recs)
         t["formulas"] += [a for a in model["aggregates"] if a["type"] == t["id"]]
         t["formulas"] += find_date_offsets(t, recs, model, records)
+        t["formulas"] += find_period_next(t, recs)
         t["numbering"] = find_numbering(t, recs, today)
         if t["numbering"] and _foreign_numbers(t, model):
             t["numbering"]["issues"] = []  # the supplier's numbers: gaps there are not ours to close

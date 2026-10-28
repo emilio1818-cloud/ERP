@@ -18,6 +18,15 @@ from physarum.runtime import Runtime
 from physarum.store import Store
 
 HERE = Path(__file__).parent / "fixtures" / "brenner"
+# from the generator's ground truth: done, but never invoiced
+UNBILLED = {
+    "A-25-010", "A-25-038", "A-25-106", "A-25-121", "A-25-136", "A-25-141", "A-25-186", "A-25-190",
+    "A-25-201", "A-25-223", "A-26-031", "A-26-065", "A-26-069", "A-26-094", "A-26-125", "A-26-135",
+    "A-26-136", "A-26-157", "A-26-160", "A-26-173", "A-26-179", "A-26-195", "A-26-196", "A-26-197",
+    "A-26-202", "A-26-204", "A-26-208", "A-26-214", "A-26-218", "A-26-226", "A-26-231", "A-26-232",
+    "A-26-234", "A-26-237", "A-26-241", "A-26-242", "A-26-243", "A-26-248", "A-26-250", "A-26-253",
+    "A-26-254"
+}
 
 
 def files(folder: Path):
@@ -85,9 +94,40 @@ class SecondFirm(unittest.TestCase):
             if any(isinstance(r["data"].get(a["id"]), int) for a in order["attrs"] if a.get("ref") == cust["id"]):
                 ok += 1
         self.assertGreaterEqual(ok, 490)
+        # "Kd-Nr" and "Kunde" name the same customer: one reference shown, called "Kunde"
+        shown = [a for a in order["attrs"] if a.get("ref") == cust["id"] and not a.get("hidden")]
+        self.assertEqual([a["name"] for a in shown], ["Kunde"])
         phones = [r["data"].get(a["id"]) for a in cust["attrs"] if a["kind"] == "phone" for r in self.rt.records[cust["id"]]]
         phones = [p for p in phones if p]
         self.assertTrue(all(str(p).startswith(("0", "+")) for p in phones))  # no eaten leading zeros
+
+    def test_done_but_not_invoiced_matches_the_truth(self):
+        # some invoices name their order nowhere, the order book says "abgerechnet"; time sheets exist for one quarter only
+        order = self.t("Auftrag")
+        nr = order["key"]
+        late = next(g for g in self.rt.work() if g["type"] == order["id"] and g.get("step") == "berechnet")
+        found = {self.rt.by_id[x["rid"]]["data"].get(nr) for x in late["items"]} if late["count"] <= 50 else set()
+        self.assertEqual(late["count"], len(UNBILLED))
+        self.assertEqual(found, UNBILLED)
+
+    def test_maintenance_is_due_and_moves_on(self):
+        from datetime import date
+        from physarum import ops
+        from physarum.values import add_months, interval_months, parse_period
+        wv = self.t("Wartungsvertrag")
+        self.assertEqual(wv["plural"], "Wartungsverträge")             # not "Wartungsvertraege" from the file name
+        nxt = next(a for a in wv["attrs"] if a["name"] == "Nächste Wartung")
+        iv = next(a for a in wv["attrs"] if a["name"] == "Intervall")
+        self.assertTrue(nxt.get("period") and nxt.get("role") == "due")  # "Okt. 2026", "KW 44/2026" are dates
+        g = next(g for g in self.rt.work() if g["type"] == wv["id"] and g["kind"] == "due")
+        self.assertGreaterEqual(g["count"], 10)
+        rid = next(x["rid"] for x in g["items"] if self.rt.by_id[x["rid"]]["data"].get(iv["id"]) == "halbjährlich")
+        ops.set_step(self.rt, rid, g["action"]["attr"], None, "Test")    # "✓ gewartet"
+        self.rt.ensure()
+        start, end = parse_period(self.rt.by_id[rid]["data"][nxt["id"]])
+        self.assertTrue(start <= add_months(date.today(), interval_months("halbjährlich")) <= end)
+        again = next((g for g in self.rt.work() if g["type"] == wv["id"] and g["kind"] == "due"), {"items": []})
+        self.assertNotIn(rid, {x["rid"] for x in again["items"]})
 
     def test_second_delivery_updates_in_place(self):
         tmp = Path(tempfile.mkdtemp(prefix="physarum-brenner2-"))

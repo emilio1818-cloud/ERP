@@ -16,7 +16,7 @@ from datetime import date, datetime
 from . import lexicon
 from .store import dumps, loads, now_iso
 from .text import fold, norm_key, norm_name, tokens
-from .values import _EMAIL, as_date, iban_ok, parse_date, parse_duration, parse_number
+from .values import _EMAIL, add_months, as_date, iban_ok, interval_months, parse_date, parse_duration, parse_number, period_text
 
 LOCKED_CONCEPTS = {"rechnung"}
 
@@ -114,6 +114,10 @@ def eval_formula(rt, f: dict, data: dict):
         if op in ("date_add", "date_default"):
             d = as_date(data.get(f["args"][0]))
             return None if d is None else (d.fromordinal(d.toordinal() + int(f["days"]))).isoformat()
+        if op == "period_next":
+            last = as_date(data.get(f["args"][0]))
+            k = interval_months(data.get(f["args"][1])) if len(f["args"]) > 1 else f.get("months")
+            return None if not last or not k else period_text(add_months(last, k), f.get("like"))
         if op == "date_add_ref":
             d = as_date(data.get(f["args"][0]))
             target = rt.by_id.get(data.get(f["ref"]))
@@ -135,6 +139,8 @@ def apply_formulas(rt, spec: dict, data: dict, given: set) -> list[str]:
         for f in spec.get("formulas") or []:
             if f["op"] == "sum_children" or f["attr"] in given:
                 continue
+            if f.get("on_change") and data.get(f["attr"]) is not None and not set(f["args"]) & given:
+                continue  # "next maintenance" moves only when the maintenance is entered
             v = eval_formula(rt, f, data)
             if v is not None and data.get(f["attr"]) != v:
                 data[f["attr"]] = v
@@ -448,6 +454,8 @@ def revert(rt, rid: int, attrs: list[str], actor: str) -> list[str]:
         if row is not None:
             old = loads(row["old"]) if row["old"] else None
             rec = rt.store.record(rid)
+            if not rec or not rt.spec(rec["type"]):
+                raise OpError("Datensatz nicht gefunden")
             a = next((x for x in rt.spec(rec["type"])["attrs"] if x["id"] == aid), None)
             raw[aid] = "" if old is None else (_to_input(a, old) if a else old)
     if not raw:
@@ -481,6 +489,8 @@ def storno(rt, rid: int, reason: str, actor: str) -> int | None:
 
     rt.ensure()
     rec = rt.store.record(rid)
+    if not rec or rec["deleted"]:
+        raise OpError("Datensatz nicht gefunden")
     spec = rt.spec(rec["type"])
     if not reason or not reason.strip():
         raise OpError("Bitte einen Grund für das Storno angeben")
@@ -520,6 +530,8 @@ def delete(rt, rid: int, actor: str, reason: str | None = None):
     back with the next growth, and it can be shown again."""
     rt.ensure()
     rec = rt.store.record(rid)
+    if not rec or rec["deleted"]:
+        raise OpError("Datensatz nicht gefunden")
     spec = rt.spec(rec["type"])
     if lock_state(rt, spec, rec):
         raise OpError("Ausgestellte Rechnungen können nicht gelöscht werden – bitte stornieren.")
@@ -611,7 +623,10 @@ def _child_date(rt, step, rid) -> str | None:
     for s in [step] + step.get("also", []):
         if s["source"] != "child":
             continue
-        if s["rel_kind"] == "mention":
+        if s["rel_kind"] == "own_ref":
+            own = rt.by_id.get(rid, {}).get("data", {}).get(s["rel_attr"])
+            srcs = [own] if isinstance(own, int) else []
+        elif s["rel_kind"] == "mention":
             srcs = rt.mentions.get(s["rel_attr"], {}).get(rid, [])
         else:
             srcs = [c["id"] for c in rt.records.get(s["type"], []) if c["data"].get(s["rel_attr"]) == rid]

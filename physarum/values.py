@@ -708,6 +708,125 @@ def as_date(x) -> date | None:
         return None
 
 
+_PERIOD_NUM = re.compile(r"^(\d{1,2})\s*/\s*(\d{4})$")
+_PERIOD_TXT = re.compile(r"^([a-zäöü]+)\.?\s+(\d{4})$", re.I)
+_PERIOD_KW = re.compile(r"^(?:kw|kalenderwoche|woche|wk|cw|week)\s*\.?\s*(\d{1,2})\s*(?:[/.-]\s*|\s+)(\d{4})$", re.I)
+_PERIOD_Q = re.compile(r"^(?:q\s*([1-4])|([1-4])\s*\.\s*quartal)\s*(?:[/.-]\s*|\s+)?(\d{4})$", re.I)
+
+
+def _month_span(y: int, mo: int) -> tuple[date, date]:
+    a = date(y, mo, 1)
+    return a, (a + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+
+
+def parse_period(v) -> tuple[date, date] | None:
+    """'10/2026', 'Okt. 2026', 'KW 44/2026', 'Q4/2026' -> (first day, last day). Planned dates in
+    craft businesses are rarely days: "next maintenance in October"."""
+    if v is None or isinstance(v, (int, float)):
+        return None
+    s = " ".join(str(v).strip().split())
+    if not s or len(s) > 24:
+        return None
+    try:
+        m = _PERIOD_KW.match(s)
+        if m:
+            a = date.fromisocalendar(int(m.group(2)), int(m.group(1)), 1)
+            return a, a + timedelta(days=6)
+        m = _PERIOD_Q.match(s)
+        if m:
+            q, y = int(m.group(1) or m.group(2)), int(m.group(3))
+            return _month_span(y, 3 * q - 2)[0], _month_span(y, 3 * q)[1]
+        m = _PERIOD_NUM.match(s)
+        if m:
+            mo, y = int(m.group(1)), int(m.group(2))
+            return _month_span(y, mo) if 1 <= mo <= 12 and 1900 < y < 2200 else None
+        m = _PERIOD_TXT.match(s)
+        if m:
+            f = fold(m.group(1))
+            mo = _MONTHS.get(f) or _MONTHS.get(f[:3])
+            y = int(m.group(2))
+            return _month_span(y, mo) if mo and 1900 < y < 2200 else None
+    except ValueError:
+        return None
+    return None
+
+
+_KW_NOYEAR = re.compile(r"^(?:kw|kalenderwoche|woche|wk|cw)\s*\.?\s*(\d{1,2})$", re.I)
+
+
+def event_date(v, near: date | None = None) -> date | None:
+    """When something happened: a day, or the first day of a period. "KW 44" without a year
+    takes the year that puts it right after `near` (the start of the case)."""
+    d = as_date(v)
+    if d:
+        return d
+    if v is None or isinstance(v, (int, float)):
+        return None
+    p = parse_period(v)
+    if p:
+        return p[0]
+    m = _KW_NOYEAR.match(" ".join(str(v).strip().split()))
+    if m and near:
+        for y in (near.year, near.year + 1):
+            try:
+                c = date.fromisocalendar(y, int(m.group(1)), 1)
+            except ValueError:
+                continue
+            if c >= near - timedelta(days=7):
+                return c
+    return None
+
+
+def due_range(v) -> tuple[date, date] | None:
+    """A due value: a day, or a period from its first to its last day."""
+    d = as_date(v)
+    if d:
+        return d, d
+    return parse_period(v)
+
+
+def period_text(d: date, like: str | None = None) -> str:
+    """The period of a day, written the way the firm writes it."""
+    s = fold(like or "")
+    if s.startswith(("kw", "woche", "kalenderwoche", "wk", "cw", "week")):
+        y, w, _ = d.isocalendar()
+        return f"KW {w}/{y}"
+    if s[:1] == "q" or "quartal" in s:
+        return f"Q{(d.month - 1) // 3 + 1}/{d.year}"
+    if s[:1].isalpha():
+        names = ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sep.", "Okt.", "Nov.", "Dez."]
+        return f"{names[d.month - 1]} {d.year}"
+    return f"{d.month:02d}/{d.year}"
+
+
+INTERVAL_MONTHS = {"monatlich": 1, "zweimonatlich": 2, "vierteljaehrlich": 3, "quartalsweise": 3, "quartal": 3,
+                   "halbjaehrlich": 6, "jaehrlich": 12, "zweijaehrlich": 24, "alle 2 jahre": 24, "monthly": 1,
+                   "quarterly": 3, "half-yearly": 6, "semiannual": 6, "yearly": 12, "annual": 12, "annually": 12,
+                   "biennial": 24}
+
+
+def interval_months(v) -> int | None:
+    """'jährlich' -> 12, 'halbjährlich' -> 6, 'alle 3 Monate' -> 3."""
+    if v is None:
+        return None
+    s = " ".join(fold(str(v)).replace("-", " ").split())
+    if s in INTERVAL_MONTHS:
+        return INTERVAL_MONTHS[s]
+    m = re.match(r"^(?:alle|every)\s+(\d{1,2})\s+(monate?|months?|jahre?|years?)$", s)
+    if m:
+        n = int(m.group(1))
+        return n if m.group(2).startswith(("monat", "month")) else 12 * n
+    return None
+
+
+def add_months(d: date, n: int) -> date:
+    y, mo = divmod(d.month - 1 + n, 12)
+    y += d.year
+    mo += 1
+    last = _month_span(y, mo)[1].day
+    return date(y, mo, min(d.day, last))
+
+
 def days_between(a, b) -> int | None:
     da, db = as_date(a), as_date(b)
     if da is None or db is None:

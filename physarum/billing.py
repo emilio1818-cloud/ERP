@@ -290,8 +290,8 @@ def issue(rt, rid: int, actor: str, today: date | None = None) -> str:
     rt.ensure()
     today = today or date.today()
     rec = rt.store.record(rid)
-    spec = rt.spec(rec["type"])
-    if not is_invoice(spec) or not is_draft(rec):
+    spec = rt.spec(rec["type"]) if rec else None
+    if not rec or rec.get("deleted") or not spec or not is_invoice(spec) or not is_draft(rec):
         raise BillingError("Nur ein Entwurf kann ausgestellt werden.")
     miss = missing_for_issue(rt, spec, rec)
     if miss:
@@ -378,6 +378,8 @@ def cancel(rt, rid: int, reason: str, actor: str, today: date | None = None) -> 
     if not reason:
         raise BillingError("Bitte einen Grund für das Storno angeben")
     rec = rt.store.record(rid)
+    if not rec or rec.get("deleted"):
+        raise BillingError("Datensatz nicht gefunden")
     spec = rt.spec(rec["type"])
     meta = dict(rec["meta"] or {})
     if meta.get("storno_by") or meta.get("storno_of"):

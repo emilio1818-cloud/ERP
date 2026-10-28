@@ -126,5 +126,65 @@ class InvoiceFromOrder(unittest.TestCase):
         self.assertTrue(waiting and all(x.get("draft") == rid for x in waiting))  # open the draft, not a second one
         self.assertTrue(self.rt.title(rid).startswith("Entwurf"))
 
+class NewBookAfterIssuing(unittest.TestCase):
+    """The accountant exports the invoice book again – with a changed amount, a missing row and a
+    number that was meanwhile issued here. Issued invoices stay as issued, and Heute says what differs."""
+
+    def test_issued_invoices_are_not_changed_and_differences_are_shown(self):
+        import time
+        tmp = Path(tempfile.mkdtemp(prefix="physarum-book-"))
+        try:
+            res = generate(tmp / "dump")
+            store = Store(tmp / "firma")
+            ingest(store, [(p.name, p.read_bytes()) for p in res["initial"]], "Test")
+            regrow(store)
+            rt = Runtime(store)
+            rt.ensure()
+            inv = next(t for t in rt.model["types"] if t["name"] == "Rechnung")
+            net = next(a for a in inv["attrs"] if a["name"] == "Netto")
+            order = next(t for t in rt.model["types"] if t["name"] == "Auftrag")
+            oref = next(a for a in inv["attrs"] if a["name"] == "Auftrag")
+            mine = ops.create(rt, inv["id"], {oref["id"]: str(rt.records[order["id"]][0]["id"])}, "Test")
+            number = billing.issue(rt, mine, "Test")
+            rt.ensure()
+            my_net = rt.by_id[mine]["data"][net["id"]]
+            src = next(p for p in res["initial"] if p.name == "Rechnungsausgangsbuch.csv")
+            lines = src.read_bytes().decode("cp1252").splitlines()
+            head, body = lines[0], [x for x in lines[1:] if not x.startswith("Summe")]
+            cols = head.split(";")
+            i_net = cols.index("Netto")
+            row = body[100].split(";")
+            changed_no, old = row[0], row[i_net]
+            row[i_net] = "999,99"
+            body[100] = ";".join(row)
+            gone_no = body[50].split(";")[0]
+            del body[50]
+            twin = body[-1].split(";")
+            twin[0], twin[i_net] = number, "55,00"
+            body.append(";".join(twin))
+            time.sleep(1)
+            ingest(store, [("Rechnungsausgangsbuch.csv", ("\n".join([head] + body) + "\n").encode("cp1252"))], "Test")
+            regrow(store)
+            rt = Runtime(store)
+            rt.ensure()
+            by_no = {}
+            for r in rt.records[inv["id"]]:
+                by_no.setdefault(r["data"].get(inv["key"]), []).append(r)
+            ch = by_no[changed_no][0]
+            self.assertAlmostEqual(ch["data"][net["id"]], float(old.replace(".", "").replace(",", ".")), places=2)
+            self.assertIn(net["id"], ch["meta"].get("conflicts") or {})          # recorded, not applied
+            self.assertIn(gone_no, by_no)                                        # an issued invoice is never removed
+            self.assertEqual(rt.by_id[mine]["data"][net["id"]], my_net)          # the one issued here is untouched
+            self.assertEqual(len(by_no[number]), 2)                              # the file's twin stays separate ...
+            group = next(g for g in rt.work() if g["kind"] == "integrity")       # ... and all of it is on Heute
+            reasons = {(x["rid"], x["reason"].split(" ")[0]) for x in group["items"]}
+            self.assertIn(ch["id"], {rid for rid, _ in reasons})
+            self.assertIn(by_no[gone_no][0]["id"], {rid for rid, _ in reasons})
+            self.assertIn(mine, {rid for rid, _ in reasons})
+            self.assertNotEqual(billing.next_free_number(rt, inv), number)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()

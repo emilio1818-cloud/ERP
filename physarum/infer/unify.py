@@ -325,9 +325,11 @@ def _finish(t: TypeDraft):
         stem = clean_stem(lead.label)
         sg = singular_de(stem[:1].upper() + stem[1:])
         t.name, t.plural = sg, stem[:1].upper() + stem[1:] if fold(stem) != fold(sg) else ""
+    from ..text import plural_de
     if not t.plural:
-        from ..text import plural_de
         t.plural = plural_de(t.name)
+    elif t.plural != plural_de(t.name) and fold(plural_de(t.name)) == fold(t.plural):
+        t.plural = plural_de(t.name)  # file names spell "Wartungsvertraege": the list says "Wartungsverträge"
     # kind
     has_date = any(a.kind in ("date", "datetime") for a in t.attrs)
     tc = lead.title_col()

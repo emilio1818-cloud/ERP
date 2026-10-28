@@ -242,6 +242,23 @@ class WebPages(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
+    def test_odd_input_never_breaks_a_page(self):
+        m = Store(self.tmp / "firma").model()
+        tids = [t["id"] for t in m["types"]][:6]
+        urls = ["/suche?q=%00%27%22<script>", "/suche?q=" + "x" * 5000, "/r/999999", "/t/unknown", "/t/unknown/neu",
+                "/abgleich/unknown", "/api/ableiten?typ=x&attr=y&id=z", "/api/datensatz/abc", "/export/unknown.csv"]
+        for t in tids:
+            urls += [f"/t/{t}?seite=abc&sort=xyz&von=2026-13-45&bis=foo&feld=nope&f_unknown=1",
+                     f"/t/{t}?von=9999-12-31&bis=0001-01-01", f"/t/{t}?q=" + "%" * 300,
+                     f"/export/{t}.csv?von=bad&bis=bad", f"/t/{t}/neu?a_xyz=1", f"/t/{t}?teil=1&seite=99999"]
+        for u in urls:
+            self.assertLess(self.c.get(u).status_code, 500, u)
+        h = {"origin": "http://testserver", "x-requested-with": "fetch"}
+        for u, body in [("/r/999999/schritt", {"attr": "x"}), ("/r/999999/ausstellen", {}), ("/r/999999/storno", {"reason": "x"}),
+                        ("/r/999999/loeschen", {"reason": "x"}), ("/r/999999/rueckgaengig", {"attrs": "a1"}),
+                        ("/r/999999/uebernehmen", {}), ("/fragen/999999", {"value": "yes"}), ("/t/unknown/neu", {"a_x": "1"})]:
+            self.assertLess(self.c.post(u, data=body, headers=h).status_code, 500, u)
+
     def test_all_pages_render(self):
         m = self.app.state.store.model()
         for path in ["/", "/organismus", "/ablaeufe", "/quellen", "/fragen", "/suche?q=hafen", "/verfahrensdoku"]:

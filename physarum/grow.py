@@ -19,7 +19,7 @@ from .infer.versions import merge_versions
 from .ingest import read_file
 from .store import Store, dumps, loads, now_iso, parse_pair
 from .text import fold, norm_key, norm_name, slug, tokens
-from .values import profile_table
+from .values import parse_period, profile_table
 
 DOC_TYPE = "doc"
 DOC_ATTRS = [
@@ -352,6 +352,10 @@ def _attr_spec(t: TypeDraft, a: AttrDraft, groups: list[Group]) -> dict:
                 currency=getattr(prof, "currency", None), milestone=prof.milestone if a.kind in ("date", "datetime") else None)
     if constant:
         spec["value"] = _jsonable(present[0])
+    if a.kind == "text" and len(present) >= 3 and sum(1 for v in present if parse_period(v)) >= 0.8 * len(present):
+        spec["period"] = True  # "10/2026", "KW 44/2026": planned for a month or a week
+        if lexicon.header_role(a.name) == "due":
+            spec["role"] = "due"
     return spec
 
 
@@ -408,6 +412,31 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
             spec.get("concept") == r.dst.concept or fold(spec["name"]) in (fold(r.dst.name), fold(r.dst.plural))
         if len(same_target) == 1 and (generic or r.via in ("k", "e")) and r.attr.aid not in rename_attr:
             spec["name"] = r.dst.name if not r.extra else "Partner"
+    # "Kd-Nr" and "Kunde" side by side point at the same customer: one reference is enough
+    pairs = defaultdict(list)
+    for r in rels:
+        if r.kind == "ref":
+            pairs[(id(r.src), id(r.dst))].append(r)
+    for rs in pairs.values():
+        if len(rs) != 2:
+            continue
+        num = next((x for x in rs if x.via in ("k", "e")), None)
+        name = next((x for x in rs if x.via == "n"), None)
+        if not num or not name:
+            continue
+        both = [gi for gi in name.targets if gi in num.targets]
+        same = sum(1 for gi in both if num.targets[gi] == name.targets[gi])
+        if len(both) < 5 or same < 0.95 * len(both):
+            continue  # they disagree: two different parties (e.g. orderer and payer)
+        attrs = by_tid[num.src.tid]["attrs"]
+        nspec = next(a for a in attrs if a["id"] == name.attr.aid)
+        kspec = next(a for a in attrs if a["id"] == num.attr.aid)
+        kspec["fallback"] = name.attr.aid  # by number, else by name
+        if name.attr.aid not in rename_attr and hidden_dec.get(name.attr.aid) is not False:  # "einblenden" wins
+            nspec["derived"] = dict(via=num.attr.aid, attr=None)
+            nspec["hidden"] = True
+        if num.attr.aid not in rename_attr:
+            kspec["name"] = num.dst.name
     for r in mrels:
         rid = f"m_{r.src.tid}_{r.attr.aid}_{r.dst.tid}"
         r.rid = rid
@@ -549,6 +578,10 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
                         raw[aid] = _jsonable(v)
                     continue
                 data[aid] = _jsonable(v)
+            for a in (specs.get(t.tid) or {}).get("attrs", []):
+                fb = a.get("fallback")
+                if fb and not isinstance(data.get(a["id"]), int) and isinstance(data.get(fb), int):
+                    data[a["id"]] = data[fb]  # an old or missing number: the name knows the party
             prov = {aid: [[tables.get(tl[0], 0), tl[0], tl[1]] for tl in lines] for aid, lines in g.prov.items()}
             alts = {aid: [[_jsonable(v), [[tables.get(x[0], 0), x[0], x[1]] for x in lines]] for v, lines in vs]
                     for aid, vs in g.alts.items()}

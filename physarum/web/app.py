@@ -33,8 +33,8 @@ from ..questions import open_questions
 from ..runtime import Runtime
 from ..store import Store, dumps, loads, now_iso
 from ..text import fold, norm_key, norm_name
-from ..values import as_date, display
-from .. import billing
+from ..values import as_date, display, event_date
+from .. import billing, lexicon
 from ..payments import bank_allocations
 from . import views
 from .guard import Guard
@@ -436,6 +436,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             r2 = rt.by_id.get(frm)
             if not r2:
                 continue
+            a2 = rt.attr(r2["type"], attr) if kind == "ref" else None
+            if a2 and a2.get("hidden") and a2.get("derived"):
+                continue  # the same link once more under another column ("Kunde" next to "Kd-Nr")
             groups[(r2["type"], attr, kind)].append(r2)
         related = []
         for (tid2, attr, kind), recs in groups.items():
@@ -525,11 +528,13 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             via = None
             for s in [st] + st.get("also", []):
                 if s["source"] == "own":
-                    d = as_date(data.get(s["attr"]))
+                    d = event_date(data.get(s["attr"]), start)
                     if d and (when is None or d < when):
                         when, via = d, None
                 else:
-                    if s["rel_kind"] == "mention":
+                    if s["rel_kind"] == "own_ref":
+                        srcs = [data[s["rel_attr"]]] if isinstance(data.get(s["rel_attr"]), int) else []
+                    elif s["rel_kind"] == "mention":
                         srcs = rt.mentions.get(s["rel_attr"], {}).get(rec["id"], [])
                     else:
                         srcs = [c["id"] for c in rt.records.get(s["type"], []) if c["data"].get(s["rel_attr"]) == rec["id"]]
@@ -539,10 +544,12 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                             when, via = d, x
             dl = due_by_step.get(st["id"])
             due = as_date(data.get(dl["attr"])) if dl else None
-            late = (not when) and due and due < today
-            item = dict(label=st["label"], date=when, done=bool(when), via=via, due=due, late=late, step=st,
-                        usual=st.get("median_days"))
-            if not when and nxt is None:
+            sattr = (proc.get("status") or {}).get("attr")
+            by_status = not when and fold(st["label"]) != "bezahlt" and sattr and lexicon.status_reaches(st["label"], data.get(sattr))
+            late = (not when) and not by_status and due and due < today
+            item = dict(label=st["label"], date=when, done=bool(when) or bool(by_status), via=via, due=due, late=late, step=st,
+                        usual=st.get("median_days"), by_status=by_status)
+            if not when and not by_status and nxt is None:
                 nxt = item
                 own = next((s for s in [st] + st.get("also", []) if s["source"] == "own"), None)
                 child = next((s for s in [st] + st.get("also", []) if s["source"] == "child"), None)
@@ -802,6 +809,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         rt.ensure()
         tid = request.path_params["tid"]
         spec = rt.spec(tid)
+        if not spec:
+            return page(request, "message.html", dict(title="Nicht gefunden", text="Diese Art gibt es nicht."), 404)
         data = ops.prefill(rt, spec)
         why = []
         for k, v in request.query_params.items():
@@ -875,6 +884,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         rt.ensure()
         tid = request.path_params["tid"]
         spec = rt.spec(tid)
+        if not spec:
+            return page(request, "message.html", dict(title="Nicht gefunden", text="Diese Art gibt es nicht."), 404)
         raw = typed_refs({k[2:]: v for k, v in form.items() if k.startswith("a_")}, form, "t_")
         lines = defaultdict(dict)
         for k, v in form.items():

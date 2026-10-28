@@ -2,6 +2,7 @@
 <tr class="clickable" data-href="/r/{{ r.id }}">
   {% for c in cols %}
   {% set v = r.data.get(c.id) %}
+  {% if v is none and c.kind == 'ref' and r.meta and r.meta.raw %}{% set v = r.meta.raw.get(c.id) %}{% endif %}
   {% set out = fmt(c, v, link=False, short=True) if loop.first else fmt(c, v, short=True) %}
   <td class="{{ 'num' if c.kind in ('money','number','percent','duration') }}{{ ' nw' if c.kind in ('id','date','datetime','time','iban','phone','zip') or (c.kind == 'ref' and (out|striptags|length) <= 16) }}{{ ' blank' if v is none or v == '' }}" data-label="{{ c.name }}">
     {% if loop.first and r.meta and r.meta.draft %}<a href="/r/{{ r.id }}"><span class="pill warn">Entwurf</span></a>{% elif loop.first %}<a href="/r/{{ r.id }}">{{ out }}</a>{% else %}{{ out }}{% endif %}

@@ -17,7 +17,7 @@ from datetime import date, timedelta
 from . import lexicon
 from .billing import is_draft
 from .text import fold, tokens
-from .values import as_date
+from .values import as_date, due_range, event_date
 
 RECURRING = {"monatlich", "monatspauschale", "pauschale", "mtl", "monthly", "abo", "miete", "monatsbeitrag",
              "monatsrate", "rate", "grundgebuehr", "wartungspauschale"}
@@ -86,15 +86,44 @@ def infer_processes(model: dict, records: dict, store=None, today: date | None =
         recs = records.get(spec["id"], [])
         if len(recs) < 2:
             continue
-        p = _infer_one(spec, recs, children.get(spec["id"], []), records, mention_map, by_id, today)
+        p = _infer_one(spec, recs, children.get(spec["id"], []), records, mention_map, by_id, today, specs)
         if p:
             spec["process"] = p["id"]
             model["processes"].append(p)
     model["rhythms"] = _rhythm_specs(model, records)
     model["reach"] = _reach_specs(model, records)
+    model["dues"] = _due_specs(model, records)
 
 
-def _instance_dates(spec, recs, cand_steps, records, mention_map):
+_DUE_WORDS = {"naechste", "naechster", "naechstes", "faellig", "faelligkeit", "next", "due", "geplant", "plan",
+              "am", "bis", "datum", "spaetestens", "soll"}
+
+
+def _due_specs(model: dict, records: dict) -> list[dict]:
+    """Dates that lie ahead in lists without a process ("Nächste Wartung" of a maintenance contract),
+    with the date that says it was done ("Letzte Wartung")."""
+    out = []
+    procs = {p["type"]: p for p in model.get("processes", [])}
+    for spec in model["types"]:
+        if spec["kind"] not in ("transaction", "master") or spec.get("concept") == "rechnung":
+            continue  # invoices: due means paid, which the money decides
+        p = procs.get(spec["id"])
+        free = {dl["attr"] for dl in p["deadlines"] if not dl.get("step")} if p else None
+        for a in spec["attrs"]:
+            if a.get("role") != "due" or a.get("hidden") or not (a["kind"] in ("date", "datetime") or a.get("period")):
+                continue
+            if free is not None and a["id"] not in free:
+                continue  # the deadline of a step: handled with that step
+            obj = set(tokens(a["name"])) - _DUE_WORDS
+            done = next((b for b in spec["attrs"] if b is not a and b["kind"] in ("date", "datetime")
+                         and b.get("role") != "due" and not b.get("hidden") and obj & set(tokens(b["name"]))), None)
+            if sum(1 for r in records.get(spec["id"], []) if due_range(r["data"].get(a["id"]))) >= 2:
+                out.append(dict(type=spec["id"], attr=a["id"], name=a["name"], done=done["id"] if done else None,
+                                done_label=(done.get("milestone") or done["name"]) if done else None))
+    return out
+
+
+def _instance_dates(spec, recs, cand_steps, records, mention_map, start_attr: str | None = None):
     """dates[step_id][rid] = date"""
     out = {}
     rid_set = {r["id"] for r in recs}
@@ -102,12 +131,19 @@ def _instance_dates(spec, recs, cand_steps, records, mention_map):
         d = {}
         if st["source"] == "own":
             for r in recs:
-                v = as_date(r["data"].get(st["attr"]))
+                v = event_date(r["data"].get(st["attr"]), as_date(r["data"].get(start_attr)) if start_attr else None)
                 if v:
                     d[r["id"]] = v
         else:
             ctype = st["type"]
-            if st["rel_kind"] == "mention":
+            if st["rel_kind"] == "own_ref":
+                child_by_id = {c["id"]: c for c in records.get(ctype, [])}
+                for r in recs:
+                    c = child_by_id.get(r["data"].get(st["rel_attr"]))
+                    v = as_date(c["data"].get(st["attr"])) if c else None
+                    if v:
+                        d[r["id"]] = v
+            elif st["rel_kind"] == "mention":
                 child_by_id = {c["id"]: c for c in records.get(ctype, [])}
                 for dst, srcs in mention_map.get(st["rel_attr"], {}).items():
                     if dst not in rid_set:
@@ -127,24 +163,34 @@ def _instance_dates(spec, recs, cand_steps, records, mention_map):
     return out
 
 
-def _infer_one(spec, recs, kids, records, mention_map, by_id, today) -> dict | None:
+def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: dict | None = None) -> dict | None:
+    specs_of = specs_of or {}
     start_attr = _primary_date(spec)
     if not start_attr:
         return None
     cand = []
     for a in spec["attrs"]:
-        if a["kind"] in ("date", "datetime") and a.get("role") != "due" and a["id"] != start_attr["id"] and not a.get("hidden"):
+        if a["kind"] in ("date", "datetime") and a.get("role") != "due" and a["id"] != start_attr["id"] and not a.get("hidden") \
+                and not lexicon.is_unnamed(a["name"]):  # a date without a heading is no milestone anyone could name
             cand.append(dict(id=f"s_{a['id']}", source="own", attr=a["id"], label=_label_of(a), name=a["name"]))
     for rel, src, pd in kids:
         lab = CHILD_LABEL.get(src.get("concept") or "", src["name"])
         cand.append(dict(id=f"c_{rel['id']}", source="child", type=src["id"], rel=rel["id"], rel_attr=rel["attr"],
                          rel_kind=rel["kind"], attr=pd["id"], label=lab, name=src["name"], child_plural=src["plural"]))
+    for a in spec["attrs"]:
+        # the order book's own "Rechnung" column: the order was invoiced on the invoice's date
+        tgt = specs_of.get(a.get("ref")) if a["kind"] == "ref" and not a.get("hidden") else None
+        tpd = _primary_date(tgt) if tgt and tgt["kind"] == "transaction" and tgt["id"] != spec["id"] else None
+        if tpd:
+            cand.append(dict(id=f"o_{a['id']}", source="child", type=tgt["id"], rel=None, rel_attr=a["id"],
+                             rel_kind="own_ref", attr=tpd["id"], label=CHILD_LABEL.get(tgt.get("concept") or "", tgt["name"]),
+                             name=tgt["name"], child_plural=tgt["plural"]))
     starts = {r["id"]: as_date(r["data"].get(start_attr["id"])) for r in recs}
     starts = {k: v for k, v in starts.items() if v}
     has_due = any(a.get("role") == "due" for a in spec["attrs"])
     if len(starts) < (2 if has_due else 5):
         return None
-    dates = _instance_dates(spec, recs, cand, records, mention_map)
+    dates = _instance_dates(spec, recs, cand, records, mention_map, start_attr["id"] if start_attr else None)
     steps = []
     for st in cand:
         d = dates[st["id"]]
@@ -430,6 +476,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         recs = [r for r in records.get(p["type"], []) if not is_draft(r)]
         rid_set = {r["id"] for r in recs}
         step_dates = {}
+        sattr_p = (p.get("status") or {}).get("attr") or next(
+            (a["id"] for a in spec["attrs"] if a.get("role") == "status" and not a.get("hidden")), None)
 
         def start_of(rid, _p=p):
             return as_date(by_id[rid]["data"].get(_p["start"]["attr"])) or today
@@ -439,9 +487,16 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             for src in [st] + st.get("also", []):
                 if src["source"] == "own":
                     for r in recs:
-                        v = as_date(r["data"].get(src["attr"]))
+                        v = event_date(r["data"].get(src["attr"]), as_date(r["data"].get(p["start"]["attr"])))
                         if v:
                             d[r["id"]] = min(v, d.get(r["id"], v))
+                elif src["rel_kind"] == "own_ref":
+                    for r in recs:
+                        c = by_id.get(r["data"].get(src["rel_attr"]))
+                        if c and c["type"] == src["type"] and not void(c) and not is_draft(c):
+                            v = as_date(c["data"].get(src["attr"]))
+                            if v:
+                                d[r["id"]] = min(v, d.get(r["id"], v))
                 elif src["rel_kind"] == "mention":
                     for dst, srcs in mention_refs.get(src["rel_attr"], {}).items():
                         if dst in rid_set:
@@ -459,6 +514,11 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                             v = as_date(c["data"].get(src["attr"]))
                             if v:
                                 d[t] = min(v, d.get(t, v))
+            if sattr_p and fold(st["label"]) != "bezahlt":
+                # "abgerechnet" in the order book: invoiced, even where no invoice names the order
+                for r in recs:
+                    if r["id"] not in d and lexicon.status_reaches(st["label"], r["data"].get(sattr_p)):
+                        d[r["id"]] = start_of(r["id"])
             if ledger is not None and fold(st["label"]) == "bezahlt" and any(rid in ledger for rid in rid_set):
                 # paid is what the money says, not what a purpose names
                 d = {rid: e["paid_date"] or start_of(rid) for rid, e in ledger.items()
@@ -468,7 +528,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         sattr = (p.get("status") or {}).get("attr")
         other_neg = [(x["attr"], set(x["values"])) for x in (p.get("status") or {}).get("negative_other", [])]
         due_by_step = {dl["step"]: dl for dl in p["deadlines"] if dl.get("step")}
-        free_dues = [dl for dl in p["deadlines"] if not dl.get("step")]
+        covered = {(d["type"], d["attr"]) for d in model.get("dues", [])}
+        free_dues = [dl for dl in p["deadlines"] if not dl.get("step") and (p["type"], dl["attr"]) not in covered]
         buckets = defaultdict(list)
         for r in recs:
             if sattr and str(r["data"].get(sattr)) in negative:
@@ -479,15 +540,20 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             if not start:
                 continue
             last = start
-            for st in p["steps"]:
+            for si, st in enumerate(p["steps"]):
                 dv = step_dates[st["id"]].get(r["id"])
                 if dv:
                     last = max(last, dv)
                     continue
+                if any(step_dates[x["id"]].get(r["id"]) for x in p["steps"][si + 1:] if (x.get("share") or 1) >= 0.5):
+                    continue  # a later (regular) step happened: this one was skipped, not forgotten
+                optional = (st.get("share") or 1) < 0.5  # most cases go without it (time sheets for some months)
                 # first missing step: is it overdue or waiting unusually long?
                 w0 = date.fromisoformat(st["window"][0]) if st.get("window") else None
                 expected_by = start + timedelta(days=(st.get("median_days") or 0))
                 if w0 and expected_by < w0 - timedelta(days=7):
+                    if optional:
+                        continue  # no time sheets kept back then: says nothing about the invoice
                     break  # outside the time span covered by the data: unknown stays unknown
                 money = _money(r, p)
                 paid_part = None
@@ -503,15 +569,18 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 elif st.get("p80_days") is not None and st.get("n", 0) >= 5:
                     waited = (today - last).days
                     limit = max(st["p80_days"] * 1.25, (st["median_days"] or 0) + 2, 2)
-                    if waited > limit and waited < 400:
+                    if waited > limit and waited < 1100:  # claims become time-barred after three years
                         buckets[(st["id"], "late")].append(dict(rid=r["id"], days=waited, money=money,
                                                                 usual=st["median_days"]))
                     elif due and (due - today).days <= 3:
                         buckets[(st["id"], "soon")].append(dict(rid=r["id"], days=(due - today).days, money=money,
                                                                 due=due.isoformat()))
+                if optional:
+                    continue
                 break
             for dl in free_dues:
-                due = as_date(r["data"].get(dl["attr"]))
+                rg = due_range(r["data"].get(dl["attr"]))
+                due = rg[1] if rg else None
                 e = ledger.get(r["id"]) if ledger else None
                 if e and e["state"] in ("bezahlt", "überzahlt", "storniert"):
                     continue  # the money has gone out already
@@ -602,11 +671,49 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                count=len(risks), amount=None, items=risks, action=None,
                                explain="Vor einer Zahlung telefonisch beim bekannten Ansprechpartner prüfen. "
                                        "So sieht Rechnungsbetrug typischerweise aus."))
+    groups += _due_work(model, records, by_id, title, today)
     groups += _threshold_work(model, records, title)
     groups += _rhythm_work(model, records, by_id, title, today)
     groups += _reach_work(model, records, by_id, title, today)
     groups.sort(key=lambda g: (-g["severity"], -(g["amount"] or 0), -g["count"]))
     return groups
+
+
+def _due_work(model, records, by_id, title, today) -> list[dict]:
+    out = []
+    specs = {t["id"]: t for t in model["types"]}
+    for du in model.get("dues", []):
+        spec = specs.get(du["type"])
+        if not spec:
+            continue
+        party = next((a["id"] for a in spec["attrs"] if a["kind"] == "ref" and not a.get("hidden")), None)
+        items = []
+        for r in records.get(du["type"], []):
+            v = r["data"].get(du["attr"])
+            rg = due_range(v)
+            if not rg:
+                continue
+            start, end = rg
+            done = as_date(r["data"].get(du["done"])) if du.get("done") else None
+            if done and done >= start - timedelta(days=45):
+                continue  # done for this round (a little early counts)
+            if (start - today).days > 14:
+                continue
+            pv = r["data"].get(party) if party else None
+            items.append(dict(rid=r["id"], title=title(r["id"]), days=(end - today).days, money=None,
+                              due=end.isoformat(), label=str(v) if start != end else None, name=du["name"],
+                              party=title(pv) if isinstance(pv, int) and pv in by_id else None))
+        if not items:
+            continue
+        items.sort(key=lambda x: x["days"])
+        late = sum(1 for x in items if x["days"] < 0)
+        out.append(dict(id=f"due:{du['type']}:{du['attr']}", type=du["type"], kind="due", severity=2 if late else 1,
+                        title=f"{spec['plural']}: {du['name']} steht an", count=len(items), amount=None,
+                        items=items[:50], step=du.get("done_label"),
+                        action=dict(kind="set_date", attr=du["done"], label=du["done_label"]) if du.get("done") else None,
+                        explain=(f"{late} davon schon überschritten. " if late else "")
+                                + "Termin aus Ihrer Liste; mit „✓“ wird er als erledigt eingetragen."))
+    return out
 
 
 def _money(r, p):

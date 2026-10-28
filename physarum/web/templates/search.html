@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Suche{% endblock %}
+{% block content %}
+<div class="pagehead"><div><h1>Suche</h1><p>Durchsucht alle Arten von Dingen, auch E-Mails und PDFs.</p></div></div>
+<form action="/suche" class="toolbar"><input type="search" name="q" value="{{ q }}" autofocus placeholder="Name, Nummer, E-Mail, Ort …" style="max-width:560px"><button class="primary">Suchen</button></form>
+{% if q and not groups %}<div class="card"><p class="muted">Nichts gefunden für „{{ q }}“.</p></div>{% endif %}
+{% for g in groups %}
+<section class="card">
+  <div class="row between"><h2><a href="/t/{{ g.spec.id }}?q={{ q|urlencode }}">{{ g.spec.plural }}</a> <span class="muted" style="font-weight:500">{{ g.n }}</span></h2></div>
+  <table class="table"><tbody>
+  {% for r in g.recs %}<tr class="clickable" data-href="/r/{{ r.id }}">{% for c in g.cols %}<td>{% if loop.first %}<a href="/r/{{ r.id }}">{{ fmt(c, r.data.get(c.id), link=False, short=True) }}</a>{% else %}{{ fmt(c, r.data.get(c.id), short=True) }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endfor %}
+{% endblock %}

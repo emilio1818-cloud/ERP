@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}{{ title(rec.id) }}{% endblock %}
+{% macro input_for(a, v, name) -%}
+  {%- if a.kind == 'ref' -%}
+    <input type="text" list="dl_{{ a.id }}" data-ref data-types="{{ (a.refs or [a.ref])|join(',') }}" value="{{ title(v) if v is number else (v or '') }}" aria-label="{{ a.name }}">
+    <input type="hidden" name="{{ name }}" value="{{ v if v is number else '' }}">
+    <datalist id="dl_{{ a.id }}"></datalist>
+  {%- elif a.enum -%}
+    <input name="{{ name }}" list="en_{{ a.id }}" value="{{ v or '' }}" aria-label="{{ a.name }}">
+    <datalist id="en_{{ a.id }}">{% for o in a.enum %}<option value="{{ o }}">{% endfor %}</datalist>
+  {%- elif a.kind == 'date' -%}<input type="date" name="{{ name }}" value="{{ input_value(a, v) }}" aria-label="{{ a.name }}">
+  {%- elif a.kind == 'datetime' -%}<input type="datetime-local" name="{{ name }}" value="{{ input_value(a, v) }}" aria-label="{{ a.name }}">
+  {%- elif a.kind == 'bool' -%}<input type="checkbox" name="{{ name }}" {{ 'checked' if v }} aria-label="{{ a.name }}">
+  {%- elif a.role == 'notes' -%}<textarea name="{{ name }}" aria-label="{{ a.name }}">{{ v or '' }}</textarea>
+  {%- else -%}<input name="{{ name }}" value="{{ input_value(a, v) }}" inputmode="{{ 'decimal' if a.kind in ('money','number','percent') else 'text' }}" aria-label="{{ a.name }}">
+  {%- endif -%}
+{%- endmacro %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <div class="row" style="gap:8px; margin-bottom:4px">
+      <a class="pill" href="/t/{{ spec.id }}">{{ spec.name }}</a>
+      {% if status_attr and rec.data.get(status_attr.id) %}<span class="pill {{ status_class(rec.data.get(status_attr.id)) }}">{{ rec.data.get(status_attr.id) }}</span>{% endif %}
+      {% if lock %}<span class="pill info" title="{{ lock.reason }}">festgeschrieben</span>{% endif %}
+      {% if rec.meta.fuzzy %}<span class="tag guess" title="Aus ähnlichen Einträgen zusammengeführt">zusammengeführt</span>{% endif %}
+    </div>
+    <h1>{{ title(rec.id) }}</h1>
+    <p>
+      {% if party %}{{ fmt(party, rec.data.get(party.id)) }}{% endif %}
+      {% if money_attr and rec.data.get(money_attr.id) is not none %} · <b>{{ money(rec.data.get(money_attr.id), money_attr.currency) }}</b>{% endif %}
+      {% if reach %} · reicht noch ca. {{ reach|round|int }} Tage{% endif %}
+    </p>
+  </div>
+  <div class="row noprint">
+    {% for ch in children %}{% set cs = model.types|selectattr('id', 'equalto', ch.src)|first %}<a class="btn" href="/t/{{ ch.src }}/neu?a_{{ ch.attr }}={{ rec.id }}">+ {{ cs.name }}</a>{% endfor %}
+    <a class="btn ghost" href="/r/{{ rec.id }}/druck" target="_blank">Drucken</a>
+    {% if lock %}
+      <button class="btn ghost danger" onclick="var r=prompt('Grund für das Storno (wird protokolliert):'); if(r){this.dataset.body=JSON.stringify({reason:r}); this.dataset.post='/r/{{ rec.id }}/storno';}" data-body="{}">Stornieren</button>
+    {% endif %}
+    <button class="btn" id="edit-toggle">Bearbeiten</button>
+  </div>
+</div>
+
+{% if error %}<div class="notice bad" style="margin-bottom:12px">{{ error }}</div>{% endif %}
+{% if request.query_params.get('neu') %}<div class="notice good" style="margin-bottom:12px">Angelegt. Vorbelegte und berechnete Felder sind gelb markiert.</div>{% endif %}
+{% if lock %}<div class="notice" style="margin-bottom:12px">{{ lock.reason }} Zahlung, Status und Notizen können Sie weiter eintragen.</div>{% endif %}
+
+{% if timeline %}
+<section class="card" aria-label="Ablauf">
+  <div class="row between"><h2>Ablauf</h2>
+    {% if timeline.negative %}<span class="pill bad">beendet ({{ rec.data.get(status_attr.id) }})</span>{% endif %}</div>
+  <div class="timeline">
+    {% for s in timeline.steps %}
+    <div class="step {{ 'done' if s.done }} {{ 'late' if s.late }}">
+      <div class="bar"></div>
+      <b>{{ s.label }}</b>
+      <small>{% if s.date %}{{ display(s.date.isoformat(), 'date') }}{% if s.via %} · <a href="/r/{{ s.via }}">{{ title(s.via) }}</a>{% endif %}
+             {% elif s.due %}{{ 'überfällig seit ' ~ display(s.due.isoformat(), 'date') if s.late else 'bis ' ~ display(s.due.isoformat(), 'date') }}
+             {% elif s.usual is not none %}üblich nach {{ '%.0f'|format(s.usual) }} Tagen{% else %}offen{% endif %}</small>
+      {% if s.action and not timeline.negative %}
+        {% if s.action.kind == 'set_date' %}
+          <button class="small primary noprint" style="margin-top:6px" data-post="/r/{{ rec.id }}/schritt" data-body='{"attr": "{{ s.action.attr }}"}'>✓ {{ s.action.label }}</button>
+        {% else %}
+          <a class="btn small noprint" style="margin-top:6px" href="/t/{{ s.action.type }}/neu?a_{{ s.action.attr }}={{ rec.id }}">+ {{ s.action.label }}</a>
+        {% endif %}
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<form method="post" action="/r/{{ rec.id }}" class="card" style="margin-top:14px" data-formulas="{{ (spec.formulas or [])|rejectattr('op', 'equalto', 'sum_children')|list|json|e }}">
+  <div class="row between"><h2>Angaben</h2>
+    <div class="edit-mode hide row"><button class="primary" type="submit">Speichern</button><button class="ghost" id="cancel-edit" onclick="location.reload(); return false;">Abbrechen</button></div></div>
+  <dl class="facts head-fields">
+    {% for f in facts %}
+    {% set a = f.attr %}
+    {% set editable = not a.virtual and (not lock or a.id in lock.editable) %}
+    <div class="fact {{ 'edit' if editable }}">
+      <dt>{{ a.name }}
+        {% if f.calc %}<span class="tag calc" title="{{ a.explain or 'berechnet bzw. automatisch gesetzt' }}">berechnet</span>{% endif %}
+        {% if f.unlinked %}<span class="tag guess" title="Wert konnte keinem Datensatz zugeordnet werden">nicht verknüpft</span>{% endif %}
+        {% if f.alts %}<span class="tag guess" title="Andere Werte in den Quellen: {{ f.alts|join(' | ') }}">abweichend</span>{% endif %}
+        {% if f.src %}<span class="src" title="Herkunft: {{ f.src|join(' · ') }}">ⓘ</span>{% endif %}
+      </dt>
+      <dd class="view-mode">{{ fmt(a, f.value) }}</dd>
+      {% if editable %}<dd class="edit-mode hide">{{ input_for(a, f.value, 'a_' ~ a.id) }}</dd>
+      {% else %}<dd class="edit-mode hide muted">{{ fmt(a, f.value) }}</dd>{% endif %}
+    </div>
+    {% endfor %}
+  </dl>
+</form>
+
+{% for g in related %}
+<section class="card" aria-label="{{ g.label }}">
+  <div class="row between">
+    <h2>{{ g.label }} <span class="muted" style="font-weight:500">{{ g.n }}</span></h2>
+    <div class="row">{% if g.total is not none and g.total_attr %}<b>{{ money(g.total, g.total_attr.currency) }}</b>{% endif %}
+      {% if g.kind == 'ref' and g.spec.kind != 'line' %}<a class="btn small ghost noprint" href="/t/{{ g.spec.id }}/neu?a_{{ g.attr }}={{ rec.id }}">+ {{ g.spec.name }}</a>{% endif %}</div>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="table">
+    <thead><tr>{% for c in g.cols %}<th class="{{ 'num' if c.kind in ('money','number','percent') }}">{{ c.name }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for r in g.recs %}
+      <tr class="clickable" data-href="/r/{{ r.id }}?rel={{ g.rel }}">
+      {% for c in g.cols %}<td class="{{ 'num' if c.kind in ('money','number','percent') }}">{% if loop.first %}<a href="/r/{{ r.id }}?rel={{ g.rel }}">{{ fmt(c, r.data.get(c.id), link=False, short=True) }}</a>{% else %}{{ fmt(c, r.data.get(c.id), short=True) }}{% endif %}</td>{% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if g.n > g.recs|length %}<p class="muted" style="font-size:.85rem">… {{ g.n - g.recs|length }} weitere</p>{% endif %}
+</section>
+{% endfor %}
+
+{% if mentions %}
+<section class="card"><h2>Erwähnt</h2>
+  <ul class="learned">{% for m in mentions %}<li><span class="pill">{{ m.spec.name }}</span> <a href="/r/{{ m.rid }}">{{ title(m.rid) }}</a> <span class="faint">({{ m.how }})</span></li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<div class="grid g2" style="margin-top:14px">
+  <section class="card" id="notizen"><h2>Notizen</h2>
+    <form method="post" action="/r/{{ rec.id }}/notiz" class="noprint"><textarea name="text" placeholder="Was man wissen sollte – z. B. „bei Rückfragen erst anrufen“"></textarea>
+      <div class="row" style="margin-top:6px"><button class="small">Notiz speichern</button></div></form>
+    <ul class="history">{% for n in notes %}<li><b>{{ n.actor }}</b> <span class="faint">{{ ago(n.ts) }}</span><br>{{ n.text }}</li>{% endfor %}</ul>
+  </section>
+  <section class="card"><h2>Verlauf &amp; Herkunft</h2>
+    {% if src_files %}<p class="muted" style="font-size:.86rem">Aus: {% for s in src_files %}<a href="/quellen/{{ s.id }}/datei">{{ s.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+    <ul class="history">
+      {% for c in changes %}
+      <li><span class="faint">{{ ago(c.ts) }}</span> · <b>{{ c.actor }}</b>:
+        {% if c.attr %}{{ c.attr.name }} {% if c.old is not none %}<span class="faint">{{ fmt(c.attr, c.old, link=False, short=True) }}</span> → {% endif %}{{ fmt(c.attr, c.new, link=False, short=True) }}{% if c.note %} <span class="faint">({{ c.note }})</span>{% endif %}
+        {% else %}{{ c.note }}{% endif %}
+        {% if c.kind in ('auto',) %}<span class="tag calc">automatisch</span>{% elif c.kind == 'storno' %}<span class="tag lock">Storno</span>{% elif c.kind == 'merge' %}<span class="tag guess">zusammengeführt</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% if not lock %}<p class="noprint" style="margin-top:10px"><button class="small ghost danger" data-post="/r/{{ rec.id }}/loeschen" data-confirm="Wirklich löschen? (Bleibt im Protokoll nachvollziehbar.)">Löschen</button></p>{% endif %}
+  </section>
+</div>
+{% endblock %}

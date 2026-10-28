@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Abläufe{% endblock %}
+{% block content %}
+<div class="pagehead"><div><h1>Abläufe</h1>
+  <p>Aus den Datumsspalten Ihrer Daten abgelesen – auch über Dateien hinweg (ein Auftrag gilt als „berechnet“, sobald eine Rechnung auf ihn verweist; eine Rechnung als „bezahlt“, sobald der Kontoauszug sie nennt). Die Röhrendicke zeigt, wie viele Fälle den Schritt erreichen.</p></div></div>
+{% for it in items %}
+<section class="card">
+  <div class="row between"><h2><a href="/t/{{ it.p.type }}">{{ it.p.name }}</a></h2><span class="muted">{{ it.p.n|de }} Fälle</span></div>
+  {{ it.svg }}
+  <ul class="learned" style="font-size:.88rem">
+    {% for s in it.p.steps %}
+      <li><b>{{ s.label }}</b>: üblich nach {{ '%.0f'|format(s.median_days or 0) }} Tagen, bei 80 % nach höchstens {{ '%.0f'|format(s.p80_days or 0) }} · erreicht in {{ (s.share * 100)|round|int }} %
+        <span class="faint">({{ 'eigene Spalte „' ~ s.name ~ '“' if s.source == 'own' else 'über ' ~ s.name }}{% for a in s.also %}, auch über {{ a.name }}{% endfor %})</span></li>
+    {% endfor %}
+    {% for d in it.p.deadlines if d.step %}<li>Frist: „{{ d.name }}“ gilt für „{{ (it.p.steps|selectattr('id','equalto',d.step)|first).label }}“</li>{% endfor %}
+    {% if it.p.status %}<li>Status „{{ it.p.status.name }}“ folgt dem Ablauf: {% for v, st in it.p.status.map.items() %}{{ v }} → {{ 'Start' if st == 0 else it.p.steps[st - 1].label }}{{ ', ' if not loop.last }}{% endfor %}{% if it.p.status.negative %}; beendet bei {{ it.p.status.negative|join(', ') }}{% endif %}</li>{% endif %}
+  </ul>
+</section>
+{% else %}
+<div class="card"><p class="muted">Noch keine Abläufe erkannt – dafür braucht es Vorgänge mit mindestens zwei Datumsangaben (z. B. Bestelldatum und Lieferdatum).</p></div>
+{% endfor %}
+{% endblock %}

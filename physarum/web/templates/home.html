@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Heute{% endblock %}
+{% macro reason(g, it) -%}
+  {%- if g.kind == 'overdue' -%}seit {{ it.days }} {{ 'Tag' if it.days == 1 else 'Tagen' }} überfällig
+  {%- elif g.kind == 'late' -%}wartet seit {{ it.days }} Tagen <span class="faint">(üblich {{ '%.0f'|format(it.usual or 0) }})</span>
+  {%- elif g.kind == 'soon' -%}{{ 'heute fällig' if it.days == 0 else 'fällig in ' ~ it.days ~ ' Tagen' }}
+  {%- elif g.kind == 'due' -%}{{ 'heute' if it.days == 0 else ('vor ' ~ (-it.days) ~ ' Tagen' if it.days < 0 else 'in ' ~ it.days ~ ' Tagen') }}
+  {%- elif g.kind == 'threshold' -%}Bestand {{ it.value|de }} · mindestens {{ it.min|de }}
+  {%- elif g.kind == 'rhythm' -%}seit {{ days_text(it.days) }} nichts <span class="faint">(sonst alle {{ it.usual }} Tage)</span>
+  {%- elif g.kind == 'reach' -%}reicht noch ca. {{ it.days }} Tage <span class="faint">({{ it.per_week|de(1) }} pro Woche)</span>
+  {%- endif -%}
+{%- endmacro %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>{{ greeting }}.</h1>
+    <p>{{ today }} · {% if work %}{{ work|length }} Dinge brauchen Aufmerksamkeit{% if overdue_amount %}, davon {{ money(overdue_amount) }} überfällig{% endif %}{% else %}Alles im grünen Bereich.{% endif %}</p>
+  </div>
+  <div class="row noprint">
+    <a class="btn" href="/quellen#einwerfen">Neue Daten einwerfen</a>
+  </div>
+</div>
+
+{% if growth_file %}
+<div class="notice good" style="margin-bottom:14px">
+  <div class="row between"><span><b>Ausprobieren, wie es wächst:</b> Die Rösterei hat später noch eine Liste „Wartungsverträge.xlsx“ gefunden (Kaffeemaschinen bei Kunden).</span>
+  <button class="small primary" data-post="/beispiel/wachstum">Nachträglich einwerfen</button></div>
+</div>
+{% endif %}
+
+<div class="grid" style="grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); align-items:start">
+  <section class="stack" aria-label="Zu tun">
+    {% if not work %}
+    <div class="card"><h2>Nichts Dringendes.</h2><p class="muted">Physarum meldet sich, sobald etwas länger dauert als üblich, eine Frist abläuft oder ein Bestand knapp wird.</p></div>
+    {% endif %}
+    {% for g in work %}
+    <article class="card work sev{{ g.severity }}" data-remove>
+      <details {{ 'open' if loop.index <= 3 }}>
+        <summary style="list-style:none">
+          <header>
+            <span class="dot {{ 'bad' if g.severity == 3 else 'warn' if g.severity == 2 else 'info' }}" style="margin-top:8px"></span>
+            <div class="what"><b>{{ g.title }}</b><small>{{ g.explain }}</small></div>
+            <div class="num">{{ g.count }}{% if g.amount %} · {{ money(g.amount) }}{% endif %}</div>
+            <span class="chev" aria-hidden="true">›</span>
+          </header>
+        </summary>
+        <ul>
+          {% for it in g['items'][:8] %}
+          <li>
+            <span class="t"><a href="/r/{{ it.rid }}">{{ it.title }}</a>{% if it.party %} <span class="muted">· {{ it.party }}</span>{% endif %}</span>
+            <span class="muted" style="font-size:.86rem">{{ reason(g, it) }}</span>
+            {% if it.money %}<span class="num" style="min-width:90px; text-align:right">{{ money(it.money) }}</span>{% endif %}
+            {% if g.action and g.action.kind == 'set_date' %}
+              <button class="small" data-post="/r/{{ it.rid }}/schritt" data-body='{"attr": "{{ g.action.attr }}"}' title="Mit heutigem Datum eintragen">✓ {{ g.action.label }}</button>
+            {% elif g.action and g.action.kind == 'create_child' %}
+              <a class="btn small" href="/t/{{ g.action.type }}/neu?a_{{ g.action.attr }}={{ it.rid }}">+ {{ g.action.label }}</a>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% if g['items']|length > 8 %}<div class="why">… und {{ g.count - 8 }} weitere. <a href="/t/{{ g.type }}">Alle {{ model.types|selectattr('id', 'equalto', g.type)|map(attribute='plural')|first }} ansehen</a></div>{% endif %}
+      </details>
+    </article>
+    {% endfor %}
+    {% if more_work %}<p class="muted">… und {{ more_work }} weitere Hinweise mit geringerer Dringlichkeit.</p>{% endif %}
+
+    {% if quality %}
+    <div class="card">
+      <h2>Auffälligkeiten in den Daten</h2>
+      <ul class="learned">
+      {% for q in quality %}
+        <li>{{ q.type.plural }}: {{ q.issue.count }} {{ 'Lücke(n) im Nummernkreis' if q.issue.kind == 'gap' else 'doppelte Nummer(n)' }}{% if q.issue.year %} ({{ q.issue.year }}){% endif %}, z. B. {{ q.issue.examples|join(', ') }}
+          <span class="faint">– bei Rechnungen verlangt die GoBD lückenlose, eindeutige Nummern.</span></li>
+      {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </section>
+
+  <aside class="stack" aria-label="Überblick">
+    {% for k in kpis %}
+    <a href="/t/{{ k.type }}" class="card kpi" style="display:block; text-decoration:none">
+      <div class="label">{{ k.name }} · {{ k.attr_name }} im {{ ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'][(k.series[-1].month[5:7]|int) - 1] }}</div>
+      <div class="value">{{ money(k.current, k.currency) }}</div>
+      {% if k.previous_mtd %}
+        {% set d = (k.current - k.previous_mtd) / k.previous_mtd * 100 %}
+        <div class="delta {{ 'muted' }}">{{ '+' if d >= 0 }}{{ '%.0f'|format(d) }} % ggü. Vormonat bis zum {{ k.day }}. ({{ money(k.previous_mtd, k.currency) }})</div>
+      {% endif %}
+      {{ spark(k.series) }}
+    </a>
+    {% endfor %}
+
+    {% if questions %}
+    <div class="card">
+      <h2>Physarum fragt <a class="muted" style="font-size:.85rem; font-weight:500; margin-left:auto" href="/fragen">alle</a></h2>
+      {% for q in questions %}
+      <div class="question" data-remove>
+        <div class="q">{{ q.text }}</div>
+        <p class="muted" style="font-size:.85rem; margin:.3rem 0">{{ q.detail }}</p>
+        <div class="actions">
+          {% for v, label in q.options %}<button class="small {{ 'primary' if loop.first }}" data-post="/fragen/{{ q.id }}" data-body='{"value": "{{ v }}"}'>{{ label }}</button>{% endfor %}
+          <button class="small ghost" data-post="/fragen/{{ q.id }}" data-body='{"value": "unknown"}'>Weiß nicht</button>
+          <button class="small ghost" data-post="/fragen/{{ q.id }}" data-body='{"value": "later"}'>Später</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if suggestions %}
+    <div class="card">
+      <h2>Trampelpfade</h2>
+      <p class="muted" style="font-size:.85rem">Was in Ihren Daten immer wieder gleich passiert. Physarum übernimmt es nur, wenn Sie zustimmen.</p>
+      {% for s in suggestions %}
+      <div class="question" data-remove>
+        {% if s.kind == 'auto' %}
+          <div class="q">{{ s.type.plural }}: {{ s.text }}</div>
+          <p class="muted" style="font-size:.85rem; margin:.3rem 0">Bisher {{ s.evidence }}.</p>
+          <div class="actions">
+            <button class="small primary" data-post="/regel" data-body='{"key": "{{ s.key }}", "value": "on"}'>Ab jetzt automatisch</button>
+            <button class="small ghost" data-post="/regel" data-body='{"key": "{{ s.key }}", "value": "off"}'>Nein danke</button>
+          </div>
+        {% else %}
+          <div class="q">{{ s.text }}</div>
+          <p class="muted" style="font-size:.85rem; margin:.3rem 0">Z. B. {% for it in s['items'][:3] %}<a href="/r/{{ it.rid }}">{{ title(it.rid) }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>
+          <div class="actions"><button class="small primary" data-post="/abgleich/{{ s.type.id }}">Abgleichen ({{ s.n }})</button></div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if summary %}
+    <div class="card">
+      <h2>Zuletzt gewachsen</h2>
+      <p class="muted" style="font-size:.88rem; margin:0">{{ ago(grown_at) }}: {{ summary.types }} Arten von Dingen, {{ summary.relations }} Verbindungen{% if summary.stats %}, {{ summary.stats.records|de }} Datensätze{% endif %}.
+      {% if summary.first %}<br>Das war das erste Wachstum aus {{ summary.stats.records|de if summary.stats else '' }} Datensätzen.{% endif %}
+      {% if summary.new_types %}<br>Neu: <b>{{ summary.new_types|join(', ') }}</b>{% endif %}
+      {% if summary.new_attrs %}<br>Neue Felder: {{ summary.new_attrs[:6]|join(', ') }}{% endif %}</p>
+      <p style="margin:.6rem 0 0"><a href="/organismus">Wie Physarum Ihre Firma sieht →</a></p>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

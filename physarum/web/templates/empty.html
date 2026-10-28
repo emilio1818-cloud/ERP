@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Willkommen{% endblock %}
+{% block content %}
+<div style="max-width:820px; margin: 4vh auto 0">
+  <h1 style="font-size:2rem">Kippen Sie alles rein, was Sie haben.</h1>
+  <p class="muted" style="font-size:1.08rem">Excel-Listen, CSV-Exporte aus Shop und Buchhaltung, Kontoauszüge, E-Mails, PDFs, ZIP-Ordner – egal in welcher Form.
+  Physarum liest daraus, welche Dinge es in Ihrer Firma gibt, wie sie zusammenhängen und wie Ihre Abläufe laufen. Daraus entsteht Ihr ERP. Ohne Einrichtung.</p>
+
+  <form class="drop big" style="margin-top:22px" onsubmit="return false">
+    <h2>Dateien oder Ordner hierher ziehen</h2>
+    <p class="drop-msg muted">oder</p>
+    <div class="row" style="justify-content:center">
+      <button class="primary" data-pick="files">Dateien wählen</button>
+      <button data-pick="folder">Ordner wählen</button>
+    </div>
+    <input type="file" multiple>
+    <input type="file" data-folder webkitdirectory multiple>
+  </form>
+
+  <div class="grid g3" style="margin-top:22px">
+    <div class="card"><h3>Bleibt bei Ihnen</h3><p class="muted">Alles läuft auf diesem Rechner. Nichts wird verschickt, kein Cloud-Dienst, kein KI-Anbieter.</p></div>
+    <div class="card"><h3>Originale unverändert</h3><p class="muted">Ihre Dateien werden aufbewahrt, nie verändert. Jede Zahl lässt sich bis zur Zeile in der Quelldatei zurückverfolgen.</p></div>
+    <div class="card"><h3>Jederzeit raus</h3><p class="muted">Alles lässt sich als Excel/CSV exportieren, die komplette Datenbank als Sicherung herunterladen.</p></div>
+  </div>
+
+  <div class="card" style="margin-top:22px">
+    <div class="row between">
+      <div>
+        <h2>Erst einmal ansehen?</h2>
+        <p class="muted" style="margin:0">Die (erfundene) Kaffeerösterei „Röstwerk Hafenbohne“ hat 16 typische, unordentliche Dateien: alte Kundenliste, CRM-Export, Shop-Export, Rechnungsbuch, Kontoauszug, E-Mails, eine PDF-Lieferantenrechnung …</p>
+      </div>
+      <button class="primary" data-post="/beispiel">Beispiel-Firma einwerfen</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

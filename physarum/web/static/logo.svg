@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Physarum">
+  <g fill="none" stroke="#e2a400" stroke-linecap="round">
+    <path d="M14 46 C 22 38, 26 30, 32 22" stroke-width="5"/>
+    <path d="M32 22 C 38 28, 44 34, 50 44" stroke-width="4"/>
+    <path d="M14 46 C 26 50, 38 50, 50 44" stroke-width="2.6"/>
+    <path d="M32 22 C 30 16, 26 12, 20 10" stroke-width="2"/>
+    <path d="M32 22 C 38 16, 44 14, 50 12" stroke-width="1.6"/>
+    <path d="M32 36 C 30 40, 28 44, 30 49" stroke-width="1.4"/>
+  </g>
+  <g fill="#ffd34d" stroke="#b98500" stroke-width="2">
+    <circle cx="32" cy="22" r="7"/>
+    <circle cx="14" cy="46" r="6"/>
+    <circle cx="50" cy="44" r="6"/>
+    <circle cx="20" cy="10" r="3.5"/>
+    <circle cx="50" cy="12" r="3"/>
+  </g>
+</svg>

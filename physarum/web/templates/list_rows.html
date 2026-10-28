@@ -1,0 +1,11 @@
+{% for r in rows %}
+<tr class="clickable" data-href="/r/{{ r.id }}">
+  {% for c in cols %}
+  <td class="{{ 'num' if c.kind in ('money','number','percent','duration') }}">
+    {% if loop.first %}<a href="/r/{{ r.id }}">{{ fmt(c, r.data.get(c.id), link=False, short=True) }}</a>{% else %}{{ fmt(c, r.data.get(c.id), short=True) }}{% endif %}
+  </td>
+  {% endfor %}
+</tr>
+{% else %}
+<tr><td colspan="{{ cols|length }}" class="empty">Nichts gefunden.</td></tr>
+{% endfor %}

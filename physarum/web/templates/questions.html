@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Fragen{% endblock %}
+{% block content %}
+<div class="pagehead"><div><h1>Fragen an Sie</h1>
+  <p>Nur dort, wo die Daten nicht eindeutig sind. Sortiert nach Wirkung: Ihre Antwort klärt hier am meisten. Nichts wird zweimal gefragt.</p></div></div>
+{% for q in questions %}
+<div class="question" data-remove>
+  <div class="row between"><div class="q">{{ q.text }}</div><span class="pill">{{ {'same_record':'Dublette?','same_type':'Gleiche Art?','relation':'Verweis?','confirm_merge':'Bestätigen'}.get(q.kind, q.kind) }}</span></div>
+  <p class="muted" style="font-size:.88rem; margin:.3rem 0">{{ q.detail }}</p>
+  {% if q.a and q.b %}
+  <div class="compare">
+    <div><dl>{% for k, v in q.a %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl></div>
+    <div><dl>{% for k, v in q.b %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl></div>
+  </div>
+  {% endif %}
+  <div class="actions">
+    {% for v, label in q.options %}<button class="small {{ 'primary' if loop.first }}" data-post="/fragen/{{ q.id }}" data-body='{"value": "{{ v }}"}'>{{ label }}</button>{% endfor %}
+    <button class="small ghost" data-post="/fragen/{{ q.id }}" data-body='{"value": "unknown"}'>Weiß nicht</button>
+    <button class="small ghost" data-post="/fragen/{{ q.id }}" data-body='{"value": "later"}'>Später</button>
+  </div>
+</div>
+{% else %}
+<div class="card"><h2>Keine offenen Fragen.</h2><p class="muted">Physarum ist sich bei allem, was es angenommen hat, ausreichend sicher. Alle Annahmen finden Sie unter <a href="/organismus">„Wie Physarum Ihre Firma sieht“</a>.</p></div>
+{% endfor %}
+{% if answered %}
+<h2 style="margin-top:26px">Beantwortet</h2>
+<ul class="history">{% for a in answered %}<li>{{ a.payload.text }} – <b>{{ {'same':'ja','different':'nein','yes':'ja','no':'nein','ok':'passt','split':'getrennt','unknown':'weiß nicht'}.get(a.answer, a.answer) }}</b> <span class="faint">{{ ago(a.answered_at) }}</span></li>{% endfor %}</ul>
+{% endif %}
+{% endblock %}

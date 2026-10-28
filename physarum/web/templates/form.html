@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Neu: {{ spec.name }}{% endblock %}
+{% macro field(a, v, name, opts) -%}
+  {%- if a.kind == 'ref' -%}
+    <input type="text" list="dl_{{ name }}" data-ref data-attr="{{ a.id }}_t" data-types="{{ (a.refs or [a.ref])|join(',') }}" value="{{ title(v) if v is number else (v or '') }}" aria-label="{{ a.name }}" autocomplete="off" placeholder="tippen zum Suchen …">
+    <input type="hidden" name="{{ name }}" data-attr="{{ a.id }}" value="{{ v if v is number else '' }}">
+    <datalist id="dl_{{ name }}"></datalist>
+  {%- elif opts.get(a.id) -%}
+    <input name="{{ name }}" data-attr="{{ a.id }}" list="en_{{ name }}" value="{{ v or '' }}" aria-label="{{ a.name }}">
+    <datalist id="en_{{ name }}">{% for o in opts[a.id] %}<option value="{{ o }}">{% endfor %}</datalist>
+  {%- elif a.kind == 'date' -%}<input type="date" name="{{ name }}" data-attr="{{ a.id }}" value="{{ input_value(a, v) }}" aria-label="{{ a.name }}">
+  {%- elif a.kind == 'datetime' -%}<input type="datetime-local" name="{{ name }}" data-attr="{{ a.id }}" value="{{ input_value(a, v) }}" aria-label="{{ a.name }}">
+  {%- elif a.kind == 'bool' -%}<input type="checkbox" name="{{ name }}" data-attr="{{ a.id }}" {{ 'checked' if v }} aria-label="{{ a.name }}">
+  {%- elif a.role == 'notes' -%}<textarea name="{{ name }}" data-attr="{{ a.id }}" aria-label="{{ a.name }}">{{ v or '' }}</textarea>
+  {%- else -%}<input name="{{ name }}" data-attr="{{ a.id }}" value="{{ input_value(a, v) }}" inputmode="{{ 'decimal' if a.kind in ('money','number','percent') else 'text' }}" aria-label="{{ a.name }}" {% if a.kind == 'email' %}type="email"{% endif %}>
+  {%- endif -%}
+{%- endmacro %}
+{% block content %}
+<div class="pagehead">
+  <div><h1>Neu: {{ spec.name }}</h1>
+    <p>Vorbelegt ist, was Physarum aus Ihren bisherigen {{ spec.plural }} gelernt hat (gelb). Sie können alles überschreiben.</p></div>
+</div>
+{% if error %}<div class="notice bad" style="margin-bottom:12px">{{ error }}</div>{% endif %}
+<form method="post" class="stack" data-formulas="{{ formulas|json|e }}" data-line-formulas="{{ lformulas|json|e }}" data-line-total="{{ ltotal or '' }}">
+  <section class="card">
+    <div class="form-grid head-fields">
+      {% for a in main %}
+      <div class="field {{ 'computed' if a.id in computed or (data.get(a.id) is not none and not error) }}">
+        <label>{{ a.name }}{% if a.id == spec.key %} <span class="faint">(nächste freie Nummer)</span>{% endif %}</label>
+        {{ field(a, data.get(a.id), 'a_' ~ a.id, options) }}
+        {% for f in formulas if f.attr == a.id %}<span class="hint">= {{ f.text.split(' = ', 1)[1] }}</span>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    {% if more %}
+    <details style="margin-top:12px"><summary class="muted">Selten genutzte Felder ({{ more|length }})</summary>
+      <div class="form-grid" style="margin-top:10px">
+        {% for a in more %}<div class="field"><label>{{ a.name }}</label>{{ field(a, data.get(a.id), 'a_' ~ a.id, options) }}</div>{% endfor %}
+      </div>
+    </details>
+    {% endif %}
+  </section>
+
+  {% if line %}
+  <section class="card">
+    <div class="row between"><h2>{{ line.spec.plural }}</h2>
+      {% if party %}<button class="small" id="like-last" data-type="{{ spec.id }}" data-party="a_{{ party.id }}" data-party-name="{{ party.name }}">Wie beim letzten Mal</button>{% endif %}</div>
+    <div style="overflow-x:auto">
+    <table class="table lines">
+      <thead><tr>{% for a in lcols %}<th>{{ a.name }}</th>{% endfor %}<th></th></tr></thead>
+      <tbody class="lines">
+        {% for ln in (lines_in or [{}]) %}{% set n = loop.index0 %}
+        <tr class="line">{% for a in lcols %}<td>{{ field(a, ln.get(a.id), 'l_' ~ n ~ '_' ~ a.id, loptions) }}</td>{% endfor %}<td><button class="small ghost del-line" aria-label="Zeile entfernen">✕</button></td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="{{ lcols|length }}" style="text-align:right">Summe: <b id="lines-sum">–</b></td><td></td></tr></tfoot>
+    </table>
+    </div>
+    <template id="line-template"><tr class="line">{% for a in lcols %}<td>{{ field(a, None, 'l___N___' ~ a.id, loptions) }}</td>{% endfor %}<td><button class="small ghost del-line" aria-label="Zeile entfernen">✕</button></td></tr></template>
+    <button class="small" id="add-line">+ Zeile</button>
+  </section>
+  {% endif %}
+  <div class="row"><button class="primary" type="submit">{{ spec.name }} anlegen</button><a class="btn ghost" href="/t/{{ spec.id }}">Abbrechen</a></div>
+</form>
+{% endblock %}

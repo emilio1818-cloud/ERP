@@ -1,0 +1,127 @@
+# Physarum — ein ERP, das aus den Daten einer Firma wächst
+
+> Arbeitsstand des Konzepts. Abschnitt 8 hält fest, was die unabhängigen Reviews daran verändert haben.
+
+## 1. Was eigentlich erreicht werden soll
+
+Die Idee heißt „ERP“, aber kein Kleinbetrieb *will* ein ERP. Er will:
+
+- **Überblick:** Was haben wir? (Kunden, Artikel, Bestände, offenes Geld)
+- **Kontrolle:** Was muss heute passieren? Was hängt, was ist überfällig?
+- **Zusammenhang:** Die E-Mail gehört zum Auftrag, der Auftrag zur Rechnung, die Rechnung zur Zahlung auf dem Kontoauszug. Das soll man sehen, ohne zu suchen.
+- **Kein Projekt:** keine Berater, keine monatelange Einführung, und die Firma muss sich nicht an die Software anpassen.
+
+Klassische ERPs zwingen die Firma in ein vorgefertigtes Modell (Customizing). Die Idee dreht das um: **Das Modell wird aus der Firma abgeleitet.**
+
+Daraus folgt eine Umdeutung, die den ganzen Entwurf trägt:
+
+> **Jede Firma hat schon ein ERP. Es liegt verstreut in Excel-Listen, Exporten, E-Mails, Kontoauszügen und Köpfen, nur ist es nicht verbunden.**
+> Physarum baut kein ERP von außen. Es findet das vorhandene und verbindet es, so wie der Schleimpilz das Labyrinth nicht baut, sondern den Weg hindurch findet.
+
+## 2. Die Grundidee, kritisch geprüft
+
+### Wo die Metapher trägt
+
+- **Erkunden, verstärken, verkümmern lassen:** Physarum plant nichts zentral. Es wächst überall hin, verstärkt Röhren mit viel Fluss und lässt die anderen verkümmern. So entsteht ein effizientes Netz. Genau das fehlt Software, die einmal konfiguriert wird und danach starr bleibt.
+- **Das Netz ist das Gedächtnis:** Die Struktur ist der Rückstand der Nutzung, wie Trampelpfade.
+- **Wandel ohne Migration:** Ändert die Firma ihren Ablauf, verkümmern die alten Röhren und neue wachsen. Niemand muss eine Datenbank umbauen.
+
+### Wo sie bricht, und was daraus folgt
+
+| Problem | Konsequenz im Entwurf |
+|---|---|
+| **Pruning ist im ERP gefährlich.** Inventur, Jahresabschluss und Mahnlauf sind selten, aber kritisch. Ein Schleimpilz würde sie abschneiden. | Verkümmern wirkt nur auf die **Sichtbarkeit**, nie auf die **Existenz**. Nichts wird gelöscht. Wichtigkeit setzt sich aus Fluss, Geldwert und Fristen zusammen, nicht nur aus Klicks. |
+| **„Optimal abbilden“ widerspricht sich, wenn man nur abbildet.** Wer den Ist-Prozess perfekt kopiert, kopiert auch seine Umwege. Physarum kopiert das Labyrinth nicht, es *löst* es. | Das System bildet ab **und** zeigt die Abkürzungen: Engpässe, übliche Durchlaufzeiten, Ausreißer und Automatisierungsvorschläge („Trampelpfade pflastern“). |
+| **„Egal in welcher Form“ heißt auch: Müll rein.** Dubletten, Tippfehler, Widersprüche. Wer daraus still Strukturen baut, baut die Fehler mit ein. | Sicher handeln, wo die Evidenz stark ist, und **fragen, wo sie schwach ist**, aber nur die wenigen Fragen mit der größten Wirkung. Wie eine neue Mitarbeiterin, nicht wie ein Einrichtungsassistent mit 200 Feldern. |
+| **Ein ERP ist ein „System of Record“** (Belege, GoBD: Unveränderbarkeit, Nachvollziehbarkeit). Ein System, das sich selbst verändert, wirkt erst einmal verdächtig. | Es muss *mehr* Nachvollziehbarkeit bieten als üblich: Jede Zahl hat eine Herkunft (Datei, Zeile), jede Änderung ist ein neuer Eintrag (append-only), jede Annahme kann man erklären lassen und korrigieren. |
+| **Eine „Belohnung“ braucht eine Messgröße**, sonst bleibt sie Marketing. | Siehe Abschnitt 3: Kompression als Zielfunktion. |
+| **Physarum hat keine Menschen.** Eine Firma schon. | Menschliche Entscheidungen sind die stärksten Signale. Sie werden als Randbedingungen gespeichert und überleben jedes Neuwachsen. |
+
+## 3. Die Zielfunktion: Kompression
+
+„Prozesse vollständig und optimal abbilden“ lässt sich präzise fassen:
+
+> **Das beste ERP ist die kürzeste Beschreibung der Firma, die alle ihre Daten erklärt.**
+> (Minimum Description Length: L(Modell) + L(Daten | Modell) → min)
+
+- **Vollständig** heißt, dass jede Zeile, jede Datei und jedes Dokument im Modell abgebildet ist. Nichts geht verloren.
+- **Einfach** heißt, dass das Modell so wenige Begriffe, Felder und Schritte wie möglich hat.
+- **Jede Strukturentscheidung muss sich bezahlt machen.** Ein neuer Datentyp, etwa „Kunde“ aus einer flachen Umsatzliste herausgelöst, entsteht nur, wenn er mehr Redundanz spart, als er an kognitiver Komplexität kostet. Das ist Datenbank-Normalisierung mit Preisschild.
+
+Dasselbe Prinzip entscheidet überall:
+
+| Entscheidung | Warum sie komprimiert |
+|---|---|
+| Kunde aus Auftragsliste herauslösen | Name und Adresse stehen nicht mehr 300-mal da, sondern einmal |
+| Dubletten zusammenführen („Müller GmbH“ = „Mueller GmbH“) | ein Datensatz statt zwei |
+| Formel entdecken (Brutto = Netto × 1,07) | Brutto muss nicht mehr gespeichert, nur noch berechnet werden |
+| Verweis statt kopiertem Namen | der Name steht beim Kunden, nicht in jeder Rechnung |
+| Auswahlliste statt Freitext (Status: offen/bezahlt) | 2 Bit statt eines Wortes |
+| Datumsabstand als Regel (fällig = Datum + 14 Tage) | Vorschlagswert statt Eingabe |
+
+Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
+
+- **Struktur aus Kompression:** Was in den Daten steckt, wird zum Modell.
+- **Relevanz aus Fluss:** Was benutzt wird und wo Geld und Fristen fließen, wird sichtbar.
+
+## 4. Prinzipien
+
+1. **Einwerfen statt Einrichten.** Es gibt eine Drop-Zone und keine Konfiguration.
+2. **Nichts geht verloren.** Rohdaten bleiben unverändert erhalten (Substrat). Alles Abgeleitete lässt sich neu berechnen, jede Änderung ist ein neuer Eintrag mit Herkunft.
+3. **Kompression als Bauplan.** Typen, Verweise, Formeln, Auswahllisten und Dubletten werden per MDL entschieden.
+4. **Fluss als Relevanz (Physarum nach Tero et al. 2010).** Datenmenge, Geld und Nutzung sind die Nährstoffe. Verbindungen mit Fluss werden dicker, ungenutzte verblassen, verschwinden aber nie.
+5. **Prozesse aus Zeitstempeln.** Jede Datumsspalte ist ein Meilenstein. Reihenfolge und typische Abstände ergeben den Prozess, auch ohne Event-Log. **Was vom Üblichen abweicht, ist Arbeit.** So entsteht die Liste „Heute zu tun“ ohne eine einzige konfigurierte Regel.
+6. **Fragen statt Konfigurieren.** Wo die Evidenz schwach ist, stellt das System wenige Ja/Nein-Fragen, sortiert nach Wirkung (betroffene Datensätze × Unsicherheit).
+7. **Trampelpfade pflastern.** Was Menschen oder Daten wiederholt tun, etwa „wenn ‚bezahlt am‘ gesetzt wird, wird Status = bezahlt“, wird als Automatisierung angeboten, nie heimlich eingeführt.
+8. **Erklärbar.** Zu jeder Annahme gibt es ein „Warum?“ mit Evidenz und ein „Korrigieren“.
+
+## 5. Architektur
+
+```
+ Dateien (xlsx, csv, txt, eml, pdf, docx, json, zip)
+        │  Verdauung: Tabellen erkennen (Kopf-, Titel- und Summenzeilen), Werte verstehen
+        ▼  (Dezimalkomma, Datumsformate, IBAN, PLZ …), Freitext als Dokument
+ ┌──────────────┐
+ │  Substrat    │  unveränderliche Rohdaten: Quellen, Rohtabellen, Rohzeilen, Dokumente
+ └──────┬───────┘
+        │  Wachstum (deterministisch, erklärbar):
+        │   1. Spalten profilieren (Typ, Rolle, Muster, Entropie)
+        │   2. Normalisieren: funktionale Abhängigkeiten + MDL → eingebettete Entitäten herauslösen
+        │   3. Vereinigen: gleiche Dinge aus verschiedenen Dateien zu einem Typ zusammenführen
+        │   4. Dubletten auflösen (Entity Resolution) – unsicher → Frage
+        │   5. Verweise entdecken (Inklusionsabhängigkeiten, auch in Freitext: Verwendungszweck)
+        ▼
+ ┌──────────────┐   Randbedingungen (menschliche Antworten) fließen in jeden Lauf ein
+ │  Organismus  │   Typen, Felder, Verweise, Formeln, Vorgaben, Nummernkreise, Prozesse
+ └──────┬───────┘
+        │  Materialisieren: Datensätze mit stabiler Identität + Änderungsprotokoll + Suchindex
+        ▼
+ ┌──────────────┐   Verhalten: Formeln, Vorgaben, Meilenstein-Prozesse, Aufgaben, Kennzahlen
+ │  Datensätze  │   Physarum-Dynamik: Leitfähigkeit aus Daten- und Nutzungsfluss
+ └──────┬───────┘
+        ▼
+   Oberfläche: Heute · Listen · Datensatz · Formulare · Organismus · Prozesse · Fragen
+```
+
+**Technik:** Python 3, Starlette, Jinja2 und SQLite (WAL, FTS5), serverseitig gerendert mit wenig Vanilla-JS. Es gibt keinen Build-Schritt und keinen externen Dienst, alles läuft lokal und offline. Ein einzelner Ordner mit einer SQLite-Datei und den Originaldateien ist die komplette Firma; ein Backup heißt, diesen Ordner zu kopieren.
+
+## 6. Was daran neu ist
+
+- **MDL als einziges Entscheidungsprinzip für die ERP-Struktur.** Ob etwas ein eigener Typ, ein Verweis, eine Formel oder eine Auswahlliste wird, entscheidet die Frage, ob es die Beschreibung der Firma kürzer macht.
+- **Prozesse und Aufgaben aus Momentaufnahmen.** Process Mining braucht normalerweise Event-Logs, die Kleinbetriebe nicht haben. Physarum liest den Prozess aus der Ordnung der Datumsspalten über Tabellen hinweg ab (Auftrag → Lieferung → Rechnung → Zahlung).
+- **Abweichung vom Üblichen ist Arbeit.** Die Aufgabenliste wird nicht programmiert, sie entsteht aus den gelernten Durchlaufzeiten.
+- **Physarum-Dynamik auf dem Datenmodell.** Das Tero-Modell (Kirchhoff-Fluss plus Leitfähigkeitsanpassung) läuft auf dem Graphen der Datentypen, Nutzungsfluss kommt hinzu. Das Ergebnis ist ein selbstorganisiertes „Rückgrat“, das Navigation, Spalten und Reihenfolgen bestimmt.
+- **Der Kontoauszug schließt Rechnungen von selbst.** Verweise werden auch in Freitext gefunden, etwa „RE-2026-0412“ im Verwendungszweck.
+- **Formeln werden entdeckt, nicht programmiert.**
+- **Fragen nach Informationswert.** Statt eines Einrichtungsassistenten kommen die drei Fragen, deren Antwort am meisten klärt.
+
+## 7. Ehrliche Grenzen
+
+- Freitext, PDFs und E-Mails werden ohne Sprachmodell **verknüpft und durchsuchbar gemacht**, aber nur heuristisch ausgelesen. Ein optionaler LLM-Baustein ist als Erweiterung vorgesehen.
+- Physarum ist die **operative** Schicht und keine Finanzbuchhaltung. DATEV bzw. Steuerberater bleiben, Export ist vorgesehen.
+- Mehrbenutzerbetrieb und Rechte sind nur rudimentär vorhanden (Name im Änderungsprotokoll).
+- Heuristiken irren. Deshalb ist alles erklärbar, korrigierbar und umkehrbar, und die Originaldaten bleiben unangetastet.
+
+## 8. Was die unabhängigen Reviews verändert haben
+
+*(wird nach den Review-Runden ergänzt)*

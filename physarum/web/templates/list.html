@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ spec.plural }}{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>{{ spec.plural }}</h1>
+    <p>{{ total|de }} {{ 'Eintrag' if total == 1 else 'Einträge' }}{% if state.q or state.filters %} gefunden{% endif %} ·
+      aus {% for m in spec.members[:3] %}{{ m.source or m.label }}{{ ', ' if not loop.last }}{% endfor %}{% if spec.members|length > 3 %} u. a.{% endif %}</p>
+  </div>
+  <div class="row noprint">
+    <a class="btn ghost" href="/export/{{ spec.id }}.xlsx" title="Als Excel exportieren">Excel</a>
+    <a class="btn ghost" href="/export/{{ spec.id }}.csv" title="Als CSV exportieren">CSV</a>
+    {% if spec.kind != 'document' %}<a class="btn primary" href="/t/{{ spec.id }}/neu">+ {{ spec.name }}</a>{% endif %}
+  </div>
+</div>
+
+<div class="toolbar noprint">
+  <input type="search" name="q" value="{{ state.q }}" placeholder="In {{ spec.plural }} suchen …" data-live aria-label="Suchen">
+  {% for f in facets %}
+  <div class="chips" aria-label="Filter {{ f.attr.name }}">
+    {% for v, n in f['values'] %}
+      {% set on = state.filters.get(f.attr.id) == v %}
+      <a class="chip {{ 'on' if on }}" href="?{% if state.q %}q={{ state.q|urlencode }}&{% endif %}{% if not on %}f_{{ f.attr.id }}={{ v|urlencode }}{% endif %}">{{ v }} <span class="faint">{{ n }}</span></a>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr>
+      {% for c in cols %}
+        {% set s = state.sort %}
+        <th class="{{ 'num' if c.kind in ('money','number','percent','duration') }}">
+          <a href="?{% if state.q %}q={{ state.q|urlencode }}&{% endif %}{% for k, v in state.filters.items() %}f_{{ k }}={{ v|urlencode }}&{% endfor %}sort={{ ('-' if s == c.id else '') ~ c.id }}">{{ c.name }}{% if s == c.id %} ↑{% elif s == '-' ~ c.id %} ↓{% endif %}</a>
+        </th>
+      {% endfor %}
+    </tr></thead>
+    <tbody id="list-body">
+      {% include "list_rows.html" %}
+    </tbody>
+  </table>
+</div>
+{% if pages > 1 %}
+<div class="pager">
+  Seite {{ page }} von {{ pages }}
+  {% if page > 1 %}<a class="btn small" href="?{% if state.q %}q={{ state.q|urlencode }}&{% endif %}{% if state.sort %}sort={{ state.sort }}&{% endif %}seite={{ page - 1 }}">← zurück</a>{% endif %}
+  {% if page < pages %}<a class="btn small" href="?{% if state.q %}q={{ state.q|urlencode }}&{% endif %}{% if state.sort %}sort={{ state.sort }}&{% endif %}seite={{ page + 1 }}">weiter →</a>{% endif %}
+</div>
+{% endif %}
+<details class="card noprint" style="margin-top:18px" data-remember="cols-{{ spec.id }}">
+  <summary class="muted">Weitere Felder ({{ spec.attrs|rejectattr('hidden')|list|length - cols|length }}) und ausgeblendete ({{ spec.attrs|selectattr('hidden')|list|length }})</summary>
+  <p class="muted" style="font-size:.85rem">Die Liste zeigt die Felder mit der höchsten Leitfähigkeit: gut gefüllt, aussagekräftig und von Ihnen genutzt. Was Sie oft sortieren, filtern oder bearbeiten, rückt nach vorn.</p>
+  <table class="table" style="font-size:.86rem">
+    {% for a in spec.attrs %}
+    <tr><td>{{ a.name }}{% if a.virtual %} <span class="tag calc">berechnet</span>{% endif %}</td><td class="muted">{{ {'text':'Text','id':'Nummer','money':'Betrag','number':'Zahl','date':'Datum','datetime':'Zeitpunkt','ref':'Verweis','email':'E-Mail','phone':'Telefon','zip':'PLZ','percent':'Prozent','duration':'Tage','iban':'IBAN','bool':'Ja/Nein','url':'Web'}.get(a.kind, a.kind) }}</td>
+      <td class="muted">{{ (a.fill * 100)|round|int }} % gefüllt</td>
+      <td class="muted">{% if a.hidden %}{% if a.derived %}ausgeblendet: wiederholt nur den Verweis{% elif a.constant %}ausgeblendet: überall gleich ({{ a.value }}){% else %}ausgeblendet{% endif %}{% endif %}</td>
+      <td>{% if not a.virtual %}<form method="post" action="/organismus/feld" style="display:inline"><input type="hidden" name="type" value="{{ spec.id }}"><input type="hidden" name="attr" value="{{ a.id }}">
+        {% if a.hidden %}<button class="small ghost" name="action" value="show">einblenden</button>{% else %}<button class="small ghost" name="action" value="hide">ausblenden</button>{% endif %}</form>{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+</details>
+{% endblock %}

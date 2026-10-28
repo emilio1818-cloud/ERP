@@ -1,0 +1,296 @@
+"""Normalisation by compression: pull embedded entities out of flat tables.
+
+A flat export repeats the same customer name and address on every order row. If a
+column X determines other columns Y (a functional dependency X -> Y, tolerant to typos
+and to Shopify-style "only the first line is filled"), the Y values can be stored once
+per X instead of once per row. Extraction happens only when it pays for itself:
+
+    savings = sum_Y (n - g) * bits(Y)        (redundancy removed)
+    cost    = TYPE_COST + g * bits(X)        (a new kind of thing + its keys)
+
+TYPE_COST is the cognitive price of one more concept in the user's ERP. This is the
+minimum-description-length principle applied to ERP design.
+"""
+from __future__ import annotations
+
+from collections import Counter, defaultdict
+
+from .. import lexicon
+from ..text import name_similarity, singular_de, slug
+from ..values import Profile
+from .observe import ENTITY_ROLES, NEVER_DETERMINANT, Col, Obs, display_header, pick_key
+
+TYPE_COST = 64.0   # bits; small on purpose: a visible header/line structure is worth a concept
+CONSISTENCY = 0.93
+MIN_GROUP_SIZE = 1.3
+TRANSACTION_FACTS = {"money", "quantity", "date", "due", "percent", "number", "status", "flag", "duration"}
+KEY_RANK = {"id": 3, "email": 2}
+
+
+def _groups(col: Col) -> dict[str, list[int]]:
+    g: dict[str, list[int]] = defaultdict(list)
+    for i, k in enumerate(col.keys):
+        if k is not None:
+            g[k].append(i)
+    return g
+
+
+def depends(groups: dict[str, list[int]], col: Col, n_groups_total: int) -> tuple[bool, float]:
+    """Is `col` (almost) functionally determined by the grouping?
+
+    Base-rate aware: a column that is "bezahlt" in 90 % of all rows looks consistent
+    inside any grouping. We require the grouping to remove most of the disagreement
+    that exists without it.
+    """
+    name_like = col.kind == "text" and col.role in ("name", "person", "street", "city")
+    total = agree = multi = 0
+    filled_groups = 0
+    for idxs in groups.values():
+        vals = [col.keys[i] for i in idxs if col.keys[i] is not None]
+        if vals:
+            filled_groups += 1
+        if len(vals) < 2:
+            continue
+        multi += 1
+        cnt = Counter(vals)
+        mode, mc = cnt.most_common(1)[0]
+        if name_like and mc < len(vals):
+            mc = sum(1 for v in vals if v == mode or name_similarity(v, mode) >= 0.88)
+        total += len(vals)
+        agree += mc
+    if multi == 0:
+        # header fields filled only on the first row of each group (shop exports)
+        ok = filled_groups >= 0.5 * n_groups_total and col.filled <= 1.05 * n_groups_total and multi == 0
+        return ok, 1.0 if ok else 0.0
+    cons = agree / total
+    present = [k for k in col.keys if k is not None]
+    base = Counter(present).most_common(1)[0][1] / len(present) if present else 1.0
+    err_group, err_base = 1.0 - cons, 1.0 - base
+    ok = cons >= CONSISTENCY and err_group <= max(0.015, 0.3 * err_base)
+    return ok, cons
+
+
+def _mode_value(col: Col, idxs: list[int]):
+    vals = [(col.keys[i], col.values[i]) for i in idxs if col.keys[i] is not None]
+    if not vals:
+        return None, None
+    kc = Counter(k for k, _ in vals)
+    mk = kc.most_common(1)[0][0]
+    originals = Counter(str(v) for k, v in vals if k == mk)
+    best = originals.most_common(1)[0][0]
+    for k, v in vals:
+        if k == mk and str(v) == best:
+            return k, v
+    return mk, vals[0][1]
+
+
+def candidate_extractions(o: Obs) -> list[dict]:
+    link_cols = {c for c, _ in o.links}
+    out = []
+    for x in o.cols:
+        if x.name in link_cols or x.name == o.key and o.n == x.filled == x.distinct:
+            continue
+        if x.role in NEVER_DETERMINANT or (x.role not in ENTITY_ROLES and x.kind != "id"):
+            continue
+        if x.kind not in ("id", "text", "email"):
+            continue
+        filled = x.filled
+        if filled < 0.6 * o.n or filled < 4:
+            continue
+        groups = _groups(x)
+        g = len(groups)
+        if g < 2 or filled / g < MIN_GROUP_SIZE:
+            continue
+        transactional = o.kind_hint in ("line", "header") or any(
+            c.kind in ("date", "datetime") or c.role == "quantity" for c in o.cols)
+        party = not _is_header(o, x, [c for c in o.cols if c is not x])
+        deps = []
+        for y in o.cols:
+            if y is x or y.name in link_cols or y.is_constant():
+                continue
+            if party and transactional and y.role in TRANSACTION_FACTS:
+                continue  # the price at the time of sale is a fact of the sale
+            ok, cons = depends(groups, y, g)
+            if ok:
+                deps.append((y, cons))
+        if not deps:
+            continue
+        dep_cols = [y for y, _ in deps]
+        if not any(y.role not in lexicon.ADDRESS_ROLES and y.role != "id" for y in dep_cols):
+            continue  # an IBAN per payee is not a new kind of thing
+        if x.kind == "email" and not any(y.role in ("name", "person") for y in dep_cols):
+            continue
+        n_x = filled
+        savings = sum((n_x - g) * y.bits() for y in dep_cols)
+        cost = TYPE_COST + g * x.bits()
+        net = savings - cost
+        score = net * (1.15 if x.kind == "id" else 1.0) * (1.1 if x.prof.concept else 1.0)
+        out.append(dict(x=x, deps=dep_cols, groups=groups, g=g, savings=savings, cost=cost, net=net, score=score,
+                        consistency={y.name: c for y, c in deps}))
+    out = [e for e in out if e["net"] > 0]
+    out.sort(key=lambda e: -e["score"])
+    if len(out) > 1:
+        best = out[0]
+        for e in out[1:]:
+            # same entity seen through a better key (email instead of name, number instead of name)
+            if e["score"] >= 0.8 * best["score"] and best["x"] in e["deps"] and e["x"] in best["deps"] and \
+                    KEY_RANK.get(e["x"].kind, 1) > KEY_RANK.get(best["x"].kind, 1):
+                out.remove(e)
+                out.insert(0, e)
+                break
+    return out
+
+
+def _is_header(o: Obs, x: Col, deps: list[Col]) -> bool:
+    if x.prof.concept and lexicon.CONCEPTS[x.prof.concept]["kind"] == "transaction":
+        return True
+    has_date = any(y.kind in ("date", "datetime") for y in deps)
+    if x.prof.concept and lexicon.CONCEPTS[x.prof.concept]["kind"] == "master":
+        return False
+    if has_date and x.kind == "id":
+        return True
+    if o.file_concept and lexicon.CONCEPTS[o.file_concept]["kind"] == "transaction" and has_date:
+        return True
+    return False
+
+
+def _party_concept(o: Obs, x: Col, deps: list[Col]) -> str | None:
+    if x.prof.concept:
+        return x.prof.concept
+    for y in deps:
+        if y.role in ("name", "person") and y.prof.concept:
+            return y.prof.concept
+    base = o.concept or o.file_concept
+    if base and lexicon.CONCEPTS[base].get("party"):
+        return lexicon.CONCEPTS[base]["party"]
+    return None
+
+
+def extract(o: Obs, e: dict) -> tuple[Obs, Obs]:
+    x: Col = e["x"]
+    deps: list[Col] = e["deps"]
+    groups: dict[str, list[int]] = e["groups"]
+    order = sorted(groups, key=lambda k: min(groups[k]))
+    header = _is_header(o, x, deps)
+    pcols = []
+    for c in [x] + deps:
+        keys, vals = [], []
+        for k in order:
+            mk, mv = _mode_value(c, groups[k])
+            keys.append(mk)
+            vals.append(mv)
+        prof = _restat(c.prof, vals, keys)
+        pcols.append(Col(name=c.name, prof=prof, values=vals, keys=keys, origin=c.origin))
+    prov = [sorted({tl for i in groups[k] for tl in o.prov[i]}) for k in order]
+    parent = Obs(oid=f"{o.oid}/{slug(x.name)}", table_id=o.table_id, label=o.label, file_concept=o.file_concept,
+                 qualifier=o.qualifier, cols=pcols, prov=prov, n=len(order), key=x.name, determinant=x.name,
+                 extracted_from=o.oid, source_id=o.source_id)
+    dep_names = {c.name for c in deps}
+    rest_cols = [c for c in o.cols if c.name not in dep_names]
+    # rows without a value in X must not lose what they say: the name goes into the link
+    # column (it is resolved by name later), everything else is kept as a residual column
+    null_rows = [i for i, k in enumerate(x.keys) if k is None]
+    if null_rows:
+        null_set = set(null_rows)
+        title_dep = next((y for y in deps if y.kind == "text" and y.role in ("name", "person")), None)
+        if title_dep is not None:
+            xv, xk = list(x.values), list(x.keys)
+            for i in null_rows:
+                if title_dep.values[i] is not None:
+                    xv[i] = title_dep.values[i]
+                    xk[i] = title_dep.keys[i]
+            nx = Col(name=x.name, prof=x.prof, values=xv, keys=xk, origin=x.origin)
+            rest_cols = [nx if c is x else c for c in rest_cols]
+        for y in deps:
+            if y is title_dep:
+                continue
+            vals = [y.values[i] if i in null_set else None for i in range(o.n)]
+            keys = [y.keys[i] if i in null_set else None for i in range(o.n)]
+            if any(v is not None for v in vals):
+                rest_cols.append(Col(name=y.name, prof=_restat(y.prof, vals, keys), values=vals, keys=keys,
+                                     origin=y.origin, residual=True))
+    rest = Obs(oid=o.oid, table_id=o.table_id, label=o.label, file_concept=o.file_concept, qualifier=o.qualifier,
+               cols=rest_cols, prov=o.prov, n=o.n, key=None,
+               determinant=o.determinant, extracted_from=o.extracted_from, kind_hint=o.kind_hint,
+               links=list(o.links) + [(x.name, parent.oid)], name_hint=o.name_hint, concept=o.concept,
+               source_id=o.source_id)
+    rest.key = pick_key(rest)
+    if header:
+        concept = x.prof.concept or o.concept or o.file_concept
+        if concept and lexicon.CONCEPTS[concept]["kind"] != "transaction" and o.file_concept and \
+                lexicon.CONCEPTS[o.file_concept]["kind"] == "transaction":
+            concept = o.file_concept
+        parent.kind_hint = "header"
+        parent.concept = concept
+        parent.links = []
+        if concept:
+            sg, pl, stem = lexicon.concept_names(concept)
+        else:
+            sg = singular_de(display_header(x.name))
+            pl, stem = None, sg
+        q = o.qualifier + "-" if o.qualifier else ""
+        parent.name_hint = (q + sg, (q + pl) if pl else None)
+        rest.kind_hint = "line"
+        rest.concept = None
+        rest.name_hint = (f"{q}{stem}position", f"{q}{stem}positionen")
+    else:
+        concept = _party_concept(o, x, deps)
+        parent.kind_hint = "party"
+        parent.concept = concept
+        if concept:
+            sg, pl, _stem = lexicon.concept_names(concept)
+            parent.name_hint = (sg, pl)
+        else:
+            sg = singular_de(display_header(x.name))
+            parent.name_hint = (sg, None)
+    parent.label = f"{o.label}"
+    return parent, rest
+
+
+def _restat(prof: Profile, values: list, keys: list) -> Profile:
+    p = Profile(name=prof.name, kind=prof.kind, role=prof.role, concept=prof.concept, locale=prof.locale,
+                date_order=prof.date_order, currency=prof.currency, milestone=prof.milestone, integer=prof.integer,
+                pattern=prof.pattern, pattern_share=prof.pattern_share)
+    p.values = values
+    p.keys = keys
+    p.n = len(values)
+    p.filled = sum(1 for k in keys if k is not None)
+    cnt = Counter(k for k in keys if k is not None)
+    p.distinct = len(cnt)
+    from ..values import _entropy
+    p.entropy = _entropy(cnt)
+    first = {}
+    for k, v in zip(keys, values):
+        if k is not None and k not in first:
+            first[k] = v
+    p.top = [(first[k], c) for k, c in cnt.most_common(8)]
+    present = [v for v in values if v is not None]
+    p.avg_len = sum(len(str(v)) for v in present) / len(present) if present else 0.0
+    if prof.enum is not None:
+        p.enum = [v for v, _ in Counter(v for v in values if v is not None).most_common()]
+    return p
+
+
+def normalize(o: Obs, log: list | None = None) -> list[Obs]:
+    """Split one observation into its entities (header, lines, parties, articles ...)."""
+    out, queue = [], [o]
+    guard = 0
+    while queue and guard < 20:
+        guard += 1
+        cur = queue.pop(0)
+        cands = candidate_extractions(cur)
+        if not cands:
+            out.append(cur)
+            continue
+        e = cands[0]
+        parent, rest = extract(cur, e)
+        if log is not None:
+            log.append(dict(kind="extract", table=cur.label, determinant=e["x"].name,
+                            deps=[c.name for c in e["deps"]], groups=e["g"], rows=cur.n,
+                            savings=round(e["savings"]), cost=round(e["cost"]),
+                            name=parent.name_hint[0] if parent.name_hint else e["x"].name,
+                            header=parent.kind_hint == "header"))
+        queue.append(parent)
+        queue.append(rest)
+    out.extend(queue)
+    return out

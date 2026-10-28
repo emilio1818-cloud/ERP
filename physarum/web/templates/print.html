@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><title>{{ title(rec.id) }}</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>body{background:#fff;color:#111;padding:40px;max-width:820px;margin:auto} .facts{grid-template-columns:repeat(3,1fr)} h1{font-size:1.5rem}</style>
+</head><body onload="window.print()">
+<p class="muted">{{ company }}</p>
+<h1>{{ spec.name }} {{ title(rec.id) }}</h1>
+{% if party %}<p>{{ fmt(party, rec.data.get(party.id), link=False) }}</p>{% endif %}
+<dl class="facts">
+{% for f in facts if f.value is not none and f.attr.kind != 'ref' or (f.attr.kind == 'ref' and f.value is not none and f.attr != party) %}
+  <div class="fact"><dt>{{ f.attr.name }}</dt><dd>{{ fmt(f.attr, f.value, link=False) }}</dd></div>
+{% endfor %}
+</dl>
+{% for g in related if g.lines %}
+<h2 style="margin-top:24px">{{ g.spec.plural }}</h2>
+<table class="table"><thead><tr>{% for c in g.cols %}<th>{{ c.name }}</th>{% endfor %}</tr></thead>
+<tbody>{% for r in g.recs %}<tr>{% for c in g.cols %}<td class="{{ 'num' if c.kind in ('money','number') }}">{{ fmt(c, r.data.get(c.id), link=False) }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+{% if g.total is not none %}<p style="text-align:right">Summe: <b>{{ money(g.total) }}</b></p>{% endif %}
+{% endfor %}
+<p class="faint" style="margin-top:40px;font-size:.8rem">Erstellt mit Physarum am {{ today }}.</p>
+</body></html>

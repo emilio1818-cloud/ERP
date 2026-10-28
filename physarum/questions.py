@@ -1,0 +1,167 @@
+"""Questions instead of configuration.
+
+Where the evidence is weak the system asks, like a new colleague would: few questions,
+each with its reasons, sorted by how much the answer changes. Every answer is stored as a
+decision that all future growth respects, so nothing is asked twice.
+"""
+from __future__ import annotations
+
+from .grow import record_title
+from .store import Store, dumps, loads, now_iso
+from .text import norm_key
+
+
+def _rec_brief(t, g, limit=4) -> list[list[str]]:
+    out = []
+    for a in t.attrs:
+        v = g.values.get(a.aid)
+        if v is None or a.role in ("notes",):
+            continue
+        out.append([a.name, str(v)[:60]])
+        if len(out) >= limit:
+            break
+    return out
+
+
+def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict], c) -> int:
+    ts = now_iso()
+    found = {}
+    tname = {t["id"]: t for t in model["types"]}
+    for a in asks:
+        if a.get("kind") == "relation":
+            r = a["rel"]
+            unresolved = list(dict.fromkeys(str(v) for v in r.unresolved.values()))[:5]
+            subj = f"relation|{a['key']}"
+            found[subj] = dict(kind="relation", subject=subj, impact=len(r.unresolved) + r.hits * (1 - r.inclusion),
+                               payload=dict(text=f"Verweist „{r.attr.name}“ bei {r.src.plural} auf {r.dst.plural}?",
+                                            detail=f"{round(r.inclusion * 100)} % der Werte sind {r.dst.plural}. "
+                                                   f"Nicht gefunden: " + ", ".join(unresolved),
+                                            decision=dict(kind="relation", subject=a["key"]),
+                                            options=[["yes", "Ja, ist ein Verweis"], ["no", "Nein"]]))
+        else:
+            ma, mb, sim = a["a"], a["b"], a["sim"]
+            sigs = sorted(a["sig"])
+            subj = "same_type|" + "||".join(sigs)
+            cols_a = [c.name for c in ma.cols][:8]
+            cols_b = [c.name for c in mb.cols][:8]
+            na = (ma.name_hint or (None,))[0] or ma.label
+            nb = (mb.name_hint or (None,))[0] or mb.label
+            found[subj] = dict(kind="same_type", subject=subj, impact=(ma.n + mb.n) * 0.5,
+                               payload=dict(text=f"Sind „{na}“ aus {ma.label} und „{nb}“ aus {mb.label} dieselbe Art von Dingen?",
+                                            detail=f"Spalten: {', '.join(cols_a)} — bzw. {', '.join(cols_b)}. "
+                                                   f"Grund für die Vermutung: {sim['reason']}.",
+                                            decision=dict(kind="same_type", subject="||".join(sigs)),
+                                            options=[["same", "Ja, dasselbe"], ["different", "Nein, verschieden"]]))
+    for q in er:
+        t = q["type"]
+        ta = q["a"].values.get(t.title.aid)
+        tb = q["b"].values.get(t.title.aid)
+        subj = f"same_record|{q['key']}"
+        why = ", ".join(q["pro"]) or "Name fast gleich"
+        against = ", ".join(q["con"])
+        found[subj] = dict(kind="same_record", subject=subj,
+                           impact=(len(q["a"].protos) + len(q["b"].protos)) * (1.5 if q["pro"] else 0.6),
+                           payload=dict(text=f"Ist „{ta}“ derselbe {t.name} wie „{tb}“?",
+                                        detail=f"Dafür: {why}." + (f" Dagegen: {against}." if against else ""),
+                                        a=_rec_brief(t, q["a"]), b=_rec_brief(t, q["b"]), type=t.tid,
+                                        idents=[sorted(q["a"].idents)[:3], sorted(q["b"].idents)[:3]],
+                                        decision=dict(kind="same_record", subject=q["key"]),
+                                        options=[["same", "Ja, zusammenführen"], ["different", "Nein, verschieden"]]))
+    # merges that rest on structure only deserve a confirmation
+    for t in model["types"]:
+        for m in t.get("merge_log", []):
+            if "Spalten" in (m.get("reason") or "") and "Nummern" not in m["reason"] and "Namen" not in m["reason"]:
+                subj = f"confirm|{t['id']}|{m['obs']}"
+                member = next((x for x in t["members"] if x["label"] == m["obs"]), {})
+                n = member.get("rows")
+                found[subj] = dict(kind="confirm_merge", subject=subj, impact=5,
+                                   payload=dict(text=f"Ich habe {n or 'die'} {t['plural']} aus „{m['obs']}“ zu den "
+                                                     f"{t['plural']} aus „{m['into']}“ gelegt. Gehören sie zusammen?",
+                                                detail=f"Grund: {m['reason']}. Gemeinsame Datensätze gibt es keine – "
+                                                       f"die Entscheidung liegt bei Ihnen. Getrennt geführt entstehen zwei Listen.",
+                                                decision=dict(kind="same_type", subject=None, obs=m["obs"], into=m["into"],
+                                                              type=t["id"]),
+                                                options=[["ok", "Ja, passt"], ["split", "Nein, getrennt führen"]]))
+    existing = {r["subject"]: r for r in c.execute("SELECT * FROM questions").fetchall()}
+    for subj, q in found.items():
+        if subj in existing:
+            if existing[subj]["status"] == "obsolete":
+                c.execute("UPDATE questions SET status='open', payload=?, impact=? WHERE subject=?",
+                          (dumps(q["payload"]), q["impact"], subj))
+            elif existing[subj]["status"] == "open":
+                c.execute("UPDATE questions SET payload=?, impact=? WHERE subject=?",
+                          (dumps(q["payload"]), q["impact"], subj))
+            continue
+        c.execute("INSERT INTO questions(kind,subject,payload,impact,status,created_at) VALUES(?,?,?,?,?,?)",
+                  (q["kind"], subj, dumps(q["payload"]), q["impact"], "open", ts))
+    for subj, r in existing.items():
+        if r["status"] == "open" and subj not in found:
+            c.execute("UPDATE questions SET status='obsolete' WHERE subject=?", (subj,))
+    return sum(1 for _ in c.execute("SELECT 1 FROM questions WHERE status='open'").fetchall())
+
+
+def open_questions(store: Store, limit: int | None = None) -> list[dict]:
+    rows = store.q("SELECT * FROM questions WHERE status='open' AND (snooze_until IS NULL OR snooze_until < ?) "
+                   "ORDER BY impact DESC, id", (now_iso(),))
+    out = [dict(id=r["id"], kind=r["kind"], subject=r["subject"], impact=r["impact"], **loads(r["payload"])) for r in rows]
+    return out[:limit] if limit else out
+
+
+def answer(store: Store, qid: int, value: str, actor: str | None = None) -> dict:
+    """Store the answer. Returns {'regrow': bool, 'merged': (a, b) | None}."""
+    r = store.q1("SELECT * FROM questions WHERE id=?", (qid,))
+    if not r:
+        return dict(regrow=False)
+    payload = loads(r["payload"])
+    dec = payload.get("decision") or {}
+    result = dict(regrow=False, merged=None)
+    with store.tx() as c:
+        if value == "later":
+            from datetime import datetime, timedelta
+            c.execute("UPDATE questions SET snooze_until=? WHERE id=?",
+                      ((datetime.now() + timedelta(days=1)).isoformat(timespec="seconds"), qid))
+            return result
+        if value == "unknown":
+            c.execute("UPDATE questions SET status='answered', answer=?, answered_at=? WHERE id=?",
+                      (dumps(value), now_iso(), qid))
+            return result
+        kind = r["kind"]
+        if kind == "same_type":
+            store.decide("same_type", dec["subject"], value, actor, c=c)
+            result["regrow"] = True
+        elif kind == "relation":
+            store.decide("relation", dec["subject"], value, actor, c=c)
+            result["regrow"] = True
+        elif kind == "same_record":
+            store.decide("same_record", dec["subject"], value, actor, c=c)
+            if value == "same":
+                ids = payload.get("idents") or [[], []]
+                tid = payload.get("type")
+                ra = _rid_for(c, tid, ids[0])
+                rb = _rid_for(c, tid, ids[1])
+                if ra and rb and ra != rb:
+                    from .grow import _merge_record
+                    keep, drop = sorted((ra, rb))
+                    _merge_record(c, drop, keep, now_iso(), actor or "Mensch", "per Antwort bestätigt")
+                    result["merged"] = (keep, drop)
+                    store.kv_set("data_version", (store.kv_get("data_version", 0) or 0) + 1, c)
+        elif kind == "confirm_merge":
+            if value == "split":
+                t = next((t for t in (store.model() or {}).get("types", []) if t["id"] == dec.get("type")), None)
+                if t:
+                    sig_obs = next((m["sig"] for m in t["members"] if m["label"] == dec.get("obs")), None)
+                    sig_into = next((m["sig"] for m in t["members"] if m["label"] == dec.get("into")), None)
+                    if sig_obs and sig_into:
+                        store.decide("same_type", "||".join(sorted((sig_obs, sig_into))), "different", actor, c=c)
+                        result["regrow"] = True
+        c.execute("UPDATE questions SET status='answered', answer=?, answered_at=? WHERE id=?",
+                  (dumps(value), now_iso(), qid))
+    return result
+
+
+def _rid_for(c, tid, idents) -> int | None:
+    for i in idents:
+        row = c.execute("SELECT record_id FROM idents WHERE type=? AND ident=?", (tid, i)).fetchone()
+        if row:
+            return row["record_id"]
+    return None

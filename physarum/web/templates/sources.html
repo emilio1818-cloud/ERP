@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Quellen{% endblock %}
+{% block content %}
+<div class="pagehead"><div><h1>Quellen &amp; Einwerfen</h1>
+  <p>Alles, was Physarum bekommen hat – unverändert aufbewahrt. Jede Quelle lässt sich wieder herausnehmen; Physarum wächst dann ohne sie neu.</p></div></div>
+<form class="drop" id="einwerfen" onsubmit="return false" style="margin-bottom:18px">
+  <h2>Neue Dateien hierher ziehen</h2>
+  <p class="drop-msg muted">Neue Exporte, weitere Listen, der nächste Kontoauszug – Physarum fügt sie in das Bestehende ein.</p>
+  <div class="row" style="justify-content:center"><button class="primary" data-pick="files">Dateien wählen</button><button data-pick="folder">Ordner wählen</button></div>
+  <input type="file" multiple><input type="file" data-folder webkitdirectory multiple>
+</form>
+<div class="table-wrap">
+<table class="table">
+  <thead><tr><th>Datei</th><th>eingeworfen</th><th>Inhalt</th><th>wurde zu</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr class="{{ 'faint' if not r.s.active }}">
+      <td><a href="/quellen/{{ r.s.id }}/datei">{{ r.s.name }}</a>{% if r.s.parent_id %}<br><span class="faint" style="font-size:.78rem">Anhang/Inhalt von Quelle {{ r.s.parent_id }}</span>{% endif %}</td>
+      <td style="white-space:nowrap">{{ ago(r.s.added_at) }}<br><span class="faint" style="font-size:.78rem">{{ r.s.added_by or '' }}</span></td>
+      <td style="font-size:.86rem">{% for t in r.summary.tables or [] %}{{ t.rows|de }} Zeilen{% if t.name %} <span class="faint">({{ t.name }})</span>{% endif %}<br>{% endfor %}
+          {% if r.docs %}{{ r.docs }} Dokument(e){% endif %}
+          {% for n in r.notes %}<div class="notice warn" style="margin-top:4px; font-size:.82rem">{{ n }}</div>{% endfor %}</td>
+      <td>{% for t in r.types %}<a class="pill" href="/t/{{ t.id }}">{{ t.plural }}</a> {% endfor %}{% if r.docs %}<a class="pill" href="/t/doc">Dokumente</a>{% endif %}</td>
+      <td>{% if r.s.active %}<button class="small ghost danger" data-post="/quellen/{{ r.s.id }}/entfernen" data-confirm="„{{ r.s.name }}“ herausnehmen? Was nur aus dieser Datei stammt, verschwindet (bleibt im Protokoll). Ihre eigenen Eingaben bleiben erhalten.">herausnehmen</button>
+          {% else %}<button class="small ghost" data-post="/quellen/{{ r.s.id }}/zurueck">wieder aufnehmen</button>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

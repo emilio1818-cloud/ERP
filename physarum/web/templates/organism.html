@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Organismus{% endblock %}
+{% block content %}
+<div class="pagehead"><div><h1>Wie Physarum Ihre Firma sieht</h1>
+  <p>Jeder Kreis ist eine Art von Dingen, jede Röhre eine Verbindung. Dicke Röhren tragen viel Fluss: viele Verknüpfungen, viel Geld, viel Nutzung. Wenig genutzte Röhren werden dünner – gelöscht wird nichts.</p></div></div>
+
+<div class="card">{{ svg }}</div>
+
+<div class="grid g2" style="margin-top:14px; align-items:start">
+  <section class="card">
+    <h2>Arten von Dingen</h2>
+    <table class="table">
+      <thead><tr><th>Name</th><th class="num">Anzahl</th><th>entstanden aus</th><th class="num">Leitf.</th></tr></thead>
+      <tbody>
+      {% for t in model.types|sort(attribute='salience', reverse=True) %}
+        <tr><td><a href="/t/{{ t.id }}">{{ t.plural }}</a><br><span class="faint" style="font-size:.78rem">{{ {'master':'Stammdaten','transaction':'Vorgänge','line':'Positionen','document':'Dokumente'}[t.kind] }}</span></td>
+          <td class="num">{{ t.count|de }}</td>
+          <td style="font-size:.84rem">{% for m in t.members[:4] %}{{ m.label }}{% if m.extracted %} <span class="tag">herausgelöst</span>{% endif %}{{ '; ' if not loop.last }}{% endfor %}{% if t.members|length > 4 %} …{% endif %}</td>
+          <td class="num">{{ '%.2f'|format(t.salience or 0) }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <details style="margin-top:12px"><summary class="muted">Eine Art umbenennen</summary>
+      <form method="post" action="/organismus/umbenennen" class="row" style="margin-top:8px">
+        <select name="type">{% for t in model.types %}<option value="{{ t.id }}">{{ t.plural }}</option>{% endfor %}</select>
+        <input name="name" placeholder="Einzahl, z. B. Kunde" required>
+        <input name="plural" placeholder="Mehrzahl, z. B. Kunden">
+        <button class="small">Umbenennen</button>
+      </form>
+    </details>
+  </section>
+  <section class="card">
+    <h2>Was ich gelernt habe – und warum</h2>
+    <p class="muted" style="font-size:.86rem">Jede Annahme mit ihrer Begründung. Falsch? Verbindungen lassen sich hier lösen, Arten umbenennen, Felder ausblenden (in jeder Liste unten).</p>
+    {% for kind, items in learned|groupby('kind') %}
+    <details {{ 'open' if loop.index <= 2 }} data-remember="learned-{{ kind }}" style="margin-top:8px">
+    <summary><b>{{ kind }}</b> <span class="muted">({{ items|length }})</span></summary>
+    <ul class="history">
+    {% for l in items %}
+      <li>{{ l.text }}<br><span class="faint" style="font-size:.82rem">{{ l.why }}</span>
+        {% if l.rel and l.rel.kind != 'mention' and not l.rel.structural %}
+        <button class="small ghost" data-post="/organismus/verweis" data-body='{"key": "rel|{{ (model.types|selectattr('id','equalto',l.rel.src)|first).name }}|{{ ((model.types|selectattr('id','equalto',l.rel.src)|first).attrs|selectattr('id','equalto',l.rel.attr)|first).orig_name }}|{{ (model.types|selectattr('id','equalto',l.rel.dst)|first).name }}"}' data-confirm="Diese Verbindung lösen? Physarum wächst danach neu.">lösen</button>{% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+    </details>
+    {% endfor %}
+  </section>
+</div>
+
+<section class="card" style="margin-top:14px">
+  <h2>Wachstum</h2>
+  <table class="table">
+    <thead><tr><th>Version</th><th>wann</th><th>Arten</th><th>Verbindungen</th><th>Datensätze</th><th>neu</th></tr></thead>
+    <tbody>{% for v in versions %}
+      <tr><td>{{ v.v }}</td><td>{{ ago(v.at) }}</td><td>{{ v.summary.types }}</td><td>{{ v.summary.relations }}</td>
+        <td>{% if v.summary.stats %}{{ v.summary.stats.records|de }} ({{ v.summary.stats.new }} neu, {{ v.summary.stats.changed }} geändert){% endif %}</td>
+        <td>{{ (v.summary.new_types or [])|join(', ') }}</td></tr>
+    {% endfor %}</tbody>
+  </table>
+  <p class="faint" style="font-size:.84rem">Physarum rechnet bei jedem Einwurf alles neu aus allen Quellen – das Ergebnis hängt nicht von der Reihenfolge ab. Ihre Antworten und Korrekturen gelten dabei als feste Randbedingungen.</p>
+</section>
+{% endblock %}

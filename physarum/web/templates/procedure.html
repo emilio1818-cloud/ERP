@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Verfahrensdokumentation{% endblock %}
+{% block content %}
+<div class="pagehead"><div><h1>Verfahrensdokumentation (Entwurf)</h1>
+  <p>Schreibt sich aus Herkunft, Regeln und Entscheidungen von selbst. Grundlage für die nach GoBD geforderte Beschreibung, wie Ihre Daten entstehen, verarbeitet und aufbewahrt werden. Bitte mit Ihrer Steuerberatung abstimmen.</p></div>
+  <button class="btn noprint" onclick="window.print()">Drucken</button></div>
+<section class="card"><h2>1. Datenquellen</h2>
+  <p>{{ srcs|length }} Quellen wurden eingelesen. Originale werden unverändert im Ordner „originale“ aufbewahrt und sind über ihren SHA-256-Prüfwert eindeutig identifiziert.</p>
+  <table class="table"><thead><tr><th>Datei</th><th>eingelesen</th><th>von</th><th>aktiv</th><th>Prüfwert</th></tr></thead><tbody>
+  {% for s in srcs %}<tr><td>{{ s.name }}</td><td>{{ s.added_at }}</td><td>{{ s.added_by or '' }}</td><td>{{ 'ja' if s.active else 'nein' }}</td><td class="mono faint" style="font-size:.75rem">{{ s.sha256[:16] }}…</td></tr>{% endfor %}
+  </tbody></table></section>
+<section class="card"><h2>2. Datenmodell und Regeln</h2>
+  <p>Das Datenmodell wurde aus den Quellen abgeleitet (Version {{ versions[0].version if versions else '–' }}). Folgende Strukturen und Regeln sind wirksam:</p>
+  <ul class="learned">{% for l in learned %}<li><b>{{ l.kind }}:</b> {{ l.text }} <span class="faint">– {{ l.why }}</span></li>{% endfor %}</ul></section>
+<section class="card"><h2>3. Unveränderbarkeit und Protokoll</h2>
+  <p>Jede Änderung wird als neuer Eintrag protokolliert (wer, wann, was, alter und neuer Wert, Herkunft). Einträge werden nie überschrieben. Bisher {{ nchanges|de }} Protokolleinträge:
+  {% for k, n in by_kind.items() %}{{ {'import':'Übernahmen aus Quellen','edit':'Bearbeitungen','create':'Neuanlagen','auto':'automatische Änderungen','merge':'Zusammenführungen','note':'Notizen','storno':'Stornos','delete':'Löschungen','remove':'entfallene Quelldaten'}.get(k, k) }}: {{ n|de }}{{ '; ' if not loop.last }}{% endfor %}.</p>
+  <p>Ausgestellte Rechnungen sind festgeschrieben: Beträge, Daten, Kunde und Nummer können nicht geändert werden; eine Korrektur erfolgt ausschließlich über ein Storno mit Begründung. Datensätze, auf die andere verweisen, können nicht gelöscht werden.</p></section>
+<section class="card"><h2>4. Menschliche Entscheidungen</h2>
+  <table class="table"><thead><tr><th>wann</th><th>wer</th><th>Art</th><th>Gegenstand</th><th>Entscheidung</th></tr></thead><tbody>
+  {% for d in decisions %}<tr><td>{{ d.ts }}</td><td>{{ d.actor or '' }}</td><td>{{ d.kind }}</td><td style="font-size:.82rem">{{ d.subject }}</td><td>{{ d.value }}</td></tr>{% else %}<tr><td colspan="5" class="muted">Noch keine.</td></tr>{% endfor %}
+  </tbody></table></section>
+<section class="card"><h2>5. Versionen des Datenmodells</h2>
+  <ul class="history">{% for v in versions %}<li>Version {{ v.version }} vom {{ v.created_at }}</li>{% endfor %}</ul></section>
+{% endblock %}

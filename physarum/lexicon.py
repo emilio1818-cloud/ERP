@@ -1,0 +1,379 @@
+"""Business vocabulary (German/English): what things are called and what columns mean.
+
+The lexicon is deliberately small. It only seeds the inference; the data decides.
+Terms are folded (see text.fold) and matched against header/file-name tokens.
+"""
+from __future__ import annotations
+
+from .text import fold, tokens
+
+# concept -> singular, plural, compound stem, kind, terms (folded; prefix match for terms ending in '*')
+CONCEPTS: dict[str, dict] = {
+    "kunde": dict(sg="Kunde", pl="Kunden", stem="Kunden", kind="master",
+                  terms=["kunde", "kunden", "kdnr", "kundennr", "kundennummer", "customer", "customers", "client",
+                         "clients", "debitor", "debitoren", "kaeufer", "buyer", "abnehmer", "billing", "crm",
+                         "auftraggeber", "mandant", "mandanten", "account", "accounts"]),
+    "lieferant": dict(sg="Lieferant", pl="Lieferanten", stem="Lieferanten", kind="master",
+                      terms=["lieferant", "lieferanten", "liefnr", "supplier", "suppliers", "vendor", "vendors",
+                             "kreditor", "kreditoren", "hersteller", "manufacturer", "haendler"]),
+    "artikel": dict(sg="Artikel", pl="Artikel", stem="Artikel", kind="master",
+                    terms=["artikel", "artnr", "artikelnr", "artikelnummer", "produkt", "produkte", "product",
+                           "products", "item", "items", "ware", "waren", "sku", "material", "materialien",
+                           "lineitem", "leistung", "leistungen", "sortiment", "preisliste", "katalog"]),
+    "auftrag": dict(sg="Auftrag", pl="Aufträge", stem="Auftrags", kind="transaction", party="kunde",
+                    terms=["auftrag", "auftraege", "auftrags", "auftragsnr", "kundenauftrag", "kundenauftraege",
+                           "order", "orders", "salesorder", "job", "jobs"]),
+    "bestellung": dict(sg="Bestellung", pl="Bestellungen", stem="Bestell", kind="transaction", party="kunde",
+                       terms=["bestellung", "bestellungen", "bestell", "bestellnr", "purchase", "po"]),
+    "einkauf": dict(sg="Einkauf", pl="Einkäufe", stem="Einkaufs", kind="transaction", party="lieferant",
+                    terms=["einkauf", "einkaeufe", "beschaffung", "wareneingang", "purchases", "procurement"]),
+    "angebot": dict(sg="Angebot", pl="Angebote", stem="Angebots", kind="transaction", party="kunde",
+                    terms=["angebot", "angebote", "angebots", "quote", "quotes", "offer", "offers", "kostenvoranschlag",
+                           "kva"]),
+    "rechnung": dict(sg="Rechnung", pl="Rechnungen", stem="Rechnungs", kind="transaction", party="kunde",
+                     terms=["rechnung", "rechnungen", "rechnungs", "renr", "rechnungsnr", "invoice", "invoices",
+                            "faktura", "fakturen", "ausgangsrechnung", "ausgangsrechnungen"]),
+    "lieferschein": dict(sg="Lieferschein", pl="Lieferscheine", stem="Lieferschein", kind="transaction",
+                         party="kunde",
+                         terms=["lieferschein", "lieferscheine", "lieferung", "lieferungen", "delivery", "deliveries",
+                                "shipment", "shipments", "versand"]),
+    "zahlung": dict(sg="Zahlung", pl="Zahlungen", stem="Zahlungs", kind="transaction",
+                    terms=["zahlung", "zahlungen", "zahlungseingang", "zahlungseingaenge", "payment", "payments"]),
+    "kontobewegung": dict(sg="Kontobewegung", pl="Kontobewegungen", stem="Kontobewegungs", kind="transaction",
+                          terms=["kontoauszug", "kontoauszuege", "umsaetze", "kontoumsaetze", "bank", "banking",
+                                 "statement", "transactions", "girokonto"]),
+    "mitarbeiter": dict(sg="Mitarbeiter", pl="Mitarbeiter", stem="Mitarbeiter", kind="master",
+                        terms=["mitarbeiter", "mitarbeiterin", "personal", "employee", "employees", "staff", "team",
+                               "angestellte", "belegschaft"]),
+    "projekt": dict(sg="Projekt", pl="Projekte", stem="Projekt", kind="transaction", party="kunde",
+                    terms=["projekt", "projekte", "project", "projects", "baustelle", "baustellen"]),
+    "vertrag": dict(sg="Vertrag", pl="Verträge", stem="Vertrags", kind="transaction", party="kunde",
+                    terms=["vertrag", "vertraege", "contract", "contracts", "abo", "abos", "subscription",
+                           "subscriptions", "wartungsvertrag", "wartungsvertraege"]),
+    "kontakt": dict(sg="Kontakt", pl="Kontakte", stem="Kontakt", kind="master",
+                    terms=["kontakt", "kontakte", "contact", "contacts", "ansprechpartner", "adressen", "adresse",
+                           "adressbuch"]),
+    "termin": dict(sg="Termin", pl="Termine", stem="Termin", kind="transaction",
+                   terms=["termin", "termine", "appointment", "appointments", "kalender", "einsatz", "einsaetze"]),
+    "lager": dict(sg="Lagerbestand", pl="Lagerbestände", stem="Lager", kind="master",
+                  terms=["lager", "lagerbestand", "bestand", "bestaende", "inventory", "stock", "inventur"]),
+    "ticket": dict(sg="Ticket", pl="Tickets", stem="Ticket", kind="transaction", party="kunde",
+                   terms=["ticket", "tickets", "reklamation", "reklamationen", "anfrage", "anfragen", "support"]),
+    "dokument": dict(sg="Dokument", pl="Dokumente", stem="Dokument", kind="document",
+                     terms=["dokument", "dokumente", "document", "documents"]),
+}
+
+# words that describe the container, not the content ("Kundenliste" is about Kunden)
+CONTAINER_WORDS = {
+    "liste", "listen", "list", "export", "exports", "import", "tabelle", "table", "uebersicht", "verzeichnis",
+    "datei", "daten", "data", "stamm", "stammdaten", "buch", "journal", "dump", "backup", "final", "neu", "alt",
+    "old", "new", "kopie", "copy", "version", "stand", "aktuell", "current", "report", "bericht", "auswertung",
+    "sheet", "blatt", "tabelle1", "sheet1", "file", "ausgang", "eingang", "csv", "xlsx", "xls", "txt", "v",
+    "teil", "gesamt", "alle", "all", "master", "main", "my", "meine", "unsere", "firma", "kw",
+}
+QUALIFIER_WORDS = {"shop": "Shop", "online": "Online", "webshop": "Shop", "amazon": "Amazon", "ebay": "eBay",
+                   "b2b": "B2B", "b2c": "B2C"}
+
+# column roles ------------------------------------------------------------------------------
+ROLE_TERMS: dict[str, list[str]] = {
+    "id": ["nr", "no", "nummer", "number", "num", "id", "kennung", "code", "schluessel", "key", "ref", "referenz",
+           "reference", "zeichen", "kennzeichen", "belegnr", "beleg"],
+    "name": ["name", "namen", "bezeichnung", "firma", "firmenname", "company", "unternehmen", "titel", "title",
+             "benennung", "label", "produktname", "artikelname", "kurzname", "billing"],
+    "person": ["ansprechpartner", "kontakt", "contact", "person", "vorname", "nachname", "firstname", "lastname",
+               "inhaber", "zustaendig", "bearbeiter", "verantwortlich", "owner", "sachbearbeiter", "techniker"],
+    "email": ["email", "mail", "emailadresse"],
+    "phone": ["telefon", "tel", "phone", "mobil", "mobile", "handy", "fon", "fax", "rufnummer"],
+    "street": ["strasse", "str", "street", "adresse", "anschrift", "address", "hausnummer"],
+    "zip": ["plz", "postleitzahl", "zip", "zipcode", "postcode", "postal"],
+    "city": ["ort", "stadt", "city", "wohnort", "town", "gemeinde", "lieferort"],
+    "country": ["land", "country", "staat"],
+    "money": ["betrag", "summe", "preis", "price", "amount", "total", "gesamt", "netto", "brutto", "umsatz", "wert",
+              "kosten", "cost", "costs", "eur", "euro", "honorar", "pauschale", "gebuehr", "fee", "subtotal",
+              "shipping", "versandkosten", "rabattbetrag", "lohn", "gehalt", "vk", "ek", "listenpreis", "einzelpreis",
+              "stueckpreis", "gesamtpreis", "monatspauschale", "saldo", "offen", "rest"],
+    "quantity": ["menge", "anzahl", "stueck", "stk", "qty", "quantity", "anz", "kg", "liter", "stunden", "std",
+                 "hours", "saecke", "sack", "kartons", "einheiten", "bestand", "mindestbestand", "meldebestand",
+                 "lagerbestand", "units", "pieces", "wochenstunden"],
+    "percent": ["rabatt", "mwst", "ust", "steuersatz", "prozent", "percent", "discount", "skonto", "marge", "tax",
+                "vat"],
+    "date": ["datum", "date", "am", "tag", "zeitpunkt", "created", "erstellt", "angelegt", "beginn", "start",
+             "eintritt", "since", "seit", "at", "on", "buchungstag", "valutadatum", "valuta", "geliefert",
+             "bezahlt", "eingang", "versendet", "erledigt", "abgeschlossen", "storniert", "fulfilled", "paid",
+             "shipped", "delivered", "closed", "ende", "end"],
+    "due": ["faellig", "faelligkeit", "due", "frist", "deadline", "termin", "liefertermin", "wunschtermin",
+            "naechste", "next", "bis", "ablauf", "expires", "expiry", "gueltig"],
+    "status": ["status", "zustand", "state", "stage", "phase", "stand", "fortschritt", "progress"],
+    "category": ["gruppe", "kategorie", "category", "typ", "type", "art", "segment", "klasse", "sorte",
+                 "kundengruppe", "warengruppe", "bereich", "abteilung", "funktion", "rolle", "role", "gebinde",
+                 "einheit", "unit", "roestung", "herkunft", "kanal", "channel", "zahlungsart"],
+    "notes": ["notiz", "notizen", "bemerkung", "bemerkungen", "kommentar", "comment", "comments", "note", "notes",
+              "beschreibung", "description", "info", "hinweis", "text", "verwendungszweck", "betreff", "subject",
+              "memo", "details"],
+    "iban": ["iban", "kontonummer", "konto", "bankverbindung"],
+    "bic": ["bic", "swift"],
+    "vat_id": ["ustid", "ustidnr", "vatid", "steuernummer", "steuernr"],
+    "url": ["url", "web", "website", "homepage", "link"],
+    "unit": ["einheit", "unit", "me", "mengeneinheit"],
+}
+# phrases (folded, space separated) with fixed meaning; checked before single tokens
+ROLE_PHRASES: dict[str, str] = {
+    "zahlungsziel": "duration", "zahlungsziel tage": "duration", "lieferzeit": "duration", "laufzeit": "duration",
+    "kd nr": "id", "art nr": "id", "re nr": "id", "bestell nr": "id", "auftrags nr": "id", "lineitem sku": "id",
+    "fulfillment status": "status", "financial status": "status", "payment status": "status",
+    "lineitem price": "money", "lineitem quantity": "quantity", "lineitem name": "name",
+    "billing name": "name", "shipping city": "city", "e mail": "email", "kontonummer iban": "iban",
+    "beguenstigter zahlungspflichtiger": "name", "auftraggeber empfaenger": "name", "buchungstext": "category",
+    "preis kg": "money", "summe eur": "money", "vk netto": "money", "created at": "date", "fulfilled at": "date",
+    "customer since": "date", "bezahlt am": "date", "geliefert am": "date", "eingang am": "date",
+    "naechste wartung": "due", "letzte wartung": "date", "faellig am": "due",
+}
+
+# words that, in a header, mark the *end* of a process ("Bezahlt am", "Geliefert am")
+MILESTONE_WORDS = {
+    "geliefert": "geliefert", "lieferung": "geliefert", "delivered": "geliefert", "versendet": "versendet",
+    "versand": "versendet", "shipped": "versendet", "fulfilled": "versendet", "bezahlt": "bezahlt", "paid": "bezahlt",
+    "zahlung": "bezahlt", "zahlungseingang": "bezahlt", "eingang": "eingegangen", "erhalten": "eingegangen",
+    "received": "eingegangen", "erledigt": "erledigt", "done": "erledigt", "abgeschlossen": "abgeschlossen",
+    "closed": "abgeschlossen", "berechnet": "berechnet", "fakturiert": "berechnet", "invoiced": "berechnet",
+    "storniert": "storniert", "cancelled": "storniert", "canceled": "storniert", "angenommen": "angenommen",
+    "accepted": "angenommen", "unterschrieben": "unterschrieben", "signed": "unterschrieben", "gemahnt": "gemahnt",
+    "freigegeben": "freigegeben", "approved": "freigegeben", "montiert": "montiert", "installiert": "installiert",
+    "wartung": "gewartet", "gewartet": "gewartet", "ende": "beendet", "end": "beendet", "austritt": "ausgetreten",
+}
+
+# status values that terminate a process without completing it
+NEGATIVE_STATES = {"storniert", "storno", "cancelled", "canceled", "abgesagt", "abgelehnt", "rejected", "verloren",
+                   "lost", "refunded", "erstattet", "zurueckgezogen", "void", "ungueltig", "inaktiv", "inactive",
+                   "gekuendigt", "archiviert"}
+# status values that mean "done"
+DONE_STATES = {"bezahlt", "paid", "erledigt", "done", "abgeschlossen", "closed", "geliefert", "delivered",
+               "fulfilled", "versendet", "shipped", "fertig", "complete", "completed", "beglichen", "ausgeglichen"}
+
+TOTAL_WORDS = {"summe", "gesamt", "total", "totals", "sum", "zwischensumme", "endsumme", "gesamtsumme", "insgesamt",
+               "subtotal", "uebertrag"}
+
+ADDRESS_ROLES = {"street", "zip", "city", "country", "phone", "email", "iban", "bic", "url"}
+
+
+ABBREVIATIONS = {"kd": "kunde", "kdn": "kunde", "art": "artikel", "lief": "lieferant", "re": "rechnung",
+                 "ma": "mitarbeiter", "auf": "auftrag", "ang": "angebot", "ls": "lieferschein", "bel": "dokument"}
+ID_TOKENS = {"nr", "no", "nummer", "number", "num", "id", "code", "kennung"}
+REF_SUFFIXES = ("nummer", "nr", "name", "id", "code", "bezeichnung", "kennung", "no", "mail", "email")
+NONREF_SUFFIXES = ("gruppe", "typ", "art", "kategorie", "segment", "klasse", "status", "datum", "ziel", "seit",
+                   "zahl", "anzahl", "preis", "nummernkreis", "konto", "rabatt", "umsatz", "wert", "summe",
+                   "kosten", "betrag", "menge", "zeit", "tage", "frist", "termin", "bestand")
+
+
+def _compound_concept(tok: str) -> tuple[str | None, str]:
+    """Split a (possibly compound) token into (concept, rest). Rightmost concept term wins."""
+    best: tuple[int, int, str] | None = None  # (end position, length, concept)
+    for c, spec in CONCEPTS.items():
+        for term in spec["terms"]:
+            if len(term) < 4:
+                if tok == term:
+                    cand = (len(tok), len(term), c)
+                    best = max(best, cand) if best else cand
+                continue
+            pos = tok.rfind(term)
+            if pos < 0:
+                continue
+            cand = (pos + len(term), len(term), c)
+            if best is None or (cand[0], cand[1]) > (best[0], best[1]):
+                best = cand
+    if not best:
+        return None, tok
+    end = best[0]
+    return best[2], tok[end:]
+
+
+def concepts_in_tokens(toks: list[str]) -> list[tuple[int, str]]:
+    hits = []
+    for i, t in enumerate(toks):
+        if t in CONTAINER_WORDS or t.isdigit():
+            continue
+        c, _rest = _compound_concept(t)
+        if c:
+            hits.append((i, c))
+    return hits
+
+
+def concept_of(text: str) -> str | None:
+    """Concept of a file/sheet name like 'Kundenliste_2023.xlsx', 'Aufträge Großkunden', 'customer_orders'.
+    Transactions beat master data (orders of customers are orders)."""
+    hits = concepts_in_tokens(tokens(text))
+    if not hits:
+        return None
+    trans = [c for _, c in hits if CONCEPTS[c]["kind"] == "transaction"]
+    return trans[0] if trans else hits[0][1]
+
+
+def header_concept(header: str) -> str | None:
+    """Entity concept a column header *refers to*: 'Kd-Nr' -> kunde, 'Lieferant' -> lieferant,
+    'Kundennummer' -> kunde, but 'Kundengruppe' -> None and 'Rechnungsdatum' -> None."""
+    plain = tokens(header, camel=False)
+    c = _header_concept(plain)
+    if c is None:
+        split = tokens(header)
+        if split != plain:
+            c = _header_concept(split)
+    return c
+
+
+def _header_concept(toks: list[str]) -> str | None:
+    for i, t in enumerate(toks):
+        nxt = toks[i + 1] if i + 1 < len(toks) else None
+        if t in ABBREVIATIONS and nxt in ID_TOKENS:
+            return ABBREVIATIONS[t]
+        c, rest = _compound_concept(t)
+        if not c:
+            continue
+        rest = rest.lstrip("s") if rest.startswith("s") and len(rest) > 3 else rest
+        if rest == "" or rest.startswith(REF_SUFFIXES):
+            if nxt and nxt.startswith(NONREF_SUFFIXES) and nxt not in ID_TOKENS:
+                return None
+            return c
+        if rest.startswith(NONREF_SUFFIXES) or rest in CONTAINER_WORDS:
+            return None
+    return None
+
+
+def qualifier_of(text: str) -> str | None:
+    for t in tokens(text):
+        if t in QUALIFIER_WORDS:
+            return QUALIFIER_WORDS[t]
+    return None
+
+
+def header_role(header: str) -> str | None:
+    """Role suggested by a column header alone (values may override)."""
+    plain = tokens(header, camel=False)
+    split = tokens(header)
+    r = _header_role(plain)
+    if r is None and split != plain:
+        r = _header_role(split)
+    return r
+
+
+def _header_role(toks: list[str]) -> str | None:
+    if not toks:
+        return None
+    phrase = " ".join(toks)
+    if phrase in ROLE_PHRASES:
+        return ROLE_PHRASES[phrase]
+    for n in (3, 2):
+        for i in range(len(toks) - n + 1):
+            p = " ".join(toks[i:i + n])
+            if p in ROLE_PHRASES:
+                return ROLE_PHRASES[p]
+    # last token is the head of the header in German and English ("Kunden-Nr", "Order ID")
+    order = list(reversed(toks))
+    for t in order:
+        for role in ("id", "email", "phone", "zip", "iban", "bic", "vat_id", "url", "due", "status", "percent",
+                     "money", "quantity", "date", "street", "city", "country", "notes", "person", "category",
+                     "name", "unit"):
+            if t in ROLE_TERMS[role]:
+                return role
+        # compounds: "kundennummer", "rechnungsdatum", "einzelpreis", "liefertermin"
+        for role, suffixes in (("id", ("nummer", "nr", "id", "code")), ("date", ("datum", "date")),
+                               ("due", ("termin", "frist", "faelligkeit")), ("money", ("preis", "betrag", "summe",
+                                                                                         "kosten", "wert", "umsatz",
+                                                                                         "pauschale")),
+                               ("quantity", ("menge", "anzahl", "bestand", "stunden")),
+                               ("name", ("name", "bezeichnung")), ("notes", ("notiz", "bemerkung", "text")),
+                               ("phone", ("telefon",)), ("person", ("partner",)), ("category", ("gruppe", "art",
+                                                                                                  "kategorie", "typ"))):
+            if len(t) > 4 and t.endswith(suffixes):
+                return role
+    return None
+
+
+def milestone_label(header: str) -> str | None:
+    for t in tokens(header):
+        if t in MILESTONE_WORDS:
+            return MILESTONE_WORDS[t]
+        for w, lab in MILESTONE_WORDS.items():
+            if len(w) >= 6 and t.startswith(w):
+                return lab
+    return None
+
+
+def concept_names(concept: str) -> tuple[str, str, str]:
+    spec = CONCEPTS[concept]
+    return spec["sg"], spec["pl"], spec["stem"]
+
+
+def is_total_label(value) -> bool:
+    if not isinstance(value, str):
+        return False
+    toks = tokens(value)
+    return bool(toks) and toks[0] in TOTAL_WORDS and len(toks) <= 4
+
+
+def folded_state(v) -> str:
+    return fold(str(v)).strip()
+
+
+FIRST_NAMES = set("""
+anna anne annika antje alexander alexandra andrea andreas angelika anja ansgar anton antonia arne axel barbara bastian
+beate ben benedikt benjamin bernd berit bettina birgit bjoern boris brigitte britta carina carl carla carlotta carolin
+caroline charlotte christa christian christiane christina christine christoph clara claudia constanze cornelia daniel
+daniela david denise dennis dieter dirk doris dominik doreen edith elena elias elisabeth elke ella ellen emil emilia
+emily emma erik erika ernst esther eva fabian felix finn florian frank franz franziska frauke frederik frieda friedrich
+fritz gabi gabriele georg gerd gerhard gesa gisela greta gudrun guenter hanna hannah hannes hans harald hauke heike
+heiko heinz helga helmut hendrik henning henri henrik herbert hilde holger horst ida ilse ines inga ingo ingrid irene
+iris isabel jakob jan jana janina jannik jasmin jens jessica joachim jochen johann johanna johannes jonas jonathan
+josef judith julia julian juliane jutta kai karin karl karla karsten katharina kathrin katja katrin kerstin kevin
+kim klaus konstantin kristina kurt lara lars laura lea lena leni leo leon leonie lina linda lisa lotta lotte louisa
+luca luis luise lukas lutz maja malte manfred manuel manuela marc marcel marco maren margarete maria marie marina
+mario marion marius mark markus marlene martha martin martina mathias matthias max maximilian melanie mia michael
+michaela mila milan mira mirko moritz nadine nadja natalie nele nick nicole niklas nils nina noah nora norbert ole
+olaf oliver oskar otto patricia patrick paul paula peter petra philipp pia rainer ralf ralph rebecca regina reinhard
+renate rene richard rita robert robin roland rolf romy ronja rosa ruth sabine sabrina sandra sara sarah sascha
+sebastian silke simon simone smilla sofia sophia sophie stefan stefanie steffen stephan susanne sven svenja swen
+tanja theo thomas thorsten tilo tim timo tina tobias tom torben torsten ulf ulla ulrich ulrike ursula uta ute uwe
+valentin vanessa vera veronika viktor walter werner wiebke wilhelm wolfgang yvonne fiete henry jonte karolina mattis
+""".split())
+
+BUSINESS_WORDS = {"cafe", "kaffeebar", "kaffeehaus", "hotel", "restaurant", "bistro", "baeckerei", "konditorei",
+                  "feinkost", "buero", "kanzlei", "coworking", "shop", "handel", "service", "technik", "import",
+                  "export", "verpackungen", "kontor", "traders", "gruppe", "group", "werk", "werke", "bau", "praxis",
+                  "studio", "agentur", "apotheke", "markt", "laden", "haus", "stadtwerke", "bank", "versicherung"}
+
+
+def looks_like_person(name: str) -> bool:
+    """'Hannah Becker' yes, 'Hotel Landungsbrücke' or 'Kaffee Kontor Nord GmbH' no."""
+    toks = tokens(name)
+    if not 2 <= len(toks) <= 3:
+        return False
+    if any(t in BUSINESS_WORDS for t in toks):
+        return False
+    return toks[0] in FIRST_NAMES
+
+
+def specific_name(text: str, concept: str) -> tuple[str, str] | None:
+    """A more specific name than the concept, if the file says so: 'Wartungsverträge' instead of
+    'Verträge', 'Lieferantenrechnung' instead of 'Rechnung'. Only when the word *ends* with the
+    concept (German compounds put the head last) and is not a container ('Kundenliste')."""
+    import re as _re
+    from .text import plural_de, singular_de
+
+    words = [w for w in _re.split(r"[^A-Za-zÄÖÜäöüß]+", str(text)) if w]
+    for w in words:
+        f = fold(w)
+        c, rest = _compound_concept(f)
+        if c != concept or rest:
+            continue  # concept not at the end of the word (rest is e.g. "liste")
+        terms = [t for t in CONCEPTS[c]["terms"] if f.endswith(t)]
+        if not terms:
+            continue
+        term = min(terms, key=len)  # the base word ("vertraege"), not the compound listed as a synonym
+        if len(f) - len(term) < 3:
+            continue
+        sg = singular_de(w[:1].upper() + w[1:])
+        if fold(sg) == fold(w):
+            pl = plural_de(sg)
+        else:
+            pl = w[:1].upper() + w[1:]
+        return sg, pl
+    return None

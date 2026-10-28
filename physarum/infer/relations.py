@@ -1,0 +1,408 @@
+"""Relations: references between types, found in the values themselves.
+
+* Structural references come from normalisation (order line -> order).
+* Value references: a column whose values are (mostly) numbers, names or e-mails of
+  another type's records ("Kd-Nr" -> Kunde, "Lieferant" -> Lieferant by name).
+* Mentions: identifiers inside free text ("RE-2026-0130" in a bank transfer's purpose,
+  an article number in an e-mail). This is how a bank statement pays invoices without
+  anybody configuring a reconciliation rule.
+"""
+from __future__ import annotations
+
+import re
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+
+from .. import lexicon
+from ..text import fold, name_similarity, norm_key, norm_name
+from .identity import FREEMAIL, Group
+from .unify import AttrDraft, TypeDraft
+
+REF_ROLES = {"id", "name", "person", None, "email"}
+
+
+@dataclass
+class RelDraft:
+    src: TypeDraft
+    attr: AttrDraft
+    dst: TypeDraft
+    via: str                 # k (number) | e (e-mail) | n (name)
+    kind: str = "ref"        # ref | parent | mention
+    inclusion: float = 0.0
+    coverage: float = 0.0
+    hits: int = 0
+    fuzzy: int = 0
+    structural: bool = False
+    evidence: str = ""
+    rid: str | None = None
+    targets: dict = field(default_factory=dict)   # src group index -> dst group index (ref) or [indices] (mention)
+    unresolved: dict = field(default_factory=dict)  # src group index -> raw value
+    extra: list = field(default_factory=list)       # further target types for parties: [(TypeDraft, {gi: dgi})]
+
+
+class IdentIndex:
+    def __init__(self, groups: list[Group]):
+        self.by: dict[str, int] = {}
+        self.names: dict[str, list[tuple[str, int]]] = defaultdict(list)
+        ambiguous = set()
+        for i, g in enumerate(groups):
+            for ident in g.idents:
+                if ident in self.by and self.by[ident] != i:
+                    ambiguous.add(ident)
+                self.by.setdefault(ident, i)
+                if ident.startswith("n:"):
+                    nm = ident[2:]
+                    for tok in nm.split()[:2]:
+                        if len(tok) >= 3:
+                            self.names[tok[:3]].append((nm, i))
+        for ident in ambiguous:
+            del self.by[ident]  # "Lena Neumann" twice: a name that cannot decide
+        for k, lst in self.names.items():
+            self.names[k] = [(nm, i) for nm, i in lst if "n:" + nm not in ambiguous]
+
+    def lookup(self, value, via: str, fuzzy: bool = True) -> tuple[int | None, bool]:
+        if value is None:
+            return None, False
+        if via == "k":
+            i = self.by.get("k:" + norm_key(value))
+            if i is None and isinstance(value, str):
+                i = self.by.get("n:" + norm_name(value))
+            return i, True if i is not None else False
+        if via == "e":
+            return self.by.get("e:" + str(value).strip().casefold()), True
+        nm = norm_name(value)
+        i = self.by.get("n:" + nm)
+        if i is not None:
+            return i, True
+        i = self.by.get("k:" + norm_key(value))
+        if i is not None:
+            return i, True
+        if not fuzzy or len(nm) < 4:
+            return None, False
+        best, best_sim = None, 0.0
+        for tok in nm.split()[:2]:
+            for cand, ci in self.names.get(tok[:3], []):
+                s = name_similarity(nm, cand)
+                if s > best_sim:
+                    best, best_sim = ci, s
+        if best_sim >= 0.9:
+            return best, False
+        return None, False
+
+
+def _vias(d: TypeDraft) -> list[tuple[str, AttrDraft]]:
+    out = []
+    if d.key is not None:
+        out.append(("k", d.key))
+    for a in d.attrs:
+        if a.kind == "email":
+            out.append(("e", a))
+            break
+    if d.title is not None:
+        out.append(("n", d.title))
+    return out
+
+
+def _eligible(t: TypeDraft, a: AttrDraft) -> bool:
+    if a.kind not in ("id", "text", "email"):
+        return False
+    if a.role not in REF_ROLES:
+        return False
+    if a is t.key and t.kind != "line":
+        return False
+    return True
+
+
+def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: dict[str, TypeDraft],
+             decisions: dict | None = None, log: list | None = None, ask: list | None = None) -> list[RelDraft]:
+    decisions = decisions or {}
+    idx = {id(t): IdentIndex(groups[id(t)]) for t in types}
+    rels: list[RelDraft] = []
+    taken: set[tuple[int, int]] = set()  # (id(type), id(attr))
+
+    def values_of(t: TypeDraft, a: AttrDraft) -> list[tuple[int, object]]:
+        return [(i, g.values.get(a.aid)) for i, g in enumerate(groups[id(t)]) if g.values.get(a.aid) is not None]
+
+    def build(t, a, d, via, structural, evidence) -> RelDraft | None:
+        vals = values_of(t, a)
+        if not vals:
+            return None
+        r = RelDraft(src=t, attr=a, dst=d, via=via, structural=structural, evidence=evidence)
+        distinct_hit, distinct_all = set(), set()
+        for gi, v in vals:
+            k = norm_key(v) if via != "n" else norm_name(v)
+            distinct_all.add(k)
+            ti, exact = idx[id(d)].lookup(v, via)
+            if ti is None:
+                r.unresolved[gi] = v
+                continue
+            r.targets[gi] = ti
+            distinct_hit.add(k)
+            if not exact:
+                r.fuzzy += 1
+        r.hits = len(r.targets)
+        r.inclusion = len(distinct_hit) / len(distinct_all) if distinct_all else 0.0
+        r.coverage = r.hits / len(groups[id(t)]) if groups[id(t)] else 0.0
+        return r
+
+    # structural references from normalisation
+    for t in types:
+        for m in t.members:
+            for col_name, target_oid in m.links:
+                a = t.attr_of(m, col_name)
+                d = obs_type.get(target_oid)
+                if a is None or d is None or d is t or (id(t), id(a)) in taken:
+                    continue
+                tobs = next((o for o in d.members if o.oid == target_oid), None)
+                ta = d.attr_of(tobs, tobs.key) if tobs is not None and tobs.key else None
+                via = "k" if ta is d.key else "e" if (ta is not None and ta.kind == "email") else "n"
+                r = build(t, a, d, via, True, f"„{col_name}“ wurde aus derselben Tabelle herausgelöst")
+                if r is None:
+                    continue
+                r.kind = "parent" if t.kind == "line" and d.kind in ("transaction",) else "ref"
+                rels.append(r)
+                taken.add((id(t), id(a)))
+    # value references
+    for t in types:
+        for a in t.attrs:
+            if (id(t), id(a)) in taken or not _eligible(t, a):
+                continue
+            n_distinct = len({norm_key(v) for _, v in values_of(t, a)})
+            if n_distinct < 2:
+                continue
+            best = None
+            name_cands = []  # (type, rel) by name against master data, for payees that can be several things
+            for d in types:
+                if d is t or d.kind == "line" or len(groups[id(d)]) < 2:
+                    continue
+                for via, va in _vias(d):
+                    if a.kind == "email" and via != "e":
+                        continue
+                    if a.kind != "email" and via == "e":
+                        continue
+                    if a.kind == "id" and via == "n" and d.key is not None:
+                        continue
+                    r = build(t, a, d, via, False, "")
+                    if r is None or r.hits < 2:
+                        continue
+                    if via == "n" and d.kind == "master":
+                        name_cands.append(r)
+                    concept_hint = a.concept is not None and a.concept == d.concept
+                    ok = r.inclusion >= 0.8 or (r.inclusion >= 0.5 and concept_hint)
+                    dkey = f"rel|{t.name}|{a.name}|{d.name}"
+                    dec = decisions.get(dkey)
+                    if dec == "no":
+                        ok = False
+                    elif dec == "yes":
+                        ok = r.hits > 0
+                    elif not ok and ask is not None and r.inclusion >= 0.4 and (concept_hint or r.inclusion >= 0.6):
+                        ask.append(dict(kind="relation", rel=r, key=dkey))
+                    if not ok:
+                        continue
+                    score = r.inclusion + (0.2 if concept_hint else 0.0) - 0.1 * (r.fuzzy / max(1, r.hits))
+                    if best is None or score > best[0]:
+                        best = (score, r)
+            if best is None and len(name_cands) >= 2:
+                # together, several kinds of master data explain the column (customers *and* suppliers pay)
+                name_cands.sort(key=lambda r: -r.inclusion)
+                lead = name_cands[0]
+                covered = {norm_name(v) for gi, v in values_of(t, a) if gi in lead.targets}
+                extra = []
+                for r2 in name_cands[1:]:
+                    add = {gi: ti for gi, ti in r2.targets.items() if gi not in lead.targets}
+                    if len(add) >= 1:
+                        extra.append((r2.dst, add))
+                        covered |= {norm_name(groups[id(t)][gi].values.get(a.aid)) for gi in add}
+                distinct = {norm_name(v) for _, v in values_of(t, a)}
+                dec = decisions.get(f"rel|{t.name}|{a.name}|{lead.dst.name}")
+                if distinct and lead.inclusion >= 0.4 and len(covered) / len(distinct) >= 0.8 and dec != "no":
+                    lead.extra = extra
+                    for d2, add in extra:
+                        for gi in add:
+                            lead.unresolved.pop(gi, None)
+                    best = (lead.inclusion, lead)
+            if best:
+                r = best[1]
+                # a payee can be a customer or a supplier: resolve the rest against other master data
+                if r.unresolved and r.via == "n":
+                    for d in types:
+                        if d is t or d is r.dst or d.kind != "master" or d.title is None:
+                            continue
+                        hits = {}
+                        for gi, v in r.unresolved.items():
+                            ti, _exact = idx[id(d)].lookup(v, "n")
+                            if ti is not None:
+                                hits[gi] = ti
+                        if len({norm_name(r.unresolved[g]) for g in hits}) >= 1 and len(hits) >= 2:
+                            r.extra.append((d, hits))
+                            for gi in hits:
+                                r.unresolved.pop(gi, None)
+                r.evidence = (f"{round(r.inclusion * 100)} % der Werte in „{a.name}“ sind "
+                              f"{'Nummern' if r.via == 'k' else 'E-Mails' if r.via == 'e' else 'Namen'} "
+                              f"von {d_plural(r.dst)}") + (f", {r.fuzzy} davon unscharf erkannt" if r.fuzzy else "")
+                r.kind = "parent" if t.kind == "line" and r.dst.kind == "transaction" else "ref"
+                rels.append(r)
+                taken.add((id(t), id(a)))
+    if log is not None:
+        for r in rels:
+            log.append(dict(kind="relation", src=r.src.name, attr=r.attr.name, dst=r.dst.name, via=r.via,
+                            inclusion=round(r.inclusion, 2), structural=r.structural, unresolved=len(r.unresolved)))
+    return rels
+
+
+def d_plural(t: TypeDraft) -> str:
+    return t.plural or t.name
+
+
+# --- mentions in free text ---------------------------------------------------------------------
+
+_TOKEN = re.compile(r"[A-Za-zÄÖÜäöüß#]*[\-./]?\d[\w\-./]*")
+
+
+def _compact(s: str) -> str:
+    return re.sub(r"[^0-9a-z]", "", fold(s))
+
+
+def distinctive(key: str) -> bool:
+    c = _compact(key)
+    letters = sum(ch.isalpha() for ch in c)
+    digits = sum(ch.isdigit() for ch in c)
+    return (len(c) >= 5 and letters >= 1 and digits >= 2) or (digits >= 6 and len(c) == digits)
+
+
+class MentionIndex:
+    def __init__(self, types: list[TypeDraft], groups: dict[int, list[Group]]):
+        self.compact: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
+        self.digits: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
+        self.names: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
+        self.emails: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
+        self.domains: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
+        for t in types:
+            if t.kind == "line":
+                continue
+            gs = groups[id(t)]
+            key = t.key
+            if key is not None and key.kind == "id":
+                keys = [(i, g.values.get(key.aid)) for i, g in enumerate(gs) if g.values.get(key.aid) is not None]
+                if keys and sum(distinctive(str(k)) for _, k in keys) >= 0.8 * len(keys):
+                    dig_count = Counter(re.sub(r"\D", "", str(k)) for _, k in keys)
+                    for i, k in keys:
+                        self.compact[_compact(str(k))].append((t, i))
+                        dg = re.sub(r"\D", "", str(k))
+                        if len(dg) >= 6 and dig_count[dg] == 1:
+                            self.digits[dg].append((t, i))
+            if t.kind == "master" and t.title is not None:
+                for i, g in enumerate(gs):
+                    v = g.values.get(t.title.aid)
+                    if not v:
+                        continue
+                    nm = norm_name(v)
+                    if len(nm) >= 8 and len(nm.split()) >= 2 and not lexicon.looks_like_person(str(v)):
+                        self.names[nm].append((t, i))
+                for a in t.attrs:
+                    if a.kind != "email":
+                        continue
+                    for i, g in enumerate(gs):
+                        v = g.values.get(a.aid)
+                        if v:
+                            e = str(v).strip().casefold()
+                            self.emails[e].append((t, i))
+                            dom = e.rsplit("@", 1)[-1]
+                            if dom not in FREEMAIL:
+                                self.domains[dom].append((t, i))
+        self.max_name_len = max((len(k.split()) for k in self.names), default=0)
+
+    def scan(self, text: str, names: bool = False) -> dict[tuple[int, int], tuple[TypeDraft, int, str]]:
+        """Return {(id(type), group index): (type, group index, how)} for everything mentioned in text."""
+        found = {}
+        if not text:
+            return found
+        words = text.split()
+        cands = []
+        for i, w in enumerate(words):
+            prev = words[i - 1] if i else ""
+            for tok in _TOKEN.findall(w):
+                cands.append((tok, prev))
+            if i + 1 < len(words):
+                cands.append((w + words[i + 1], prev))
+        for c, prev in cands:
+            cc = _compact(c)
+            hit = False
+            if len(cc) >= 5:
+                for t, gi in self.compact.get(cc, []):
+                    found[(id(t), gi)] = (t, gi, "Nummer")
+                    hit = True
+            if hit or any(ch.isalpha() for ch in cc):
+                continue
+            dg = re.sub(r"\D", "", c)
+            if len(dg) < 6:
+                continue
+            opts = self.digits.get(dg, [])
+            if len(opts) > 1:
+                ctx = lexicon.concept_of(prev) if prev else None
+                opts = [(t, gi) for t, gi in opts if ctx and t.concept == ctx]
+            if len(opts) == 1:
+                t, gi = opts[0]
+                found.setdefault((id(t), gi), (t, gi, "Nummer"))
+        if names and self.names:
+            nt = norm_name(text).split()
+            for n in range(2, min(6, self.max_name_len) + 1):
+                for i in range(len(nt) - n + 1):
+                    k = " ".join(nt[i:i + n])
+                    for t, gi in self.names.get(k, []):
+                        found.setdefault((id(t), gi), (t, gi, "Name"))
+        return found
+
+    def scan_email(self, addr: str) -> dict:
+        found = {}
+        m = re.search(r"[\w.+%'-]+@[\w.-]+\.[a-z]{2,}", addr or "", re.I)
+        if not m:
+            return found
+        e = m.group(0).casefold()
+        for t, gi in self.emails.get(e, []):
+            found[(id(t), gi)] = (t, gi, "Absender")
+        if not found:
+            dom = e.rsplit("@", 1)[-1]
+            hits = self.domains.get(dom, [])
+            if len({(id(t), gi) for t, gi in hits}) == 1:
+                t, gi = hits[0]
+                found[(id(t), gi)] = (t, gi, "Absender-Domain")
+        return found
+
+
+def discover_mentions(types: list[TypeDraft], groups: dict[int, list[Group]], index: MentionIndex,
+                      taken: set, log: list | None = None) -> list[RelDraft]:
+    """Free-text attributes (Verwendungszweck, Notiz, Betreff) that mention other records."""
+    rels = []
+    for t in types:
+        for a in t.attrs:
+            if a.kind != "text" or a.role not in ("notes", None, "category") or (id(t), id(a)) in taken:
+                continue
+            gs = groups[id(t)]
+            per_dst: dict[int, RelDraft] = {}
+            rows_with = Counter()
+            for gi, g in enumerate(gs):
+                v = g.values.get(a.aid)
+                if not v or len(str(v)) < 5:
+                    continue
+                hits = index.scan(str(v))
+                for (_tid, _gi), (d, dgi, how) in hits.items():
+                    if d is t:
+                        continue
+                    r = per_dst.get(id(d))
+                    if r is None:
+                        r = per_dst[id(d)] = RelDraft(src=t, attr=a, dst=d, via="k", kind="mention")
+                    r.targets.setdefault(gi, []).append(dgi)
+                    rows_with[id(d)] += 1
+            for did, r in per_dst.items():
+                share = len(r.targets) / len(gs) if gs else 0
+                if len(r.targets) >= 2 and share >= 0.1:
+                    r.hits = len(r.targets)
+                    r.coverage = share
+                    r.inclusion = share
+                    r.evidence = (f"in {len(r.targets)} von {len(gs)} {d_plural(t)} steht in „{a.name}“ eine "
+                                  f"Nummer von {d_plural(r.dst)}")
+                    rels.append(r)
+                    if log is not None:
+                        log.append(dict(kind="mention", src=t.name, attr=a.name, dst=r.dst.name, rows=len(r.targets)))
+    return rels

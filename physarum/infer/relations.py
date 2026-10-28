@@ -371,17 +371,28 @@ class MentionIndex:
 
 
 def discover_mentions(types: list[TypeDraft], groups: dict[int, list[Group]], index: MentionIndex,
-                      taken: set, log: list | None = None) -> list[RelDraft]:
-    """Free-text attributes (Verwendungszweck, Notiz, Betreff) that mention other records."""
+                      taken: set, log: list | None = None, refs: list | None = None) -> list[RelDraft]:
+    """Free-text attributes (Verwendungszweck, Notiz, Betreff) that mention other records. A column
+    that mostly holds plain numbers is a reference; its other values ("RE-2026-0031 Teilzahlung")
+    are still read as text."""
     rels = []
+    by_attr = {(id(r.src), id(r.attr)): r for r in (refs or [])}
     for t in types:
         for a in t.attrs:
-            if a.kind != "text" or a.role not in ("notes", None, "category") or (id(t), id(a)) in taken:
+            resolved: set = set()
+            if (id(t), id(a)) in taken:
+                r0 = by_attr.get((id(t), id(a)))
+                if r0 is None or a.kind not in ("text", "id", "ref"):
+                    continue
+                resolved = set(r0.targets) | {gi for _d, hits in r0.extra for gi in hits}
+            elif a.kind != "text" or a.role not in ("notes", None, "category"):
                 continue
             gs = groups[id(t)]
             per_dst: dict[int, RelDraft] = {}
             rows_with = Counter()
             for gi, g in enumerate(gs):
+                if gi in resolved:
+                    continue
                 v = g.values.get(a.aid)
                 if not v or len(str(v)) < 5:
                     continue
@@ -396,7 +407,9 @@ def discover_mentions(types: list[TypeDraft], groups: dict[int, list[Group]], in
                     rows_with[id(d)] += 1
             for did, r in per_dst.items():
                 share = len(r.targets) / len(gs) if gs else 0
-                if len(r.targets) >= 2 and share >= 0.1:
+                if resolved and r.dst is by_attr[(id(t), id(a))].dst and len(r.targets) >= 1:
+                    share = max(share, 0.1)  # the rest of a reference column, same target
+                if len(r.targets) >= (1 if resolved else 2) and share >= 0.1:
                     r.hits = len(r.targets)
                     r.coverage = share
                     r.inclusion = share

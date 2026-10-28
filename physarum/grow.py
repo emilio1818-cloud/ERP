@@ -220,7 +220,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     taken = {(id(r.src), id(r.attr)) for r in rels}
     asks = [a for a in asks if not (a.get("kind") == "relation" and (id(a["rel"].src), id(a["rel"].attr)) in taken)]
     mindex = MentionIndex(types, groups)
-    mrels = discover_mentions(types, groups, mindex, taken, log)
+    mrels = discover_mentions(types, groups, mindex, taken, log, refs=rels)
     progress(f"{len(rels)} Verweise und {len(mrels)} Erwähnungen gefunden", 0.6)
 
     derived = _lookup_copies(types, groups, rels)
@@ -247,8 +247,17 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         mention_map[r["attr"]][r["to_id"]].append(r["from_id"])
     specs = {t["id"]: t for t in model["types"]}
     titles = {r["id"]: record_title(specs[t], r["data"], r["id"]) for t, rs in records.items() if t in specs for r in rs}
+    from .payments import ledger as pay_ledger, stale_statuses
+    led: dict = {}
+    _learn(model, "Zahlungen nach Betrag", lambda: led.update(pay_ledger(model, records, mention_map)))
+    if led:
+        stale = stale_statuses(model, records, led)
+        covered = {e["type"] for e in led.values()}
+        for p in model.get("processes", []):
+            if p["type"] in covered and p.get("status"):
+                p["status"]["stale"] = stale.get(p["type"], [])[:200]
     matches = []
-    _learn(model, "Zahlungsabgleich", lambda: matches.extend(find_matches(model, records, mention_map, titles)))
+    _learn(model, "Zahlungsabgleich", lambda: matches.extend(find_matches(model, records, mention_map, titles, led)))
     progress(f"{len(matches)} Zahlungen ohne Rechnungsnummer über den Betrag zugeordnet (zur Bestätigung)", 0.92)
 
     from .questions import collect_questions

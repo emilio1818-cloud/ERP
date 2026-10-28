@@ -166,6 +166,11 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today) -> dict | N
         for m in merged:
             a, b = dates[m["id"]], dates[st["id"]]
             both = [k for k in a if k in b]
+            kin = st.get("type") and (m.get("type") == st.get("type") or
+                                      any(x.get("type") == st.get("type") for x in m.get("also", [])))
+            if fold(m["label"]) == fold(st["label"]) and kin:
+                twin = m  # the same milestone reached through another link of the same kind of record
+                break
             if len(both) < 3:
                 continue
             near = sum(1 for k in both if abs((a[k] - b[k]).days) <= 3) / len(both)
@@ -387,7 +392,7 @@ def _reach_specs(model, records) -> list[dict]:
 
 def compute_work(model: dict, records: dict, mention_refs: dict, today: date | None = None,
                  outrefs: dict | None = None, titles_in: dict | None = None,
-                 pending_payments: dict | None = None) -> list[dict]:
+                 pending_payments: dict | None = None, ledger: dict | None = None) -> list[dict]:
     from .grow import record_title
 
     today = today or date.today()
@@ -408,6 +413,10 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         recs = records.get(p["type"], [])
         rid_set = {r["id"] for r in recs}
         step_dates = {}
+
+        def start_of(rid, _p=p):
+            return as_date(by_id[rid]["data"].get(_p["start"]["attr"])) or today
+
         for st in p["steps"]:
             d = {}
             for src in [st] + st.get("also", []):
@@ -430,6 +439,10 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                             v = as_date(c["data"].get(src["attr"]))
                             if v:
                                 d[t] = min(v, d.get(t, v))
+            if ledger is not None and fold(st["label"]) == "bezahlt" and any(rid in ledger for rid in rid_set):
+                # paid is what the money says, not what a purpose names
+                d = {rid: e["paid_date"] or start_of(rid) for rid, e in ledger.items()
+                     if rid in rid_set and e["state"] in ("bezahlt", "überzahlt")}
             step_dates[st["id"]] = d
         negative = set((p.get("status") or {}).get("negative") or [])
         sattr = (p.get("status") or {}).get("attr")
@@ -457,11 +470,16 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 if w0 and expected_by < w0 - timedelta(days=7):
                     break  # outside the time span covered by the data: unknown stays unknown
                 money = _money(r, p)
+                paid_part = None
+                if ledger is not None and r["id"] in ledger and fold(st["label"]) == "bezahlt":
+                    e = ledger[r["id"]]
+                    money = e["open"]  # only what is still missing
+                    paid_part = e["paid"] if e["paid"] > 0.005 else None
                 dl = due_by_step.get(st["id"])
                 due = as_date(r["data"].get(dl["attr"])) if dl else None
                 if due and due < today:
                     buckets[(st["id"], "overdue")].append(dict(rid=r["id"], days=(today - due).days, money=money,
-                                                               due=due.isoformat()))
+                                                               due=due.isoformat(), paid=paid_part))
                 elif st.get("p80_days") is not None and st.get("n", 0) >= 5:
                     waited = (today - last).days
                     limit = max(st["p80_days"] * 1.25, (st["median_days"] or 0) + 2, 2)
@@ -511,6 +529,26 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                count=len(items), amount=total, items=items[:50], action=action,
                                step=st["label"] if st else None,
                                explain=_explain(p, st, kind)))
+    if ledger:
+        from .payments import problems
+        bad = problems(ledger)
+        if bad:
+            items = []
+            for e in sorted(bad, key=lambda e: (e["state"] != "überzahlt", -abs(e["open"]))):
+                r = by_id.get(e["rid"])
+                if not r:
+                    continue
+                p = next((x for x in model.get("processes", []) if x["type"] == e["type"]), {})
+                pv = r["data"].get(p.get("party")) if p.get("party") else None
+                items.append(dict(rid=e["rid"], title=title(e["rid"]), days=0, money=e["open"] if e["open"] > 0 else None,
+                                  party=title(pv) if isinstance(pv, int) and pv in by_id else None,
+                                  reason="; ".join(e["notes"]) or e["state"], state=e["state"]))
+            if items:
+                groups.append(dict(id="pay:problems", type=bad[0]["type"], kind="payment", severity=3,
+                                   title="Zahlungen, die nicht aufgehen", count=len(items),
+                                   amount=round(sum(x["money"] or 0 for x in items), 2), items=items[:50], action=None,
+                                   explain="Teilzahlungen, doppelte Zahlungen, Rücklastschriften und Geld auf stornierten "
+                                           "Rechnungen – nach Betrag aus dem Kontoauszug, nicht nach Nummer."))
     if outrefs is not None:
         from .reconcile import risk_items
         risks = risk_items(model, records, outrefs, titles_in or {r: title(r) for r in by_id})

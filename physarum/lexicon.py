@@ -43,7 +43,7 @@ CONCEPTS: dict[str, dict] = {
                     terms=["zahlung", "zahlungen", "zahlungseingang", "zahlungseingaenge", "payment", "payments"]),
     "kontobewegung": dict(sg="Kontobewegung", pl="Kontobewegungen", stem="Kontobewegungs", kind="transaction",
                           terms=["kontoauszug", "kontoauszuege", "umsaetze", "kontoumsaetze", "bank", "banking",
-                                 "statement", "transactions", "girokonto"]),
+                                 "statement", "transactions", "girokonto", "konto", "kontobewegungen", "umsatzanzeige"]),
     "mitarbeiter": dict(sg="Mitarbeiter", pl="Mitarbeiter", stem="Mitarbeiter", kind="master",
                         terms=["mitarbeiter", "mitarbeiterin", "personal", "employee", "employees", "staff", "team",
                                "angestellte", "belegschaft", "resources", "ressourcen", "monteure", "techniker"]),

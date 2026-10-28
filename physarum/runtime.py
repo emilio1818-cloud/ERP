@@ -28,6 +28,8 @@ class Runtime:
         self.backrefs: dict[int, list] = {}
         self.outrefs: dict[int, list] = {}
         self.pending_payments: dict[int, dict] = {}
+        self.ledger: dict[int, dict] = {}
+        self.stale: dict[str, list[dict]] = {}
         self._work = None
         self._work_key = None
         self._net_at = 0.0
@@ -71,6 +73,13 @@ class Runtime:
                     self.mentions[row["attr"]][row["to_id"]].append(row["from_id"])
                 self.backrefs[row["to_id"]].append((row["from_id"], row["attr"], row["kind"], row["how"]))
                 self.outrefs[row["from_id"]].append((row["to_id"], row["attr"], row["kind"], row["how"]))
+            from .payments import apply_to_records, ledger, stale_statuses
+            try:
+                self.ledger = ledger(self.model, self.records, self.mentions)
+            except Exception:  # noqa: BLE001 - the pages must open even if the ledger cannot be built
+                self.ledger = {}
+            apply_to_records(self.model, self.records, self.ledger)
+            self.stale = stale_statuses(self.model, self.records, self.ledger)
             self._mv, self._dv = mv, dv
             self._work = None
 
@@ -108,7 +117,7 @@ class Runtime:
                 pending[inv] = dict(qid=q["id"], bank=recs[0], text=pl.get("text"))
         self.pending_payments = pending
         self._work = compute_work(self.model, self.records, self.mentions, today, self.outrefs, self.titles,
-                                  pending_payments=pending)
+                                  pending_payments=pending, ledger=self.ledger)
         self._work_key = key
         return self._work
 

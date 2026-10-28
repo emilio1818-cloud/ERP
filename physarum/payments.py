@@ -1,0 +1,278 @@
+"""What is paid: a ledger per invoice, by amount.
+
+"The purpose names the invoice" is a link, not a payment. A transfer pays as much as it
+carries: 300 € on 562,18 € leaves 262,18 € open, a chargeback opens the invoice again, a
+collective transfer is split across the invoices it names, a second transfer of the same
+amount is a double payment. A paid date in the invoice book (or set by hand) counts as
+paid in full when the bank says nothing about the invoice. Everything that shows whether
+an invoice is open – list, record, today's work, key figures – reads this ledger.
+"""
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import date, timedelta
+
+from .text import fold
+from .values import as_date
+
+EPS = 0.01
+SKONTO_MAX = 0.031      # up to 3 % less …
+SKONTO_DAYS = 21        # … paid within three weeks of the invoice date
+
+
+def _num(v):
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def invoice_specs(model: dict) -> list[dict]:
+    """Processes that end in being paid: they have an amount, a party and a step 'bezahlt'."""
+    specs = {t["id"]: t for t in model["types"]}
+    out = []
+    for p in model.get("processes", []):
+        spec = specs.get(p["type"])
+        if not spec or not p.get("gross"):
+            continue
+        step = next((s for s in p["steps"] if fold(s["label"]) == "bezahlt"), None)
+        party_attr = next((a for a in spec["attrs"] if a["id"] == p.get("party")), {}) if p.get("party") else {}
+        outgoing = (specs.get(party_attr.get("ref")) or {}).get("concept") == "lieferant"
+        if step is None and not any(fold(d.get("name") or "").startswith("faellig") for d in p.get("deadlines", [])):
+            continue
+        out.append(dict(p=p, spec=spec, step=step, outgoing=outgoing))
+    return out
+
+
+def _bank_types(model: dict) -> dict:
+    from .reconcile import bank_specs
+    return {b["spec"]["id"]: b for b in bank_specs(model)}
+
+
+def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = None) -> dict:
+    """{invoice rid: entry}. An entry has gross, paid, open, state, paid_date, payments, notes."""
+    today = today or date.today()
+    banks = _bank_types(model)
+    by_id = {r["id"]: r for rs in records.values() for r in rs}
+    out: dict[int, dict] = {}
+    for ip in invoice_specs(model):
+        p, spec, step = ip["p"], ip["spec"], ip["step"]
+        recs = records.get(p["type"], [])
+        rid_set = {r["id"] for r in recs}
+        st = p.get("status") or {}
+        negative = set(st.get("negative") or [])
+        own_paid = [s["attr"] for s in ([step] + step.get("also", [])) if s["source"] == "own"] if step else []
+        # which bank rows point to which invoices: references, text mentions, confirmed amount matches
+        links: dict[int, list[int]] = defaultdict(list)   # bank rid -> invoices it names
+        attrs = {"match"}
+        for rel in model["relations"]:
+            if rel["src"] in banks and p["type"] in (rel.get("targets") or [rel["dst"]]):
+                if rel["kind"] == "mention":
+                    attrs.add(rel["attr"])
+                else:
+                    for b in records.get(rel["src"], []):
+                        inv = b["data"].get(rel["attr"])
+                        if isinstance(inv, int) and inv in rid_set and inv not in links[b["id"]]:
+                            links[b["id"]].append(inv)
+        for attr in attrs:
+            for inv, srcs in mention_refs.get(attr, {}).items():
+                if inv not in rid_set:
+                    continue
+                for b in srcs:
+                    if b in by_id and by_id[b]["type"] in banks and inv not in links[b]:
+                        links[b].append(inv)
+        entries = {}
+        for r in recs:
+            g = _num(r["data"].get(p["gross"]))
+            if g is None:
+                continue
+            cancelled = (st.get("attr") and str(r["data"].get(st["attr"])) in negative) or bool((r.get("meta") or {}).get("storno"))
+            entries[r["id"]] = dict(rid=r["id"], gross=round(g, 2), paid=0.0, payments=[], notes=[], cancelled=cancelled,
+                                    start=as_date(r["data"].get(p["start"]["attr"])), type=p["type"],
+                                    outgoing=ip["outgoing"])
+        # allocate every bank row over the invoices it names, in the order the money moved:
+        # oldest invoice first, whatever is left stays with the last one
+        def when_of(b):
+            row = by_id[b]
+            return as_date(row["data"].get(banks[row["type"]]["date"]["id"])) or date.min
+
+        for b in sorted(links, key=lambda b: (when_of(b), b)):
+            invs = links[b]
+            row = by_id[b]
+            bs = banks[row["type"]]
+            amt = _num(row["data"].get(bs["money"]["id"]))
+            when = as_date(row["data"].get(bs["date"]["id"]))
+            if amt is None:
+                continue
+            invs = [i for i in invs if i in entries]
+            if not invs:
+                continue
+            sign = -1.0 if ip["outgoing"] else 1.0
+            value = sign * amt  # positive: money towards the invoice; negative: money back (chargeback)
+            invs.sort(key=lambda i: (entries[i]["start"] or date.min, i))
+            how = "Rückbuchung" if value < 0 else "Zahlung"
+            if value < 0:
+                # a chargeback undoes what was paid on the invoice(s) it names
+                left = -value
+                for i in invs:
+                    e = entries[i]
+                    take = min(left, max(e["paid"], 0.0)) if i != invs[-1] else left
+                    if take > 0:
+                        e["paid"] -= take
+                        e["payments"].append(dict(rid=b, date=when, amount=-round(take, 2), how=how))
+                        left -= take
+                continue
+            left = value
+            for k, i in enumerate(invs):
+                e = entries[i]
+                need = max(e["gross"] - e["paid"], 0.0)
+                take = left if k == len(invs) - 1 else min(left, need)
+                if take <= 0 and k != len(invs) - 1:
+                    continue
+                e["paid"] += take
+                e["payments"].append(dict(rid=b, date=when, amount=round(take, 2), how=how,
+                                          shared=len(invs) > 1))
+                left -= take
+        # book or manual paid date: paid in full when the bank does not speak
+        for r in recs:
+            e = entries.get(r["id"])
+            if not e or e["payments"]:
+                continue
+            ds = [as_date(r["data"].get(a)) for a in own_paid]
+            ds = [d for d in ds if d]
+            if ds:
+                e["paid"] = e["gross"]
+                w = ((r.get("meta") or {}).get("w") or {}).get(own_paid[0]) or ["import"]
+                e["payments"].append(dict(rid=None, date=min(ds), amount=e["gross"],
+                                          how="von Hand eingetragen" if w[0] == "user" else "laut Liste bezahlt"))
+        for e in entries.values():
+            _finish(e)
+            out[e["rid"]] = e
+    return out
+
+
+def _finish(e: dict):
+    g, paid = e["gross"], round(e["paid"], 2)
+    e["paid"] = paid
+    e["open"] = round(g - max(paid, 0.0), 2)
+    pays = sorted([x for x in e["payments"] if x["date"]], key=lambda x: x["date"])
+    e["paid_date"] = None
+    e["skonto"] = None
+    cum = 0.0
+    for x in pays:
+        cum += x["amount"]
+        if cum >= g - EPS and e["paid_date"] is None:
+            e["paid_date"] = x["date"]
+        elif cum < g - EPS:
+            e["paid_date"] = None
+    if e["cancelled"]:
+        e["state"] = "storniert"
+        if paid > EPS:
+            e["notes"].append(f"Zahlung über {_eur(paid)} auf eine stornierte Rechnung – zurückzahlen oder umbuchen")
+        e["open"] = 0.0
+        return
+    if paid > g + EPS:
+        e["state"] = "überzahlt"
+        e["notes"].append(f"{_eur(paid - g)} zu viel gezahlt" +
+                          (" (doppelt überwiesen)" if _double(pays, g) else ""))
+        e["paid_date"] = e["paid_date"] or (pays[-1]["date"] if pays else None)
+        return
+    if e["open"] <= EPS:
+        e["state"] = "bezahlt"
+        e["open"] = 0.0
+        return
+    if paid > EPS:
+        last = pays[-1]["date"] if pays else None
+        share = e["open"] / g if g else 1
+        if share <= SKONTO_MAX and last and e["start"] and (last - e["start"]).days <= SKONTO_DAYS:
+            e["state"] = "bezahlt"
+            e["skonto"] = round(e["open"], 2)
+            e["notes"].append(f"mit {str(round(share * 100, 1)).replace('.', ',')} % Skonto bezahlt "
+                              f"({_eur(e['open'])} weniger; Umsatzsteuer anteilig berichtigen)")
+            e["open"] = 0.0
+            e["paid_date"] = last
+            return
+        e["state"] = "teilbezahlt"
+        e["notes"].append(f"{_eur(paid)} von {_eur(g)} bezahlt, {_eur(e['open'])} offen")
+        return
+    if any(x["how"] == "Rückbuchung" for x in e["payments"]):
+        e["notes"].append("Zahlung wurde zurückgebucht (Rücklastschrift) – wieder offen")
+    e["state"] = "offen"
+
+
+def _double(pays, g) -> bool:
+    amounts = [round(x["amount"], 2) for x in pays if x["amount"] > 0]
+    return len(amounts) >= 2 and sum(1 for a in amounts if abs(a - g) < EPS) >= 2
+
+
+def _eur(x: float) -> str:
+    s = f"{abs(x):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return ("-" if x < 0 else "") + s + " €"
+
+
+def bank_allocations(entries: dict) -> dict[int, list[tuple[int, float]]]:
+    """bank rid -> [(invoice rid, amount)] for showing where a transfer went."""
+    out: dict[int, list] = defaultdict(list)
+    for inv, e in entries.items():
+        for x in e["payments"]:
+            if x["rid"]:
+                out[x["rid"]].append((inv, x["amount"]))
+    return out
+
+
+def problems(entries: dict) -> list[dict]:
+    """Payments that do not add up: partial, too much, on cancelled invoices, charged back."""
+    out = []
+    for e in entries.values():
+        if e["state"] in ("teilbezahlt", "überzahlt") or (e["state"] == "storniert" and e["paid"] > EPS) or \
+                (e["state"] == "offen" and any(x["how"] == "Rückbuchung" for x in e["payments"])):
+            out.append(e)
+    return out
+
+
+PAY_STATE, PAY_OPEN = "pay_state", "pay_open"
+STATES = ["offen", "teilbezahlt", "bezahlt", "überzahlt", "storniert"]
+
+
+def apply_to_records(model: dict, records: dict, entries: dict):
+    """Show the ledger where people look: two computed fields on every invoice."""
+    types = {e["type"] for e in entries.values()}
+    for t in model["types"]:
+        if t["id"] not in types or any(a["id"] == PAY_STATE for a in t["attrs"]):
+            continue
+        t["attrs"].append(dict(id=PAY_STATE, name="Zahlung", kind="text", role="status", fill=1.0, distinct=len(STATES),
+                               enum=STATES, constant=False, hidden=False, sources=[], virtual=dict(payments=True),
+                               explain="aus den Zahlungen im Kontoauszug, nach Betrag"))
+        t["attrs"].append(dict(id=PAY_OPEN, name="Offen", kind="money", role="money", fill=1.0, distinct=0, enum=None,
+                               constant=False, hidden=False, sources=[], currency="EUR", virtual=dict(payments=True),
+                               explain="Bruttobetrag abzüglich der zugeordneten Zahlungen"))
+    for tid in types:
+        for r in records.get(tid, []):
+            e = entries.get(r["id"])
+            if e:
+                r["data"][PAY_STATE] = e["state"]
+                r["data"][PAY_OPEN] = e["open"]
+
+
+def stale_statuses(model: dict, records: dict, entries: dict) -> dict[str, list[dict]]:
+    """Invoices whose own status still says 'offen' (or 'gemahnt') although the money is in."""
+    out: dict[str, list[dict]] = {}
+    specs = {t["id"]: t for t in model["types"]}
+    for ip in invoice_specs(model):
+        p = ip["p"]
+        st = p.get("status") or {}
+        if not st.get("attr") or not ip["step"]:
+            continue
+        stage = next((i for i, s in enumerate(p["steps"], start=1) if s["id"] == ip["step"]["id"]), None)
+        target = [v for v, s in (st.get("map") or {}).items() if s == stage]
+        if len(target) != 1:
+            continue
+        items = []
+        for r in records.get(p["type"], []):
+            e = entries.get(r["id"])
+            v = r["data"].get(st["attr"])
+            if not e or v is None or str(v) in (st.get("negative") or []):
+                continue
+            if e["state"] in ("bezahlt", "überzahlt") and (st["map"].get(str(v), 0) or 0) < stage:
+                items.append(dict(rid=r["id"], step=ip["step"]["id"], value=target[0], was=str(v),
+                                  when=e["paid_date"].isoformat() if e["paid_date"] else None))
+        if items:
+            out[p["type"]] = items
+    return out

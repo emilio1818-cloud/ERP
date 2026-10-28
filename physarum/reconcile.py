@@ -17,7 +17,7 @@ import re
 from datetime import date
 
 from .infer.identity import FREEMAIL
-from .text import fold, jaro_winkler, name_similarity, norm_name
+from .text import fold, jaro_winkler, name_similarity, norm_name, tokens
 from .values import as_date, iban_ok
 
 IBAN_RE = re.compile(r"\b([A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,4})?)\b")
@@ -35,7 +35,8 @@ def bank_specs(model: dict) -> list[dict]:
         iban = next((a for a in t["attrs"] if a["kind"] == "iban" and not a.get("hidden")), None)
         money = next((a for a in t["attrs"] if a["kind"] == "money" and not a.get("hidden")), None)
         date_a = next((a for a in t["attrs"] if a["kind"] in ("date", "datetime") and not a.get("hidden")), None)
-        if t.get("concept") == "kontobewegung" or (iban and money and date_a):
+        purpose = any(set(tokens(a["name"])) & {"verwendungszweck", "zweck", "buchungstext", "purpose"} for a in t["attrs"])
+        if t.get("concept") == "kontobewegung" or (iban and money and date_a) or (purpose and money and date_a):
             if money and date_a:
                 party = next((a for a in t["attrs"] if a["kind"] == "ref"), None)
                 text = next((a for a in t["attrs"] if a.get("role") == "notes" and not a.get("hidden")), None)
@@ -80,8 +81,9 @@ def paid_dates(proc: dict, step: dict, records: dict, mentions: dict) -> dict[in
     return d
 
 
-def find_matches(model: dict, records: dict, mentions: dict, titles: dict) -> list[dict]:
-    """Proposals for transfers without a usable reference."""
+def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledger: dict | None = None) -> list[dict]:
+    """Proposals for transfers without a usable reference. With a ledger, an invoice is open by
+    the money that is still missing (a partial payment leaves its remainder to be matched)."""
     out = []
     banks = bank_specs(model)
     procs = invoice_processes(model)
@@ -100,7 +102,15 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict) -> li
         neg = set((p.get("status") or {}).get("negative") or [])
         sattr = (p.get("status") or {}).get("attr")
         open_inv = []
+        rest = {}
         for r in records.get(p["type"], []):
+            if ledger is not None and r["id"] in ledger:
+                e = ledger[r["id"]]
+                if e["state"] not in ("offen", "teilbezahlt") or e["open"] <= 0.005:
+                    continue
+                rest[r["id"]] = e["open"]
+                open_inv.append(r)
+                continue
             if r["id"] in paid or (sattr and str(r["data"].get(sattr)) in neg):
                 continue
             g = _num(r["data"].get(p["gross"]))
@@ -130,7 +140,7 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict) -> li
                 cands = [r for r in cands if (as_date(r["data"].get(p["start"]["attr"])) or date.min) <= when]
                 if not cands:
                     continue
-                gross = {r["id"]: _num(r["data"].get(p["gross"])) for r in cands}
+                gross = {r["id"]: rest.get(r["id"], _num(r["data"].get(p["gross"]))) for r in cands}
                 exact = [r for r in cands if abs(gross[r["id"]] - amount) < 0.005]
                 match, how = None, None
                 if exact:

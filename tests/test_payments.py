@@ -1,0 +1,118 @@
+"""Paid is what the money says: partial, skonto, double, chargeback, collective, cancelled."""
+import shutil
+import tempfile
+import unittest
+from datetime import date, timedelta
+from pathlib import Path
+
+from physarum.grow import ingest, regrow
+from physarum.runtime import Runtime
+from physarum.store import Store
+
+TODAY = date.today()
+
+
+def de(d: date) -> str:
+    return d.strftime("%d.%m.%Y")
+
+
+def eur(x: float) -> str:
+    return f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+class Payments(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="physarum-pay-"))
+        names = ["Café Linde", "Hotel Möwe", "Bistro Anker", "Kanzlei Lotse", "Bäckerei Krume", "Büro Kompass"]
+        inv = ["Rechnungsnr;Rechnungsdatum;Kunde;Netto;MwSt;Brutto;Fällig am;Bezahlt am;Status"]
+        bank = ["Buchungstag;Verwendungszweck;Zahlungspartner;Betrag"]
+        cls.no = {}
+        start = TODAY - timedelta(days=200)
+        for i in range(40):
+            d = start + timedelta(days=4 * i)
+            net = 100.0 + 7 * i
+            tax = round(net * 0.07, 2)
+            gross = round(net + tax, 2)
+            no = f"RE-{d.year}-{i + 1:04d}"
+            cust = names[i % 6]
+            status, paid_at = "offen", ""
+            if i < 30:  # normal: paid after ~10 days, by the book and by the bank
+                paid = d + timedelta(days=10)
+                status, paid_at = "bezahlt", de(paid)
+                bank.append(f"{de(paid)};{no};{cust};{eur(gross)}")
+            inv.append(f"{no};{de(d)};{cust};{eur(net)};{eur(tax)};{eur(gross)};{de(d + timedelta(days=14))};{paid_at};{status}")
+            cls.no[i] = (no, gross, d)
+        # the special cases, all still "offen" in the book
+        n, g, d = cls.no[30]; bank.append(f"{de(d + timedelta(days=5))};{n} Teilzahlung;X;{eur(100.0)}")       # partial
+        n, g, d = cls.no[31]; bank.append(f"{de(d + timedelta(days=5))};{n} abzgl. 2% Skonto;X;{eur(round(g * 0.98, 2))}")
+        n, g, d = cls.no[32]; bank += [f"{de(d + timedelta(days=5))};{n};X;{eur(g)}", f"{de(d + timedelta(days=6))};{n};X;{eur(g)}"]
+        n, g, d = cls.no[33]; bank += [f"{de(d + timedelta(days=5))};{n};X;{eur(g)}",
+                                       f"{de(d + timedelta(days=9))};RUECKLASTSCHRIFT {n};X;-{eur(g)}"]
+        n1, g1, d1 = cls.no[34]; n2, g2, _ = cls.no[35]
+        bank.append(f"{de(d1 + timedelta(days=20))};{n1} und {n2};X;{eur(round(g1 + g2, 2))}")             # collective
+        n, g, d = cls.no[36]
+        inv = [l.replace(f"{n};", f"{n};", 1) if not l.startswith(n) else l.rsplit(";", 1)[0] + ";storniert" for l in inv]
+        bank.append(f"{de(d + timedelta(days=3))};{n};X;{eur(g)}")                                          # on cancelled
+        (cls.tmp / "Rechnungen.csv").write_text("\n".join(inv) + "\n", encoding="utf-8")
+        (cls.tmp / "Konto.csv").write_text("\n".join(bank) + "\n", encoding="utf-8")
+        cls.store = Store(cls.tmp / "firma")
+        ingest(cls.store, [(p.name, p.read_bytes()) for p in [cls.tmp / "Rechnungen.csv", cls.tmp / "Konto.csv"]], "T")
+        regrow(cls.store)
+        cls.rt = Runtime(cls.store)
+        cls.rt.ensure()
+        spec = next(t for t in cls.rt.model["types"] if t["name"] == "Rechnung")
+        cls.by_no = {r["data"][spec["key"]]: cls.rt.ledger.get(r["id"]) for r in cls.rt.records[spec["id"]]}
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def e(self, i):
+        return self.by_no[self.no[i][0]]
+
+    def test_normal_invoices_are_paid(self):
+        self.assertTrue(all(self.e(i)["state"] == "bezahlt" for i in range(30)))
+
+    def test_partial_payment_leaves_the_rest_open(self):
+        e = self.e(30)
+        self.assertEqual(e["state"], "teilbezahlt")
+        self.assertAlmostEqual(e["open"], round(self.no[30][1] - 100, 2), places=2)
+
+    def test_skonto_counts_as_paid(self):
+        e = self.e(31)
+        self.assertEqual(e["state"], "bezahlt")
+        self.assertIsNotNone(e["skonto"])
+
+    def test_double_payment(self):
+        e = self.e(32)
+        self.assertEqual(e["state"], "überzahlt")
+        self.assertTrue(any("doppelt" in n for n in e["notes"]))
+
+    def test_chargeback_reopens(self):
+        self.assertEqual(self.e(33)["state"], "offen")
+
+    def test_collective_transfer_is_split(self):
+        self.assertEqual(self.e(34)["state"], "bezahlt")
+        self.assertEqual(self.e(35)["state"], "bezahlt")
+
+    def test_payment_on_cancelled_invoice_is_flagged(self):
+        e = self.e(36)
+        self.assertEqual(e["state"], "storniert")
+        self.assertTrue(e["notes"])
+
+    def test_one_truth_on_every_page(self):
+        spec = next(t for t in self.rt.model["types"] if t["name"] == "Rechnung")
+        r = next(r for r in self.rt.records[spec["id"]] if r["data"][spec["key"]] == self.no[30][0])
+        self.assertEqual(r["data"]["pay_state"], "teilbezahlt")        # list column and facet
+        work = self.rt.work()
+        overdue = [x for g in work if g["kind"] == "overdue" and g["type"] == spec["id"] for x in g["items"]]
+        partial = next(x for x in overdue if x["rid"] == r["id"])
+        self.assertAlmostEqual(partial["money"], self.e(30)["open"], places=2)  # only what is missing
+        self.assertTrue(any(g["id"] == "pay:problems" for g in work))
+        paid_rids = {rid for rid, e in self.rt.ledger.items() if e["state"] == "bezahlt"}
+        self.assertFalse(paid_rids & {x["rid"] for x in overdue})      # nobody gets dunned for paid money
+
+
+if __name__ == "__main__":
+    unittest.main()

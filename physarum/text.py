@@ -115,6 +115,17 @@ def name_similarity(a: str, b: str) -> float:
         return 0.0
     if a == b:
         return 1.0
+    da, db = sorted(_DIGITS.findall(a)), sorted(_DIGITS.findall(b))
+    if da != db:
+        # "Filiale 1" and "Filiale 10", "Hotel Seeblick 1" and "2" are different places
+        return min(0.5 if (da and db) else 0.85, _name_similarity(a, b))
+    return _name_similarity(a, b)
+
+
+_DIGITS = re.compile(r"\d+")
+
+
+def _name_similarity(a: str, b: str) -> float:
     ta, tb = a.split(), b.split()
     used: set[int] = set()
     matched = 0.0

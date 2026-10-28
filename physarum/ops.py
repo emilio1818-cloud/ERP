@@ -343,7 +343,11 @@ def update(rt, rid: int, raw: dict, actor: str, note: str | None = None, kind: s
             why = note if aid in given else next((t for x, t in autos if x == aid), "berechnet")
             c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
                       (rid, ts, actor if aid in given else "Physarum", k, aid, dumps(old), dumps(new), why))
-            w[aid] = ["user" if aid in given else "auto", ts]
+            prev = w.get(aid)
+            # remember what the files said before the person changed it: a later file that
+            # says the same again must not undo the change
+            base = old if (prev is None or prev[0] == "import") else (prev[2] if len(prev) > 2 else None)
+            w[aid] = ["user" if aid in given else "auto", ts, base]
             changed.append(aid)
             rt.store.flux_add(f"attr:{aid}", 1.0, c=c)
         meta["w"] = w

@@ -15,8 +15,9 @@ from .infer.normalize import normalize
 from .infer.observe import Obs, display_header, obs_from_table
 from .infer.relations import MentionIndex, RelDraft, discover, discover_mentions
 from .infer.unify import AttrDraft, TypeDraft, obs_sig, unify
+from .infer.versions import merge_versions
 from .ingest import read_file
-from .store import Store, dumps, loads, now_iso
+from .store import Store, dumps, loads, now_iso, parse_pair
 from .text import fold, norm_key, norm_name, slug, tokens
 from .values import profile_table
 
@@ -53,12 +54,19 @@ def ingest(store: Store, files: list[tuple[str, bytes]], actor: str | None = Non
     while queue and guard < 5000:
         guard += 1
         name, data, parent = queue.pop(0)
+        known = store.find_source(data, parent)
+        if known is not None:
+            if not known["active"]:
+                with store.tx() as c:
+                    store.set_active(known["id"], True, c)
+            out.append(dict(id=known["id"], name=name, new=False))
+            continue
+        d = read_file(name, data)  # parsing happens outside the write lock
         with store.tx() as c:
             sid, new = store.add_source(name, data, parent_id=parent, actor=actor, c=c)
             if not new:
                 out.append(dict(id=sid, name=name, new=False))
                 continue
-            d = read_file(name, data)
             store.save_digest(sid, d, c)
         if progress:
             what = []
@@ -75,60 +83,48 @@ def ingest(store: Store, files: list[tuple[str, bytes]], actor: str | None = Non
 
 # --- regrow ----------------------------------------------------------------------------------------
 
-def _premerge(raw: list[dict]) -> list[dict]:
-    """Tables with identical columns (one sheet per year, one file per month) are one table."""
-    groups: dict[tuple, list[dict]] = defaultdict(list)
-    for t in raw:
-        sig = tuple(" ".join(tokens(c)) for c in t["columns"])
-        groups[sig].append(t)
-    out = []
-    for sig, ts in groups.items():
-        if len(ts) == 1:
-            t = ts[0]
-            out.append(dict(t, lines=[(t["id"], l) for l in t["lines"]], tables=[t["id"]], sources=[t["source_name"]]))
-            continue
-        first = ts[0]
-        rows, lines = [], []
-        for t in ts:
-            rows += t["rows"]
-            lines += [(t["id"], l) for l in t["lines"]]
-        stems = {t["name"].split(" › ")[0] for t in ts}
-        if len({t["name"] for t in ts}) == 1:
-            label = first["name"]  # e.g. many e-invoices, one table each
-        elif len(stems) == 1 and all(t["sheet"] for t in ts):
-            label = f"{first['name'].split(' › ')[0]} › " + " + ".join(t["sheet"] for t in ts)
-        else:
-            label = " + ".join(t["name"] for t in ts)
-        srcs = list(dict.fromkeys(t["source_name"] for t in ts))
-        source_name = srcs[0] if len(srcs) == 1 else f"{srcs[0]} + {len(srcs) - 1} weitere"
-        out.append(dict(first, name=label, rows=rows, lines=lines, tables=[t["id"] for t in ts],
-                        source_id=max(t["source_id"] for t in ts), source_name=source_name, sources=srcs))
-    return out
-
-
 def _assign_ids(store: Store, types: list[TypeDraft], c):
+    """Stable ids across growths. A type keeps its id when one of its members has the same
+    signature as before, or when it is fed by a raw table that fed it before (a new version of
+    a list joins an existing type; it never creates a new one)."""
     reg_t = store.registry("type")
+    reg_tab = store.registry("type_table")
     reg_a = store.registry("attr")
     used_t = set()
-    new_t, new_a = {}, {}
-    for t in sorted(types, key=lambda t: -sum(m.n for m in t.members)):
+    new_t, new_tab, new_a = {}, {}, {}
+
+    def table_keys(m):
+        return [f"{tb}|{fold(m.determinant or '')}" for tb in (m.tables or [m.table_id])]
+
+    for t in sorted(types, key=lambda t: (-sum(m.n for m in t.members), t.members[0].label)):
         sigs = [obs_sig(m) for m in t.members]
-        cand = Counter(reg_t[s] for s in sigs if s in reg_t and reg_t[s] not in used_t)
-        tid = cand.most_common(1)[0][0] if cand else f"t{store.next_id('type', c)}"
+        votes = Counter(reg_t[s] for s in sigs if s in reg_t and reg_t[s] not in used_t)
+        for m in t.members:
+            for k in table_keys(m):
+                if k in reg_tab and reg_tab[k] not in used_t:
+                    votes[reg_tab[k]] += 1
+        tid = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0]))[0][0] if votes else f"t{store.next_id('type', c)}"
         used_t.add(tid)
         t.tid = tid
         for s in sigs:
             new_t[s] = tid
+        for m in t.members:
+            for k in table_keys(m):
+                new_tab[k] = tid
         used_a = set()
         for a in t.attrs:
             keys = [f"{tid}|{obs_sig(m)}|{fold(col.name)}" for m, col in a.cols]
+            loose = [f"{tid}||{fold(col.name)}" for m, col in a.cols]
             ca = Counter(reg_a[k] for k in keys if k in reg_a and reg_a[k] not in used_a)
-            aid = ca.most_common(1)[0][0] if ca else f"a{store.next_id('attr', c)}"
+            if not ca:
+                ca = Counter(reg_a[k] for k in loose if k in reg_a and reg_a[k] not in used_a)
+            aid = sorted(ca.items(), key=lambda kv: (-kv[1], kv[0]))[0][0] if ca else f"a{store.next_id('attr', c)}"
             used_a.add(aid)
             a.aid = aid
-            for k in keys:
+            for k in keys + loose:
                 new_a[k] = aid
     store.register("type", new_t, c)
+    store.register("type_table", new_tab, c)
     store.register("attr", new_a, c)
 
 
@@ -144,15 +140,22 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     t0 = time.time()
     progress = progress or Progress()
     log: list[dict] = []
-    raw = _premerge(store.raw_tables())
+    raw_tables = store.raw_tables()
+    from .values import asof_date
+    table_time = {}
+    for rt_ in raw_tables:
+        d = asof_date((rt_["meta"] or {}).get("title")) or asof_date(rt_["source_name"])
+        table_time[rt_["id"]] = d.isoformat() if d else (rt_["added_at"] or "")
+    raw = merge_versions(raw_tables)
+    del raw_tables
     progress(f"Lese {len(raw)} Tabellen …", 0.05)
     observations: list[Obs] = []
     table_meta = {}
     by_name = {t["name"]: t["id"] for t in raw}
     for t in raw:
         profs = profile_table(t["columns"], t["rows"], t["meta"])
-        o = obs_from_table(t["id"], t["name"], t["columns"], profs, t["lines"], source_id=t["source_id"])
-        from .values import asof_date
+        o = obs_from_table(t["id"], t["name"], t["columns"], profs, t["lines"], source_id=t["source_id"],
+                           tables=t["tables"], sig_label=t["sig_name"])
         newest = None
         for pr in profs:
             if pr.kind in ("date", "datetime"):
@@ -162,7 +165,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
                     newest = m if newest is None or m > newest else newest
         asof = asof_date(t["meta"].get("title")) or asof_date(t["source_name"])
         table_meta[t["id"]] = dict(source=t["source_name"], sources=t["sources"], name=t["name"], title=t["meta"].get("title"),
-                                   added_at=t["added_at"], tables=t["tables"],
+                                   added_at=t["added_at"], tables=t["tables"], versions=t["versions"],
                                    asof=asof.isoformat() if asof else None,
                                    newest=newest.isoformat() if newest else None)
         o.asof = (asof or newest).isoformat() if (asof or newest) else None
@@ -182,8 +185,9 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
 
     dec_types = {}
     for subj, val in store.decisions("same_type").items():
-        a, b = subj.split("||")
-        dec_types[frozenset((a, b))] = val
+        pair = parse_pair(subj)
+        if pair:
+            dec_types[frozenset(pair)] = val
     asks: list[dict] = []
     types = unify(observations, dec_types, log, asks)
     progress(f"{len(types)} Arten von Dingen erkannt: " + ", ".join(t.plural for t in types[:12]), 0.4)
@@ -216,9 +220,10 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
 
     derived = _lookup_copies(types, groups, rels)
     model = _build_model(store, types, groups, rels, mrels, derived, table_meta, log)
+    _carry_forward(store, model)
     docs = store.documents()
     with store.tx() as c:
-        stats = _materialize(store, model, types, groups, rels, mrels, docs, mindex, c, actor)
+        stats = _materialize(store, model, types, groups, rels, mrels, docs, mindex, c, actor, table_time)
     progress(f"{stats['records']} Datensätze geschrieben ({stats['new']} neu, {stats['changed']} geändert)", 0.75)
 
     from .behavior import infer_behavior
@@ -342,7 +347,7 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
                                 determinant=m.determinant, source=meta.get("source"), sources=meta.get("sources"),
                                 title=meta.get("title"),
                                 tables=meta.get("tables", [m.table_id]), asof=meta.get("asof"),
-                                newest=meta.get("newest")))
+                                newest=meta.get("newest"), versions=meta.get("versions")))
         tmodel.append(dict(id=t.tid, name=t.name, plural=t.plural, concept=t.concept, kind=t.kind,
                            key=t.key.aid if t.key else None, title=t.title.aid if t.title else None,
                            attrs=attrs, members=members, count=len(gs), merge_log=t.merge_log))
@@ -383,12 +388,55 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
     return dict(types=tmodel, relations=rmodel, built_at=now_iso())
 
 
+def _carry_forward(store: Store, model: dict):
+    """A type that holds records made or changed by people never disappears just because the
+    files no longer describe it (the inferred model may change; the firm's records stay)."""
+    prev = store.model()
+    if not prev:
+        return
+    have = {t["id"] for t in model["types"]}
+    own = {r["type"] for r in store.q("SELECT DISTINCT type FROM records WHERE deleted=0 AND merged_into IS NULL "
+                                       "AND origin='user'")}
+    for pt in prev["types"]:
+        if pt["id"] not in have and pt["id"] in own:
+            model["types"].insert(len(model["types"]) - 1, dict(pt, members=[], carried=True))
+            have.add(pt["id"])
+    for pr in prev.get("relations", []):
+        if pr["src"] in have and pr["dst"] in have and not any(r["id"] == pr["id"] for r in model["relations"]) \
+                and any(t.get("carried") and t["id"] == pr["src"] for t in model["types"]):
+            model["relations"].append(pr)
+
+
+LOCKED_CONCEPTS = {"rechnung"}
+
+
+def protected_attrs(spec: dict) -> set:
+    """What an issued document fixes: numbers, amounts, parties and its own dates (not payment
+    or delivery milestones, status or notes)."""
+    if spec.get("concept") not in LOCKED_CONCEPTS or not spec.get("key"):
+        return set()
+    out = set()
+    for a in spec["attrs"]:
+        if a.get("virtual"):
+            continue
+        if a["kind"] in ("money", "number", "percent", "id", "ref", "iban"):
+            out.add(a["id"])
+        elif a["kind"] in ("date", "datetime") and not a.get("milestone"):
+            out.add(a["id"])
+    return out
+
+
 # --- materialisation ---------------------------------------------------------------------------------
 
 def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict, rels: list[RelDraft],
-                 mrels: list[RelDraft], docs, mindex: MentionIndex, c, actor: str) -> dict:
+                 mrels: list[RelDraft], docs, mindex: MentionIndex, c, actor: str, table_time: dict | None = None) -> dict:
     ts = now_iso()
     stats = dict(records=0, new=0, changed=0, merged=0, removed=0)
+    table_time = table_time or {}
+    hidden = set(store.decisions("hidden_record"))
+    made_here = {r["record_id"] for r in c.execute("SELECT DISTINCT record_id FROM changes WHERE kind='create'").fetchall()}
+    specs = {t["id"]: t for t in model["types"]}
+    protect = {t.tid: protected_attrs(specs[t.tid]) for t in types if t.tid in specs}
     src_added = {r["id"]: r["added_at"] for r in store.sources(active_only=False)}
     src_name = {r["id"]: r["name"] for r in store.sources(active_only=False)}
     tables = {r["id"]: r["source_id"] for r in c.execute("SELECT id, source_id FROM raw_tables").fetchall()}
@@ -410,8 +458,19 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
                 for i in amb:
                     existing.pop(i, None)
         for gi, g in enumerate(groups[id(t)]):
+            if any(f"{t.tid}|{i}" in hidden for i in g.idents):
+                continue  # a person removed this record on purpose: it does not come back
             rids = sorted({existing[i] for i in g.idents if i in existing})
             rids = [x for x in rids if x not in seen_records]  # never let two groups share one record
+            if protect.get(t.tid):
+                # a document made here is never taken over by an imported one that only shares its number
+                for x in [x for x in rids if x in made_here]:
+                    row = c.execute("SELECT data FROM records WHERE id=?", (x,)).fetchone()
+                    mine = loads(row["data"]) if row else {}
+                    if any(aid in mine and not isinstance(v, (int,)) and not _same(mine[aid], _jsonable(v))
+                           for aid, v in g.values.items() if aid in protect[t.tid]):
+                        rids.remove(x)
+                        stats.setdefault("collisions", []).append(x)
             if rids:
                 rid = rids[0]
                 for other in rids[1:]:
@@ -435,7 +494,9 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
         ref_of[(id(r.src), r.attr.aid)] = r
     for t in types:
         for gi, g in enumerate(groups[id(t)]):
-            rid = rid_of[(id(t), gi)]
+            rid = rid_of.get((id(t), gi))
+            if rid is None:
+                continue
             data, raw = {}, {}
             for aid, v in g.values.items():
                 r = ref_of.get((id(t), aid))
@@ -457,7 +518,9 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
             alts = {aid: [[_jsonable(v), [[tables.get(x[0], 0), x[0], x[1]] for x in lines]] for v, lines in vs]
                     for aid, vs in g.alts.items()}
             srcs = sorted({tables.get(tl[0], 0) for tl in g.lines})
-            _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written)
+            _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written,
+                          protected=_live_protect(c, protect.get(t.tid), rid, data, specs.get(t.tid)),
+                          src_time=lambda sid, tid: table_time.get(tid) or src_added.get(sid, ""))
             stats["records"] += 1
 
     # 3. documents
@@ -494,8 +557,13 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     for r in c.execute("SELECT id, type, origin FROM records WHERE deleted=0 AND merged_into IS NULL").fetchall():
         if r["id"] in seen_records or r["origin"] != "import":
             continue
-        has_user = c.execute("SELECT 1 FROM changes WHERE record_id=? AND kind IN ('edit','create','note') LIMIT 1",
+        has_user = c.execute("SELECT 1 FROM changes WHERE record_id=? AND kind IN ('edit','create','note','storno') LIMIT 1",
                              (r["id"],)).fetchone()
+        if protect.get(r["type"]) and not has_user:
+            if not c.execute("SELECT 1 FROM changes WHERE record_id=? AND kind='gone' LIMIT 1", (r["id"],)).fetchone():
+                c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
+                          (r["id"], ts, actor, "gone", "steht in keiner Quelle mehr – bleibt als ausgestellter Beleg erhalten"))
+            continue
         if has_user:
             c.execute("UPDATE records SET origin='user' WHERE id=?", (r["id"],))
             continue
@@ -537,6 +605,21 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     return stats
 
 
+def _live_protect(c, protected: set | None, rid: int, data: dict, spec: dict | None) -> set | None:
+    """References of an issued document follow their target when that target was merged away."""
+    if not protected:
+        return protected
+    out = set(protected)
+    row = c.execute("SELECT data FROM records WHERE id=?", (rid,)).fetchone()
+    cur = loads(row["data"]) if row else {}
+    for a in (spec or {}).get("attrs", []):
+        if a["id"] in out and a["kind"] == "ref" and isinstance(cur.get(a["id"]), int):
+            t = c.execute("SELECT deleted FROM records WHERE id=?", (cur[a["id"]],)).fetchone()
+            if not t or t["deleted"]:
+                out.discard(a["id"])
+    return out
+
+
 def match_attr(model: dict, bank_tid: str, inv_tid: str) -> str:
     """The attribute under which a bank transfer links to an invoice: the free-text relation
     if references were found in the purpose field, otherwise a dedicated link."""
@@ -569,7 +652,16 @@ def _accepted_matches(store: Store, model: dict, c) -> list[tuple]:
     return out
 
 
-def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written=None):
+def _same(a, b) -> bool:
+    if a == b:
+        return True
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        return abs(float(a) - float(b)) < 0.005
+    return a is not None and b is not None and norm_key(a) == norm_key(b)
+
+
+def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written=None,
+                  protected: set | None = None, src_time=None):
     old_meta_json = None
     if getattr(g, "new", False):
         cur, meta = {}, {}
@@ -579,13 +671,31 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
         old_meta_json = row["meta"]
         meta = loads(old_meta_json) or {}
     writers = meta.get("w", {})
-    newest_src = max((src_added.get(s, "") for s in srcs), default="")
-    changed = []
+    conflicts = meta.get("conflicts", {})
+    changed, notes = [], {}
     out = dict(cur)
+    src_time = src_time or (lambda sid, tid: src_added.get(sid, ""))
     for aid, v in data.items():
         w = writers.get(aid)
-        if w and w[0] == "user" and w[1] > newest_src:
-            continue  # a person changed it after the newest file: the person wins
+        if w and w[0] in ("user", "auto"):
+            when = max((src_time(x[0], x[1]) for x in prov.get(aid, [])), default="") or \
+                max((src_added.get(s, "") for s in srcs), default="")
+            base = w[2] if len(w) > 2 else _UNSET
+            if when <= w[1] or (base is not _UNSET and _same(base, v)):
+                continue  # the person's value stands: the file is older or says what it said before
+            first = prov.get(aid, [[srcs[-1] if srcs else None]])[0][0]
+            notes[aid] = f"aus {src_name.get(first, 'neuer Quelle')} übernommen (neuer als die Änderung vom {w[1][:10]})"
+        if protected and aid in protected and aid in cur and not _same(cur.get(aid), v):
+            # an issued document never changes silently: the deviation is shown, not applied
+            first = prov.get(aid, [[srcs[-1] if srcs else None]])[0][0]
+            if conflicts.get(aid, [None])[0] != _jsonable(v):
+                conflicts[aid] = [_jsonable(v), src_name.get(first, "neue Quelle")]
+                c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,source_id,note) VALUES(?,?,?,?,?,?,?,?,?)",
+                          (rid, ts, actor, "conflict", aid, dumps(cur.get(aid)), dumps(v), first,
+                           f"abweichender Wert in {src_name.get(first, 'neuer Quelle')} – nicht übernommen (festgeschrieben)"))
+                stats.setdefault("conflicts", []).append((rid, aid))
+            continue
+        conflicts.pop(aid, None)
         if cur.get(aid) != v:
             if aid in cur:
                 changed.append((aid, cur.get(aid), v))
@@ -593,9 +703,15 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
             writers[aid] = ["import", ts]
     for aid in list(cur):
         if aid not in data and writers.get(aid, ["import"])[0] == "import" and aid not in raw:
+            if protected and aid in protected:
+                continue
             changed.append((aid, cur[aid], None))
             out.pop(aid)
     meta.update(w=writers, prov=prov, alts=alts, raw=raw, src=srcs, fuzzy=g.fuzzy or None)
+    if conflicts:
+        meta["conflicts"] = conflicts
+    else:
+        meta.pop("conflicts", None)
     is_new = getattr(g, "new", False)
     if written is not None:
         written[rid] = out
@@ -613,28 +729,41 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
                   (rid, ts, actor, "import", note, srcs[0] if srcs else None))
     elif changed:
         stats["changed"] += 1
-        c.executemany("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,source_id,note) VALUES(?,?,?,?,?,?,?,?,?)",
-                      [(rid, ts, actor, "import", aid, dumps(o), dumps(n), srcs[-1] if srcs else None,
-                        f"aus {src_name.get(srcs[-1], 'neuer Quelle') if srcs else 'neuer Quelle'} übernommen")
-                       for aid, o, n in changed])
+        rows = []
+        for aid, o, n in changed:
+            first = (prov.get(aid) or [[srcs[-1] if srcs else None]])[0][0]
+            rows.append((rid, ts, actor, "import", aid, dumps(o), dumps(n), first,
+                         notes.get(aid) or f"aus {src_name.get(first, 'neuer Quelle')} übernommen"))
+        c.executemany("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,source_id,note) VALUES(?,?,?,?,?,?,?,?,?)", rows)
+
+
+_UNSET = object()
 
 
 def _merge_record(c, src: int, dst: int, ts: str, actor: str, why: str):
     c.execute("UPDATE records SET deleted=1, merged_into=?, updated_at=? WHERE id=?", (dst, ts, src))
     c.execute("UPDATE idents SET record_id=? WHERE record_id=?", (dst, src))
     c.execute("UPDATE notes SET record_id=? WHERE record_id=?", (dst, src))
+    srow = c.execute("SELECT type, data FROM records WHERE id=?", (src,)).fetchone()
+    drow = c.execute("SELECT type, data FROM records WHERE id=?", (dst,)).fetchone()
+    label = ""
+    if srow:
+        sd = loads(srow["data"]) or {}
+        label = next((str(v) for v in sd.values() if isinstance(v, str) and 2 < len(v) < 60), "")
     c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
-              (dst, ts, actor, "merge", f"zusammengeführt mit Datensatz {src}: {why}"))
-    # references in other records' data
-    for row in c.execute("SELECT id, data FROM records WHERE deleted=0 AND data LIKE ?", (f"%{src}%",)).fetchall():
-        data = loads(row["data"]) or {}
-        hit = False
-        for k, v in data.items():
-            if v == src:
-                data[k] = dst
-                hit = True
-        if hit:
-            c.execute("UPDATE records SET data=? WHERE id=?", (dumps(data), row["id"]))
+              (dst, ts, actor, "merge", f"zusammengeführt mit „{label}“ (Datensatz {src}): {why}" if label else
+               f"zusammengeführt mit Datensatz {src}: {why}"))
+    # only real references are redirected (never a number that happens to equal the id)
+    for row in c.execute("SELECT DISTINCT from_id, attr FROM refs WHERE to_id=? AND kind='ref'", (src,)).fetchall():
+        r = c.execute("SELECT data FROM records WHERE id=?", (row["from_id"],)).fetchone()
+        if not r:
+            continue
+        data = loads(r["data"]) or {}
+        if data.get(row["attr"]) == src and not isinstance(data.get(row["attr"]), bool):
+            data[row["attr"]] = dst
+            c.execute("UPDATE records SET data=? WHERE id=?", (dumps(data), row["from_id"]))
+    c.execute("UPDATE OR IGNORE refs SET to_id=? WHERE to_id=?", (dst, src))
+    c.execute("DELETE FROM refs WHERE to_id=?", (src,))
 
 
 def record_text(spec: dict, data: dict, titles: dict[int, str] | None = None) -> str:

@@ -71,6 +71,28 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(body, record_id UNINDEXED, 
 """
 
 
+def pair_subject(a: str, b: str) -> str:
+    """Subject of a decision about a pair of things: order-free and safe for any characters."""
+    return json.dumps(sorted([a, b]), ensure_ascii=False)
+
+
+def parse_pair(subject: str) -> tuple[str, str] | None:
+    try:
+        v = json.loads(subject)
+        if isinstance(v, list) and len(v) == 2:
+            return str(v[0]), str(v[1])
+    except (ValueError, TypeError):
+        pass
+    # legacy "a||b" where a and b are signatures "stem|sheet|det" (and may contain "||" themselves)
+    parts = subject.split("|")
+    if len(parts) == 7 and parts[3] == "":
+        return "|".join(parts[:3]), "|".join(parts[4:])
+    if subject.count("||") == 1:
+        a, b = subject.split("||")
+        return a, b
+    return None
+
+
 def now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
@@ -162,8 +184,9 @@ class Store:
             r = cc.execute("SELECT id, active FROM sources WHERE sha256=? AND parent_id IS ?", (sha, parent_id)).fetchone()
             if r:
                 if not r["active"]:
-                    cc.execute("UPDATE sources SET active=1 WHERE id=?", (r["id"],))
-                    return r["id"], True
+                    # dropped in again after it was taken out: switch it (and its contents) back on;
+                    # its tables are still there, so it is not digested a second time
+                    self.set_active(r["id"], True, cc)
                 return r["id"], False
             ext = os.path.splitext(name)[1].lower()
             cur = cc.execute("INSERT INTO sources(name, sha256, size, ext, parent_id, added_at, added_by) VALUES(?,?,?,?,?,?,?)",
@@ -175,6 +198,25 @@ class Store:
         finally:
             if own:
                 ctx.__exit__(None, None, None)
+
+    def find_source(self, data: bytes, parent_id: int | None = None):
+        sha = hashlib.sha256(data).hexdigest()
+        return self.q1("SELECT id, active FROM sources WHERE sha256=? AND parent_id IS ?", (sha, parent_id))
+
+    def descendants(self, sid: int, c=None) -> list[int]:
+        """A source and everything unpacked from it (zip in zip, mail attachments)."""
+        cc = c or self.conn()
+        out, todo = [], [sid]
+        while todo:
+            x = todo.pop()
+            out.append(x)
+            todo.extend(r["id"] for r in cc.execute("SELECT id FROM sources WHERE parent_id=?", (x,)).fetchall())
+        return out
+
+    def set_active(self, sid: int, active: bool, c):
+        ids = self.descendants(sid, c)
+        c.executemany("UPDATE sources SET active=? WHERE id=?", [(1 if active else 0, i) for i in ids])
+        return ids
 
     def source_path(self, sid: int, name: str) -> Path:
         return self.folder / "originale" / f"{sid:05d}_{_safe(name)}"

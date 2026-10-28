@@ -70,6 +70,8 @@ class Obs:
     concept: str | None = None
     source_id: int = 0
     asof: str | None = None          # how current the data is ("Stand"), for "newest fact wins"
+    tables: list[int] = field(default_factory=list)  # every raw table (version) behind this observation
+    sig_label: str | None = None     # the founder version's name: stable while new versions arrive
 
     def col(self, name: str) -> Col | None:
         for c in self.cols:
@@ -107,7 +109,8 @@ def match_key(prof: Profile, value) -> str | None:
 
 
 def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list[Profile],
-                   lines: list[tuple[int, int]] | list[int], source_id: int = 0) -> Obs:
+                   lines: list[tuple[int, int]] | list[int], source_id: int = 0, tables: list[int] | None = None,
+                   sig_label: str | None = None) -> Obs:
     """`lines` are (table id, line) pairs; plain ints are taken as lines of `table_id`."""
     cols = []
     for j, (name, prof) in enumerate(zip(columns, profiles)):
@@ -132,7 +135,8 @@ def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list
     sheet = label.split(" › ")[1] if " › " in label else ""
     concept = lexicon.concept_of(stem) or (lexicon.concept_of(sheet) if sheet else None)
     o = Obs(oid=f"T{table_id}", table_id=table_id, label=label, file_concept=concept,
-            qualifier=lexicon.qualifier_of(stem), cols=cols, prov=[[l] for l in lines], n=n, source_id=source_id)
+            qualifier=lexicon.qualifier_of(stem), cols=cols, prov=[[l] for l in lines], n=n, source_id=source_id,
+            tables=list(tables or [table_id]), sig_label=sig_label)
     o.concept = concept
     o.key = pick_key(o)
     return o

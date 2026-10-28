@@ -184,8 +184,9 @@ def obs_similarity(a: Obs, b: Obs) -> dict:
 
 
 def obs_sig(o: Obs) -> str:
-    stem = clean_stem(o.label)
-    sheet = o.label.split(" › ")[1] if " › " in o.label else ""
+    label = o.sig_label or o.label
+    stem = clean_stem(label)
+    sheet = label.split(" › ")[1] if " › " in label else ""
     return f"{fold(stem)}|{fold(sheet)}|{fold(o.determinant or '')}"
 
 
@@ -193,7 +194,9 @@ def unify(observations: list[Obs], decisions: dict | None = None, log: list | No
           ask: list | None = None) -> list[TypeDraft]:
     """Cluster observations into types. `decisions` maps frozenset({sig_a, sig_b}) -> 'same'|'different'."""
     decisions = decisions or {}
-    order = sorted(observations, key=lambda o: (o.extracted_from is not None, o.kind_hint == "line", -o.n))
+    # content decides the order, never the order of arrival (ties by name and shape)
+    order = sorted(observations, key=lambda o: (o.extracted_from is not None, o.kind_hint == "line", -o.n,
+                                                -len(o.cols), fold(o.sig_label or o.label), o.determinant or ""))
     clusters: list[TypeDraft] = []
     home: dict[str, TypeDraft] = {}  # obs id -> its cluster, to find the parents of lines
 
@@ -272,14 +275,19 @@ def _add_member(t: TypeDraft, o: Obs):
 
 
 def _authority(o: Obs) -> tuple:
-    return (o.extracted_from is None, o.n)
+    return (o.extracted_from is None, o.n, len(o.cols), _rev(fold(o.sig_label or o.label)))
+
+
+def _rev(s: str) -> tuple:
+    """Sort key that orders strings descending inside a reverse=True sort (alphabetical wins)."""
+    return tuple(-ord(ch) for ch in s)
 
 
 def _finish(t: TypeDraft):
     base = [m for m in t.members if m.extracted_from is None]
     by_auth = sorted(t.members, key=_authority, reverse=True)
     concept = None
-    for m in sorted(base, key=lambda m: -m.n):
+    for m in sorted(base, key=lambda m: (-m.n, -len(m.cols), fold(m.sig_label or m.label))):
         if m.concept and m.kind_hint != "line":
             concept = m.concept
             break
@@ -295,7 +303,8 @@ def _finish(t: TypeDraft):
         t.name, t.plural = lead.name_hint[0], lead.name_hint[1] or ""
     elif concept and base and any(m.concept == concept for m in base):
         sg, pl, _ = lexicon.concept_names(concept)
-        lead_base = next(m for m in sorted(base, key=lambda m: -m.n) if m.concept == concept)
+        lead_base = next(m for m in sorted(base, key=lambda m: (-m.n, -len(m.cols), fold(m.sig_label or m.label)))
+                         if m.concept == concept)
         spec_name = lexicon.specific_name(clean_stem(lead_base.label), concept)
         if spec_name:
             sg, pl = spec_name

@@ -7,7 +7,7 @@ decision that all future growth respects, so nothing is asked twice.
 from __future__ import annotations
 
 from .grow import record_title
-from .store import Store, dumps, loads, now_iso
+from .store import Store, dumps, loads, now_iso, pair_subject
 from .text import norm_key
 
 
@@ -59,7 +59,7 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
         else:
             ma, mb, sim = a["a"], a["b"], a["sim"]
             sigs = sorted(a["sig"])
-            subj = "same_type|" + "||".join(sigs)
+            subj = "same_type|" + pair_subject(*sigs)
             cols_a = [c.name for c in ma.cols][:8]
             cols_b = [c.name for c in mb.cols][:8]
             na = (ma.name_hint or (None,))[0] or ma.label
@@ -68,7 +68,7 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
                                payload=dict(text=f"Sind „{na}“ aus {ma.label} und „{nb}“ aus {mb.label} dieselbe Art von Dingen?",
                                             detail=f"Spalten: {', '.join(cols_a)} — bzw. {', '.join(cols_b)}. "
                                                    f"Grund für die Vermutung: {sim['reason']}.",
-                                            decision=dict(kind="same_type", subject="||".join(sigs)),
+                                            decision=dict(kind="same_type", subject=pair_subject(*sigs)),
                                             options=[["same", "Ja, dasselbe"], ["different", "Nein, verschieden"]]))
     for q in er:
         t = q["type"]
@@ -120,7 +120,7 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
 
 def _stable_ident(c, tid: str, rid: int) -> str | None:
     rows = [r["ident"] for r in c.execute("SELECT ident FROM idents WHERE type=? AND record_id=?", (tid, rid)).fetchall()]
-    for prefix in ("k:", "h:", "e:", "r:", "u:", "n:"):
+    for prefix in ("k:", "h:", "l:", "e:", "r:", "u:", "n:"):
         for i in sorted(rows):
             if i.startswith(prefix):
                 return i
@@ -189,7 +189,7 @@ def answer(store: Store, qid: int, value: str, actor: str | None = None) -> dict
                     sig_obs = next((m["sig"] for m in t["members"] if m["label"] == dec.get("obs")), None)
                     sig_into = next((m["sig"] for m in t["members"] if m["label"] == dec.get("into")), None)
                     if sig_obs and sig_into:
-                        store.decide("same_type", "||".join(sorted((sig_obs, sig_into))), "different", actor, c=c)
+                        store.decide("same_type", pair_subject(sig_obs, sig_into), "different", actor, c=c)
                         result["regrow"] = True
         c.execute("UPDATE questions SET status='answered', answer=?, answered_at=? WHERE id=?",
                   (dumps(value), now_iso(), qid))

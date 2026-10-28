@@ -184,9 +184,11 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
     for i in range(n):
         groups_idx[uf.find(i)].append(i)
     groups = [Group(protos=[protos[i] for i in idxs]) for _, idxs in sorted(groups_idx.items())]
+    link_aids, pos_aids = _line_attrs(t) if t.kind == "line" else ({}, {})
     for g in groups:
         _merge_values(t, g)
-        _idents(t, g, key_aid, email_aids, title_aid)
+        _idents(t, g, key_aid, email_aids, title_aid, link_aids, pos_aids)
+    _number_occurrences(groups)
     if master and title_aid:
         groups = _fuzzy(t, groups, decisions, questions, log)
     return groups
@@ -207,7 +209,46 @@ def _merge_values(t: TypeDraft, g: Group):
                         alts.append((v, p.prov[:1]))
 
 
-def _idents(t: TypeDraft, g: Group, key_aid, email_aids, title_aid):
+_POS_WORDS = {"pos", "position", "zeile", "lfd", "posnr", "line", "positionsnr"}
+
+
+def _line_attrs(t: TypeDraft) -> tuple[dict, dict]:
+    """Per member: the attribute holding the parent's number, and a position column if any."""
+    from ..text import tokens
+    link, pos = {}, {}
+    for m in t.members:
+        for col, _target in m.links:
+            a = t.attr_of(m, col)
+            if a is not None:
+                link[id(m)] = a.aid
+                break
+        for c in m.cols:
+            if set(tokens(c.name)) & _POS_WORDS:
+                a = t.attr_of(m, c.name)
+                if a is not None:
+                    pos[id(m)] = a.aid
+                    break
+    return link, pos
+
+
+def _number_occurrences(groups: list[Group]):
+    """Identical rows without any key (two equal bookings on one day) are told apart by their
+    order of appearance, so they keep their identities from one growth to the next."""
+    pending = [g for g in groups if any(i.startswith("h~") or i.startswith("l~") for i in g.idents)]
+    pending.sort(key=lambda g: (min(g.lines) if g.lines else (0, 0)))
+    seen: dict[str, int] = defaultdict(int)
+    for g in pending:
+        fixed = set()
+        for i in g.idents:
+            if i[1] == "~":
+                seen[i] += 1
+                fixed.add(f"{i[0]}:{i[2:]}:{seen[i]}")
+            else:
+                fixed.add(i)
+        g.idents = fixed
+
+
+def _idents(t: TypeDraft, g: Group, key_aid, email_aids, title_aid, link_aids=None, pos_aids=None):
     g.idents = set()
     for p in g.protos:
         if key_aid and p.values.get(key_aid) is not None:
@@ -222,16 +263,23 @@ def _idents(t: TypeDraft, g: Group, key_aid, email_aids, title_aid):
                     g.idents.add("n:" + nk)
     if not g.idents:
         if t.kind == "line":
-            # identity of a line = its source position (raw table + line; re-imports of the same file match)
+            # a line is identified by its parent's number and its position (or its content), so a
+            # new version of the file finds the same lines; without a parent number, by its place
             for p in g.protos:
-                tid, line = p.prov[0] if p.prov else (p.member.table_id, p.idx)
-                g.idents.add(f"r:{tid}:{line}")
+                la = (link_aids or {}).get(id(p.member))
+                parent = norm_key(p.values.get(la)) if la and p.values.get(la) is not None else None
+                if parent:
+                    pa = (pos_aids or {}).get(id(p.member))
+                    if pa and p.values.get(pa) is not None:
+                        g.idents.add(f"l:{parent}:p{norm_key(p.values[pa])}")
+                    else:
+                        g.idents.add(f"l~{parent}:{_content_hash(p)}")
+                else:
+                    tid, line = p.prov[0] if p.prov else (p.member.table_id, p.idx)
+                    g.idents.add(f"r:{tid}:{line}")
         else:
-            seen = defaultdict(int)
             for p in g.protos:
-                h = _content_hash(p)
-                seen[h] += 1
-                g.idents.add(f"h:{h}:{seen[h]}")
+                g.idents.add(f"h~{_content_hash(p)}")
 
 
 def _digits(v) -> str:
@@ -244,8 +292,11 @@ def _evidence(t: TypeDraft, a: Group, b: Group) -> tuple[list[str], list[str]]:
         va, vb = a.values.get(attr.aid), b.values.get(attr.aid)
         if va is None or vb is None:
             continue
-        if attr.role == "phone" and _digits(va) and _digits(va) == _digits(vb):
-            pro.append("gleiche Telefonnummer")
+        if attr.role == "phone" and _digits(va) and _digits(vb):
+            if _digits(va) == _digits(vb):
+                pro.append("gleiche Telefonnummer")
+            else:
+                con.append("andere Telefonnummer")
         elif attr.kind == "email":
             if str(va).casefold() == str(vb).casefold():
                 pro.append("gleiche E-Mail")
@@ -253,10 +304,16 @@ def _evidence(t: TypeDraft, a: Group, b: Group) -> tuple[list[str], list[str]]:
                 pro.append("gleiche E-Mail-Domain")
             else:
                 con.append("verschiedene E-Mail-Adressen")
-        elif attr.role == "street" and norm_name(va) == norm_name(vb):
-            pro.append("gleiche Straße")
-        elif attr.role == "zip" and norm_key(va) == norm_key(vb):
-            pro.append("gleiche PLZ")
+        elif attr.role == "street":
+            if norm_name(va) == norm_name(vb):
+                pro.append("gleiche Straße")
+            else:
+                con.append("andere Straße")
+        elif attr.role == "zip":
+            if norm_key(va) == norm_key(vb):
+                pro.append("gleiche PLZ")
+            else:
+                con.append("andere PLZ")
         elif attr.role == "city":
             if norm_name(va) == norm_name(vb):
                 pro.append("gleicher Ort")
@@ -283,7 +340,7 @@ def _fuzzy(t: TypeDraft, groups: list[Group], decisions: dict, questions: list |
         if not nm:
             continue
         for tok in nm.split():
-            if len(tok) >= 4:
+            if len(tok) >= 4 and (not blocks[tok[:4]] or blocks[tok[:4]][-1] != i):
                 blocks[tok[:4]].append(i)
     seen_pairs = set()
     merges = []
@@ -293,7 +350,7 @@ def _fuzzy(t: TypeDraft, groups: list[Group], decisions: dict, questions: list |
         for x in range(len(idxs)):
             for y in range(x + 1, len(idxs)):
                 i, j = idxs[x], idxs[y]
-                if (i, j) in seen_pairs:
+                if i == j or (i, j) in seen_pairs:
                     continue
                 seen_pairs.add((i, j))
                 sim = name_similarity(names[i], names[j])
@@ -322,8 +379,26 @@ def _fuzzy(t: TypeDraft, groups: list[Group], decisions: dict, questions: list |
     if not merges:
         return groups
     uf = UF(len(groups))
+    members: dict[int, list[int]] = {i: [i] for i in range(len(groups))}
     for i, j, sim, pro, decided in merges:
-        uf.union(i, j)
+        ri, rj = uf.find(i), uf.find(j)
+        if ri == rj:
+            continue
+        if not decided:
+            ok = True
+            for x in members[ri]:
+                for y in members[rj]:
+                    if (x, y) in ((i, j), (j, i)):
+                        continue
+                    if name_similarity(names[x], names[y]) < 0.9 or _evidence(t, groups[x], groups[y])[1]:
+                        ok = False
+                        break
+                if not ok:
+                    break
+            if not ok:
+                continue  # A~B and B~C does not make A~C
+        r = uf.union(ri, rj)
+        members[r] = members.pop(ri if r != ri else rj, []) + members.get(r, [])
         if log is not None:
             log.append(dict(kind="dedupe", type=t.name, a=groups[i].values.get(title), b=groups[j].values.get(title),
                             sim=round(sim, 3), why=pro, decided=decided))

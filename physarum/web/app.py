@@ -905,17 +905,36 @@ def create_app(folder: str | Path) -> Starlette:
                              notes=loads(s["notes"]) or [], docs=docs.get(s["id"], 0)))
         return page(request, "sources.html", dict(rows=rows))
 
+    def locked_in_sources(sids: list[int]) -> int:
+        """Issued invoices whose every source would be taken out."""
+        from ..grow import protected_attrs
+        rt.ensure()
+        out = 0
+        gone = set(sids)
+        for spec in (rt.model or {}).get("types", []):
+            if not protected_attrs(spec):
+                continue
+            for r in rt.records.get(spec["id"], []):
+                src = set((r.get("meta") or {}).get("src") or [])
+                if src and src <= gone:
+                    out += 1
+        return out
+
     async def source_remove(request: Request):
         sid = int(request.path_params["sid"])
+        blocked = locked_in_sources(store.descendants(sid))
+        if blocked:
+            return JSONResponse(dict(error=f"Diese Datei enthält {blocked} ausgestellte Rechnung(en). Belege lassen sich "
+                                           "nicht herausnehmen – eine neue Fassung einwerfen ersetzt sie.", ok=False))
         with store.tx() as c:
-            c.execute("UPDATE sources SET active=0 WHERE id=? OR parent_id=?", (sid, sid))
+            store.set_active(sid, False, c)
         jid = jobs.start("remove", lambda progress: regrow(store, progress, actor(request)), next_url="/quellen")
         return JSONResponse(dict(job=jid))
 
     async def source_restore(request: Request):
         sid = int(request.path_params["sid"])
         with store.tx() as c:
-            c.execute("UPDATE sources SET active=1 WHERE id=? OR parent_id=?", (sid, sid))
+            store.set_active(sid, True, c)
         jid = jobs.start("restore", lambda progress: regrow(store, progress, actor(request)), next_url="/quellen")
         return JSONResponse(dict(job=jid))
 

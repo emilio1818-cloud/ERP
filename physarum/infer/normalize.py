@@ -202,7 +202,7 @@ def extract(o: Obs, e: dict) -> tuple[Obs, Obs]:
     prov = [sorted({tl for i in groups[k] for tl in o.prov[i]}) for k in order]
     parent = Obs(oid=f"{o.oid}/{slug(x.name)}", table_id=o.table_id, label=o.label, file_concept=o.file_concept,
                  qualifier=o.qualifier, cols=pcols, prov=prov, n=len(order), key=x.name, determinant=x.name,
-                 extracted_from=o.oid, source_id=o.source_id, asof=o.asof)
+                 extracted_from=o.oid, source_id=o.source_id, asof=o.asof, tables=o.tables, sig_label=o.sig_label)
     dep_names = {c.name for c in deps}
     rest_cols = [c for c in o.cols if c.name not in dep_names]
     # rows without a value in X must not lose what they say: the name goes into the link
@@ -231,7 +231,7 @@ def extract(o: Obs, e: dict) -> tuple[Obs, Obs]:
                cols=rest_cols, prov=o.prov, n=o.n, key=None,
                determinant=o.determinant, extracted_from=o.extracted_from, kind_hint=o.kind_hint,
                links=list(o.links) + [(x.name, parent.oid)], name_hint=o.name_hint, concept=o.concept,
-               source_id=o.source_id, asof=o.asof)
+               source_id=o.source_id, asof=o.asof, tables=o.tables, sig_label=o.sig_label)
     rest.key = pick_key(rest)
     if header:
         concept = x.prof.concept or o.concept or o.file_concept

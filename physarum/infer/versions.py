@@ -1,0 +1,164 @@
+"""Versions of the same list: next month's export, an updated invoice book, overlapping bank
+statements, the same file dropped in once more inside a zip.
+
+Tables with identical columns are one list. A row that appears in several versions is one
+row: with a key column (invoice number, customer number) the newest version speaks for it;
+without a key (bank statements) a row counts as often as in the version that has it most
+often, so overlapping statements do not double any booking. The founder of a list (the
+first version that arrived) gives it its stable name; later versions never rename it.
+"""
+from __future__ import annotations
+
+from collections import Counter
+from datetime import date, datetime
+
+from .. import lexicon
+from ..text import tokens
+from ..values import asof_date
+
+_ID_WORDS = {"nr", "nummer", "id", "no", "number", "code", "kennung"}
+_POS_WORDS = {"pos", "position", "zeile", "lfd", "posnr", "line", "positionsnr"}
+_VOLATILE = {"info", "status", "valuta", "valutadatum", "vermerk", "saldo", "kategorie"}
+
+
+def _cell(v) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return str(v)
+    if isinstance(v, (int, float)):
+        return repr(round(float(v), 6))
+    if isinstance(v, (date, datetime)):
+        return v.isoformat()
+    return " ".join(str(v).split()).casefold()
+
+
+def _rank(t: dict) -> tuple:
+    """How current a version is: its own 'Stand', then when it arrived."""
+    d = asof_date((t.get("meta") or {}).get("title")) or asof_date(t.get("source_name")) or asof_date(t.get("name"))
+    return (d.isoformat() if d else "", t.get("added_at") or "", t.get("source_id") or 0, t["id"])
+
+
+def _unique(ts: list[dict], cols: list[int]) -> bool:
+    for t in ts:
+        seen = set()
+        n = filled = 0
+        for r in t["rows"]:
+            n += 1
+            kv = tuple(_cell(r[j]) if j < len(r) else "" for j in cols)
+            if not all(kv):
+                continue
+            filled += 1
+            if kv in seen:
+                return False
+            seen.add(kv)
+        if n and filled < 0.9 * n:
+            return False
+    return True
+
+
+def key_columns(ts: list[dict], columns: list[str]) -> list[int] | None:
+    idlike = []
+    for j, name in enumerate(columns):
+        toks = set(tokens(name))
+        if lexicon.header_role(name) == "id" or toks & _ID_WORDS:
+            idlike.append(j)
+    for j in idlike:
+        if _unique(ts, [j]):
+            return [j]
+    pos = [j for j, name in enumerate(columns) if set(tokens(name)) & _POS_WORDS]
+    for j in idlike:
+        for k in pos:
+            if k != j and _unique(ts, [j, k]):
+                return [j, k]
+    return None
+
+
+def _sig(row: list, volatile: set[int]) -> tuple:
+    return tuple(_cell(v) for j, v in enumerate(row) if j not in volatile)
+
+
+def merge_group(ts: list[dict]) -> dict:
+    """One list from several versions. Returns the merged table dict (rows, lines as
+    (table id, line), the founder's name as stable signature) plus what happened."""
+    ts = sorted(ts, key=lambda t: (t.get("source_id") or 0, t["id"]))
+    founder = ts[0]
+    columns = founder["columns"]
+    volatile = {j for j, c in enumerate(columns) if set(tokens(c)) & _VOLATILE}
+    info = dict(versions=len(ts), files=len({t.get("source_id") for t in ts}), dropped=0, changed=[], vanished=[])
+    keep: list[tuple[int, int]] = []  # (index of table in ts, row index)
+    pos = {id(t): n for n, t in enumerate(ts)}
+    key = key_columns(ts, columns) if len(ts) > 1 else None
+    if len(ts) == 1:
+        keep = [(0, i) for i in range(len(founder["rows"]))]
+    elif key:
+        newest_first = sorted(ts, key=_rank, reverse=True)
+        seen: dict[tuple, tuple[int, int]] = {}
+        for t in newest_first:
+            for i, r in enumerate(t["rows"]):
+                kv = tuple(_cell(r[j]) if j < len(r) else "" for j in key)
+                if not all(kv):
+                    keep.append((pos[id(t)], i))
+                    continue
+                if kv in seen:
+                    info["dropped"] += 1
+                    ti, ri = seen[kv]
+                    if _sig(ts[ti]["rows"][ri], volatile) != _sig(r, volatile) and len(info["changed"]) < 200:
+                        info["changed"].append(" / ".join(str(r[j]) for j in key))
+                    continue
+                seen[kv] = (pos[id(t)], i)
+                keep.append((pos[id(t)], i))
+        # rows the newest full snapshot no longer contains (an updated export, not the next period)
+        newest, second = newest_first[0], newest_first[1]
+        kn = {tuple(_cell(r[j]) if j < len(r) else "" for j in key) for r in newest["rows"]}
+        ks = {tuple(_cell(r[j]) if j < len(r) else "" for j in key) for r in second["rows"]}
+        ks.discard(tuple("" for _ in key))
+        if ks and len(ks & kn) >= 0.8 * len(ks):
+            gone = []
+            for t in newest_first[1:]:
+                for r in t["rows"]:
+                    kv = tuple(_cell(r[j]) if j < len(r) else "" for j in key)
+                    if all(kv) and kv not in kn:
+                        gone.append(" / ".join(str(r[j]) for j in key))
+            info["vanished"] = sorted(set(gone))[:200]
+            info["vanished_from"] = newest.get("source_name")
+    else:
+        counts = [Counter(_sig(r, volatile) for r in t["rows"]) for t in ts]
+        most: Counter = Counter()
+        for cnt in counts:
+            for h, n in cnt.items():
+                most[h] = max(most[h], n)
+        used: Counter = Counter()
+        for n, t in enumerate(ts):  # oldest first: rows keep the provenance they already had
+            for i, r in enumerate(t["rows"]):
+                h = _sig(r, volatile)
+                if used[h] < most[h]:
+                    used[h] += 1
+                    keep.append((n, i))
+                else:
+                    info["dropped"] += 1
+    keep.sort()
+    rows = [ts[n]["rows"][i] for n, i in keep]
+    lines = [(ts[n]["id"], ts[n]["lines"][i] if i < len(ts[n]["lines"]) else i + 1) for n, i in keep]
+    names = [t["name"] for t in ts]
+    stems = {nm.split(" › ")[0] for nm in names}
+    if len(set(names)) == 1:
+        label = names[0]
+    elif len(stems) == 1 and all(t.get("sheet") for t in ts):
+        label = f"{names[0].split(' › ')[0]} › " + " + ".join(dict.fromkeys(t["sheet"] for t in ts))
+    else:
+        label = founder["name"]
+    srcs = list(dict.fromkeys(t.get("source_name") for t in ts))
+    return dict(founder, name=label, sig_name=founder["name"], rows=rows, lines=lines, tables=[t["id"] for t in ts],
+                source_id=max(t.get("source_id") or 0 for t in ts), sources=srcs,
+                source_name=srcs[0] if len(srcs) == 1 else f"{srcs[0]} + {len(srcs) - 1} weitere",
+                added_at=max(t.get("added_at") or "" for t in ts), versions=info, key_cols=key)
+
+
+def merge_versions(raw: list[dict]) -> list[dict]:
+    groups: dict[tuple, list[dict]] = {}
+    for t in raw:
+        sig = tuple(" ".join(tokens(c)) for c in t["columns"])
+        groups.setdefault(sig, []).append(t)
+    return [merge_group(ts) for ts in groups.values()]
+

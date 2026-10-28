@@ -170,14 +170,35 @@ def _x(s) -> str:
     return escape(str(s if s is not None else ""))
 
 
+def _dec(x):
+    from decimal import Decimal
+    return Decimal(str(x if x is not None else 0))
+
+
 def _amt(x) -> str:
-    return f"{float(x or 0):.2f}"
+    from decimal import ROUND_HALF_UP, Decimal
+    return str(_dec(x).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def _qty(x) -> str:
+    q = _dec(x).normalize()
+    return format(q, "f")  # never "1e+06"
+
+
+def _el(tag: str, value, attrs: str = "") -> str:
+    """An element only when there is something to say – XRechnung forbids empty ones."""
+    if value is None or str(value).strip() == "":
+        return ""
+    return f"<{tag}{(' ' + attrs) if attrs else ''}>{_x(str(value).strip())}</{tag}>"
 
 
 def _unit(u) -> str:
     u = fold_unit(u)
-    return {"kg": "KGM", "g": "GRM", "l": "LTR", "stk": "H87", "stueck": "H87", "h": "HUR", "std": "HUR",
-            "m": "MTR", "pauschal": "LS", "karton": "CT", "sack": "SA"}.get(u, "C62")
+    return {"kg": "KGM", "g": "GRM", "l": "LTR", "liter": "LTR", "stk": "H87", "stueck": "H87", "st": "H87",
+            "h": "HUR", "std": "HUR", "stunde": "HUR", "stunden": "HUR", "m": "MTR", "m2": "MTK", "qm": "MTK",
+            "pauschal": "LS", "pausch": "LS", "psch": "LS", "karton": "XCT", "kt": "XCT", "sack": "XSA",
+            "saecke": "XSA", "beutel": "XBG", "dose": "XCX", "flasche": "XBO", "paket": "XPK", "rolle": "XRO",
+            "tag": "DAY", "tage": "DAY", "km": "KMT"}.get(u, "C62")
 
 
 def fold_unit(u) -> str:
@@ -185,50 +206,111 @@ def fold_unit(u) -> str:
     return fold(str(u or "")).strip(". ")
 
 
+def _vat_id(v) -> str | None:
+    return "".join(str(v).split()).upper() if v else None
+
+
+def xrechnung_problems(inv: dict) -> list[str]:
+    """What the XRechnung rules require and the data does not have (checked before anything is written)."""
+    s, b = inv.get("seller") or {}, inv.get("buyer") or {}
+    out = []
+    need_s = [("name", "Firmenname"), ("street", "Straße (Ihre)"), ("zip", "PLZ (Ihre)"), ("city", "Ort (Ihr)"),
+              ("email", "E-Mail-Adresse (Ihre, BT-34/BT-43)"), ("phone", "Telefon (Ihres, BT-42)"), ("iban", "IBAN (BT-84)")]
+    out += [label for k, label in need_s if not s.get(k)]
+    if not s.get("vat_id") and not s.get("tax_no"):
+        out.append("USt-IdNr. oder Steuernummer (Ihre)")
+    if not b.get("name"):
+        out.append("Name des Kunden")
+    if not b.get("zip") or not b.get("city"):
+        out.append("PLZ und Ort des Kunden")
+    if not b.get("email"):
+        out.append("E-Mail-Adresse des Kunden (elektronische Adresse, BT-49)")
+    if not inv.get("positions"):
+        out.append("Positionen")
+    if not (inv.get("delivery") or inv.get("delivery_end")):
+        out.append("Leistungsdatum")
+    if not inv.get("number"):
+        out.append("Rechnungsnummer")
+    return out
+
+
 def to_xrechnung(inv: dict) -> str:
-    """An issued invoice as XRechnung 3.0 (UBL 2.1, EN 16931). `inv` carries number, date, due,
-    delivery, seller and buyer (dicts), positions (text, qty, unit, price, total, rate) and the
-    totals by VAT rate."""
-    s, b = inv["seller"], inv["buyer"]
-    groups = inv["groups"]
-    net = round(sum(g["net"] for g in groups), 2)
-    tax = round(sum(g["tax"] for g in groups), 2)
-    code = "384" if inv.get("corrects") else "380"
+    """An issued invoice as XRechnung 3.0 (UBL 2.1, EN 16931). `inv` is the invoice as issued:
+    number, date, due, delivery (or period), seller and buyer, positions (text, qty, unit, price,
+    total, rate), and the tax note for 0 % (category E, AE, K or G)."""
+    s, b = inv["seller"] or {}, inv["buyer"] or {}
+    pos = inv.get("positions") or []
+    from decimal import Decimal
+    groups: dict = {}
+    for p in pos:
+        r = _dec(p.get("rate") if p.get("rate") is not None else 0)
+        r = r / 100 if r > 1 else r
+        groups.setdefault(r, Decimal(0))
+        groups[r] += _dec(_amt(p.get("total")))
+    zero_cat = inv.get("tax_category") or "Z"
+    reason = inv.get("tax_note")
+
+    def cat(r):
+        return "S" if r > 0 else zero_cat
 
     def pct(r):
-        x = r * 100 if r is not None and r <= 1 else (r or 0)
-        return f"{x:.2f}".rstrip("0").rstrip(".")
+        return format((r * 100).quantize(Decimal("0.01")).normalize(), "f")
 
-    def addr(p):
-        return (f"<cac:PostalAddress><cbc:StreetName>{_x(p.get('street'))}</cbc:StreetName>"
-                f"<cbc:CityName>{_x(p.get('city'))}</cbc:CityName><cbc:PostalZone>{_x(p.get('zip'))}</cbc:PostalZone>"
-                f"<cac:Country><cbc:IdentificationCode>DE</cbc:IdentificationCode></cac:Country></cac:PostalAddress>")
+    def tax_of(r, n):
+        from decimal import ROUND_HALF_UP
+        return (n * r).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    net = sum(groups.values(), Decimal(0))
+    tax = sum((tax_of(r, n) for r, n in groups.items()), Decimal(0))
+
+    def addr(p, country_default="DE"):
+        return ("<cac:PostalAddress>" + _el("cbc:StreetName", p.get("street")) + _el("cbc:CityName", p.get("city")) +
+                _el("cbc:PostalZone", p.get("zip")) + "<cac:Country><cbc:IdentificationCode>" +
+                _x((p.get("country") or country_default).upper()[:2]) + "</cbc:IdentificationCode></cac:Country></cac:PostalAddress>")
 
     lines = []
-    for i, p in enumerate(inv["positions"], start=1):
-        qty = p.get("qty") if p.get("qty") is not None else 1
-        total = p.get("total") if p.get("total") is not None else round((p.get("price") or 0) * qty, 2)
-        price = p.get("price") if p.get("price") is not None else (round(total / qty, 4) if qty else total)
+    for i, p in enumerate(pos, start=1):
+        qty = _dec(p.get("qty") if p.get("qty") is not None else 1)
+        price = _dec(p.get("price") if p.get("price") is not None else p.get("total"))
+        total = _dec(_amt(p.get("total") if p.get("total") is not None else qty * price))
+        if price < 0:  # BR-27: no negative price – a discount is a negative quantity
+            price, qty = -price, -qty
+        r = _dec(p.get("rate") if p.get("rate") is not None else 0)
+        r = r / 100 if r > 1 else r
         lines.append(
             f"""  <cac:InvoiceLine>
     <cbc:ID>{i}</cbc:ID>
-    <cbc:InvoicedQuantity unitCode="{_unit(p.get('unit'))}">{qty:g}</cbc:InvoicedQuantity>
+    <cbc:InvoicedQuantity unitCode="{_unit(p.get('unit'))}">{_qty(qty)}</cbc:InvoicedQuantity>
     <cbc:LineExtensionAmount currencyID="EUR">{_amt(total)}</cbc:LineExtensionAmount>
-    <cac:Item><cbc:Name>{_x(p.get('text'))}</cbc:Name>{f"<cac:SellersItemIdentification><cbc:ID>{_x(p['sku'])}</cbc:ID></cac:SellersItemIdentification>" if p.get('sku') else ""}
-      <cac:ClassifiedTaxCategory><cbc:ID>S</cbc:ID><cbc:Percent>{pct(p.get('rate'))}</cbc:Percent><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:ClassifiedTaxCategory></cac:Item>
+    <cac:Item>{_el("cbc:Name", p.get('text') or "Position")}{f"<cac:SellersItemIdentification><cbc:ID>{_x(p['sku'])}</cbc:ID></cac:SellersItemIdentification>" if p.get('sku') else ""}
+      <cac:ClassifiedTaxCategory><cbc:ID>{cat(r)}</cbc:ID><cbc:Percent>{pct(r)}</cbc:Percent><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:ClassifiedTaxCategory></cac:Item>
     <cac:Price><cbc:PriceAmount currencyID="EUR">{_amt(price)}</cbc:PriceAmount></cac:Price>
   </cac:InvoiceLine>""")
     subtotals = "".join(
-        f"<cac:TaxSubtotal><cbc:TaxableAmount currencyID=\"EUR\">{_amt(g['net'])}</cbc:TaxableAmount>"
-        f"<cbc:TaxAmount currencyID=\"EUR\">{_amt(g['tax'])}</cbc:TaxAmount><cac:TaxCategory><cbc:ID>S</cbc:ID>"
-        f"<cbc:Percent>{pct(g['rate'])}</cbc:Percent><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:TaxCategory>"
-        f"</cac:TaxSubtotal>" for g in groups)
-    ref = (f"<cac:BillingReference><cac:InvoiceDocumentReference><cbc:ID>{_x(inv['corrects'])}</cbc:ID>"
-           f"</cac:InvoiceDocumentReference></cac:BillingReference>") if inv.get("corrects") else ""
-    seller_tax = (f"<cac:PartyTaxScheme><cbc:CompanyID>{_x(s.get('vat_id'))}</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID>"
-                  f"</cac:TaxScheme></cac:PartyTaxScheme>") if s.get("vat_id") else ""
+        f"<cac:TaxSubtotal><cbc:TaxableAmount currencyID=\"EUR\">{_amt(n)}</cbc:TaxableAmount>"
+        f"<cbc:TaxAmount currencyID=\"EUR\">{_amt(tax_of(r, n))}</cbc:TaxAmount><cac:TaxCategory><cbc:ID>{cat(r)}</cbc:ID>"
+        f"<cbc:Percent>{pct(r)}</cbc:Percent>"
+        + (_el("cbc:TaxExemptionReason", reason or "Steuerfrei") if r == 0 and cat(r) != "Z" else "")
+        + "<cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:TaxCategory></cac:TaxSubtotal>"
+        for r, n in sorted(groups.items()))
+    ref = (f"<cac:BillingReference><cac:InvoiceDocumentReference>{_el('cbc:ID', inv['corrects'])}"
+           f"{_el('cbc:IssueDate', inv.get('corrects_date'))}</cac:InvoiceDocumentReference></cac:BillingReference>") \
+        if inv.get("corrects") else ""
+    vat = _vat_id(s.get("vat_id"))
+    seller_tax = (f"<cac:PartyTaxScheme><cbc:CompanyID>{_x(vat)}</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID>"
+                  f"</cac:TaxScheme></cac:PartyTaxScheme>") if vat else ""
     seller_fc = (f"<cac:PartyTaxScheme><cbc:CompanyID>{_x(s.get('tax_no'))}</cbc:CompanyID><cac:TaxScheme><cbc:ID>FC</cbc:ID>"
                  f"</cac:TaxScheme></cac:PartyTaxScheme>") if s.get("tax_no") else ""
+    # BR-CO-26: a seller identifier, the register entry or the VAT id must be there
+    seller_ident = "" if (vat or s.get("register")) else \
+        (f"<cac:PartyIdentification><cbc:ID>{_x(s.get('tax_no'))}</cbc:ID></cac:PartyIdentification>" if s.get("tax_no") else "")
+    bvat = _vat_id(b.get("vat_id"))
+    period = (f"<cac:InvoicePeriod>{_el('cbc:StartDate', inv.get('delivery'))}{_el('cbc:EndDate', inv.get('delivery_end'))}</cac:InvoicePeriod>"
+              if inv.get("delivery_end") else "")
+    delivery = (f"<cac:Delivery><cbc:ActualDeliveryDate>{inv['delivery']}</cbc:ActualDeliveryDate></cac:Delivery>"
+                if inv.get("delivery") and not inv.get("delivery_end") else "")
+    buyer_ref = b.get("leitweg") or b.get("number") or inv.get("order") or b.get("name")
+    notes = _el("cbc:Note", reason) if reason else ""
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <ubl:Invoice xmlns:ubl="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
  xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
@@ -237,30 +319,33 @@ def to_xrechnung(inv: dict) -> str:
   <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
   <cbc:ID>{_x(inv['number'])}</cbc:ID>
   <cbc:IssueDate>{inv['date']}</cbc:IssueDate>
-  {f"<cbc:DueDate>{inv['due']}</cbc:DueDate>" if inv.get('due') else ""}
-  <cbc:InvoiceTypeCode>{code}</cbc:InvoiceTypeCode>
+  {_el("cbc:DueDate", inv.get('due'))}
+  <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
+  {notes}
   <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
-  <cbc:BuyerReference>{_x(b.get('number') or b.get('name'))}</cbc:BuyerReference>
+  {_el("cbc:BuyerReference", buyer_ref)}
+  {period}
   {f"<cac:OrderReference><cbc:ID>{_x(inv['order'])}</cbc:ID></cac:OrderReference>" if inv.get('order') else ""}
   {ref}
   <cac:AccountingSupplierParty><cac:Party>
-    <cbc:EndpointID schemeID="EM">{_x(s.get('email'))}</cbc:EndpointID>
-    <cac:PartyName><cbc:Name>{_x(s.get('name'))}</cbc:Name></cac:PartyName>
+    {_el("cbc:EndpointID", s.get('email'), 'schemeID="EM"')}
+    {seller_ident}
+    <cac:PartyName>{_el("cbc:Name", s.get('name'))}</cac:PartyName>
     {addr(s)}
     {seller_tax}{seller_fc}
-    <cac:PartyLegalEntity><cbc:RegistrationName>{_x(s.get('name'))}</cbc:RegistrationName></cac:PartyLegalEntity>
-    <cac:Contact><cbc:Name>{_x(s.get('manager') or s.get('name'))}</cbc:Name><cbc:Telephone>{_x(s.get('phone'))}</cbc:Telephone><cbc:ElectronicMail>{_x(s.get('email'))}</cbc:ElectronicMail></cac:Contact>
+    <cac:PartyLegalEntity>{_el("cbc:RegistrationName", s.get('name'))}{_el("cbc:CompanyID", s.get('register'))}</cac:PartyLegalEntity>
+    <cac:Contact>{_el("cbc:Name", s.get('manager') or s.get('name'))}{_el("cbc:Telephone", s.get('phone'))}{_el("cbc:ElectronicMail", s.get('email'))}</cac:Contact>
   </cac:Party></cac:AccountingSupplierParty>
   <cac:AccountingCustomerParty><cac:Party>
-    <cbc:EndpointID schemeID="EM">{_x(b.get('email') or s.get('email'))}</cbc:EndpointID>
+    {_el("cbc:EndpointID", b.get('email'), 'schemeID="EM"')}
     {addr(b)}
-    {f"<cac:PartyTaxScheme><cbc:CompanyID>{_x(b['vat_id'])}</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme>" if b.get('vat_id') else ""}
-    <cac:PartyLegalEntity><cbc:RegistrationName>{_x(b.get('name'))}</cbc:RegistrationName></cac:PartyLegalEntity>
+    {f"<cac:PartyTaxScheme><cbc:CompanyID>{_x(bvat)}</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme>" if bvat else ""}
+    <cac:PartyLegalEntity>{_el("cbc:RegistrationName", b.get('name'))}</cac:PartyLegalEntity>
   </cac:Party></cac:AccountingCustomerParty>
-  {f"<cac:Delivery><cbc:ActualDeliveryDate>{inv['delivery']}</cbc:ActualDeliveryDate></cac:Delivery>" if inv.get('delivery') else ""}
+  {delivery}
   <cac:PaymentMeans><cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>
-    <cac:PayeeFinancialAccount><cbc:ID>{_x((s.get('iban') or '').replace(' ', ''))}</cbc:ID>{f"<cac:FinancialInstitutionBranch><cbc:ID>{_x(s['bic'])}</cbc:ID></cac:FinancialInstitutionBranch>" if s.get('bic') else ""}</cac:PayeeFinancialAccount></cac:PaymentMeans>
-  {f"<cac:PaymentTerms><cbc:Note>{_x(inv['terms'])}</cbc:Note></cac:PaymentTerms>" if inv.get('terms') else ""}
+    <cac:PayeeFinancialAccount>{_el("cbc:ID", (s.get('iban') or '').replace(' ', ''))}{f"<cac:FinancialInstitutionBranch><cbc:ID>{_x(s['bic'])}</cbc:ID></cac:FinancialInstitutionBranch>" if s.get('bic') else ""}</cac:PayeeFinancialAccount></cac:PaymentMeans>
+  {f"<cac:PaymentTerms>{_el('cbc:Note', inv['terms'])}</cac:PaymentTerms>" if inv.get('terms') else ""}
   <cac:TaxTotal><cbc:TaxAmount currencyID="EUR">{_amt(tax)}</cbc:TaxAmount>{subtotals}</cac:TaxTotal>
   <cac:LegalMonetaryTotal>
     <cbc:LineExtensionAmount currencyID="EUR">{_amt(net)}</cbc:LineExtensionAmount>

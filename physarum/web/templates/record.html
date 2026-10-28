@@ -40,16 +40,20 @@
   </div>
   <div class="row noprint">
     {% if draft %}
-      <button class="primary" data-post="/r/{{ rec.id }}/ausstellen" {% if missing %}disabled title="Es fehlt noch: {{ missing|join(', ') }}"{% endif %}>Ausstellen</button>
+      <a class="btn primary" href="#ausstellen">Ausstellen …</a>
       <a class="btn ghost" href="/r/{{ rec.id }}/druck" target="_blank">Vorschau</a>
     {% else %}
       {% for ch in children %}{% set cs = model.types|selectattr('id', 'equalto', ch.src)|first %}<a class="btn" href="/t/{{ ch.src }}/neu?a_{{ ch.attr }}={{ rec.id }}">+ {{ cs.name }}</a>{% endfor %}
-      <a class="btn ghost" href="/r/{{ rec.id }}/druck" target="_blank">Drucken</a>
-      {% if invoice and not draft %}<a class="btn ghost" href="/r/{{ rec.id }}/xrechnung" title="E-Rechnung im Format XRechnung (Pflicht im B2B ab 2027/28)">E-Rechnung</a>{% endif %}
+      {% if invoice and not issued_here %}<a class="btn ghost" href="/r/{{ rec.id }}/druck" target="_blank" title="Erstellt in einem anderen Programm – hier nur die Zahlen aus Ihrer Datei">Abschrift</a>
+      {% else %}<a class="btn ghost" href="/r/{{ rec.id }}/druck" target="_blank">Drucken</a>{% endif %}
+      {% if invoice and issued_here %}<a class="btn ghost" href="/r/{{ rec.id }}/xrechnung" title="E-Rechnung im Format XRechnung (Pflicht im B2B ab 2027/28)">E-Rechnung</a>{% endif %}
+      {% if incoming and pay and pay.state in ('offen', 'teilbezahlt') %}
+        <form class="step-form" data-step="/r/{{ rec.id }}/bezahlt" style="margin:0"><input type="date" name="date" value="{{ today_iso }}" aria-label="bezahlt am"><button class="small">✓ bezahlt</button></form>
+      {% endif %}
     {% endif %}
     {% if timeline and timeline.next and timeline.next.late and timeline.next.label == 'bezahlt' and not timeline.negative and not maybe_paid and not draft %}
       <a class="btn" href="/r/{{ rec.id }}/erinnerung" target="_blank">Zahlungserinnerung</a>{% endif %}
-    {% if lock and not lock.cancelled and not storno_of %}
+    {% if lock and lock.own and not lock.cancelled and not storno_of %}
       <button class="btn ghost danger" data-prompt="Grund für das Storno (wird protokolliert):" data-prompt-field="reason" data-post="/r/{{ rec.id }}/storno">Stornieren</button>
     {% endif %}
     {% if can_edit %}<button class="btn" id="edit-toggle">Bearbeiten</button>{% endif %}
@@ -59,8 +63,7 @@
 {% if error %}<div class="notice bad" style="margin-bottom:12px">{{ error }}</div>{% endif %}
 {% if request.query_params.get('neu') %}<div class="notice good" style="margin-bottom:12px">{% if draft %}Entwurf angelegt. Prüfen Sie Kunde, Positionen und Betrag – dann „Ausstellen“. Erst dabei bekommt die Rechnung ihre Nummer und wird festgeschrieben.{% else %}Angelegt. Vorbelegte und berechnete Felder sind gelb markiert.{% endif %}</div>{% endif %}
 {% if request.query_params.get('gespeichert') %}<div class="notice good" style="margin-bottom:12px">Gespeichert.</div>{% endif %}
-{% if draft and missing %}<div class="notice warn" style="margin-bottom:12px">Zum Ausstellen fehlt noch: <b>{{ missing|join(', ') }}</b>.</div>{% endif %}
-{% for w in warnings %}<div class="notice warn" style="margin-bottom:12px">{{ w }}</div>{% endfor %}
+
 {% if invoice and company_missing %}<div class="notice warn row between" style="margin-bottom:12px"><span>Für Druck und E-Rechnung fehlen noch Ihre Firmendaten: {{ company_missing|join(', ') }}{{ '' if (company_missing|last).endswith('.') else '.' }}</span><a class="btn small" href="/firma?zurueck=/r/{{ rec.id }}">Firmendaten eintragen</a></div>{% endif %}
 {% if lock and not lock.cancelled %}<div class="notice" style="margin-bottom:12px">{{ lock.reason }}</div>{% endif %}
 {% for c in conflicts %}<div class="notice bad" style="margin-bottom:12px"><b>Abweichung:</b> In „{{ c.source }}“ steht für {{ c.attr.name }} {{ fmt(c.attr, c.value, link=False) }} statt {{ fmt(c.attr, rec.data.get(c.attr.id), link=False) }}. Nicht übernommen, weil die Rechnung festgeschrieben ist – bitte prüfen; eine Korrektur geht nur per Storno.</div>{% endfor %}
@@ -128,7 +131,7 @@
   <dl class="facts head-fields">
     {% for f in facts if not (draft and (f.attr.virtual or f.attr.milestone or f.attr.id == spec.key) and f.value is none) %}
     {% set a = f.attr %}
-    {% set editable = not a.virtual and (not lock or a.id in lock.editable) %}
+    {% set editable = not a.virtual and (not lock or a.id in lock.editable) and not (draft_lines and a.kind == 'money') %}
     <div class="fact {{ 'edit' if editable }}">
       <dt>{{ a.name }}
         {% if f.calc %}<span class="tag calc" title="{{ a.explain or 'berechnet bzw. automatisch gesetzt' }}">{{ 'aus Zahlungen' if a.virtual and a.virtual.payments else 'errechnet' }}</span>{% endif %}
@@ -144,7 +147,47 @@
   </dl>
 </form>
 
-{% if doc and doc.positions %}
+{% if draft %}
+<section class="card" aria-label="Positionen bearbeiten">
+  <div class="row between"><h2>Positionen</h2>{% if doc and doc.order %}<span class="muted">vorgeschlagen aus {{ doc.order }}</span>{% endif %}</div>
+  <p class="muted" style="font-size:.86rem; margin-top:0">Die Rechnung besteht aus diesen Zeilen – die Summen ergeben sich daraus. Rabatt, Versand oder eine Teillieferung tragen Sie als eigene Zeile ein (Rabatt mit negativem Preis).</p>
+  <form data-step="/r/{{ rec.id }}/positionen" class="positions">
+    <div style="overflow-x:auto"><table class="table lines">
+      <thead><tr><th>Bezeichnung</th><th>Art.-Nr.</th><th class="num">Menge</th><th>Einheit</th><th class="num">Einzelpreis €</th><th class="num">MwSt %</th><th></th></tr></thead>
+      <tbody class="pos-rows">
+      {% for p in (edit_positions or [{}]) %}{% set n = loop.index0 %}
+        <tr class="line"><td><input name="pos_{{ n }}_text" value="{{ p.text or '' }}" aria-label="Bezeichnung" required></td>
+          <td><input name="pos_{{ n }}_sku" value="{{ p.sku or '' }}" aria-label="Artikelnummer" style="max-width:110px"></td>
+          <td><input name="pos_{{ n }}_qty" value="{{ display(p.qty, 'number') if p.qty is not none else '1' }}" inputmode="decimal" aria-label="Menge" style="max-width:80px"></td>
+          <td><input name="pos_{{ n }}_unit" value="{{ p.unit or '' }}" aria-label="Einheit" style="max-width:80px"></td>
+          <td><input name="pos_{{ n }}_price" value="{{ ('%.2f'|format(p.price)).replace('.', ',') if p.price is not none else '' }}" inputmode="decimal" aria-label="Einzelpreis" style="max-width:110px"></td>
+          <td><input name="pos_{{ n }}_rate" value="{{ ('%g'|format(p.rate * 100 if p.rate <= 1 else p.rate)).replace('.', ',') if p.rate is not none else '' }}" inputmode="decimal" aria-label="Steuersatz" style="max-width:70px"></td>
+          <td><button class="small ghost del-pos" type="button" aria-label="Zeile entfernen">✕</button></td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    <div class="row" style="margin-top:8px"><button class="small ghost" type="button" id="add-pos">+ Zeile</button><button class="small primary">Positionen speichern</button>
+      {% if doc and doc.groups %}<span class="muted" style="margin-left:auto">Summe netto {{ money(doc.net) }} · {% for g in doc.groups %}MwSt {{ display(g.rate, 'percent') }} {{ money(g.tax) }} · {% endfor %}<b>brutto {{ money(doc.gross) }}</b></span>{% endif %}</div>
+  </form>
+</section>
+
+<section class="card" id="ausstellen" aria-label="Ausstellen">
+  <h2>Ausstellen</h2>
+  {% if problems %}<div class="notice warn" style="margin-bottom:10px">Zum Ausstellen fehlt noch:<ul style="margin:.3rem 0 0 1.1rem">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>{% endif %}
+  {% if xr_problems %}<p class="muted" style="font-size:.85rem">Als E-Rechnung (XRechnung) geht sie so nicht: es fehlt {{ xr_problems|join('; ') }}. Die gedruckte Rechnung ist davon nicht betroffen.</p>{% endif %}
+  <form data-step="/r/{{ rec.id }}/ausstellen" class="form-grid" style="align-items:end">
+    <div class="field"><label>Leistungsdatum{% if delivery_hint %} <span class="faint">({{ delivery_hint }})</span>{% endif %}</label><input type="date" name="leistung" value="{{ delivery_value or '' }}"></div>
+    <div class="field"><label>bis (bei einem Zeitraum)</label><input type="date" name="leistung_bis"></div>
+    {% if zero_rate %}<div class="field"><label>Grund für 0 % Umsatzsteuer</label><select name="steuerhinweis">
+      <option value="">bitte wählen</option><option value="13b">Steuerschuldnerschaft des Leistungsempfängers (§ 13b)</option>
+      <option value="eu">innergemeinschaftliche Lieferung</option><option value="ausfuhr">Ausfuhrlieferung</option>
+      <option value="steuerfrei">steuerfrei nach § 4 UStG</option></select></div>{% endif %}
+    {% if other_invoices %}<div class="field" style="grid-column:1/-1"><label><input type="checkbox" name="zusatz" value="1"> Zu diesem Auftrag gibt es schon {{ other_invoices|join(', ') }} – trotzdem eine weitere Rechnung ausstellen</label></div>{% endif %}
+    <div class="field"><button class="primary">Jetzt ausstellen</button></div>
+  </form>
+  <p class="faint" style="font-size:.82rem; margin-bottom:0">Rechnungsdatum ist der heutige Tag. Beim Ausstellen bekommt die Rechnung ihre Nummer, wird festgeschrieben und als Druck und E-Rechnung unveränderlich archiviert.</p>
+</section>
+{% elif doc and doc.positions %}
 <section class="card" aria-label="Positionen">
   <div class="row between"><h2>Positionen <span class="muted" style="font-weight:500">{{ doc.positions|length }}</span></h2>
     {% if doc.order %}<span class="muted">aus {{ doc.order }}</span>{% endif %}</div>

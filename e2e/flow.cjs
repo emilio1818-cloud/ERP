@@ -62,9 +62,13 @@ const problems = [];
   await fill('vat_id', 'DE123456789');
   await fill('iban', 'DE95 2005 0550 2461 5874 01');
   await fill('email', 'buero@hafenbohne.de');
+  await fill('phone', '040 123456');
   await page.click('button[type=submit]');
   await page.waitForLoadState('networkidle');
-  await page.click('button:has-text("Ausstellen")');
+  await shot('06b-entwurf-positionen');
+  const probs = await page.$$eval('#ausstellen .notice li', (li) => li.map((x) => x.textContent.trim()));
+  console.log('issue problems:', JSON.stringify(probs));
+  await page.click('#ausstellen button.primary');
   await page.waitForTimeout(1500);
   await shot('07-ausgestellt');
   const pill = await page.textContent('.pagehead');
@@ -74,9 +78,11 @@ const problems = [];
   const rid = page.url().split('/r/')[1].split('?')[0];
   await page.goto(`${base}/r/${rid}/druck`);
   await shot('08-druck');
+  const stamp = await page.locator('.copy-stamp').count();
+  console.log('archived print with copy stamp:', stamp);
   const x = await page.request.get(`${base}/r/${rid}/xrechnung`);
   const xml = await x.text();
-  console.log('xrechnung:', x.status(), x.headers()['content-type'], xml.includes('urn:xeinkauf.de:kosit:xrechnung_3.0'));
+  console.log('xrechnung:', x.status(), x.headers()['content-type'], xml.includes('urn:xeinkauf.de:kosit:xrechnung_3.0') ? 'XRechnung' : xml.slice(xml.indexOf('<p'), xml.indexOf('<p') + 260).replace(/\s+/g, ' '));
   fs.writeFileSync(`${out}/xrechnung.xml`, xml);
 
   // mark an overdue invoice as paid, with undo

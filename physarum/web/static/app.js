@@ -327,6 +327,29 @@
     b.disabled = true;
     post(b.dataset.post, body).then(handle(b)).catch(() => { toast("Das hat nicht geklappt."); b.disabled = false; });
   });
+  // the lines of an invoice draft
+  const posForm = $("form.positions");
+  if (posForm) posForm.addEventListener("click", (ev) => {
+    if (ev.target.matches(".del-pos")) {
+      ev.preventDefault();
+      if ($$("tr.line", posForm).length > 1) ev.target.closest("tr").remove();
+      else $$("input", ev.target.closest("tr")).forEach((el) => (el.value = ""));
+    }
+    if (ev.target.matches("#add-pos")) {
+      ev.preventDefault();
+      const rows = $$("tr.line", posForm);
+      const last = rows[rows.length - 1];
+      const n = 1 + Math.max(...rows.map((tr) => Number((tr.querySelector("input").name.match(/^pos_(\d+)_/) || [0, 0])[1])));
+      const tr = last.cloneNode(true);
+      $$("input", tr).forEach((el) => {
+        const field = el.name.replace(/^pos_\d+_/, "");
+        el.name = `pos_${n}_${field}`;
+        el.value = field === "qty" ? "1" : field === "rate" ? last.querySelector('[name$="_rate"]').value : "";
+      });
+      $("tbody.pos-rows", posForm).appendChild(tr);
+      tr.querySelector("input").focus();
+    }
+  });
   // a step with its date ("✓ bezahlt" on a chosen day), undoable
   document.addEventListener("submit", (ev) => {
     const f = ev.target.closest("form[data-step]");

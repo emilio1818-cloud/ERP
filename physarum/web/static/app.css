@@ -189,6 +189,7 @@ table { border-collapse: collapse; width: 100%; }
 .lines td input { width: 100%; }
 .history li { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: .88rem; }
 .history { list-style: none; padding: 0; margin: 0; }
+.readonly-value { padding: 8px 10px; border: 1px dashed var(--line); border-radius: 8px; font-variant-numeric: tabular-nums; }
 .tag { font-size: .72rem; padding: 1px 6px; border-radius: 5px; background: var(--soft); color: var(--muted); white-space: nowrap; }
 .tag.guess { background: var(--warn-soft); color: var(--warn); }
 .tag.calc { background: var(--accent-soft); color: var(--accent-ink); }

@@ -515,6 +515,8 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     made_here = {r["record_id"] for r in c.execute("SELECT DISTINCT record_id FROM changes WHERE kind='create'").fetchall()}
     specs = {t["id"]: t for t in model["types"]}
     protect = {t.tid: protected_attrs(specs[t.tid]) for t in types if t.tid in specs}
+    status_guard = {t.tid: next((a["id"] for a in specs[t.tid]["attrs"] if a.get("role") == "status"), None)
+                    for t in types if t.tid in specs and protect.get(t.tid)}
     src_added = {r["id"]: r["added_at"] for r in store.sources(active_only=False)}
     src_name = {r["id"]: r["name"] for r in store.sources(active_only=False)}
     tables = {r["id"]: r["source_id"] for r in c.execute("SELECT id, source_id FROM raw_tables").fetchall()}
@@ -602,6 +604,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
             srcs = sorted({tables.get(tl[0], 0) for tl in g.lines})
             _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written,
                           protected=_live_protect(c, protect.get(t.tid), rid, data, specs.get(t.tid)),
+                          status_attr=status_guard.get(t.tid),
                           src_time=lambda sid, tid: table_time.get(tid) or src_added.get(sid, ""))
             stats["records"] += 1
 
@@ -743,7 +746,7 @@ def _same(a, b) -> bool:
 
 
 def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written=None,
-                  protected: set | None = None, src_time=None):
+                  protected: set | None = None, src_time=None, status_attr: str | None = None):
     old_meta_json = None
     if getattr(g, "new", False):
         cur, meta = {}, {}
@@ -767,14 +770,18 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
                 continue  # the person's value stands: the file is older or says what it said before
             first = prov.get(aid, [[srcs[-1] if srcs else None]])[0][0]
             notes[aid] = f"aus {src_name.get(first, 'neuer Quelle')} übernommen (neuer als die Änderung vom {w[1][:10]})"
-        if protected and aid in protected and aid in cur and not _same(cur.get(aid), v):
+        cancels = bool(protected and aid == status_attr and aid in cur and fold(str(v)) in lexicon.NEGATIVE_STATES
+                       and fold(str(cur.get(aid))) not in lexicon.NEGATIVE_STATES)
+        if (protected and aid in protected and aid in cur and not _same(cur.get(aid), v)) or cancels:
             # an issued document never changes silently: the deviation is shown, not applied
             first = prov.get(aid, [[srcs[-1] if srcs else None]])[0][0]
             if conflicts.get(aid, [None])[0] != _jsonable(v):
                 conflicts[aid] = [_jsonable(v), src_name.get(first, "neue Quelle")]
                 c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,source_id,note) VALUES(?,?,?,?,?,?,?,?,?)",
                           (rid, ts, actor, "conflict", aid, dumps(cur.get(aid)), dumps(v), first,
-                           f"abweichender Wert in {src_name.get(first, 'neuer Quelle')} – nicht übernommen (festgeschrieben)"))
+                           (f"„{v}“ laut {src_name.get(first, 'neuer Quelle')} – ohne Stornobeleg nicht übernommen"
+                            if cancels else
+                            f"abweichender Wert in {src_name.get(first, 'neuer Quelle')} – nicht übernommen (festgeschrieben)")))
                 stats.setdefault("conflicts", []).append((rid, aid))
             continue
         conflicts.pop(aid, None)

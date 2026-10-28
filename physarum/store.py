@@ -70,6 +70,12 @@ CREATE TABLE IF NOT EXISTS jobs(id INTEGER PRIMARY KEY, kind TEXT, status TEXT, 
 CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS numbers(type TEXT NOT NULL, number TEXT NOT NULL, record_id INTEGER, ts TEXT NOT NULL,
   PRIMARY KEY(type, number));
+CREATE TABLE IF NOT EXISTS archive(id INTEGER PRIMARY KEY, record_id INTEGER NOT NULL, kind TEXT NOT NULL, name TEXT,
+  content BLOB NOT NULL, sha256 TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(record_id, kind));
+CREATE TRIGGER IF NOT EXISTS archive_keep BEFORE UPDATE ON archive BEGIN
+  SELECT RAISE(ABORT, 'archivierte Belege sind unveränderlich'); END;
+CREATE TRIGGER IF NOT EXISTS archive_stay BEFORE DELETE ON archive BEGIN
+  SELECT RAISE(ABORT, 'archivierte Belege werden nicht gelöscht'); END;
 CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(body, record_id UNINDEXED, type UNINDEXED,
   tokenize='unicode61 remove_diacritics 2');
 """

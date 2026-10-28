@@ -31,9 +31,14 @@
       {% for a in main %}
       <div class="field {{ 'computed' if a.id in computed or (data.get(a.id) is not none and not error) }}">
         <label>{{ a.name }}{% if a.id == spec.key %} <span class="faint">(nächste freie Nummer)</span>{% endif %}</label>
+        {% if readonly and a.id in readonly %}
+          <div class="readonly-value">{{ fmt(a, data.get(a.id)) }}</div><input type="hidden" name="a_{{ a.id }}" value="{{ input_value(a, data.get(a.id)) }}">
+          <span class="hint">aus den Positionen – im Entwurf änderbar</span>
+        {% else %}
         {{ field(a, data.get(a.id), 'a_' ~ a.id, options) }}
+        {% endif %}
         {% if hints and hints.get(a.id) %}<span class="hint">{{ hints[a.id] }}</span>
-        {% else %}{% for f in formulas if f.attr == a.id %}<span class="hint">= {{ f.text.split(' = ', 1)[1] }}</span>{% endfor %}{% endif %}
+        {% elif not (readonly and a.id in readonly) %}{% for f in formulas if f.attr == a.id %}<span class="hint">= {{ f.text.split(' = ', 1)[1] }}</span>{% endfor %}{% endif %}
       </div>
       {% endfor %}
     </div>

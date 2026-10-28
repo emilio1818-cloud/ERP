@@ -51,13 +51,20 @@ class Payments(unittest.TestCase):
                                        f"{de(d + timedelta(days=9))};RUECKLASTSCHRIFT {n};X;-{eur(g)}"]
         n1, g1, d1 = cls.no[34]; n2, g2, _ = cls.no[35]
         bank.append(f"{de(d1 + timedelta(days=20))};{n1} und {n2};X;{eur(round(g1 + g2, 2))}")             # collective
+        n, g, d = cls.no[38]; bank.append(f"{de(d + timedelta(days=5))};{n} abzgl. 3% Reklamation;X;{eur(round(g * 0.97, 2))}")
+        n1, g1, d1 = cls.no[37]; n2, g2, _ = cls.no[39]
+        bank.append(f"{de(d1 + timedelta(days=9))};{n1}, {n2};X;{eur(g2)}")   # names two, pays exactly the second
         n, g, d = cls.no[36]
         inv = [l.replace(f"{n};", f"{n};", 1) if not l.startswith(n) else l.rsplit(";", 1)[0] + ";storniert" for l in inv]
         bank.append(f"{de(d + timedelta(days=3))};{n};X;{eur(g)}")                                          # on cancelled
         (cls.tmp / "Rechnungen.csv").write_text("\n".join(inv) + "\n", encoding="utf-8")
         (cls.tmp / "Konto.csv").write_text("\n".join(bank) + "\n", encoding="utf-8")
+        # only Hotel Möwe is granted skonto
+        kunden = ["Kunde;Ort;Skonto"] + [f"{n};Hamburg;{'2 %' if n == 'Hotel Möwe' else ''}" for n in names]
+        (cls.tmp / "Kunden.csv").write_text("\n".join(kunden) + "\n", encoding="utf-8")
         cls.store = Store(cls.tmp / "firma")
-        ingest(cls.store, [(p.name, p.read_bytes()) for p in [cls.tmp / "Rechnungen.csv", cls.tmp / "Konto.csv"]], "T")
+        ingest(cls.store, [(p.name, p.read_bytes()) for p in [cls.tmp / "Rechnungen.csv", cls.tmp / "Konto.csv",
+                                                              cls.tmp / "Kunden.csv"]], "T")
         regrow(cls.store)
         cls.rt = Runtime(cls.store)
         cls.rt.ensure()
@@ -79,10 +86,19 @@ class Payments(unittest.TestCase):
         self.assertEqual(e["state"], "teilbezahlt")
         self.assertAlmostEqual(e["open"], round(self.no[30][1] - 100, 2), places=2)
 
-    def test_skonto_counts_as_paid(self):
-        e = self.e(31)
+    def test_skonto_counts_as_paid_where_it_is_granted(self):
+        e = self.e(31)                          # Hotel Möwe: 2 % skonto agreed
         self.assertEqual(e["state"], "bezahlt")
         self.assertIsNotNone(e["skonto"])
+
+    def test_a_deduction_without_skonto_stays_open(self):
+        e = self.e(38)                          # Bistro Anker deducted 3 % for a complaint
+        self.assertEqual(e["state"], "teilbezahlt")
+        self.assertTrue(any("ohne dass Skonto vereinbart" in n for n in e["notes"]))
+
+    def test_a_transfer_pays_what_its_amount_fits(self):
+        self.assertEqual(self.e(39)["state"], "bezahlt")
+        self.assertEqual(self.e(37)["state"], "offen")
 
     def test_double_payment(self):
         e = self.e(32)

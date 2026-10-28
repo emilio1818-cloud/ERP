@@ -12,10 +12,12 @@
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
-from .store import dumps, now_iso
+from .store import dumps, loads, now_iso
 from .text import fold, norm_key, tokens
 from .values import as_date, parse_duration
 
@@ -32,13 +34,51 @@ def _num(v):
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
+def _d(v) -> Decimal | None:
+    """A number as Decimal: German or plain notation, never binary floating point."""
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, Decimal):
+        return v
+    if isinstance(v, (int, float)):
+        return Decimal(str(v))
+    s = str(v).strip().replace("€", "").replace(" ", "")
+    if not s:
+        return None
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    try:
+        return Decimal(s)
+    except InvalidOperation:
+        return None
+
+
+def cents(x: Decimal) -> Decimal:
+    """Commercial rounding to the cent: 2,755 € -> 2,76 €."""
+    return x.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def rate_of(v) -> Decimal | None:
+    """7, 0.07, '7 %', '7,0' -> 0.07"""
+    x = _d(str(v).replace("%", "")) if v is not None else None
+    if x is None:
+        return None
+    return x / 100 if x > 1 else x
+
+
 def words(name: str) -> set[str]:
     """Header words, with German abbreviations kept whole ("MwSt" is "mwst", not "mw st")."""
     return set(tokens(name, camel=False)) | set(tokens(name))
 
 
 def is_invoice(spec: dict | None) -> bool:
-    return bool(spec) and spec.get("concept") in LOCKED_CONCEPTS and bool(spec.get("key"))
+    """An invoice this firm writes (drafts, numbers, print, e-invoice, storno) – not one a
+    supplier sent: those keep the supplier's number and are corrected by the supplier."""
+    return bool(spec) and spec.get("concept") in LOCKED_CONCEPTS and bool(spec.get("key")) and not spec.get("incoming")
+
+
+def is_own_invoice(rt, spec: dict) -> bool:
+    return is_invoice(spec)
 
 
 def is_draft(rec: dict) -> bool:
@@ -149,16 +189,47 @@ def positions(rt, rec: dict) -> list[dict]:
 
 
 def tax_by_lines(lines: list[dict]) -> dict | None:
-    """VAT per rate from the lines, when every line knows its rate."""
-    if not lines or any(x["rate"] is None or x["total"] is None for x in lines):
+    """VAT per rate from the lines, when every line knows its rate: the tax of each rate on the
+    sum of its lines, rounded commercially (§ 14 Abs. 4 Nr. 8 UStG)."""
+    if not lines or any(x.get("rate") is None or x.get("total") is None for x in lines):
         return None
-    by_rate: dict[float, float] = {}
+    by_rate: dict[Decimal, Decimal] = {}
     for x in lines:
-        by_rate[x["rate"]] = by_rate.get(x["rate"], 0.0) + x["total"]
-    groups = [dict(rate=r, net=round(n, 2), tax=round(n * r, 2)) for r, n in sorted(by_rate.items())]
-    net = round(sum(g["net"] for g in groups), 2)
-    tax = round(sum(g["tax"] for g in groups), 2)
-    return dict(net=net, tax=tax, gross=round(net + tax, 2), groups=groups)
+        r = rate_of(x["rate"])
+        by_rate[r] = by_rate.get(r, Decimal(0)) + cents(_d(x["total"]))
+    groups = []
+    for r, n in sorted(by_rate.items()):
+        groups.append(dict(rate=float(r), net=float(cents(n)), tax=float(cents(n * r))))
+    net = sum((cents(_d(g["net"])) for g in groups), Decimal(0))
+    tax = sum((cents(_d(g["tax"])) for g in groups), Decimal(0))
+    return dict(net=float(net), tax=float(tax), gross=float(net + tax), groups=groups)
+
+
+def clean_positions(rows: list[dict]) -> tuple[list[dict], list[str]]:
+    """Lines as typed in a draft: text, quantity, unit, unit price, VAT rate. The line total is
+    always quantity × price, rounded to the cent – a discount is a line of its own with a negative price."""
+    out, errors = [], []
+    for i, r in enumerate(rows, start=1):
+        text = str(r.get("text") or "").strip()
+        q, p, rt_ = _d(r.get("qty")), _d(r.get("price")), rate_of(r.get("rate"))
+        if not text and q is None and p is None:
+            continue  # an empty row
+        if not text:
+            errors.append(f"Position {i}: Bezeichnung fehlt")
+        if q is None:
+            errors.append(f"Position {i}: Menge fehlt")
+        if p is None:
+            errors.append(f"Position {i}: Einzelpreis fehlt")
+        if rt_ is None or rt_ < 0 or rt_ > Decimal("0.3"):
+            errors.append(f"Position {i}: Steuersatz fehlt oder ist unklar")
+        if errors and errors[-1].startswith(f"Position {i}"):
+            continue
+        total = cents(q * p)
+        out.append(dict(text=text[:300], sku=(str(r.get("sku")).strip() or None) if r.get("sku") else None,
+                        qty=float(q), unit=(str(r.get("unit")).strip() or None) if r.get("unit") else None,
+                        price=float(p), rate=float(rt_), total=float(total)))
+    return out, errors
+
 
 
 # --- a new invoice from what it refers to -----------------------------------------------------------------
@@ -283,9 +354,144 @@ def recipient(rt, party_rid: int | None) -> dict:
                              and a["kind"] in ("id", "text") and d.get(a["id"])), None))
 
 
-def issue(rt, rid: int, actor: str, today: date | None = None) -> str:
-    """Turn a draft into an issued, locked invoice. Returns its number."""
-    from .ops import apply_formulas, _write_refs_and_search
+def draft_positions(rt, rec: dict) -> list[dict]:
+    """The lines a draft proposes: as edited, else taken from the order."""
+    meta = rec.get("meta") or {}
+    if meta.get("positions") is not None:
+        return meta["positions"]
+    return positions(rt, rec)
+
+
+def apply_totals(spec: dict, data: dict, pos: list[dict]) -> dict | None:
+    """Head amounts are the sum of the lines – never typed separately."""
+    t = tax_by_lines(pos)
+    if not t:
+        return None
+    mf = money_fields(spec)
+    for k in ("net", "tax", "gross"):
+        if mf[k]:
+            data[mf[k]["id"]] = t[k]
+    return t
+
+
+def set_positions(rt, rid: int, rows: list[dict], actor: str) -> list[dict]:
+    """Edit the lines of a draft (discount, shipping, partial delivery are lines of their own)."""
+    from .ops import _write_refs_and_search
+
+    rt.ensure()
+    rec = rt.store.record(rid)
+    spec = rt.spec(rec["type"]) if rec else None
+    if not rec or rec.get("deleted") or not is_invoice(spec) or not is_draft(rec):
+        raise BillingError("Positionen lassen sich nur in einem Entwurf ändern.")
+    pos, errors = clean_positions(rows)
+    if errors:
+        raise BillingError("; ".join(errors))
+    data, meta = dict(rec["data"]), dict(rec["meta"] or {})
+    before = {k: data.get(k) for k in data}
+    apply_totals(spec, data, pos)
+    meta["positions"] = pos
+    ts = now_iso()
+    with rt.store.tx() as c:
+        c.execute("UPDATE records SET data=?, meta=?, updated_at=? WHERE id=?", (dumps(data), dumps(meta), ts, rid))
+        c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
+                  (rid, ts, actor, "edit", f"Positionen geändert ({len(pos)})"))
+        for aid in data:
+            if before.get(aid) != data.get(aid):
+                c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
+                          (rid, ts, "Physarum", "auto", aid, dumps(before.get(aid)), dumps(data.get(aid)),
+                           "Summe der Positionen"))
+        _write_refs_and_search(rt, c, rid, spec, data)
+        rt.bump(c)
+    return pos
+
+
+def delivery_of(rt, spec: dict, rec: dict):
+    """When the service was rendered: as given at issue, else the delivery date of the order."""
+    meta = rec.get("meta") or {}
+    if meta.get("delivery"):
+        return as_date(meta["delivery"])
+    src = source_attr(rt, spec)
+    order = rt.by_id.get(rec["data"].get(src["id"])) if src else None
+    if not order:
+        return None
+    oproc = next((p for p in rt.model.get("processes", []) if p["type"] == order["type"]), None)
+    best = None
+    for st in (oproc or {}).get("steps", []):
+        if fold(st["label"]) in ("geliefert", "versendet", "erledigt", "ausgeliefert"):
+            for s2 in [st] + st.get("also", []):
+                if s2["source"] == "own":
+                    best = as_date(order["data"].get(s2["attr"])) or best
+    return best
+
+
+def other_invoices(rt, spec: dict, rec: dict) -> list[str]:
+    """Issued, valid invoices for the same order (a second invoice is a decision, not an accident)."""
+    src = source_attr(rt, spec)
+    oid = rec["data"].get(src["id"]) if src else None
+    if not isinstance(oid, int):
+        return []
+    proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+    st = (proc or {}).get("status") or {}
+    out = []
+    for r in rt.records.get(spec["id"], []):
+        m = r.get("meta") or {}
+        if r["id"] == rec["id"] or r["data"].get(src["id"]) != oid or m.get("draft") or m.get("storno_of") or \
+                m.get("storno_by") or str(r["data"].get(st.get("attr"))) in (st.get("negative") or []):
+            continue
+        out.append(str(r["data"].get(spec["key"]) or f"#{r['id']}"))
+    return out
+
+
+TAX_NOTES = {
+    "kleinunternehmer": ("E", "Kein Ausweis von Umsatzsteuer, da Kleinunternehmer gemäß § 19 UStG."),
+    "13b": ("AE", "Steuerschuldnerschaft des Leistungsempfängers (§ 13b UStG)."),
+    "eu": ("K", "Steuerfreie innergemeinschaftliche Lieferung (§ 4 Nr. 1 Buchst. b, § 6a UStG)."),
+    "ausfuhr": ("G", "Steuerfreie Ausfuhrlieferung (§ 4 Nr. 1 Buchst. a, § 6 UStG)."),
+    "steuerfrei": ("E", "Steuerfreie Leistung nach § 4 UStG."),
+}
+
+
+def issue_problems(rt, spec: dict, rec: dict, delivery=None, tax_note: str | None = None,
+                   extra_ok: bool = False) -> list[str]:
+    """Everything that keeps a draft from becoming an invoice (§ 14 Abs. 4 UStG)."""
+    out = list(missing_for_issue(rt, spec, rec))
+    pos = draft_positions(rt, rec)
+    _, errs = clean_positions(pos)
+    if not pos:
+        out.append("mindestens eine Position (Bezeichnung, Menge, Einzelpreis, Steuersatz)")
+    out += errs
+    comp = company_missing(rt.store)
+    if comp:
+        out.append("Ihre Firmendaten: " + ", ".join(comp))
+    t = tax_by_lines(pos) if not errs else None
+    party = party_attr(rt, spec)
+    b = recipient(rt, rec["data"].get(party["id"]) if party else None)
+    if t and t["gross"] > 250:
+        lack = [n for k, n in (("street", "Straße"), ("zip", "PLZ"), ("city", "Ort")) if not b.get(k)]
+        if lack:
+            out.append(f"Anschrift des Kunden ({', '.join(lack)}) – über 250 € Pflicht")
+    if not (delivery or delivery_of(rt, spec, rec)):
+        out.append("Leistungsdatum (wann geliefert oder geleistet wurde)")
+    if t and any(abs(g["rate"]) < 1e-9 for g in t["groups"]) and not (tax_note or company(rt.store).get("kleinunternehmer")):
+        out.append("Grund für 0 % Umsatzsteuer (z. B. § 13b, innergemeinschaftlich, Ausfuhr)")
+    if tax_note in ("13b", "eu") and not b.get("vat_id"):
+        out.append("USt-IdNr. des Kunden (für Reverse Charge bzw. innergemeinschaftliche Lieferung)")
+    proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+    st = (proc or {}).get("status") or {}
+    if st.get("attr") and str(rec["data"].get(st["attr"])) in (st.get("negative") or []):
+        out.append("ein Status, der nicht „storniert“ ist")
+    others = other_invoices(rt, spec, rec)
+    if others and not extra_ok:
+        out.append(f"Bestätigung: Zu diesem Auftrag gibt es schon {', '.join(others)}")
+    return out
+
+
+def issue(rt, rid: int, actor: str, today: date | None = None, delivery=None, delivery_end=None,
+          tax_note: str | None = None, extra_ok: bool = False, render=None) -> str:
+    """Turn a draft into an issued, locked invoice. Returns its number. The invoice date is the
+    day of issue; recipient, lines, firm data and delivery date are fixed as they are now, and the
+    printed and the electronic invoice are archived unchangeably (§ 14b UStG, GoBD)."""
+    from .ops import _write_refs_and_search
 
     rt.ensure()
     today = today or date.today()
@@ -293,46 +499,93 @@ def issue(rt, rid: int, actor: str, today: date | None = None) -> str:
     spec = rt.spec(rec["type"]) if rec else None
     if not rec or rec.get("deleted") or not spec or not is_invoice(spec) or not is_draft(rec):
         raise BillingError("Nur ein Entwurf kann ausgestellt werden.")
-    miss = missing_for_issue(rt, spec, rec)
-    if miss:
-        raise BillingError("Zum Ausstellen fehlt noch: " + ", ".join(miss))
+    delivery = as_date(delivery) if delivery else None
+    delivery_end = as_date(delivery_end) if delivery_end else None
+    problems = issue_problems(rt, spec, rec, delivery, tax_note, extra_ok)
+    if problems:
+        raise BillingError("Zum Ausstellen fehlt noch: " + "; ".join(problems))
     data = dict(rec["data"])
     proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
-    if proc and not data.get(proc["start"]["attr"]):
-        data[proc["start"]["attr"]] = today.isoformat()
-    given = set(data)
-    for f in spec.get("formulas") or []:
-        if f["op"] in ("date_add", "date_add_ref", "date_default"):
-            given.discard(f["attr"])  # due date from the issue date
-            data.pop(f["attr"], None)
-    apply_formulas(rt, spec, data, given)
-    if proc and proc.get("deadlines") and not any(data.get(dl["attr"]) for dl in proc["deadlines"]):
-        due = next((dl["attr"] for dl in proc["deadlines"]), None)
-        if due:
+    if proc:
+        data[proc["start"]["attr"]] = today.isoformat()  # an invoice is dated the day it is issued
+    pos, _ = clean_positions(draft_positions(rt, rec))
+    totals = apply_totals(spec, data, pos)
+    due = None
+    if proc and proc.get("deadlines"):
+        due_attr = proc["deadlines"][0]["attr"]
+        days = None
+        for f in spec.get("formulas") or []:
+            if f["attr"] == due_attr and f["op"] == "date_add_ref":
+                target = rt.by_id.get(data.get(f["ref"]))
+                days = parse_duration(target["data"].get(f["ref_attr"])) if target else None
+            elif f["attr"] == due_attr and f["op"] in ("date_add", "date_default"):
+                days = f["days"]
+        if days is None:
             days = _usual_term(rt, spec, proc) or 14
-            data[due] = (as_date(data.get(proc["start"]["attr"])) + timedelta(days=days)).isoformat()
-    meta = dict(rec["meta"] or {})
+        due = today + timedelta(days=int(days))
+        data[due_attr] = due.isoformat()
+    deliv = delivery or delivery_of(rt, spec, rec)
+    comp = company(rt.store)
+    note = TAX_NOTES.get("kleinunternehmer" if comp.get("kleinunternehmer") else (tax_note or ""), (None, None))
     party = party_attr(rt, spec)
-    rec_view = dict(rec, data=data, meta={})
-    meta.update(draft=False, issued=now_iso(), issued_by=actor,
-                recipient=recipient(rt, data.get(party["id"]) if party else None),
-                positions=positions(rt, rec_view), company=company(rt.store))
+    meta = dict(rec["meta"] or {})
+    ts = now_iso()
     with rt.store.tx() as c:
-        number = next_free_number(rt, spec, c, today)
-        if not number:
-            number = f"{today.year}-{rid}"
+        row = c.execute("SELECT meta, deleted FROM records WHERE id=?", (rid,)).fetchone()
+        if not row or row["deleted"] or not (loads(row["meta"]) or {}).get("draft"):
+            raise BillingError("Dieser Entwurf wurde gerade schon ausgestellt.")
+        number = next_free_number(rt, spec, c, today) or _default_number(c, spec, today)
         reserve(c, spec["id"], number, rid)
         data[spec["key"]] = number
-        meta.setdefault("w", {})[spec["key"]] = ["user", now_iso()]
-        c.execute("UPDATE records SET data=?, meta=?, updated_at=? WHERE id=?", (dumps(data), dumps(meta), now_iso(), rid))
+        meta.update(draft=False, issued=ts, issued_by=actor,
+                    recipient=recipient(rt, data.get(party["id"]) if party else None),
+                    positions=pos, company=comp, delivery=deliv.isoformat() if deliv else None,
+                    delivery_end=delivery_end.isoformat() if delivery_end else None,
+                    tax_note=note[1], tax_category=note[0], totals=totals,
+                    terms=(f"Zahlbar ohne Abzug bis {due.strftime('%d.%m.%Y')}." if due else None))
+        meta.setdefault("w", {})[spec["key"]] = ["user", ts]
+        c.execute("UPDATE records SET data=?, meta=?, updated_at=? WHERE id=?", (dumps(data), dumps(meta), ts, rid))
         c.execute("INSERT INTO idents(type,ident,record_id) VALUES(?,?,?) ON CONFLICT(type,ident) DO NOTHING",
                   (spec["id"], "k:" + norm_key(number), rid))
         c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,new,note) VALUES(?,?,?,?,?,?,?)",
-                  (rid, now_iso(), actor, "issue", spec["key"], dumps(number),
-                   "ausgestellt und festgeschrieben (Empfänger und Positionen wie zu diesem Zeitpunkt)"))
+                  (rid, ts, actor, "issue", spec["key"], dumps(number),
+                   "ausgestellt und festgeschrieben (Empfänger, Positionen, Firmendaten und Leistungsdatum wie zu diesem Zeitpunkt)"))
+        _archive_documents(rt, c, dict(rec, data=data, meta=meta), number, render)
         _write_refs_and_search(rt, c, rid, spec, data)
         rt.bump(c)
     return number
+
+
+def _default_number(c, spec: dict, today: date) -> str:
+    """No numbering learned yet: RE-2026-0001, RE-2026-0002 …"""
+    pre = f"RE-{today.year}-"
+    used = [r["number"] for r in c.execute("SELECT number FROM numbers WHERE type=? AND number LIKE ?", (spec["id"], pre + "%"))]
+    n = max((int(x[len(pre):]) for x in used if x[len(pre):].isdigit()), default=0)
+    return f"{pre}{n + 1:04d}"
+
+
+def _archive_documents(rt, c, rec: dict, number: str, render=None):
+    """The issued invoice as the customer gets it – stored once, with its checksum, never rewritten."""
+    doc = document(rt, rec)
+    safe = str(number).replace("/", "-")
+    if render is not None:
+        html = render(doc, rec)
+        if html:
+            archive_put(c, rec["id"], "html", f"Rechnung_{safe}.html", html.encode("utf-8"))
+    from .einvoice import to_xrechnung, xrechnung_problems
+    if not xrechnung_problems(doc):
+        archive_put(c, rec["id"], "xml", f"XRechnung_{safe}.xml", to_xrechnung(doc).encode("utf-8"))
+
+
+def archive_put(c, rid: int, kind: str, name: str, content: bytes) -> str:
+    h = hashlib.sha256(content).hexdigest()
+    c.execute("INSERT OR IGNORE INTO archive(record_id,kind,name,content,sha256,created_at) VALUES(?,?,?,?,?,?)",
+              (rid, kind, name, content, h, now_iso()))
+    return h
+
+
+def archive_get(store, rid: int, kind: str):
+    return store.q1("SELECT * FROM archive WHERE record_id=? AND kind=?", (rid, kind))
 
 
 def usual_due(rt, spec: dict, data: dict) -> dict | None:
@@ -368,7 +621,7 @@ def _usual_term(rt, spec, proc) -> int | None:
 
 # --- cancelling -----------------------------------------------------------------------------------------
 
-def cancel(rt, rid: int, reason: str, actor: str, today: date | None = None) -> int | None:
+def cancel(rt, rid: int, reason: str, actor: str, today: date | None = None, render=None) -> int | None:
     """Cancel an issued invoice with a cancellation invoice. Returns the new record id."""
     from .ops import _write_refs_and_search
 
@@ -381,6 +634,9 @@ def cancel(rt, rid: int, reason: str, actor: str, today: date | None = None) -> 
     if not rec or rec.get("deleted"):
         raise BillingError("Datensatz nicht gefunden")
     spec = rt.spec(rec["type"])
+    if not is_invoice(spec):
+        raise BillingError("Nur eigene Rechnungen werden mit einer Stornorechnung storniert – eine Rechnung eines "
+                           "Lieferanten korrigiert der Lieferant.")
     meta = dict(rec["meta"] or {})
     if meta.get("storno_by") or meta.get("storno_of"):
         raise BillingError("Diese Rechnung ist bereits storniert bzw. selbst ein Storno.")
@@ -391,15 +647,23 @@ def cancel(rt, rid: int, reason: str, actor: str, today: date | None = None) -> 
         raise BillingError("Diese Rechnung ist bereits storniert.")
     neg = neg_vals[0] if neg_vals else "storniert"
     data = dict(rec["data"])
+    orig_doc = document(rt, rec)
     new = {}
     for a in spec["attrs"]:
         v = data.get(a["id"])
         if v is None or a.get("virtual"):
             continue
-        if a["kind"] == "money" and _num(v) is not None:
-            new[a["id"]] = -round(_num(v), 2)
-        elif a["kind"] in ("ref",):
+        if a["kind"] == "ref":
             new[a["id"]] = v
+    pos = [dict(x, qty=-(x["qty"] or 0) if x.get("qty") is not None else None,
+                total=float(-cents(_d(x["total"]))) if x.get("total") is not None else None)
+           for x in (orig_doc.get("positions") or [])]
+    totals = apply_totals(spec, new, pos) if pos else None
+    if not totals:
+        mf = money_fields(spec)
+        for k in ("net", "tax", "gross"):
+            if mf[k] and _num(data.get(mf[k]["id"])) is not None:
+                new[mf[k]["id"]] = -_num(data.get(mf[k]["id"]))
     if proc:
         new[proc["start"]["attr"]] = today.isoformat()
     if st:
@@ -407,13 +671,14 @@ def cancel(rt, rid: int, reason: str, actor: str, today: date | None = None) -> 
         data[st["attr"]] = neg
     ts = now_iso()
     with rt.store.tx() as c:
-        number = next_free_number(rt, spec, c, today) or f"ST-{rid}"
+        number = next_free_number(rt, spec, c, today) or _default_number(c, spec, today)
         new[spec["key"]] = number
-        nmeta = dict(storno_of=rid, issued=ts, issued_by=actor, recipient=meta.get("recipient"),
-                     positions=[dict(x, qty=-(x["qty"] or 0) if x.get("qty") is not None else None,
-                                     total=-(x["total"] or 0) if x.get("total") is not None else None)
-                                for x in (meta.get("positions") or positions(rt, rec))],
-                     company=meta.get("company") or company(rt.store), w={k: ["user", ts] for k in new})
+        nmeta = dict(storno_of=rid, issued=ts, issued_by=actor, recipient=orig_doc.get("buyer"), positions=pos,
+                     company=orig_doc.get("seller") or company(rt.store), delivery=orig_doc.get("delivery"),
+                     delivery_end=orig_doc.get("delivery_end"), tax_note=orig_doc.get("tax_note"),
+                     tax_category=orig_doc.get("tax_category"), totals=totals,
+                     corrects=dict(number=data.get(spec["key"]), date=orig_doc.get("date")),
+                     reason=reason, w={k: ["user", ts] for k in new})
         cur = c.execute("INSERT INTO records(type,data,meta,origin,created_at,updated_at) VALUES(?,?,?,?,?,?)",
                         (spec["id"], dumps(new), dumps(nmeta), "user", ts, ts))
         nid = cur.lastrowid
@@ -428,6 +693,7 @@ def cancel(rt, rid: int, reason: str, actor: str, today: date | None = None) -> 
                   (rid, ts, actor, "storno", st["attr"] if st else None, dumps(rec["data"].get(st["attr"])) if st else None,
                    dumps(neg) if st else None, f"storniert durch {number}: {reason}"))
         c.execute("INSERT INTO notes(record_id,ts,actor,text) VALUES(?,?,?,?)", (rid, ts, actor, f"Storniert ({number}): {reason}"))
+        _archive_documents(rt, c, dict(id=nid, type=spec["id"], data=new, meta=nmeta, origin="user"), number, render)
         _write_refs_and_search(rt, c, nid, spec, new)
         _write_refs_and_search(rt, c, rid, spec, data)
         rt.bump(c)
@@ -440,6 +706,7 @@ COMPANY_FIELDS = [
     ("name", "Firmenname"), ("street", "Straße und Hausnummer"), ("zip", "PLZ"), ("city", "Ort"),
     ("vat_id", "USt-IdNr."), ("tax_no", "Steuernummer"), ("iban", "IBAN"), ("bic", "BIC"), ("bank", "Bank"),
     ("email", "E-Mail"), ("phone", "Telefon"), ("register", "Handelsregister"), ("manager", "Geschäftsführung"),
+    ("country", "Land (ISO-Kürzel, z. B. DE)"),
 ]
 
 
@@ -489,7 +756,9 @@ def company_missing(store) -> list[str]:
 # --- the printed and the electronic invoice ---------------------------------------------------------------
 
 def document(rt, rec: dict) -> dict:
-    """Everything an invoice states (§ 14 UStG): for the print page and the XRechnung."""
+    """Everything an invoice states (§ 14 UStG): for the print page and the XRechnung. An issued
+    invoice speaks only from what was fixed when it was issued; an imported one is a copy of the
+    book's figures; only a draft looks at today's data."""
     spec = rt.spec(rec["type"])
     meta = rec.get("meta") or {}
     d = rec["data"]
@@ -500,39 +769,39 @@ def document(rt, rec: dict) -> dict:
     if proc:
         for dl in proc.get("deadlines", []):
             due = as_date(d.get(dl["attr"])) or due
+    issued_here = bool(meta.get("issued"))
+    copy = not issued_here and not is_draft(rec)
     party = party_attr(rt, spec)
-    buyer = meta.get("recipient") or recipient(rt, d.get(party["id"]) if party else None)
-    pos = meta.get("positions") or positions(rt, rec)
-    groups = (tax_by_lines(pos) or {}).get("groups")
+    buyer = meta.get("recipient") if issued_here else recipient(rt, d.get(party["id"]) if party else None)
     net = _num(d.get(mf["net"]["id"])) if mf["net"] else None
     tax = _num(d.get(mf["tax"]["id"])) if mf["tax"] else None
     gross = _num(d.get(mf["gross"]["id"])) if mf["gross"] else None
-    if not groups:
-        rate = (tax / net) if net and tax is not None else 0.0
-        groups = [dict(rate=round(rate, 4), net=net or 0.0, tax=tax or 0.0)]
-    if not pos:
-        pos = [dict(text=f"Leistungen laut {rt.title(d.get(source_attr(rt, spec)['id']))}" if source_attr(rt, spec)
-                    and d.get(source_attr(rt, spec)["id"]) else "Leistung", qty=1, unit=None, price=net, total=net,
-                    rate=groups[0]["rate"], sku=None)]
+    if copy:
+        # the figures of the book, not lines rebuilt from today's articles
+        rate = round(tax / net, 4) if net and tax is not None else None
+        pos = [dict(text="Leistungen laut Rechnungsbuch", qty=1, unit=None, price=net, total=net, rate=rate, sku=None)]
+        groups = [dict(rate=rate or 0.0, net=net or 0.0, tax=tax or 0.0)]
+    else:
+        pos = meta.get("positions") if meta.get("positions") is not None else positions(rt, rec)
+        t = tax_by_lines(pos) or {}
+        groups = t.get("groups") or []
+        if t:
+            net, tax, gross = t["net"], t["tax"], t["gross"]
     src = source_attr(rt, spec)
     order = rt.by_id.get(d.get(src["id"])) if src else None
-    delivery = None
-    if order:
-        oproc = next((p for p in rt.model.get("processes", []) if p["type"] == order["type"]), None)
-        for st in (oproc or {}).get("steps", []):
-            if fold(st["label"]) in ("geliefert", "versendet", "erledigt"):
-                for s2 in [st] + st.get("also", []):
-                    if s2["source"] == "own":
-                        delivery = as_date(order["data"].get(s2["attr"])) or delivery
-    corrects = None
-    if meta.get("storno_of") and meta["storno_of"] in rt.by_id:
+    delivery = as_date(meta.get("delivery")) if issued_here else delivery_of(rt, spec, rec)
+    corrects = (meta.get("corrects") or {}).get("number")
+    if not corrects and meta.get("storno_of") and meta["storno_of"] in rt.by_id:
         corrects = rt.by_id[meta["storno_of"]]["data"].get(spec["key"])
-    terms = None
-    if due and start:
-        terms = f"Zahlbar ohne Abzug bis {due.strftime('%d.%m.%Y')} ({(due - start).days} Tage)."
+    terms = meta.get("terms") if issued_here else (
+        f"Zahlbar ohne Abzug bis {due.strftime('%d.%m.%Y')} ({(due - start).days} Tage)." if due and start else None)
+    comp = company(rt.store)
     return dict(number=d.get(spec["key"]), date=(start or date.today()).isoformat(), due=due.isoformat() if due else None,
-                delivery=delivery.isoformat() if delivery else None, seller=meta.get("company") or company(rt.store),
-                buyer=buyer, positions=pos, groups=groups, net=net, tax=tax, gross=gross,
-                order=rt.title(order["id"]) if order else None, corrects=corrects, terms=terms,
-                draft=is_draft(rec), cancelled_by=rt.by_id.get(meta.get("storno_by"), {}).get("data", {}).get(spec["key"])
+                delivery=delivery.isoformat() if delivery else None, delivery_end=meta.get("delivery_end"),
+                seller=meta.get("company") if issued_here else comp, buyer=buyer or {}, positions=pos, groups=groups,
+                net=net, tax=tax, gross=gross, order=rt.title(order["id"]) if order else None, corrects=corrects,
+                corrects_date=(meta.get("corrects") or {}).get("date"), terms=terms, draft=is_draft(rec), copy=copy,
+                tax_note=meta.get("tax_note") if issued_here else (TAX_NOTES["kleinunternehmer"][1] if comp.get("kleinunternehmer") else None),
+                tax_category=meta.get("tax_category"), issued=meta.get("issued"),
+                cancelled_by=rt.by_id.get(meta.get("storno_by"), {}).get("data", {}).get(spec["key"])
                 if meta.get("storno_by") else None)

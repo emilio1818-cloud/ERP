@@ -29,6 +29,9 @@
   .draft { position: fixed; top: 38%; left: 0; right: 0; text-align: center; font-size: 90px; color: rgba(200, 40, 30, .12);
            transform: rotate(-18deg); pointer-events: none; font-weight: 800; }
   .warn { background: #fdf0dc; color: #8a5200; padding: 8px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+  .copy-stamp { position: absolute; top: 10px; right: 16px; font-size: 11px; color: #8a5200; border: 1px solid #e7c58f;
+                border-radius: 6px; padding: 2px 8px; background: #fffaf0; }
+  .copy { text-align: center; font-weight: 700; letter-spacing: .2em; color: #8a5200; margin-bottom: 8px; }
   .noprint { text-align: right; margin-bottom: 12px; }
   .noprint button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
   @media print { .noprint { display: none; } .sheet { padding: 0; } @page { margin: 18mm 16mm; } }
@@ -41,7 +44,8 @@
 {% if d.draft %}<div class="draft">ENTWURF</div>{% endif %}
 <div class="sheet">
   <div class="noprint"><button onclick="window.print()">Drucken</button></div>
-  {% if d.draft %}<div class="warn">Vorschau eines Entwurfs – die Rechnungsnummer wird beim Ausstellen vergeben.</div>{% endif %}
+  {% if d.draft %}<div class="warn">Vorschau eines Entwurfs – Nummer, Rechnungsdatum und Leistungsdatum werden beim Ausstellen festgelegt.</div>{% endif %}
+  {% if d.copy %}<div class="warn">Abschrift aus Ihren Daten: Diese Rechnung wurde in einem anderen Programm erstellt. Das Original (und die E-Rechnung) kommt aus jenem Programm.</div>{% endif %}
   {% if company_missing %}<div class="warn noprint">Es fehlen noch Firmendaten ({{ company_missing|join(', ') }}). <a href="/firma?zurueck=/r/{{ rec.id }}/druck">Jetzt eintragen</a></div>{% endif %}
   <div class="head">
     <div class="address">
@@ -59,11 +63,11 @@
   </div>
 
   <h1>{{ 'Stornorechnung' if d.corrects else 'Rechnung' }} {{ d.number or '' }}</h1>
-  {% if d.corrects %}<p>Storniert wird die Rechnung <b>{{ d.corrects }}</b>.</p>{% endif %}
+  {% if d.corrects %}<p>Storniert wird die Rechnung <b>{{ d.corrects }}</b>{% if d.corrects_date %} vom {{ display(d.corrects_date, 'date') }}{% endif %}.</p>{% endif %}
   {% if d.cancelled_by %}<p class="warn">Diese Rechnung wurde durch {{ d.cancelled_by }} storniert.</p>{% endif %}
   <div class="meta">
     <div><span>Rechnungsdatum</span>{{ display(d.date, 'date') }}</div>
-    <div><span>Leistungsdatum</span>{{ display(d.delivery, 'date') if d.delivery else display(d.date, 'date') }}</div>
+    <div><span>{{ 'Leistungszeitraum' if d.delivery_end else 'Leistungsdatum' }}</span>{% if d.delivery %}{{ display(d.delivery, 'date') }}{% if d.delivery_end %} – {{ display(d.delivery_end, 'date') }}{% endif %}{% else %}wird beim Ausstellen angegeben{% endif %}</div>
     {% if d.order %}<div><span>Auftrag</span>{{ d.order }}</div>{% endif %}
     {% if b.number %}<div><span>Kundennummer</span>{{ b.number }}</div>{% endif %}
     {% if b.vat_id %}<div><span>USt-IdNr. Kunde</span>{{ b.vat_id }}</div>{% endif %}
@@ -86,6 +90,7 @@
   </table>
 
   <div class="terms">
+    {% if d.tax_note %}<p><b>{{ d.tax_note }}</b>{% if b.vat_id %} USt-IdNr. des Leistungsempfängers: {{ b.vat_id }}.{% endif %}</p>{% endif %}
     {% if d.terms and not d.corrects %}<p>{{ d.terms }}</p>{% endif %}
     {% if s.iban and not d.corrects %}<p>Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer auf das Konto IBAN {{ s.iban|iban }}{% if s.bic %} (BIC {{ s.bic }}){% endif %}{% if s.bank %} bei der {{ s.bank }}{% endif %}.</p>{% endif %}
   </div>

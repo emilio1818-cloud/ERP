@@ -14,7 +14,8 @@
       <input id="f_{{ k }}" name="{{ k }}" value="{{ values[k] }}" {% if k == 'email' %}type="email"{% endif %}></div>
     {% endfor %}
   </div>
-  <p class="muted" style="margin-top:12px">Steuernummer oder USt-IdNr. ist Pflicht. Die IBAN erscheint als Bankverbindung auf der Rechnung.</p>
+  <div class="field" style="margin-top:12px"><label><input type="checkbox" name="kleinunternehmer" value="1" {{ 'checked' if values.kleinunternehmer }}> Kleinunternehmer nach § 19 UStG (Rechnungen ohne Umsatzsteuer, mit Hinweis)</label></div>
+  <p class="muted" style="margin-top:12px">Pflicht für jede Rechnung: Name, Anschrift und Steuernummer oder USt-IdNr. Für die E-Rechnung (XRechnung) zusätzlich E-Mail, Telefon und IBAN. Jede Änderung steht mit altem und neuem Wert im Protokoll.</p>
   <div class="row" style="margin-top:8px"><button class="primary" type="submit">Speichern</button>{% if back %}<a class="btn ghost" href="{{ back }}">Zurück</a>{% endif %}</div>
 </form>
 {% endblock %}

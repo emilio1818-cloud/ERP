@@ -505,11 +505,25 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 conflicts.append(dict(attr=a, value=v, source=src_name))
         imported = rec.get("origin") == "import" or any(c["kind"] == "import" for c in changes)
         stale = next((s for s in (rt.stale or {}).get(spec["id"], []) if s["rid"] == rid), None)
+        issue_ctx = {}
+        if inv and draft:
+            dv = billing.delivery_of(rt, spec, rec)
+            pos_now = billing.draft_positions(rt, rec)
+            t_now = billing.tax_by_lines(pos_now) if pos_now else None
+            from ..einvoice import xrechnung_problems
+            issue_ctx = dict(
+                problems=[p for p in billing.issue_problems(rt, spec, rec, extra_ok=True) if not p.startswith("Leistungsdatum")
+                          and not p.startswith("Grund für 0 %")],
+                xr_problems=[p for p in xrechnung_problems(dict(doc or {}, number="x", delivery="x"))],
+                edit_positions=pos_now, delivery_value=dv.isoformat() if dv else None,
+                delivery_hint="aus dem Auftrag" if dv else "bitte angeben",
+                zero_rate=bool(t_now and any(abs(g["rate"]) < 1e-9 for g in t_now["groups"])),
+                other_invoices=billing.other_invoices(rt, spec, rec))
         return dict(rec=rec, spec=spec, facts=facts, timeline=timeline, related=related, mentions=mentions, notes=notes,
-                    stale=stale,
+                    stale=stale, issued_here=bool(meta.get("issued")), incoming=bool(spec.get("incoming")), **issue_ctx,
+                    draft_lines=bool(draft and meta.get("positions") is not None),
                     maybe_paid=maybe_paid, pay=pay, alloc=alloc, invoice=inv, draft=draft, doc=doc,
                     missing=billing.missing_for_issue(rt, spec, rec) if draft else [],
-                    warnings=billing.issue_warnings(rt, spec, rec) if draft else [],
                     company_missing=billing.company_missing(store) if inv else [], conflicts=conflicts,
                     storno_of=meta.get("storno_of"), storno_by=meta.get("storno_by"), imported=imported,
                     can_edit=any(not f["attr"].get("virtual") and (not lock or f["attr"]["id"] in lock["editable"])
@@ -620,13 +634,48 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             return JSONResponse(dict(error=str(e)))
         return JSONResponse(dict(reload=True, toast="Rückgängig gemacht."))
 
-    def record_issue(request: Request):
+    def render_invoice(doc: dict, rec: dict) -> str:
+        """The printed invoice exactly as it is archived when issued."""
+        return templates.get_template("invoice.html").render(d=doc, rec=rec, company_missing=[], archived=None,
+                                                              printed=views.today_text())
+
+    def record_issue(request: Request, form):
         rid = int(request.path_params["rid"])
         try:
-            number = billing.issue(rt, rid, actor(request))
+            number = billing.issue(rt, rid, actor(request), delivery=form.get("leistung") or None,
+                                   delivery_end=form.get("leistung_bis") or None,
+                                   tax_note=form.get("steuerhinweis") or None, extra_ok=bool(form.get("zusatz")),
+                                   render=render_invoice)
         except billing.BillingError as e:
             return JSONResponse(dict(error=str(e)))
-        return JSONResponse(dict(reload=True, toast=f"Ausgestellt als {number} und festgeschrieben."))
+        return JSONResponse(dict(reload=True, toast=f"Ausgestellt als {number}, festgeschrieben und archiviert."))
+
+    def record_paid(request: Request, form):
+        """A supplier's invoice paid outside the bank statements Physarum knows (cash, another account)."""
+        rid = int(request.path_params["rid"])
+        try:
+            ops.paid_by_hand(rt, rid, None if form.get("undo") else (form.get("date") or date.today().isoformat()),
+                             actor(request))
+        except ops.OpError as e:
+            return JSONResponse(dict(error=str(e)))
+        if form.get("undo"):
+            return JSONResponse(dict(reload=True, toast="Rückgängig gemacht."))
+        return JSONResponse(dict(reload=True, toast="Als bezahlt eingetragen.",
+                                 undo=dict(url=f"/r/{rid}/bezahlt", body=dict(undo="1"))))
+
+    def record_positions(request: Request, form):
+        rid = int(request.path_params["rid"])
+        rows = defaultdict(dict)
+        for k, v in form.items():
+            if k.startswith("pos_"):
+                _, n, field = k.split("_", 2)
+                if n.isdigit():
+                    rows[int(n)][field] = v
+        try:
+            billing.set_positions(rt, rid, [rows[n] for n in sorted(rows)], actor(request))
+        except billing.BillingError as e:
+            return JSONResponse(dict(error=str(e)))
+        return JSONResponse(dict(reload=True, toast="Positionen gespeichert – Summen neu berechnet."))
 
     def record_unhide(request: Request):
         rid = int(request.path_params["rid"])
@@ -641,16 +690,29 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         if not rec or not billing.is_invoice(spec) or billing.is_draft(rec):
             return page(request, "message.html", dict(title="Keine ausgestellte Rechnung",
                                                       text="Eine E-Rechnung gibt es nur für ausgestellte Rechnungen."), 404)
-        miss = billing.company_missing(store)
-        if miss:
-            return RedirectResponse(f"/firma?zurueck=/r/{rid}&fehlt=" + ",".join(miss), 303)
-        from ..einvoice import to_xrechnung
-        rec["data"] = rt.by_id.get(rid, rec)["data"]
-        doc = billing.document(rt, rec)
-        xml = to_xrechnung(doc)
-        name = f"XRechnung_{doc['number']}.xml".replace("/", "-")
-        return Response(xml.encode("utf-8"), media_type="application/xml",
-                        headers={"Content-Disposition": _attachment(name)})
+        arch = billing.archive_get(store, rid, "xml")
+        if not arch:
+            from ..einvoice import to_xrechnung, xrechnung_problems
+            if not (rec.get("meta") or {}).get("issued"):
+                return page(request, "message.html", dict(
+                    title="Abschrift – keine E-Rechnung",
+                    text="Diese Rechnung wurde in einem anderen Programm erstellt. Die E-Rechnung dazu kommt aus jenem "
+                         "Programm; Physarum zeigt nur eine Abschrift der Zahlen."), 404)
+            doc = billing.document(rt, rec)
+            probs = xrechnung_problems(doc)
+            if probs:
+                return page(request, "message.html", dict(
+                    title="Für die E-Rechnung fehlt noch etwas",
+                    text="Die XRechnung verlangt: " + "; ".join(probs) + ". Diese Rechnung wurde ohne diese Angaben "
+                         "ausgestellt und bleibt so, wie sie ist – als gedruckte bzw. PDF-Rechnung ist sie gültig. Damit "
+                         "künftige Rechnungen auch als E-Rechnung gehen, ergänzen Sie die Angaben vor dem Ausstellen "
+                         "(Ihre Firmendaten bzw. beim Kunden)."), 409)
+            with store.tx() as c:
+                billing.archive_put(c, rid, "xml", f"XRechnung_{doc['number']}.xml".replace("/", "-"),
+                                    to_xrechnung(doc).encode("utf-8"))
+            arch = billing.archive_get(store, rid, "xml")
+        return Response(arch["content"], media_type="application/xml",
+                        headers={"Content-Disposition": _attachment(arch["name"])})
 
     def record_note(request: Request, form):
         rid = int(request.path_params["rid"])
@@ -660,7 +722,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
     def record_storno(request: Request, form):
         rid = int(request.path_params["rid"])
         try:
-            nid = ops.storno(rt, rid, form.get("reason") or "", actor(request))
+            nid = ops.storno(rt, rid, form.get("reason") or "", actor(request), render=render_invoice)
         except ops.OpError as e:
             return JSONResponse(dict(error=str(e)))
         if nid:
@@ -689,9 +751,17 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         rec["data"] = rt.by_id.get(rid, rec)["data"]
         ctx = record_context(rec, spec, request)
         if billing.is_invoice(spec):
+            arch = billing.archive_get(store, rid, "html")
+            if arch:
+                # the original as it went out; a reprint says so
+                html = arch["content"].decode("utf-8")
+                stamp = (f'<div class="copy-stamp">Kopie · Original archiviert am {display(arch["created_at"], "datetime")} '
+                         f'· SHA-256 {arch["sha256"][:16]}…</div>')
+                html = html.replace("<body>", "<body>" + stamp, 1)
+                return Response(html, media_type="text/html; charset=utf-8")
             miss = billing.company_missing(store)
-            if miss and not billing.is_draft(rec):
-                return RedirectResponse(f"/firma?zurueck=/r/{rid}/druck&fehlt=" + ",".join(miss), 303)
+            if miss and billing.is_draft(rec):
+                pass  # a draft preview may show gaps
             return templates.TemplateResponse(request, "invoice.html", dict(ctx, request=request, d=ctx["doc"],
                                                                             printed=views.today_text()))
         return templates.TemplateResponse(request, "print.html", dict(ctx, request=request, company=company_name(),
@@ -759,6 +829,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         cur = billing.company(store)
         guess = billing.guess_company(rt) if rt.model else {}
         values = {k: cur.get(k) or guess.get(k) or "" for k, _ in billing.COMPANY_FIELDS}
+        values["kleinunternehmer"] = bool(cur.get("kleinunternehmer"))
         return page(request, "company.html", dict(fields=billing.COMPANY_FIELDS, values=values, guessed=
                                                   {k for k in guess if not cur.get(k)},
                                                   back=request.query_params.get("zurueck") or "",
@@ -768,10 +839,18 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         data = {k: (form.get(k) or "").strip() for k, _ in billing.COMPANY_FIELDS}
         if data.get("iban"):
             data["iban"] = data["iban"].replace(" ", "").upper()
+        data["kleinunternehmer"] = bool(form.get("kleinunternehmer"))
+        old = billing.company(store)
+        ts = now_iso()
         with store.tx() as c:
             store.kv_set("company_profile", data, c)
-            c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
-                      (0, now_iso(), actor(request), "company", "Firmendaten gespeichert"))
+            # every change of the firm's own data is in the log with old and new value (the IBAN above all)
+            labels = dict(billing.COMPANY_FIELDS, kleinunternehmer="Kleinunternehmer (§ 19 UStG)")
+            for k, label in labels.items():
+                if (old.get(k) or "") != (data.get(k) or ""):
+                    c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
+                              (0, ts, actor(request), "company", k, dumps(old.get(k)), dumps(data.get(k)),
+                               f"Firmendaten: {label} geändert"))
         back = form.get("back") or "/"
         return RedirectResponse(back if back.startswith("/") else "/", 303)
 
@@ -825,16 +904,23 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 if not request.query_params.get("a_" + k):
                     data[k] = v
             ops.apply_formulas(rt, spec, data, set(data))
+        hints, readonly = {}, set()
         if billing.is_invoice(spec):
             data.pop(spec.get("key"), None)  # the number comes when it is issued
             due = billing.usual_due(rt, spec, data)
             if due:
                 data[due["attr"]] = due["value"]
                 why.append(due["why"])
-                ctx = form_context(spec, data, why=why)
-                ctx["hints"] = {due["attr"]: due["hint"]}
-                return page(request, "form.html", ctx)
-        return page(request, "form.html", form_context(spec, data, why=why))
+                hints[due["attr"]] = due["hint"]
+            if any("Steuersätzen" in w for w in why):
+                # the amounts are the order's lines with their own VAT rates: no learned formula overrides them
+                readonly = {a["id"] for a in spec["attrs"] if a["kind"] == "money"}
+        ctx = form_context(spec, data, why=why)
+        ctx["hints"] = hints
+        ctx["readonly"] = readonly
+        if readonly:
+            ctx["formulas"] = [f for f in ctx["formulas"] if f["attr"] not in readonly]
+        return page(request, "form.html", ctx)
 
     def form_context(spec: dict, data: dict, error: str | None = None, lines_in: list | None = None,
                      why: list | None = None) -> dict:
@@ -1345,7 +1431,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/r/{rid:int}/storno", formed(record_storno), methods=["POST"]),
         Route("/r/{rid:int}/loeschen", formed(record_delete), methods=["POST"]),
         Route("/r/{rid:int}/rueckgaengig", formed(record_undo), methods=["POST"]),
-        Route("/r/{rid:int}/ausstellen", record_issue, methods=["POST"]),
+        Route("/r/{rid:int}/ausstellen", formed(record_issue), methods=["POST"]),
+        Route("/r/{rid:int}/positionen", formed(record_positions), methods=["POST"]),
+        Route("/r/{rid:int}/bezahlt", formed(record_paid), methods=["POST"]),
         Route("/r/{rid:int}/uebernehmen", record_take_over, methods=["POST"]),
         Route("/r/{rid:int}/einblenden", record_unhide, methods=["POST"]),
         Route("/r/{rid:int}/xrechnung", record_xrechnung),

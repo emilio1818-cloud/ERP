@@ -9,12 +9,16 @@ an invoice is open – list, record, today's work, key figures – reads this le
 """
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from datetime import date, timedelta
+from itertools import combinations
 
 from .billing import is_draft
-from .text import fold
+from .text import fold, norm_key
 from .values import as_date
+
+_NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
 
 EPS = 0.01
 SKONTO_MAX = 0.031      # up to 3 % less …
@@ -79,6 +83,27 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 for b in srcs:
                     if b in by_id and by_id[b]["type"] in banks and inv not in links[b]:
                         links[b].append(inv)
+        # the number in the purpose, read here: invoices written in Physarum (or added since the
+        # last growth) are not in the text index of the files
+        key = spec.get("key")
+        by_no = {}
+        for r in recs:
+            k = norm_key(r["data"].get(key)) if key and r["data"].get(key) is not None else ""
+            if len(k) >= 6 or (len(k) >= 5 and not k.isdigit()):
+                by_no.setdefault(k, []).append(r["id"])
+        by_no = {k: v[0] for k, v in by_no.items() if len(v) == 1}
+        if by_no:
+            for btid, bs in banks.items():
+                texts = [a["id"] for a in bs["spec"]["attrs"] if a["kind"] in ("text", "id") and not a.get("hidden")]
+                for b in records.get(btid, []):
+                    for aid in texts:
+                        v = b["data"].get(aid)
+                        if not isinstance(v, str):
+                            continue
+                        for tok in _NUMBER_TOKEN.findall(v):
+                            inv = by_no.get(norm_key(tok))
+                            if inv is not None and inv not in links[b["id"]]:
+                                links[b["id"]].append(inv)
         entries = {}
         for r in recs:
             if is_draft(r):
@@ -89,7 +114,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             cancelled = (st.get("attr") and str(r["data"].get(st["attr"])) in negative) or bool((r.get("meta") or {}).get("storno"))
             entries[r["id"]] = dict(rid=r["id"], gross=round(g, 2), paid=0.0, payments=[], notes=[], cancelled=cancelled,
                                     start=as_date(r["data"].get(p["start"]["attr"])), type=p["type"],
-                                    outgoing=ip["outgoing"])
+                                    outgoing=ip["outgoing"], skonto_ok=_skonto_agreed(model, by_id, p, r))
         # allocate every bank row over the invoices it names, in the order the money moved:
         # oldest invoice first, whatever is left stays with the last one
         def when_of(b):
@@ -122,6 +147,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                         e["payments"].append(dict(rid=b, date=when, amount=-round(take, 2), how=how))
                         left -= take
                 continue
+            if len(invs) > 1:
+                invs = _fitting(invs, entries, value)
             left = value
             for k, i in enumerate(invs):
                 e = entries[i]
@@ -138,6 +165,11 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             e = entries.get(r["id"])
             if not e or e["payments"]:
                 continue
+            by_hand = as_date((r.get("meta") or {}).get("paid_by_hand"))
+            if by_hand:
+                e["paid"] = e["gross"]
+                e["payments"].append(dict(rid=None, date=by_hand, amount=e["gross"], how="von Hand eingetragen"))
+                continue
             ds = [as_date(r["data"].get(a)) for a in own_paid]
             ds = [d for d in ds if d]
             if ds:
@@ -149,6 +181,32 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             _finish(e)
             out[e["rid"]] = e
     return out
+
+
+def _skonto_agreed(model: dict, by_id: dict, p: dict, r: dict) -> bool:
+    """Skonto only where the firm grants it: a skonto column of the invoice or of its customer."""
+    specs = {t["id"]: t for t in model["types"]}
+    for rec in (r, by_id.get(r["data"].get(p.get("party"))) if p.get("party") else None):
+        if not rec:
+            continue
+        for a in specs.get(rec["type"], {}).get("attrs", []):
+            if "skonto" in fold(a["name"]):
+                v = rec["data"].get(a["id"])
+                if v not in (None, "", 0, 0.0, False) and fold(str(v)) not in ("nein", "kein", "keins", "0"):
+                    return True
+    return False
+
+
+def _fitting(invs: list[int], entries: dict, value: float) -> list[int]:
+    """A transfer that names several invoices pays those whose open amounts it matches exactly;
+    otherwise the oldest first."""
+    open_ = {i: round(entries[i]["gross"] - entries[i]["paid"], 2) for i in invs}
+    if len(invs) <= 10:
+        for n in range(1, len(invs) + 1):
+            for combo in combinations(invs, n):
+                if abs(sum(open_[i] for i in combo) - value) <= EPS:
+                    return list(combo)
+    return invs
 
 
 def _finish(e: dict):
@@ -184,7 +242,13 @@ def _finish(e: dict):
     if paid > EPS:
         last = pays[-1]["date"] if pays else None
         share = e["open"] / g if g else 1
-        if share <= SKONTO_MAX and last and e["start"] and (last - e["start"]).days <= SKONTO_DAYS:
+        timely = last and e["start"] and (last - e["start"]).days <= SKONTO_DAYS
+        if share <= SKONTO_MAX and timely and not e.get("skonto_ok"):
+            e["state"] = "teilbezahlt"
+            e["notes"].append(f"{str(round(share * 100, 1)).replace('.', ',')} % ({_eur(e['open'])}) abgezogen, ohne dass "
+                              f"Skonto vereinbart ist – nachfordern oder bewusst ausbuchen")
+            return
+        if share <= SKONTO_MAX and timely:
             e["state"] = "bezahlt"
             e["skonto"] = round(e["open"], 2)
             e["notes"].append(f"mit {str(round(share * 100, 1)).replace('.', ',')} % Skonto bezahlt "

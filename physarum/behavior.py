@@ -525,7 +525,8 @@ def infer_behavior(model: dict, records: dict, today: date | None = None):
         t["formulas"] += find_date_offsets(t, recs, model, records)
         t["formulas"] += find_period_next(t, recs)
         t["numbering"] = find_numbering(t, recs, today)
-        if t["numbering"] and _foreign_numbers(t, model):
+        t["incoming"] = bool(t.get("concept") == "rechnung" and _foreign_numbers(t, model))
+        if t["numbering"] and t["incoming"]:
             t["numbering"]["issues"] = []  # the supplier's numbers: gaps there are not ours to close
         t["defaults"] = find_defaults(t, recs)
         t["thresholds"] = find_thresholds(t)

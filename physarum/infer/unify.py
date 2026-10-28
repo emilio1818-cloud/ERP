@@ -172,8 +172,12 @@ def obs_similarity(a: Obs, b: Obs) -> dict:
     if pa and pb and not (pa & pb):
         conflict = True  # invoices *to* customers are not invoices *from* suppliers
         same_concept = False
+    kinds = {lexicon.CONCEPTS[c]["kind"] for c in (ca, cb) if c in lexicon.CONCEPTS}
+    kind_conflict = conflict and len(kinds) == 2  # master data next to business cases
     decision, reason = "no", ""
-    if ident >= 0.5 and cont >= 0.3:
+    if ident >= 0.5 and cont >= 0.3 and not kind_conflict:
+        # (a customer list whose names fill the "Kunde" column of an invoice book is what the
+        # invoices refer to, not more invoices; a stock list of the articles is about articles)
         decision, reason = "merge", why
     elif ident >= 0.3 and cont >= 0.5 and not conflict:
         decision, reason = "merge", why

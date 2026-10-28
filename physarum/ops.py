@@ -190,23 +190,35 @@ def lock_state(rt, spec: dict, rec: dict) -> dict | None:
     if spec.get("concept") not in LOCKED_CONCEPTS:
         return None
     key = spec.get("key")
-    if is_draft(rec) or not key or rec["data"].get(key) is None:
+    meta = rec.get("meta") or {}
+    if is_draft(rec):
         return None
+    issued = meta.get("issued") or meta.get("storno_of") or rec.get("origin") == "import" or \
+        (key and rec["data"].get(key) is not None)
+    if not issued:
+        return None  # a record without number that never was issued (typed in by hand, no draft mark)
     proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
-    editable = set()
+    editable, steps_only = set(), set()
     if proc:
         for st in proc["steps"]:
             for s in [st] + st.get("also", []):
                 if s["source"] == "own":
                     editable.add(s["attr"])
+        if proc.get("status"):
+            steps_only.add(proc["status"]["attr"])  # follows "bezahlt", never typed over
     for a in spec["attrs"]:
         if a.get("role") in ("notes",):
             editable.add(a["id"])
-    meta = rec.get("meta") or {}
+    editable.discard(key)
     cancelled = bool(meta.get("storno_by") or meta.get("storno_of"))
-    return dict(editable=set() if cancelled else editable, cancelled=cancelled,
-                reason="Ausgestellte Rechnung: Nummer, Datum, Kunde und Beträge sind festgeschrieben – "
-                       "Korrektur nur per Storno. Zahlungseingang und Notizen lassen sich weiter eintragen.")
+    from .billing import is_own_invoice
+    own = is_own_invoice(rt, spec)
+    reason = ("Ausgestellte Rechnung: Nummer, Datum, Kunde und Beträge sind festgeschrieben – Korrektur nur per "
+              "Storno. Zahlungseingang und Notizen lassen sich weiter eintragen.") if own else \
+             ("Rechnung eines Lieferanten: so wie sie gekommen ist. Eine Korrektur schickt der Lieferant; "
+              "Zahlung und Notizen lassen sich eintragen.")
+    return dict(editable=set() if cancelled else editable, steps_only=set() if cancelled else steps_only,
+                cancelled=cancelled, own=own, reason=reason)
 
 
 def _parent_lock(rt, spec: dict, rec: dict) -> dict | None:
@@ -286,12 +298,30 @@ def create(rt, tid: str, raw: dict, actor: str, lines: list[dict] | None = None,
         if dup:
             raise OpError(f"{next(a['name'] for a in spec['attrs'] if a['id'] == key)} „{data[key]}“ gibt es schon")
     computed = apply_formulas(rt, spec, data, given)
+    pos = None
+    if draft:
+        # the invoice is its lines: taken from the order, or one line from the amount typed in
+        from .billing import _d, apply_totals, money_fields, positions as order_positions
+        pos = order_positions(rt, dict(id=-1, type=tid, data=data, meta={}))
+        if not pos:
+            mf = money_fields(spec)
+            net = _d(data.get(mf["net"]["id"])) if mf["net"] else None
+            tax = _d(data.get(mf["tax"]["id"])) if mf["tax"] else None
+            if net:
+                rate = None
+                if tax is not None and net:
+                    r = tax / net
+                    rate = next((float(x) for x in (0, 0.07, 0.19) if abs(r - _d(x)) < _d("0.005")), None)
+                pos = [dict(text="", sku=None, qty=1.0, unit=None, price=float(net), rate=rate, total=float(net))]
+        if pos and all(p.get("rate") is not None and p.get("total") is not None for p in pos):
+            apply_totals(spec, data, pos)
     data = _clean(spec, data)
     ts = now_iso()
     with rt.store.tx() as c:
         meta = dict(w={aid: ["user", ts] for aid in data}, computed=computed)
         if draft:
             meta["draft"] = True
+            meta["positions"] = pos or []
         cur = c.execute("INSERT INTO records(type,data,meta,origin,created_at,updated_at) VALUES(?,?,?,?,?,?)",
                         (tid, dumps(data), dumps(meta), "user", ts, ts))
         rid = cur.lastrowid
@@ -351,9 +381,12 @@ def update(rt, rid: int, raw: dict, actor: str, note: str | None = None, kind: s
     spec = rt.spec(rec["type"])
     lock = lock_state(rt, spec, rec) or _parent_lock(rt, spec, rec)
     if lock and allow:
-        lock = dict(lock, editable=set(lock["editable"]) | set(allow))
+        # an action may set what follows a step (the status after "bezahlt") – never anything fixed
+        lock = dict(lock, editable=set(lock["editable"]) | (set(allow) & set(lock.get("steps_only") or ())))
     data = dict(rec["data"])
     given, errors, changed = set(), [], []
+    from .billing import is_draft as _is_draft, is_invoice as _is_invoice
+    lines_rule = _is_invoice(spec) and _is_draft(rec) and (rec["meta"] or {}).get("positions") is not None
     for a in spec["attrs"]:
         if a["id"] not in raw or a.get("virtual"):
             continue
@@ -366,6 +399,9 @@ def update(rt, rid: int, raw: dict, actor: str, note: str | None = None, kind: s
             continue
         if lock and a["id"] not in lock["editable"]:
             errors.append(f"{a['name']}: festgeschrieben (Storno statt Änderung)")
+            continue
+        if lines_rule and a["kind"] == "money":
+            errors.append(f"{a['name']}: ergibt sich aus den Positionen – bitte dort ändern (Rabatt als eigene Position)")
             continue
         given.add(a["id"])
         if v is None:
@@ -426,9 +462,30 @@ def _automations(rt, spec, before: dict, data: dict, given: set) -> list[tuple[s
     return out
 
 
+def step_attrs(rt, spec: dict) -> set:
+    """Dates a quick action may set: the record's own milestones (paid, delivered, maintained)."""
+    out = set()
+    proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+    for st in (proc or {}).get("steps", []):
+        for s in [st] + st.get("also", []):
+            if s["source"] == "own":
+                out.add(s["attr"])
+    for du in rt.model.get("dues", []):
+        if du["type"] == spec["id"] and du.get("done"):
+            out.add(du["done"])
+    for a in spec["attrs"]:
+        if a.get("milestone") and a["kind"] in ("date", "datetime"):
+            out.add(a["id"])
+    return out
+
+
 def set_step(rt, rid: int, attr: str, when: str | None, actor: str) -> list[str]:
     rt.ensure()
     rec = rt.by_id.get(rid)
+    if not rec:
+        raise OpError("Datensatz nicht gefunden")
+    if attr not in step_attrs(rt, rt.spec(rec["type"])):
+        raise OpError("Das ist kein Schritt im Ablauf")
     raw = {attr: when or date.today().isoformat()}
     allow = {attr}
     if rec:
@@ -443,6 +500,30 @@ def set_step(rt, rid: int, attr: str, when: str | None, actor: str) -> list[str]
                 raw[st["attr"]] = vals[0]  # "paid" also means status "bezahlt"
                 allow.add(st["attr"])
     return update(rt, rid, raw, actor, note="Schritt erledigt", allow=allow)
+
+
+def paid_by_hand(rt, rid: int, when: str | None, actor: str):
+    """Mark an invoice as paid without a bank line (or take that back with when=None)."""
+    rt.ensure()
+    rec = rt.store.record(rid)
+    if not rec or rec["deleted"]:
+        raise OpError("Datensatz nicht gefunden")
+    meta = dict(rec["meta"] or {})
+    old = meta.get("paid_by_hand")
+    if when:
+        d = as_date(when)
+        if not d:
+            raise OpError("Bitte ein Datum angeben")
+        meta["paid_by_hand"] = d.isoformat()
+    else:
+        meta.pop("paid_by_hand", None)
+    ts = now_iso()
+    with rt.store.tx() as c:
+        c.execute("UPDATE records SET meta=?, updated_at=? WHERE id=?", (dumps(meta), ts, rid))
+        c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
+                  (rid, ts, actor, "edit", None, dumps(old), dumps(meta.get("paid_by_hand")),
+                   "als bezahlt eingetragen (ohne Kontoauszug)" if when else "„bezahlt“ zurückgenommen"))
+        rt.bump(c)
 
 
 def revert(rt, rid: int, attrs: list[str], actor: str) -> list[str]:
@@ -482,7 +563,7 @@ def add_note(rt, rid: int, text: str, actor: str):
         rt.bump(c)
 
 
-def storno(rt, rid: int, reason: str, actor: str) -> int | None:
+def storno(rt, rid: int, reason: str, actor: str, render=None) -> int | None:
     """Cancel. An issued invoice is cancelled by a cancellation invoice of its own (returns its
     id); a draft is simply discarded; anything else gets its negative status."""
     from .billing import BillingError, cancel, is_draft, is_invoice
@@ -499,7 +580,7 @@ def storno(rt, rid: int, reason: str, actor: str) -> int | None:
         return None
     if is_invoice(spec) and lock_state(rt, spec, rec):
         try:
-            return cancel(rt, rid, reason, actor)
+            return cancel(rt, rid, reason, actor, render=render)
         except BillingError as e:
             raise OpError(str(e)) from e
     proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)

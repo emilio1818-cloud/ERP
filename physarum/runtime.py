@@ -10,7 +10,7 @@ from collections import defaultdict
 from datetime import date
 
 from .behavior import apply_virtual
-from .grow import record_title
+from .grow import _de_date, record_title, record_titles
 from .store import Store
 
 
@@ -63,8 +63,11 @@ class Runtime:
             apply_virtual(self.model, self.records)
             self.by_id = {r["id"]: r for rs in self.records.values() for r in rs}
             specs = self.specs
-            self.titles = {rid: record_title(specs[r["type"]], r["data"], rid) for rid, r in self.by_id.items()
-                           if r["type"] in specs}
+            self.titles = record_titles(specs, ((rid, r["type"], r["data"]) for rid, r in self.by_id.items()))
+            for rid, r in self.by_id.items():
+                if (r.get("meta") or {}).get("draft"):
+                    made = _de_date((r.get("created_at") or "")[:10])
+                    self.titles[rid] = f"Entwurf vom {made}" if made else "Entwurf"
             self.mentions = defaultdict(lambda: defaultdict(list))
             self.backrefs = defaultdict(list)
             self.outrefs = defaultdict(list)
@@ -127,52 +130,62 @@ class Runtime:
             return
         from .physarum import grow_network
 
+        import copy
         with self.lock:
-            grow_network(self.model, self.store)
+            m = copy.deepcopy(self.model)  # the live picture only; menu and columns wait for the next growth
+            grow_network(m, self.store)
+            self.model["network"] = m.get("network")
             self._net_at = time.time()
-            net = dict(model_version=self._mv, network=self.model.get("network"),
-                       salience={t["id"]: t.get("salience") for t in self.model["types"]},
-                       attrs={a["id"]: a.get("salience") for t in self.model["types"] for a in t["attrs"]})
+            net = dict(model_version=self._mv, network=m.get("network"))
             self.store.kv_set("network", net)
 
     def _overlay_network(self, net: dict):
+        # the picture of the organism follows usage live; menu order and list columns keep the
+        # conductivity of the last growth, so the screen stays calm between two feedings
         self.model["network"] = net.get("network") or self.model.get("network")
-        for t in self.model["types"]:
-            if t["id"] in (net.get("salience") or {}):
-                t["salience"] = net["salience"][t["id"]]
-            for a in t["attrs"]:
-                if a["id"] in (net.get("attrs") or {}):
-                    a["salience"] = net["attrs"][a["id"]]
 
     # --- navigation order with hysteresis (things do not jump around) -------------------------------
     def nav(self) -> tuple[list[dict], list[dict]]:
+        """Menu: ordered by conductivity, with hysteresis, recomputed only when the organism grew.
+        A kind of thing that is new is shown for two weeks even while it is still small."""
         self.ensure()
         if not self.model:
             return [], []
         types = [t for t in self.model["types"] if t["kind"] != "line"]
-        prev = self.store.kv_get("nav_order") or []
         sal = {t["id"]: t.get("salience") or 0 for t in types}
-        order = [tid for tid in prev if tid in sal] + [t["id"] for t in sorted(types, key=lambda t: -sal[t["id"]])
-                                                        if t["id"] not in prev]
-        changed = True
-        guard = 0
-        while changed and guard < 50:
-            changed = False
-            guard += 1
-            for i in range(len(order) - 1):
-                a, b = order[i], order[i + 1]
-                if sal[b] > sal[a] * 1.15 + 0.01:
-                    order[i], order[i + 1] = b, a
-                    changed = True
-        if order != prev:
-            self.store.kv_set("nav_order", order)
+        saved = self.store.kv_get("nav_order") or {}
+        if isinstance(saved, list):
+            saved = dict(order=saved, model=None)
+        prev = [tid for tid in saved.get("order", []) if tid in sal]
+        if saved.get("model") == self._mv and set(prev) == set(sal):
+            order = prev
+        else:
+            order = prev + [t["id"] for t in sorted(types, key=lambda t: -sal[t["id"]]) if t["id"] not in prev]
+            changed, guard = True, 0
+            while changed and guard < 50:
+                changed = False
+                guard += 1
+                for i in range(len(order) - 1):
+                    a, b = order[i], order[i + 1]
+                    if sal[b] > sal[a] * 1.15 + 0.01:
+                        order[i], order[i + 1] = b, a
+                        changed = True
+            self.store.kv_set("nav_order", dict(order=order, model=self._mv))
+        seen = self.store.kv_get("type_seen") or {}
+        today = date.today().isoformat()
+        first = not seen
+        if any(tid not in seen for tid in sal):
+            for tid in sal:
+                seen.setdefault(tid, "" if first else today)
+            self.store.kv_set("type_seen", seen)
         flux = self.store.flux("type:")
         active, dormant = [], []
         by = {t["id"]: t for t in types}
         for tid in order:
-            t = by[tid]
+            t = dict(by[tid])
+            t["is_new"] = bool(seen.get(tid)) and (date.today() - date.fromisoformat(seen[tid])).days <= 14
             used = flux.get(f"type:{tid}", 0) > 0.5
-            if (sal[tid] < 0.22 and not used and (t.get("count") or 0) < 30) and t["kind"] != "document":
+            if (sal[tid] < 0.22 and not used and (t.get("count") or 0) < 30 and not t["is_new"]) and t["kind"] != "document":
                 dormant.append(t)
             else:
                 active.append(t)

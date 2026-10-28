@@ -34,6 +34,8 @@ from ..runtime import Runtime
 from ..store import Store, dumps, loads, now_iso
 from ..text import fold, norm_key, norm_name
 from ..values import as_date, display
+from .. import billing
+from ..payments import bank_allocations
 from . import views
 from .guard import Guard
 
@@ -85,6 +87,13 @@ class Jobs:
                               (dumps(lines), now_iso(), dumps(dict(error=str(e))), jid))
 
 
+def _attachment(name: str) -> str:
+    """Content-Disposition for any file name (umlauts, arrows): ASCII fallback plus UTF-8."""
+    from urllib.parse import quote
+    ascii_name = "".join(ch if 32 <= ord(ch) < 127 and ch not in '"\\' else "_" for ch in name)
+    return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(name)}'
+
+
 def formed(fn):
     """A writing handler gets its form, then runs in a worker thread like every other page:
     the server stays responsive while one request computes."""
@@ -103,10 +112,13 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
     env = templates.env
     env.globals.update(fmt=lambda attr, v, **kw: views.fmt(rt, attr, v, **kw), money=views.money, spark=views.spark,
                        ago=views.ago, days_text=views.days_text, input_value=views.input_value,
+                       after_days=views.after_days,
                        title=lambda rid: rt.title(rid), status_class=views.status_class, display=display,
                        stale_days=lambda iso: (date.today() - date.fromisoformat(str(iso)[:10])).days if iso else 0)
     env.filters["de"] = lambda x, d=0: views.display(x, "number") if d == 0 else f"{x:,.{d}f}".replace(",", "X").replace(".", ",").replace("X", ".")
     env.filters["json"] = lambda x: json.dumps(x, ensure_ascii=False, default=str)
+    env.filters["iban"] = lambda x: " ".join((lambda s: [s[i:i + 4] for i in range(0, len(s), 4)])("".join(str(x or "").split())))
+    env.finalize = lambda x: "" if x is None else x  # a missing value prints as nothing, never as "None"
 
     def actor(request: Request) -> str:
         return request.cookies.get("physarum_name") or "Benutzer"
@@ -116,7 +128,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         active, dormant = rt.nav() if rt.model else ([], [])
         nq = store.q1("SELECT COUNT(*) AS n FROM questions WHERE status='open'")["n"] if rt.model else 0
         base = dict(request=request, nav_active=active, nav_dormant=dormant, n_questions=nq, me=actor(request),
-                    model=rt.model, today=views.today_text(), path=request.url.path)
+                    model=rt.model, today=views.today_text(), path=request.url.path, today_iso=date.today().isoformat())
         base.update(ctx)
         return templates.TemplateResponse(request, name, base, status_code=status)
 
@@ -134,6 +146,19 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         pref = {"rechnung": 0, "auftrag": 1, "bestellung": 2, "einkauf": 4}
         ks.sort(key=lambda k: (pref.get(k.get("concept") or "", 3), -(k.get("salience") or 0)))
         open_amount = sum(g["amount"] or 0 for g in work if g["kind"] == "overdue" and g.get("step") == "bezahlt")
+        n_items = sum(g["count"] for g in work)
+        open_items = None
+        by_type = defaultdict(list)
+        for e in rt.ledger.values():
+            if not e["outgoing"]:
+                by_type[e["type"]].append(e)
+        if by_type:
+            tid, es = max(by_type.items(), key=lambda kv: len(kv[1]))
+            op = [e for e in es if e["state"] in ("offen", "teilbezahlt") and e["open"] > 0]
+            if op:
+                open_items = dict(type=tid, plural=rt.spec(tid)["plural"], amount=round(sum(e["open"] for e in op), 2),
+                                  n=sum(1 for e in op if e["state"] == "offen"),
+                                  partial=sum(1 for e in op if e["state"] == "teilbezahlt"), overdue=open_amount)
         allq = open_questions(store)
         pay_exact = [q for q in allq if q["kind"] == "payment_match" and q.get("exact")]
         qs = [q for q in allq if q["kind"] != "payment_match"][:3]
@@ -150,7 +175,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                                                questions=qs, suggestions=sugg, quality=quality, summary=summary,
                                                payments=payments, pay_exact=len(pay_exact),
                                                grown_at=summ["created_at"] if summ else None, greeting=views.greeting(),
-                                               overdue_amount=open_amount, growth_file=_growth_file_exists()))
+                                               overdue_amount=open_amount, growth_file=_growth_file_exists(),
+                                               n_items=n_items, open_items=open_items))
 
     def suggestions() -> list[dict]:
         out = []
@@ -166,14 +192,13 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     continue
                 out.append(dict(kind="auto", key=key, text=au["text"], evidence=f"in {au['ok']} von {au['n']} Fällen so",
                                 type=spec))
-            stale = [s for s in st.get("stale", []) if str(rt.by_id.get(s["rid"], {}).get("data", {}).get(st["attr"])) == s["was"]]
+            stale = rt.stale.get(p["type"]) if p["type"] in rt.stale else \
+                [s for s in st.get("stale", []) if str(rt.by_id.get(s["rid"], {}).get("data", {}).get(st["attr"])) == s["was"]]
             if stale:
-                step = next((x for x in p["steps"] if x["id"] == stale[0]["step"]), None)
-                src = ", ".join(sorted({x["name"] for x in ([step] + step.get("also", [])) if x["source"] == "child"})) if step else ""
                 was = " bzw. ".join(f"„{w}“" for w in sorted({x["was"] for x in stale}))
                 out.append(dict(kind="stale", type=spec, n=len(stale),
-                                text=f"{len(stale)} {spec['plural']} sind laut {src or 'verknüpften Daten'} schon "
-                                     f"„{stale[0]['value']}“, stehen aber noch auf {was}.",
+                                text=f"{len(stale)} {spec['plural']} sind laut Kontoauszug bezahlt (Betrag geprüft), "
+                                     f"stehen aber noch auf {was}.",
                                 items=stale[:8]))
         return out
 
@@ -252,7 +277,21 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             if k.startswith("f_") and v:
                 aid = k[2:]
                 state["filters"][aid] = v
-                recs = [r for r in recs if str(r["data"].get(aid)) == v]
+                recs = [r for r in recs if r["data"].get(aid) is not None and
+                        (views.facet_key(r["data"].get(aid)) == v or str(r["data"].get(aid)) == v)]
+        von, bis = request.query_params.get("von"), request.query_params.get("bis")
+        if von or bis:
+            proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+            feld = request.query_params.get("feld") or (proc["start"]["attr"] if proc else None)
+            a = rt.attr(spec["id"], feld) if feld else None
+            lo, hi = as_date(von) if von else None, as_date(bis) if bis else None
+            if a and (lo or hi):
+                recs = [r for r in recs if as_date(r["data"].get(feld)) and (not lo or as_date(r["data"][feld]) >= lo)
+                        and (not hi or as_date(r["data"][feld]) <= hi)]
+                label = f"{a['name']}: {display(von, 'date') if von else '…'} – {display(bis, 'date') if bis else '…'}"
+                if lo and hi and lo.day == 1 and lo.year == hi.year and lo.month == hi.month:
+                    label = f"{a['name']}: {views.MONTHS[lo.month - 1]} {lo.year}"
+                state["range"] = dict(von=von or "", bis=bis or "", feld=feld, label=label)
         sort = state["sort"]
         if sort:
             desc = sort.startswith("-")
@@ -303,18 +342,39 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         if not spec:
             return page(request, "message.html", dict(title="Nicht gefunden", text="Diese Art gibt es nicht."), 404)
         recs, state = filtered(spec, request)
-        cols = views.list_columns(spec, 8 if spec["kind"] != "line" else 6)
+        pins = store.decisions("list_cols").get(tid) or {}
+        cols = views.list_columns(spec, 8 if spec["kind"] != "line" else 6, pins)
         per = 50
-        pg = max(1, int(request.query_params.get("seite") or 1))
+        try:
+            pg = max(1, int(request.query_params.get("seite") or 1))
+        except ValueError:
+            pg = 1
         total = len(recs)
         rows = recs[(pg - 1) * per: pg * per]
         store.event("list", f"type:{tid}")
+        sums = {}
+        for c in cols:
+            if c["kind"] == "money":
+                vals = [r["data"].get(c["id"]) for r in recs]
+                vals = [v for v in vals if isinstance(v, (int, float)) and not isinstance(v, bool)]
+                if vals:
+                    sums[c["id"]] = round(sum(vals), 2)
         ctx = dict(spec=spec, cols=cols, rows=rows, total=total, page=pg, pages=max(1, (total + per - 1) // per),
-                   state=state, facets=views.facets(rt, spec, rt.records.get(tid, [])),
-                   lines_of=line_child(spec))
+                   state=state, facets=views.facets(rt, spec, rt.records.get(tid, [])), sums=sums,
+                   col_ids={c["id"] for c in cols}, lines_of=line_child(spec))
         if request.query_params.get("teil"):
             return templates.TemplateResponse(request, "list_rows.html", ctx)
         return page(request, "list.html", ctx)
+
+    def pin_column(request: Request, form):
+        tid = request.path_params["tid"]
+        aid, action = form.get("attr"), form.get("action")
+        cur = store.decisions("list_cols").get(tid) or {"pin": [], "unpin": []}
+        pin, unpin = [x for x in cur.get("pin", []) if x != aid], [x for x in cur.get("unpin", []) if x != aid]
+        (pin if action == "pin" else unpin).append(aid)
+        with store.tx() as c:
+            store.decide("list_cols", tid, dict(pin=pin, unpin=unpin), actor(request), c=c)
+        return JSONResponse(dict(reload=True, toast="Spalte " + ("angeheftet." if action == "pin" else "aus der Liste genommen.")))
 
     def line_child(spec: dict) -> dict | None:
         """The line type that belongs to this document type (order -> order lines)."""
@@ -363,7 +423,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     src.append(f"{s['name']}, Zeile {line}")
             calc = a["id"] in computed or (writers.get(a["id"]) or [""])[0] == "auto" or bool(a.get("virtual"))
             facts.append(dict(attr=a, value=v, src=src, alts=[x[0] for x in alts.get(a["id"], [])][:3], calc=calc,
-                              unlinked=a["kind"] == "ref" and a["id"] in raw))
+                              unlinked=a["kind"] == "ref" and a["id"] in raw and not isinstance(data.get(a["id"]), int)))
         # process timeline
         proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
         timeline = None
@@ -389,7 +449,10 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             dattr = proc2["start"]["attr"] if proc2 else None
             if dattr:
                 recs.sort(key=lambda r: str(r["data"].get(dattr) or ""), reverse=True)
-            total_attr = next((c for c in cols if c["kind"] == "money"), None)
+            money_cols = [c for c in s2["attrs"] if c["kind"] == "money" and not c.get("hidden")]
+            total_attr = next((c for c in money_cols if set(billing.words(c["name"])) & {"gesamt", "summe", "total", "betrag",
+                                                                                       "brutto", "offen"}), None) \
+                or (money_cols[-1] if money_cols else None)
             total = sum(float(r["data"].get(total_attr["id"]) or 0) for r in recs if isinstance(r["data"].get(total_attr["id"]), (int, float))) if total_attr else None
             label = s2["plural"] if kind == "ref" else (f"Erwähnt in {s2['plural']}" if attr != "doc" else "Erwähnt in Dokumenten")
             related.append(dict(spec=s2, attr=attr, kind=kind, recs=recs[:100], n=len(recs), cols=cols, rel=relid,
@@ -424,8 +487,28 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             if rc["type"] == spec["id"]:
                 reach = rt.by_id.get(rid, {}).get("_reach")
         maybe_paid = rt.pending_payments.get(rid) if hasattr(rt, "pending_payments") else None
+        pay = rt.ledger.get(rid)
+        alloc = [dict(rid=i, amount=a) for i, a in bank_allocations(rt.ledger).get(rid, [])]
+        inv = billing.is_invoice(spec)
+        draft = inv and billing.is_draft(rec)
+        meta = rec["meta"] or {}
+        doc = billing.document(rt, rec) if inv else None
+        conflicts = []
+        for aid, (v, src_name) in (meta.get("conflicts") or {}).items():
+            a = attr_names.get(aid)
+            if a:
+                conflicts.append(dict(attr=a, value=v, source=src_name))
+        imported = rec.get("origin") == "import" or any(c["kind"] == "import" for c in changes)
+        stale = next((s for s in (rt.stale or {}).get(spec["id"], []) if s["rid"] == rid), None)
         return dict(rec=rec, spec=spec, facts=facts, timeline=timeline, related=related, mentions=mentions, notes=notes,
-                    maybe_paid=maybe_paid,
+                    stale=stale,
+                    maybe_paid=maybe_paid, pay=pay, alloc=alloc, invoice=inv, draft=draft, doc=doc,
+                    missing=billing.missing_for_issue(rt, spec, rec) if draft else [],
+                    warnings=billing.issue_warnings(rt, spec, rec) if draft else [],
+                    company_missing=billing.company_missing(store) if inv else [], conflicts=conflicts,
+                    storno_of=meta.get("storno_of"), storno_by=meta.get("storno_by"), imported=imported,
+                    can_edit=any(not f["attr"].get("virtual") and (not lock or f["attr"]["id"] in lock["editable"])
+                                 for f in facts),
                     changes=changes, src_files=src_files, lock=lock, children=children, party=party,
                     money_attr=money_attr, status_attr=rt.attr(spec["id"], status_attr) if status_attr else None,
                     line=line_child(spec), reach=reach)
@@ -477,7 +560,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
 
     def record_update(request: Request, form):
         rid = int(request.path_params["rid"])
-        raw = {k[2:]: v for k, v in form.items() if k.startswith("a_")}
+        raw = typed_refs({k[2:]: v for k, v in form.items() if k.startswith("a_")}, form, "t_")
         try:
             ops.update(rt, rid, raw, actor(request))
         except ops.OpError as e:
@@ -497,7 +580,67 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             return JSONResponse(dict(error=str(e)))
         rt.ensure()
         names = [rt.attr(rt.by_id[rid]["type"], a)["name"] for a in changed if rid in rt.by_id]
-        return JSONResponse(dict(reload=True, toast="Erledigt: " + ", ".join(names) if names else "Gespeichert"))
+        when = form.get("date") or date.today().isoformat()
+        return JSONResponse(dict(reload=True, toast=("Eingetragen: " + ", ".join(names) + f" ({display(when, 'date')})")
+                                 if names else "Gespeichert",
+                                 undo=dict(url=f"/r/{rid}/rueckgaengig", body=dict(attrs=",".join(changed)))))
+
+    def record_take_over(request: Request):
+        """One record: take over the payment state the bank statement shows."""
+        rid = int(request.path_params["rid"])
+        rec = rt.by_id.get(rid)
+        if not rec:
+            return JSONResponse(dict(error="Nicht gefunden"))
+        before = dict(rec["data"])
+        n = ops.apply_stale(rt, rec["type"], actor(request), {rid})
+        if not n:
+            return JSONResponse(dict(error="Nichts zu übernehmen – Status und Zahlung passen schon zusammen."))
+        rt.ensure()
+        after = rt.by_id.get(rid, {}).get("data", {})
+        changed = [k for k in after if after.get(k) != before.get(k)]
+        return JSONResponse(dict(reload=True, toast="Übernommen: laut Kontoauszug bezahlt.",
+                                 undo=dict(url=f"/r/{rid}/rueckgaengig", body=dict(attrs=",".join(changed)))))
+
+    def record_undo(request: Request, form):
+        rid = int(request.path_params["rid"])
+        attrs = [a for a in (form.get("attrs") or "").split(",") if a]
+        try:
+            ops.revert(rt, rid, attrs, actor(request))
+        except ops.OpError as e:
+            return JSONResponse(dict(error=str(e)))
+        return JSONResponse(dict(reload=True, toast="Rückgängig gemacht."))
+
+    def record_issue(request: Request):
+        rid = int(request.path_params["rid"])
+        try:
+            number = billing.issue(rt, rid, actor(request))
+        except billing.BillingError as e:
+            return JSONResponse(dict(error=str(e)))
+        return JSONResponse(dict(reload=True, toast=f"Ausgestellt als {number} und festgeschrieben."))
+
+    def record_unhide(request: Request):
+        rid = int(request.path_params["rid"])
+        ops.unhide(rt, rid, actor(request))
+        return JSONResponse(dict(next=f"/r/{rid}", toast="Wieder eingeblendet."))
+
+    def record_xrechnung(request: Request):
+        rt.ensure()
+        rid = int(request.path_params["rid"])
+        rec = store.record(rid)
+        spec = rt.spec(rec["type"]) if rec else None
+        if not rec or not billing.is_invoice(spec) or billing.is_draft(rec):
+            return page(request, "message.html", dict(title="Keine ausgestellte Rechnung",
+                                                      text="Eine E-Rechnung gibt es nur für ausgestellte Rechnungen."), 404)
+        miss = billing.company_missing(store)
+        if miss:
+            return RedirectResponse(f"/firma?zurueck=/r/{rid}&fehlt=" + ",".join(miss), 303)
+        from ..einvoice import to_xrechnung
+        rec["data"] = rt.by_id.get(rid, rec)["data"]
+        doc = billing.document(rt, rec)
+        xml = to_xrechnung(doc)
+        name = f"XRechnung_{doc['number']}.xml".replace("/", "-")
+        return Response(xml.encode("utf-8"), media_type="application/xml",
+                        headers={"Content-Disposition": _attachment(name)})
 
     def record_note(request: Request, form):
         rid = int(request.path_params["rid"])
@@ -507,19 +650,25 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
     def record_storno(request: Request, form):
         rid = int(request.path_params["rid"])
         try:
-            ops.storno(rt, rid, form.get("reason") or "", actor(request))
+            nid = ops.storno(rt, rid, form.get("reason") or "", actor(request))
         except ops.OpError as e:
             return JSONResponse(dict(error=str(e)))
+        if nid:
+            return JSONResponse(dict(next=f"/r/{nid}", toast="Storniert. Die Stornorechnung ist angelegt."))
+        rt.ensure()
+        if rid not in rt.by_id:
+            return JSONResponse(dict(next="/", toast="Entwurf verworfen."))
         return JSONResponse(dict(reload=True, toast="Storniert. Der Vorgang bleibt im Protokoll erhalten."))
 
-    def record_delete(request: Request):
+    def record_delete(request: Request, form):
         rid = int(request.path_params["rid"])
         rec = store.record(rid)
         try:
-            ops.delete(rt, rid, actor(request))
+            ops.delete(rt, rid, actor(request), reason=form.get("reason"))
         except ops.OpError as e:
             return JSONResponse(dict(error=str(e)))
-        return JSONResponse(dict(toast="Gelöscht (bleibt im Protokoll nachvollziehbar).", reload=False,
+        return JSONResponse(dict(toast="Ausgeblendet (lässt sich wieder einblenden)." if form.get("reason")
+                                 else "Gelöscht (bleibt im Protokoll nachvollziehbar).", reload=False,
                                  next=f"/t/{rec['type']}"))
 
     def record_print(request: Request):
@@ -529,7 +678,14 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         spec = rt.spec(rec["type"])
         rec["data"] = rt.by_id.get(rid, rec)["data"]
         ctx = record_context(rec, spec, request)
-        return templates.TemplateResponse(request, "print.html", dict(ctx, request=request, company=company_name()))
+        if billing.is_invoice(spec):
+            miss = billing.company_missing(store)
+            if miss and not billing.is_draft(rec):
+                return RedirectResponse(f"/firma?zurueck=/r/{rid}/druck&fehlt=" + ",".join(miss), 303)
+            return templates.TemplateResponse(request, "invoice.html", dict(ctx, request=request, d=ctx["doc"],
+                                                                            printed=views.today_text()))
+        return templates.TemplateResponse(request, "print.html", dict(ctx, request=request, company=company_name(),
+                                                                      printed=views.today_text()))
 
     def company_name() -> str:
         """The company's own name: set by the user, or read off the title rows of its lists
@@ -587,25 +743,111 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         return templates.TemplateResponse(request, "reminder.html", dict(ctx, request=request, company=company_name(),
                                                                          address=addr, step=nxt, today=views.today_text()))
 
+    # --- the firm itself ------------------------------------------------------------------------------------
+    def company_page(request: Request):
+        rt.ensure()
+        cur = billing.company(store)
+        guess = billing.guess_company(rt) if rt.model else {}
+        values = {k: cur.get(k) or guess.get(k) or "" for k, _ in billing.COMPANY_FIELDS}
+        return page(request, "company.html", dict(fields=billing.COMPANY_FIELDS, values=values, guessed=
+                                                  {k for k in guess if not cur.get(k)},
+                                                  back=request.query_params.get("zurueck") or "",
+                                                  missing=[x for x in (request.query_params.get("fehlt") or "").split(",") if x]))
+
+    def company_save(request: Request, form):
+        data = {k: (form.get(k) or "").strip() for k, _ in billing.COMPANY_FIELDS}
+        if data.get("iban"):
+            data["iban"] = data["iban"].replace(" ", "").upper()
+        with store.tx() as c:
+            store.kv_set("company_profile", data, c)
+            c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
+                      (0, now_iso(), actor(request), "company", "Firmendaten gespeichert"))
+        back = form.get("back") or "/"
+        return RedirectResponse(back if back.startswith("/") else "/", 303)
+
+    def stale_preview(request: Request):
+        """Before anything changes: which invoices the bank says are paid, with the evidence."""
+        rt.ensure()
+        tid = request.path_params["tid"]
+        spec = rt.spec(tid)
+        items = []
+        for s0 in rt.stale.get(tid, []):
+            e = rt.ledger.get(s0["rid"])
+            if e:
+                items.append(dict(s0, entry=e))
+        return page(request, "stale.html", dict(spec=spec, items=items))
+
+    def api_derive(request: Request):
+        """What a new record takes over from the record it refers to (an invoice from its order)."""
+        rt.ensure()
+        spec = rt.spec(request.query_params.get("typ") or "")
+        aid = request.query_params.get("attr")
+        try:
+            rid = int(request.query_params.get("id") or 0)
+        except ValueError:
+            rid = 0
+        if not spec or not aid or rid not in rt.by_id:
+            return JSONResponse(dict(values={}, why=[]))
+        vals, why = billing.derive(rt, spec, {aid: rid})
+        out = {}
+        for k, v in vals.items():
+            a = rt.attr(spec["id"], k)
+            if not a:
+                continue
+            out[k] = dict(id=v, title=rt.title(v)) if a["kind"] == "ref" and isinstance(v, int) else views.input_value(a, v)
+        return JSONResponse(dict(values=out, why=why))
+
     # --- forms -------------------------------------------------------------------------------------------
     def new_form(request: Request):
         rt.ensure()
         tid = request.path_params["tid"]
         spec = rt.spec(tid)
         data = ops.prefill(rt, spec)
+        why = []
         for k, v in request.query_params.items():
             if k.startswith("a_"):
                 data[k[2:]] = int(v) if v.isdigit() else v
-        return page(request, "form.html", form_context(spec, data))
+        if any(k.startswith("a_") for k in request.query_params):
+            vals, why = billing.derive(rt, spec, data)
+            for k, v in vals.items():
+                if not request.query_params.get("a_" + k):
+                    data[k] = v
+            ops.apply_formulas(rt, spec, data, set(data))
+        if billing.is_invoice(spec):
+            data.pop(spec.get("key"), None)  # the number comes when it is issued
+            due = billing.usual_due(rt, spec, data)
+            if due:
+                data[due["attr"]] = due["value"]
+                why.append(due["why"])
+                ctx = form_context(spec, data, why=why)
+                ctx["hints"] = {due["attr"]: due["hint"]}
+                return page(request, "form.html", ctx)
+        return page(request, "form.html", form_context(spec, data, why=why))
 
-    def form_context(spec: dict, data: dict, error: str | None = None, lines_in: list | None = None) -> dict:
+    def form_context(spec: dict, data: dict, error: str | None = None, lines_in: list | None = None,
+                     why: list | None = None) -> dict:
         fields = [a for a in spec["attrs"] if not a.get("hidden") and not a.get("virtual")]
+        if billing.is_invoice(spec):
+            fields = [a for a in fields if a["id"] != spec.get("key")]  # the number comes when it is issued
+        # what happens later in the process (paid on, delivered on, status) is not asked when creating
+        proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+        later_ids = set()
+        if proc:
+            for st in proc["steps"]:
+                for x in [st] + st.get("also", []):
+                    if x.get("source") == "own":
+                        later_ids.add(x["attr"])
+            if proc.get("status"):
+                later_ids.add(proc["status"]["attr"])
+        later = [a for a in fields if a["id"] in later_ids]
+        fields = [a for a in fields if a["id"] not in later_ids]
         fields.sort(key=lambda a: (-(a.get("salience") or 0)))
         main = [a for a in fields if (a.get("fill") or 0) >= 0.25 or a["id"] in (spec.get("key"), spec.get("title"))]
         more = [a for a in fields if a not in main]
         order = {a["id"]: i for i, a in enumerate(spec["attrs"])}
         main.sort(key=lambda a: order[a["id"]])
         more.sort(key=lambda a: order[a["id"]])
+        later.sort(key=lambda a: order[a["id"]])
         line = line_child(spec)
         lcols, lformulas, ltotal, prices = [], [], None, {}
         if line:
@@ -616,7 +858,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 or next((a["id"] for a in reversed(lcols) if a["kind"] == "money"), None)
         computed_targets = {f["attr"] for f in spec.get("formulas") or []}
         party = next((a for a in main if a["kind"] == "ref"), None)
-        return dict(spec=spec, data=data, main=main, more=more, error=error, line=line, lcols=lcols,
+        return dict(spec=spec, data=data, main=main, more=more, later=later, error=error, line=line, lcols=lcols, why=why or [],
+                    draft=billing.is_invoice(spec),
                     formulas=[f for f in spec.get("formulas") or [] if f["op"] != "sum_children"], lformulas=lformulas,
                     ltotal=ltotal, computed=computed_targets, lines_in=lines_in or [], party=party,
                     options=enum_options(spec), loptions=enum_options(line["spec"]) if line else {})
@@ -632,12 +875,17 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         rt.ensure()
         tid = request.path_params["tid"]
         spec = rt.spec(tid)
-        raw = {k[2:]: v for k, v in form.items() if k.startswith("a_")}
+        raw = typed_refs({k[2:]: v for k, v in form.items() if k.startswith("a_")}, form, "t_")
         lines = defaultdict(dict)
         for k, v in form.items():
             if k.startswith("l_"):
                 _, n, aid = k.split("_", 2)
                 lines[int(n)][aid] = v
+        for k, v in form.items():
+            if k.startswith("lt_") and v:
+                _, n, aid = k.split("_", 2)
+                if not lines[int(n)].get(aid):
+                    lines[int(n)][aid] = v
         line = line_child(spec)
         try:
             rid = ops.create(rt, tid, raw, actor(request), [lines[n] for n in sorted(lines)] if line else None,
@@ -645,7 +893,22 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         except ops.OpError as e:
             ctx = form_context(spec, {k: v for k, v in raw.items()}, str(e), [lines[n] for n in sorted(lines)])
             return page(request, "form.html", ctx, 400)
+        except Exception as e:  # noqa: BLE001 - never lose what was typed
+            traceback.print_exc()
+            ctx = form_context(spec, {k: v for k, v in raw.items()}, f"Das hat nicht geklappt ({type(e).__name__}). "
+                                                                     "Ihre Eingaben sind noch da.",
+                               [lines[n] for n in sorted(lines)])
+            return page(request, "form.html", ctx, 400)
         return RedirectResponse(f"/r/{rid}?neu=1", 303)
+
+    def typed_refs(raw: dict, form, prefix: str) -> dict:
+        """A name typed into a reference field without picking it from the list still counts."""
+        for k, v in form.items():
+            if k.startswith(prefix) and (v or "").strip():
+                aid = k[len(prefix):]
+                if not (raw.get(aid) or "").strip():
+                    raw[aid] = v.strip()
+        return raw
 
     # --- api for forms --------------------------------------------------------------------------------------
     def api_search(request: Request):
@@ -783,7 +1046,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
     def apply_stale(request: Request):
         tid = request.path_params["tid"]
         n = ops.apply_stale(rt, tid, actor(request))
-        return JSONResponse(dict(toast=f"{n} Datensätze abgeglichen.", reload=True))
+        spec = rt.spec(tid) or {}
+        return JSONResponse(dict(toast=f"{n} {spec.get('plural', 'Datensätze')} auf „bezahlt“ gesetzt.", next=f"/t/{tid}"))
 
     # --- organism -------------------------------------------------------------------------------------------
     def organism(request: Request):
@@ -948,38 +1212,52 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         return FileResponse(p, filename=s["name"])
 
     # --- export -----------------------------------------------------------------------------------------------
-    def export_rows(spec: dict) -> tuple[list[str], list[list]]:
+    def export_rows(spec: dict, request: Request | None = None) -> tuple[list[str], list[list]]:
         cols = [a for a in spec["attrs"] if not a.get("constant")]
         head = [a["name"] for a in cols]
         rows = []
-        for r in rt.records.get(spec["id"], []):
+        recs = filtered(spec, request)[0] if request is not None and request.query_params else rt.records.get(spec["id"], [])
+        for r in recs:
             row = []
+            raw = (r.get("meta") or {}).get("raw") or {}
             for a in cols:
                 v = r["data"].get(a["id"])
-                if a["kind"] == "ref" and isinstance(v, int):
-                    v = rt.title(v)
+                if a["kind"] == "ref":
+                    v = rt.title(v) if isinstance(v, int) else (v if v is not None else raw.get(a["id"]))
                 row.append(v)
             rows.append(row)
         return head, rows
 
+    def _cell_safe(v):
+        """A text that starts like a formula stays text in Excel (no '=HYPERLINK(...)' from a file)."""
+        from ..values import parse_number
+        if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") and parse_number(v) is None:
+            return "'" + v
+        return v
+
     def export_csv(request: Request):
         rt.ensure()
         spec = rt.spec(request.path_params["tid"])
-        head, rows = export_rows(spec)
+        if not spec:
+            return PlainTextResponse("Diese Art gibt es nicht.", 404)
+        head, rows = export_rows(spec, request)
         buf = io.StringIO()
         w = csv.writer(buf, delimiter=";")
         w.writerow(head)
         for row in rows:
-            w.writerow([views.input_value(a, v) if v is not None else "" for a, v in zip([a for a in spec["attrs"] if not a.get("constant")], row)])
+            w.writerow([_cell_safe(views.input_value(a, v)) if v is not None else ""
+                        for a, v in zip([a for a in spec["attrs"] if not a.get("constant")], row)])
         return Response(("﻿" + buf.getvalue()).encode("utf-8"), media_type="text/csv",
-                        headers={"Content-Disposition": f'attachment; filename="{spec["plural"]}.csv"'})
+                        headers={"Content-Disposition": _attachment(f'{spec["plural"]}.csv')})
 
     def export_xlsx(request: Request):
         import openpyxl
 
         rt.ensure()
         spec = rt.spec(request.path_params["tid"])
-        head, rows = export_rows(spec)
+        if not spec:
+            return PlainTextResponse("Diese Art gibt es nicht.", 404)
+        head, rows = export_rows(spec, request)
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = spec["plural"][:30]
@@ -993,10 +1271,13 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 else:
                     out.append(v)
             ws.append(out)
+            for cell in ws[ws.max_row]:
+                if isinstance(cell.value, str) and cell.value.startswith("="):
+                    cell.data_type = "s"  # text from a file is never a live formula
         buf = io.BytesIO()
         wb.save(buf)
         return Response(buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        headers={"Content-Disposition": f'attachment; filename="{spec["plural"]}.xlsx"'})
+                        headers={"Content-Disposition": _attachment(f'{spec["plural"]}.xlsx')})
 
     def export_backup(request: Request):
         buf = io.BytesIO()
@@ -1040,12 +1321,20 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/einwerfen", upload, methods=["POST"]), Route("/beispiel", demo, methods=["POST"]),
         Route("/beispiel/wachstum", demo_growth, methods=["POST"]),
         Route("/wachsen/{jid:int}", grow_page), Route("/api/job/{jid:int}", job_status),
-        Route("/t/{tid}", list_view), Route("/t/{tid}/neu", new_form), Route("/t/{tid}/neu", formed(new_submit), methods=["POST"]),
+        Route("/t/{tid}", list_view), Route("/t/{tid}/spalte", formed(pin_column), methods=["POST"]),
+        Route("/t/{tid}/neu", new_form), Route("/t/{tid}/neu", formed(new_submit), methods=["POST"]),
         Route("/r/{rid:int}", record_view), Route("/r/{rid:int}", formed(record_update), methods=["POST"]),
         Route("/r/{rid:int}/schritt", formed(record_step), methods=["POST"]),
         Route("/r/{rid:int}/notiz", formed(record_note), methods=["POST"]),
         Route("/r/{rid:int}/storno", formed(record_storno), methods=["POST"]),
-        Route("/r/{rid:int}/loeschen", record_delete, methods=["POST"]),
+        Route("/r/{rid:int}/loeschen", formed(record_delete), methods=["POST"]),
+        Route("/r/{rid:int}/rueckgaengig", formed(record_undo), methods=["POST"]),
+        Route("/r/{rid:int}/ausstellen", record_issue, methods=["POST"]),
+        Route("/r/{rid:int}/uebernehmen", record_take_over, methods=["POST"]),
+        Route("/r/{rid:int}/einblenden", record_unhide, methods=["POST"]),
+        Route("/r/{rid:int}/xrechnung", record_xrechnung),
+        Route("/firma", company_page), Route("/firma", formed(company_save), methods=["POST"]),
+        Route("/abgleich/{tid}", stale_preview), Route("/api/ableiten", api_derive),
         Route("/r/{rid:int}/druck", record_print),
         Route("/r/{rid:int}/erinnerung", record_reminder, methods=["GET", "POST"]),
         Route("/suche", search_page), Route("/api/suche", api_search), Route("/api/datensatz/{rid:int}", api_record),

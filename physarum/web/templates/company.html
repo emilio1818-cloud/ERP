@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Ihre Firmendaten{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div><h1>Ihre Firmendaten</h1>
+    <p>Stehen auf jeder Rechnung und in jeder E-Rechnung (§ 14 UStG). Gelb vorbelegt ist, was Physarum in Ihren Dateien gefunden hat – bitte prüfen.</p></div>
+</div>
+{% if missing %}<div class="notice warn" style="margin-bottom:12px">Bevor gedruckt oder eine E-Rechnung erzeugt werden kann, fehlt noch: <b>{{ missing|join(', ') }}</b>.</div>{% endif %}
+<form method="post" action="/firma" class="card">
+  <input type="hidden" name="back" value="{{ back }}">
+  <div class="form-grid">
+    {% for k, label in fields %}
+    <div class="field {{ 'computed' if k in guessed }}"><label for="f_{{ k }}">{{ label }}</label>
+      <input id="f_{{ k }}" name="{{ k }}" value="{{ values[k] }}" {% if k == 'email' %}type="email"{% endif %}></div>
+    {% endfor %}
+  </div>
+  <p class="muted" style="margin-top:12px">Steuernummer oder USt-IdNr. ist Pflicht. Die IBAN erscheint als Bankverbindung auf der Rechnung.</p>
+  <div class="row" style="margin-top:8px"><button class="primary" type="submit">Speichern</button>{% if back %}<a class="btn ghost" href="{{ back }}">Zurück</a>{% endif %}</div>
+</form>
+{% endblock %}

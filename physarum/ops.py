@@ -199,8 +199,8 @@ def lock_state(rt, spec: dict, rec: dict) -> dict | None:
     meta = rec.get("meta") or {}
     cancelled = bool(meta.get("storno_by") or meta.get("storno_of"))
     return dict(editable=set() if cancelled else editable, cancelled=cancelled,
-                reason="Ausgestellte Rechnung: Beträge, Daten, Kunde, Nummer und Status sind festgeschrieben. "
-                       "Korrektur nur per Storno; Zahlungen und Notizen bleiben möglich.")
+                reason="Ausgestellte Rechnung: Nummer, Datum, Kunde und Beträge sind festgeschrieben – "
+                       "Korrektur nur per Storno. Zahlungseingang und Notizen lassen sich weiter eintragen.")
 
 
 def _parent_lock(rt, spec: dict, rec: dict) -> dict | None:
@@ -260,6 +260,13 @@ def create(rt, tid: str, raw: dict, actor: str, lines: list[dict] | None = None,
         if aid not in given and v is not None:
             data[aid] = v
             given.add(aid)  # taken over from the order (VAT by the articles' rates) beats a learned formula
+    proc = next((p for p in rt.model.get("processes", []) if p["type"] == tid), None)
+    if proc and data.get(proc["start"]["attr"]) is None:
+        # what is made here starts now (the form proposes the same)
+        sa = next((a for a in spec["attrs"] if a["id"] == proc["start"]["attr"]), None)
+        if sa and sa["kind"] in ("date", "datetime"):
+            data[proc["start"]["attr"]] = date.today().isoformat() if sa["kind"] == "date" else \
+                datetime.now().isoformat(timespec="minutes")
     draft = is_invoice(spec)
     key = spec.get("key")
     if draft:
@@ -432,6 +439,30 @@ def set_step(rt, rid: int, attr: str, when: str | None, actor: str) -> list[str]
     return update(rt, rid, raw, actor, note="Schritt erledigt", allow=allow)
 
 
+def revert(rt, rid: int, attrs: list[str], actor: str) -> list[str]:
+    """Undo the last change of these attributes (the "Rückgängig" after a quick action)."""
+    rt.ensure()
+    raw = {}
+    for aid in attrs:
+        row = rt.store.q1("SELECT old FROM changes WHERE record_id=? AND attr=? ORDER BY id DESC LIMIT 1", (rid, aid))
+        if row is not None:
+            old = loads(row["old"]) if row["old"] else None
+            rec = rt.store.record(rid)
+            a = next((x for x in rt.spec(rec["type"])["attrs"] if x["id"] == aid), None)
+            raw[aid] = "" if old is None else (_to_input(a, old) if a else old)
+    if not raw:
+        return []
+    return update(rt, rid, raw, actor, note="rückgängig gemacht", allow=set(raw))
+
+
+def _to_input(attr: dict, v):
+    if attr["kind"] in ("money", "number") and isinstance(v, (int, float)):
+        return str(v).replace(".", ",")
+    if attr["kind"] == "percent" and isinstance(v, (int, float)):
+        return f"{v * 100:g}".replace(".", ",")
+    return v
+
+
 def add_note(rt, rid: int, text: str, actor: str):
     text = (text or "").strip()
     if not text:
@@ -532,26 +563,44 @@ def unhide(rt, rid: int, actor: str):
         rt.bump(c)
 
 
-def apply_stale(rt, tid: str, actor: str) -> int:
-    """Take over what linked records already say ("paid according to the bank statement")."""
+def apply_stale(rt, tid: str, actor: str, rids: set | None = None) -> int:
+    """Take over what the money says ("paid according to the bank statement") – in one go,
+    every change in the record's history. With rids: only for these records."""
     rt.ensure()
     proc = next((p for p in rt.model.get("processes", []) if p["type"] == tid), None)
     st = (proc or {}).get("status")
-    if not st or not st.get("stale"):
+    items = (getattr(rt, "stale", {}) or {}).get(tid) or (st or {}).get("stale") or []
+    if rids is not None:
+        items = [s for s in items if s["rid"] in rids]
+    if not st or not items:
         return 0
+    ts = now_iso()
     n = 0
-    for s in st["stale"]:
-        rec = rt.by_id.get(s["rid"])
-        if not rec or str(rec["data"].get(st["attr"])) != s["was"]:
-            continue
-        step = next((x for x in proc["steps"] if x["id"] == s["step"]), None)
-        raw = {st["attr"]: s["value"]}
-        when = _child_date(rt, step, s["rid"])
-        own = next((x["attr"] for x in [step] + step.get("also", []) if x["source"] == "own"), None) if step else None
-        if own and when and not rec["data"].get(own):
-            raw[own] = when
-        update(rt, s["rid"], raw, actor, note="aus verknüpften Datensätzen übernommen (Abgleich)", kind="auto")
-        n += 1
+    with rt.store.tx() as c:
+        for s in items:
+            row = c.execute("SELECT data, meta FROM records WHERE id=? AND deleted=0", (s["rid"],)).fetchone()
+            if not row:
+                continue
+            data, meta = loads(row["data"]) or {}, loads(row["meta"]) or {}
+            if str(data.get(st["attr"])) != s["was"]:
+                continue
+            step = next((x for x in proc["steps"] if x["id"] == s["step"]), None)
+            own = next((x["attr"] for x in [step] + step.get("also", []) if x["source"] == "own"), None) if step else None
+            changes = [(st["attr"], data.get(st["attr"]), s["value"])]
+            data[st["attr"]] = s["value"]
+            when = s.get("when") or _child_date(rt, step, s["rid"])
+            if own and when and not data.get(own):
+                changes.append((own, None, when))
+                data[own] = when
+            w = meta.setdefault("w", {})
+            for aid, _o, _n in changes:
+                w[aid] = ["auto", ts]
+            c.execute("UPDATE records SET data=?, meta=?, updated_at=? WHERE id=?", (dumps(data), dumps(meta), ts, s["rid"]))
+            c.executemany("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
+                          [(s["rid"], ts, actor, "auto", aid, dumps(o), dumps(nv),
+                            "laut Kontoauszug bezahlt (Abgleich nach Betrag)") for aid, o, nv in changes])
+            n += 1
+        rt.bump(c)
     return n
 
 

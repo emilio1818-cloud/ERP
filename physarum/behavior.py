@@ -457,6 +457,15 @@ def find_lookups(model: dict, records: dict) -> list[dict]:
     return out
 
 
+def _foreign_numbers(t: dict, model: dict) -> bool:
+    """Documents whose numbers another firm gives out (incoming invoices, supplier orders)."""
+    specs = {x["id"]: x for x in model["types"]}
+    for a in t["attrs"]:
+        if a["kind"] == "ref" and specs.get(a.get("ref"), {}).get("concept") == "lieferant":
+            return True
+    return fold(t.get("name") or "").startswith(("eingang", "lieferantenrechnung"))
+
+
 def infer_behavior(model: dict, records: dict, today: date | None = None):
     virtual_sums(model)
     apply_virtual(model, records)
@@ -471,6 +480,8 @@ def infer_behavior(model: dict, records: dict, today: date | None = None):
         t["formulas"] += [a for a in model["aggregates"] if a["type"] == t["id"]]
         t["formulas"] += find_date_offsets(t, recs, model, records)
         t["numbering"] = find_numbering(t, recs, today)
+        if t["numbering"] and _foreign_numbers(t, model):
+            t["numbering"]["issues"] = []  # the supplier's numbers: gaps there are not ours to close
         t["defaults"] = find_defaults(t, recs)
         t["thresholds"] = find_thresholds(t)
     doc = next((t for t in model["types"] if t["kind"] == "document"), None)

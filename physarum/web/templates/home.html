@@ -2,20 +2,21 @@
 {% block title %}Heute{% endblock %}
 {% macro reason(g, it) -%}
   {%- if g.kind == 'overdue' -%}seit {{ it.days }} {{ 'Tag' if it.days == 1 else 'Tagen' }} überfällig
-  {%- elif g.kind == 'late' -%}wartet seit {{ it.days }} Tagen <span class="faint">(üblich {{ '%.0f'|format(it.usual or 0) }})</span>
+  {%- elif g.kind == 'late' -%}wartet seit {{ it.days }} Tagen <span class="faint">(üblich {{ after_days(it.usual or 0) }})</span>
   {%- elif g.kind == 'soon' -%}{{ 'heute fällig' if it.days == 0 else 'fällig in ' ~ it.days ~ ' Tagen' }}
+  {%- elif g.kind == 'payable' -%}{{ 'heute fällig' if it.days == 0 else ('seit ' ~ (-it.days) ~ (' Tag' if it.days == -1 else ' Tagen') ~ ' fällig' if it.days < 0 else 'fällig in ' ~ it.days ~ (' Tag' if it.days == 1 else ' Tagen')) }}
   {%- elif g.kind == 'due' -%}{{ 'heute' if it.days == 0 else ('vor ' ~ (-it.days) ~ ' Tagen' if it.days < 0 else 'in ' ~ it.days ~ ' Tagen') }}
   {%- elif g.kind == 'threshold' -%}Bestand {{ it.value|de }} · mindestens {{ it.min|de }}
   {%- elif g.kind == 'rhythm' -%}seit {{ days_text(it.days) }} nichts <span class="faint">(sonst alle {{ it.usual }} Tage)</span>
   {%- elif g.kind == 'reach' -%}reicht noch ca. {{ it.days }} Tage <span class="faint">({{ it.per_week|de(1) }} pro Woche)</span>
-  {%- elif g.kind == 'risk' -%}{{ it.reason }}
+  {%- elif g.kind in ('risk', 'payment', 'integrity', 'draft') -%}{{ it.reason }}
   {%- endif -%}
 {%- endmacro %}
 {% block content %}
 <div class="pagehead">
   <div>
     <h1>{{ greeting }}.</h1>
-    <p>{{ today }} · {% if work %}{{ work|length }} Dinge brauchen Aufmerksamkeit{% if overdue_amount %}, davon {{ money(overdue_amount) }} überfällig{% endif %}{% else %}Alles im grünen Bereich.{% endif %}</p>
+    <p>{{ today }} · {% if work %}{{ n_items }} {{ 'Vorgang braucht' if n_items == 1 else 'Vorgänge brauchen' }} Aufmerksamkeit{% if overdue_amount %}, davon {{ money(overdue_amount) }} überfällig{% endif %}{% else %}Alles im grünen Bereich.{% endif %}</p>
   </div>
   <div class="row noprint">
     <a class="btn" href="/quellen#einwerfen">Neue Daten einwerfen</a>
@@ -48,20 +49,28 @@
         <ul>
           {% for it in g['items'][:8] %}
           <li>
-            <span class="t"><a href="/r/{{ it.rid }}">{{ it.title }}</a>{% if it.party %} <span class="muted">· {{ it.party }}</span>{% endif %}
-              {% if it.maybe_paid %}<br><span class="tag guess">vielleicht schon bezahlt</span> <a class="faint" style="font-size:.82rem" href="/r/{{ it.maybe_paid.bank }}">passende Zahlung</a>{% endif %}</span>
-            <span class="muted" style="font-size:.86rem">{{ reason(g, it) }}</span>
-            {% if it.money %}<span class="num" style="min-width:90px; text-align:right">{{ money(it.money) }}</span>{% endif %}
+            <div class="t">
+              <div><a href="/r/{{ it.rid }}">{{ it.title }}</a>{% if it.party %} <span class="muted">· {{ it.party }}</span>{% endif %}</div>
+              <div class="r">{{ reason(g, it) }}{% if it.paid %} · <span class="tag guess" title="Teilzahlung erhalten">{{ money(it.paid) }} erhalten</span>{% endif %}
+                {% if it.maybe_paid %} · <span class="tag guess">vielleicht schon bezahlt</span> <a class="faint" href="/r/{{ it.maybe_paid.bank }}">passende Zahlung</a>{% endif %}</div>
+            </div>
+            {% if it.money %}<span class="num amt">{{ money(it.money) }}</span>{% endif %}
+            <span class="acts">
             {% if it.maybe_paid %}
               <button class="small primary" data-post="/fragen/{{ it.maybe_paid.qid }}" data-body='{"value": "yes"}' title="{{ it.maybe_paid.text }}">Zahlung zuordnen</button>
             {% elif g.kind == 'overdue' and g.step == 'bezahlt' %}
               <a class="btn small ghost" href="/r/{{ it.rid }}/erinnerung" target="_blank" title="Zahlungserinnerung als Entwurf öffnen">Erinnern</a>
             {% endif %}
             {% if g.action and g.action.kind == 'set_date' %}
-              <button class="small" data-post="/r/{{ it.rid }}/schritt" data-body='{"attr": "{{ g.action.attr }}"}' title="Mit heutigem Datum eintragen">✓ {{ g.action.label }}</button>
+              <button class="small" data-post="/r/{{ it.rid }}/schritt" data-body='{"attr": "{{ g.action.attr }}"}' title="Mit heutigem Datum eintragen – lässt sich rückgängig machen">✓ {{ g.action.label }}</button>
+            {% elif g.action and g.action.kind == 'create_child' and it.draft %}
+              <a class="btn small ghost" href="/r/{{ it.draft }}" title="Für diesen Vorgang liegt schon ein Entwurf bereit">Entwurf öffnen</a>
             {% elif g.action and g.action.kind == 'create_child' %}
               <a class="btn small" href="/t/{{ g.action.type }}/neu?a_{{ g.action.attr }}={{ it.rid }}">+ {{ g.action.label }}</a>
+            {% elif g.kind == 'draft' %}
+              <a class="btn small" href="/r/{{ it.rid }}">Prüfen und ausstellen</a>
             {% endif %}
+            </span>
           </li>
           {% endfor %}
         </ul>
@@ -85,8 +94,22 @@
   </section>
 
   <aside class="stack" aria-label="Überblick">
+    {% if open_items %}
+    <a href="/t/{{ open_items.type }}?f_pay_state=offen" class="card kpi" style="display:block; text-decoration:none">
+      <div class="label">Offene Posten · {{ open_items.plural }}</div>
+      <div class="value">{{ money(open_items.amount) }}</div>
+      <div class="delta muted">{{ open_items.n }} unbezahlt{% if open_items.partial %}, {{ open_items.partial }} teilweise bezahlt{% endif %}{% if open_items.overdue %} · davon {{ money(open_items.overdue) }} überfällig{% endif %}</div>
+    </a>
+    {% endif %}
     {% for k in kpis %}
+    {% if k.recurring %}
     <a href="/t/{{ k.type }}" class="card kpi" style="display:block; text-decoration:none">
+      <div class="label">{{ k.name }} · {{ k.attr_name }}, laufend</div>
+      <div class="value">{{ money(k.current, k.currency) }}</div>
+      <div class="delta muted">pro Monat aus {{ k.n }} laufenden {{ k.name }}</div>
+    </a>
+    {% else %}
+    <a href="/t/{{ k.type }}?von={{ k.series[-1].month }}-01&bis={{ k.month_end }}&feld={{ k.date_attr }}" class="card kpi" style="display:block; text-decoration:none" title="Alle {{ k.name }} dieses Monats mit Summe">
       <div class="label">{{ k.name }} · {{ k.attr_name }} im {{ ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'][(k.series[-1].month[5:7]|int) - 1] }}</div>
       <div class="value">{{ money(k.current, k.currency) }}</div>
       {% if k.previous_mtd %}
@@ -95,6 +118,7 @@
       {% endif %}
       {{ spark(k.series) }}
     </a>
+    {% endif %}
     {% endfor %}
 
     {% if payments %}
@@ -135,7 +159,7 @@
 
     {% if suggestions %}
     <div class="card">
-      <h2>Trampelpfade</h2>
+      <h2>Vorschläge</h2>
       <p class="muted" style="font-size:.85rem">Was in Ihren Daten immer wieder gleich passiert. Physarum übernimmt es nur, wenn Sie zustimmen.</p>
       {% for s in suggestions %}
       <div class="question" data-remove>
@@ -149,7 +173,7 @@
         {% else %}
           <div class="q">{{ s.text }}</div>
           <p class="muted" style="font-size:.85rem; margin:.3rem 0">Z. B. {% for it in s['items'][:3] %}<a href="/r/{{ it.rid }}">{{ title(it.rid) }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>
-          <div class="actions"><button class="small primary" data-post="/abgleich/{{ s.type.id }}">Abgleichen ({{ s.n }})</button></div>
+          <div class="actions"><a class="btn small primary" href="/abgleich/{{ s.type.id }}">Ansehen und übernehmen ({{ s.n }})</a></div>
         {% endif %}
       </div>
       {% endfor %}
@@ -161,9 +185,9 @@
       <h2>Zuletzt gewachsen</h2>
       <p class="muted" style="font-size:.88rem; margin:0">{{ ago(grown_at) }}: {{ summary.types }} Arten von Dingen, {{ summary.relations }} Verbindungen{% if summary.stats %}, {{ summary.stats.records|de }} Datensätze{% endif %}.
       {% if summary.first %}<br>Das war das erste Wachstum aus {{ summary.stats.records|de if summary.stats else '' }} Datensätzen.{% endif %}
-      {% if summary.new_types %}<br>Neu: <b>{{ summary.new_types|join(', ') }}</b>{% endif %}
+      {% if summary.new_types %}<br>Neu: {% for t in model.types if t.plural in summary.new_types %}<a href="/t/{{ t.id }}"><b>{{ t.plural }}</b></a>{{ ', ' if not loop.last }}{% endfor %}{% endif %}
       {% if summary.new_attrs %}<br>Neue Felder: {{ summary.new_attrs[:6]|join(', ') }}{% endif %}</p>
-      <p style="margin:.6rem 0 0"><a href="/organismus">Wie Physarum Ihre Firma sieht →</a></p>
+      <p style="margin:.6rem 0 0"><a href="/organismus">Was Physarum gelernt hat →</a></p>
     </div>
     {% endif %}
   </aside>

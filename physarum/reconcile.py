@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 from datetime import date
 
+from .billing import is_draft
 from .infer.identity import FREEMAIL
 from .text import fold, jaro_winkler, name_similarity, norm_name, tokens
 from .values import as_date, iban_ok
@@ -104,6 +105,8 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
         open_inv = []
         rest = {}
         for r in records.get(p["type"], []):
+            if is_draft(r):
+                continue
             if ledger is not None and r["id"] in ledger:
                 e = ledger[r["id"]]
                 if e["state"] not in ("offen", "teilbezahlt") or e["open"] <= 0.005:

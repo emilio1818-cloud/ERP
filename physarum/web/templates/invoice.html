@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ 'Entwurf' if d.draft else ('Stornorechnung ' if d.corrects else 'Rechnung ') ~ (d.number or '') }}</title>
+<style>
+  :root { --ink: #1b1a17; --muted: #6b665b; --line: #d9d4c8; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink); background: #fff; margin: 0; }
+  .sheet { max-width: 800px; margin: 0 auto; padding: 40px 48px 60px; }
+  .sender-line { font-size: 10px; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 2px; margin-bottom: 6px; }
+  .head { display: flex; justify-content: space-between; gap: 30px; align-items: flex-start; }
+  .seller { text-align: right; font-size: 12.5px; color: var(--muted); }
+  .seller b { color: var(--ink); font-size: 15px; }
+  .address { margin-top: 26px; min-height: 96px; }
+  h1 { font-size: 22px; margin: 34px 0 6px; }
+  .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 18px; font-size: 13px; margin: 8px 0 22px; }
+  .meta div span { display: block; color: var(--muted); font-size: 11.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--ink); padding: 6px 6px; }
+  td { padding: 6px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tfoot td { border-bottom: 0; }
+  tfoot tr.total td { border-top: 2px solid var(--ink); font-weight: 700; font-size: 14.5px; }
+  .terms { margin-top: 22px; font-size: 13px; }
+  .foot { margin-top: 40px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted);
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .draft { position: fixed; top: 38%; left: 0; right: 0; text-align: center; font-size: 90px; color: rgba(200, 40, 30, .12);
+           transform: rotate(-18deg); pointer-events: none; font-weight: 800; }
+  .warn { background: #fdf0dc; color: #8a5200; padding: 8px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+  .noprint { text-align: right; margin-bottom: 12px; }
+  .noprint button { font: inherit; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+  @media print { .noprint { display: none; } .sheet { padding: 0; } @page { margin: 18mm 16mm; } }
+  @media (max-width: 600px) { .sheet { padding: 20px 16px; } .head { flex-direction: column; } .seller { text-align: left; } .foot { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+{% set s = d.seller or {} %}
+{% set b = d.buyer or {} %}
+{% if d.draft %}<div class="draft">ENTWURF</div>{% endif %}
+<div class="sheet">
+  <div class="noprint"><button onclick="window.print()">Drucken</button></div>
+  {% if d.draft %}<div class="warn">Vorschau eines Entwurfs – die Rechnungsnummer wird beim Ausstellen vergeben.</div>{% endif %}
+  {% if company_missing %}<div class="warn noprint">Es fehlen noch Firmendaten ({{ company_missing|join(', ') }}). <a href="/firma?zurueck=/r/{{ rec.id }}/druck">Jetzt eintragen</a></div>{% endif %}
+  <div class="head">
+    <div class="address">
+      <div class="sender-line">{{ s.name }}{% if s.street %} · {{ s.street }}{% endif %}{% if s.zip or s.city %} · {{ s.zip }} {{ s.city }}{% endif %}</div>
+      <div><b>{{ b.name or '–' }}</b></div>
+      {% if b.person %}<div>{{ b.person }}</div>{% endif %}
+      {% if b.street %}<div>{{ b.street }}</div>{% endif %}
+      {% if b.zip or b.city %}<div>{{ b.zip }} {{ b.city }}</div>{% endif %}
+    </div>
+    <div class="seller">
+      <b>{{ s.name or 'Ihre Firma' }}</b><br>
+      {% if s.street %}{{ s.street }}<br>{% endif %}{% if s.zip or s.city %}{{ s.zip }} {{ s.city }}<br>{% endif %}
+      {% if s.phone %}Tel. {{ s.phone }}<br>{% endif %}{% if s.email %}{{ s.email }}<br>{% endif %}
+    </div>
+  </div>
+
+  <h1>{{ 'Stornorechnung' if d.corrects else 'Rechnung' }} {{ d.number or '' }}</h1>
+  {% if d.corrects %}<p>Storniert wird die Rechnung <b>{{ d.corrects }}</b>.</p>{% endif %}
+  {% if d.cancelled_by %}<p class="warn">Diese Rechnung wurde durch {{ d.cancelled_by }} storniert.</p>{% endif %}
+  <div class="meta">
+    <div><span>Rechnungsdatum</span>{{ display(d.date, 'date') }}</div>
+    <div><span>Leistungsdatum</span>{{ display(d.delivery, 'date') if d.delivery else display(d.date, 'date') }}</div>
+    {% if d.order %}<div><span>Auftrag</span>{{ d.order }}</div>{% endif %}
+    {% if b.number %}<div><span>Kundennummer</span>{{ b.number }}</div>{% endif %}
+    {% if b.vat_id %}<div><span>USt-IdNr. Kunde</span>{{ b.vat_id }}</div>{% endif %}
+  </div>
+
+  <table>
+    <thead><tr><th>Pos.</th><th>Bezeichnung</th><th class="num">Menge</th><th class="num">Einzelpreis</th><th class="num">MwSt</th><th class="num">Betrag</th></tr></thead>
+    <tbody>
+      {% for p in d.positions %}<tr><td>{{ loop.index }}</td><td>{{ p.text }}{% if p.sku %}<br><span style="color:var(--muted); font-size:12px">Art.-Nr. {{ p.sku }}</span>{% endif %}</td>
+        <td class="num">{{ display(p.qty, 'number') if p.qty is not none else '' }} {{ p.unit or '' }}</td>
+        <td class="num">{{ money(p.price) if p.price is not none else '' }}</td>
+        <td class="num">{{ display(p.rate, 'percent') if p.rate is not none else '' }}</td>
+        <td class="num">{{ money(p.total) if p.total is not none else '' }}</td></tr>{% endfor %}
+    </tbody>
+    <tfoot>
+      <tr><td colspan="5">Summe netto</td><td class="num">{{ money(d.net if d.net is not none else (d.groups|sum(attribute='net'))) }}</td></tr>
+      {% for g in d.groups %}<tr><td colspan="5">Umsatzsteuer {{ display(g.rate, 'percent') }} auf {{ money(g.net) }}</td><td class="num">{{ money(g.tax) }}</td></tr>{% endfor %}
+      <tr class="total"><td colspan="5">Rechnungsbetrag</td><td class="num">{{ money(d.gross if d.gross is not none else ((d.net or 0) + (d.tax or 0))) }}</td></tr>
+    </tfoot>
+  </table>
+
+  <div class="terms">
+    {% if d.terms and not d.corrects %}<p>{{ d.terms }}</p>{% endif %}
+    {% if s.iban and not d.corrects %}<p>Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer auf das Konto IBAN {{ s.iban|iban }}{% if s.bic %} (BIC {{ s.bic }}){% endif %}{% if s.bank %} bei der {{ s.bank }}{% endif %}.</p>{% endif %}
+  </div>
+
+  <div class="foot">
+    <div><b>{{ s.name }}</b><br>{{ s.street }}<br>{{ s.zip }} {{ s.city }}</div>
+    <div>{% if s.tax_no %}Steuernummer {{ s.tax_no }}<br>{% endif %}{% if s.vat_id %}USt-IdNr. {{ s.vat_id }}<br>{% endif %}{% if s.register %}{{ s.register }}<br>{% endif %}{% if s.manager %}Geschäftsführung: {{ s.manager }}{% endif %}</div>
+    <div>{% if s.bank %}{{ s.bank }}<br>{% endif %}{% if s.iban %}IBAN {{ s.iban|iban }}<br>{% endif %}{% if s.bic %}BIC {{ s.bic }}{% endif %}<br><span>Erstellt am {{ printed }}</span></div>
+  </div>
+</div>
+</body>
+</html>

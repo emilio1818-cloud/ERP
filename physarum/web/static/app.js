@@ -4,14 +4,53 @@
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
 
-  function toast(msg) {
+  function toast(msg, undo) {
+    $$(".toast").forEach((x) => x.remove());
     const t = document.createElement("div");
     t.className = "toast";
-    t.textContent = msg;
+    t.setAttribute("role", "status");
+    const span = document.createElement("span");
+    span.textContent = msg;
+    t.appendChild(span);
+    if (undo) {
+      const b = document.createElement("button");
+      b.className = "small";
+      b.textContent = "Rückgängig";
+      b.addEventListener("click", () => {
+        b.disabled = true;
+        post(undo.url, undo.body || {}).then(handle(null));
+      });
+      t.appendChild(b);
+    }
     document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3200);
+    setTimeout(() => t.remove(), undo ? 9000 : 3600);
   }
   window.physarumToast = toast;
+
+  function post(url, body) {
+    return fetch(url, { method: "POST", body: new URLSearchParams(body), headers: { "X-Requested-With": "fetch" } })
+      .then((r) => r.json());
+  }
+  // what the server answered: an error, a job, another page, a toast (with undo), a reload
+  function handle(btn) {
+    return (j) => {
+      if (j.error) { toast(j.error); if (btn) btn.disabled = false; return; }
+      if (j.job) { location.href = `/wachsen/${j.job}`; return; }
+      if (j.next) { if (j.toast) toast(j.toast); setTimeout(() => (location.href = j.next), 700); return; }
+      if (j.reload) {
+        if (j.toast) sessionStorage.setItem("physarum-toast", JSON.stringify({ msg: j.toast, undo: j.undo || null }));
+        location.reload();
+        return;
+      }
+      if (j.toast) toast(j.toast, j.undo);
+      const gone = btn && btn.closest("[data-remove]");
+      if (gone) { gone.style.opacity = ".4"; setTimeout(() => gone.remove(), 300); }
+    };
+  }
+  try {
+    const pending = sessionStorage.getItem("physarum-toast");
+    if (pending) { sessionStorage.removeItem("physarum-toast"); const p = JSON.parse(pending); toast(p.msg, p.undo); }
+  } catch (e) { /* storage may be unavailable */ }
 
   // mobile navigation
   const menu = $("#menu-toggle");
@@ -112,6 +151,15 @@
     });
   }
   $$("input[data-ref]").forEach(bindRef);
+  document.addEventListener("change", (ev) => {
+    const inp = ev.target.closest("input[data-ref]");
+    if (!inp) return;
+    const list = document.getElementById(inp.getAttribute("list"));
+    const hidden = inp.parentElement.querySelector("input[type=hidden]");
+    if (!list || !hidden || hidden.value) return;
+    const opts = Array.from(list.options).filter((o) => o.value.toLowerCase() === inp.value.trim().toLowerCase());
+    if (opts.length === 1) { hidden.value = opts[0].dataset.id; inp.dispatchEvent(new CustomEvent("picked", { bubbles: true, detail: opts[0].dataset.id })); }
+  });
 
   // formulas in forms ------------------------------------------------------------------------------------
   function num(v) {
@@ -177,6 +225,24 @@
       // a reference was chosen: fetch what the record knows (payment terms, prices)
       const id = ev.detail;
       const hidden = ev.target.parentElement.querySelector("input[type=hidden]");
+      if (!ev.target.closest("tr.line") && hidden && form.dataset.type) {
+        fetch(`/api/ableiten?typ=${encodeURIComponent(form.dataset.type)}&attr=${encodeURIComponent(hidden.dataset.attr)}&id=${id}`)
+          .then((r) => r.json()).then((j) => {
+            for (const [aid, v] of Object.entries(j.values || {})) {
+              const el = form.querySelector(`.head-fields [data-attr="${aid}"]`);
+              if (!el || el.dataset.touched) continue;
+              if (v && typeof v === "object") {
+                el.value = v.id;
+                const t = el.parentElement.querySelector(`[data-attr="${aid}_t"]`);
+                if (t) t.value = v.title;
+              } else { el.value = v; }
+              const box = el.closest(".field"); if (box) box.classList.add("computed");
+            }
+            const why = $("#derive-why");
+            if (why && (j.why || []).length) { why.textContent = j.why.join(" · "); why.style.display = ""; }
+            update();
+          });
+      }
       fetch(`/api/datensatz/${id}`).then((r) => r.json()).then((j) => {
         lookups[hidden ? hidden.value : id] = j.data;
         const tr = ev.target.closest("tr.line");
@@ -249,21 +315,33 @@
   // answers, actions (POST then reload or remove) ------------------------------------------------------------
   document.addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-post]");
-    if (!b) return;
+    if (!b || b.disabled) return;
     ev.preventDefault();
     if (b.dataset.confirm && !confirm(b.dataset.confirm)) return;
+    const body = JSON.parse(b.dataset.body || "{}");
+    if (b.dataset.prompt) {
+      const answer = prompt(b.dataset.prompt);
+      if (!answer || !answer.trim()) return;
+      body[b.dataset.promptField || "reason"] = answer.trim();
+    }
     b.disabled = true;
-    const body = new URLSearchParams(JSON.parse(b.dataset.body || "{}"));
-    fetch(b.dataset.post, { method: "POST", body, headers: { "X-Requested-With": "fetch" } })
-      .then((r) => r.json()).then((j) => {
-        if (j.error) { toast(j.error); b.disabled = false; return; }
-        if (j.job) { location.href = `/wachsen/${j.job}`; return; }
-        if (j.next) { if (j.toast) toast(j.toast); setTimeout(() => (location.href = j.next), 600); return; }
-        if (j.toast) toast(j.toast);
-        const gone = b.closest("[data-remove]");
-        if (gone) { gone.style.opacity = ".4"; setTimeout(() => gone.remove(), 300); }
-        if (j.reload) setTimeout(() => location.reload(), j.toast ? 700 : 0);
-      }).catch(() => { toast("Das hat nicht geklappt."); b.disabled = false; });
+    post(b.dataset.post, body).then(handle(b)).catch(() => { toast("Das hat nicht geklappt."); b.disabled = false; });
+  });
+  // a step with its date ("✓ bezahlt" on a chosen day), undoable
+  document.addEventListener("submit", (ev) => {
+    const f = ev.target.closest("form[data-step]");
+    if (!f) return;
+    ev.preventDefault();
+    const btn = f.querySelector("button");
+    if (btn) btn.disabled = true;
+    post(f.dataset.step, Object.fromEntries(new FormData(f))).then(handle(btn))
+      .catch(() => { toast("Das hat nicht geklappt."); if (btn) btn.disabled = false; });
+  });
+  const prov = $("#prov-toggle");
+  if (prov) prov.addEventListener("click", () => {
+    const show = $$(".fact .prov").some((x) => x.classList.contains("hide"));
+    $$(".fact .prov").forEach((x) => x.classList.toggle("hide", !show));
+    prov.textContent = show ? "Herkunft ausblenden" : "Herkunft zeigen";
   });
   $$("details[data-remember]").forEach((d) => {
     try {

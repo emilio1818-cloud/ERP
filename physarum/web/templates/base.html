@@ -23,32 +23,33 @@
     <nav class="nav">
       <a href="/" class="{{ 'on' if path == '/' }}"><span>Heute</span></a>
       {% if model %}
-      {% if n_questions %}<a href="/fragen" class="{{ 'on' if path.startswith('/fragen') }}"><span>Fragen an Sie</span><span class="badge">{{ n_questions }}</span></a>{% endif %}
+      <a href="/fragen" class="{{ 'on' if path.startswith('/fragen') }}"><span>Fragen an Sie</span>{% if n_questions %}<span class="badge">{{ n_questions }}</span>{% endif %}</a>
       <div class="nav-label">Ihre Daten</div>
       {% for t in nav_active %}
-      <a href="/t/{{ t.id }}" class="{{ 'on' if path == '/t/' ~ t.id }}" title="Leitfähigkeit {{ '%.2f'|format(t.salience or 0) }}">
-        <span>{{ t.plural }}</span>
+      <a href="/t/{{ t.id }}" class="{{ 'on' if path == '/t/' ~ t.id }}" title="Je länger der Balken, desto mehr hängt in Ihren Abläufen daran">
+        <span>{{ t.plural }}{% if t.is_new %} <span class="new">neu</span>{% endif %}</span>
         <span class="row" style="gap:6px"><span class="count">{{ t.count }}</span><span class="tube" aria-hidden="true"><i style="width:{{ [100, ((t.salience or 0) * 130)|int]|min }}%"></i></span></span>
       </a>
       {% endfor %}
       {% if nav_dormant %}
       <details data-remember="dormant">
-        <summary>Ruhend ({{ nav_dormant|length }}) ▸</summary>
+        <summary>Weitere Listen ({{ nav_dormant|length }}) ▸</summary>
         {% for t in nav_dormant %}
         <a href="/t/{{ t.id }}" class="{{ 'on' if path == '/t/' ~ t.id }}"><span>{{ t.plural }}</span><span class="count">{{ t.count }}</span></a>
         {% endfor %}
       </details>
       {% endif %}
-      <div class="nav-label">Organismus</div>
+      <div class="nav-label">Einblick</div>
       <a href="/ablaeufe" class="{{ 'on' if path.startswith('/ablaeufe') }}"><span>Abläufe</span></a>
-      <a href="/organismus" class="{{ 'on' if path.startswith('/organismus') }}"><span>Wie Physarum Ihre Firma sieht</span></a>
-      <a href="/quellen" class="{{ 'on' if path.startswith('/quellen') }}"><span>Quellen &amp; Einwerfen</span></a>
+      <a href="/organismus" class="{{ 'on' if path.startswith('/organismus') }}"><span>Aufbau &amp; gelernte Regeln</span></a>
+      <a href="/quellen" class="{{ 'on' if path.startswith('/quellen') }}"><span>Dateien &amp; Einwerfen</span></a>
+      <a href="/firma" class="{{ 'on' if path.startswith('/firma') }}"><span>Ihre Firmendaten</span></a>
       {% endif %}
     </nav>
     <div class="bottom">
-      <form action="/ich" method="post" class="row" style="gap:6px">
-        <label for="me" class="faint" style="font-size:.78rem">Ich bin</label>
-        <input id="me" name="name" value="{{ me }}" style="flex:1; padding:4px 8px; font-size:.85rem" aria-label="Ihr Name für das Änderungsprotokoll">
+      <form action="/ich" method="post" class="row" style="gap:6px" title="Steht bei jeder Änderung im Verlauf">
+        <label for="me" class="faint" style="font-size:.78rem">Ihr Name</label>
+        <input id="me" name="name" value="{{ '' if me == 'Benutzer' else me }}" placeholder="fürs Protokoll" style="flex:1; padding:4px 8px; font-size:.85rem" aria-label="Ihr Name für das Änderungsprotokoll">
       </form>
       {% if model %}<p style="margin:8px 4px 0"><a class="faint" style="font-size:.8rem" href="/verfahrensdoku">Verfahrensdokumentation</a> · <a class="faint" style="font-size:.8rem" href="/sicherung.zip">Sicherung</a></p>{% endif %}
     </div>

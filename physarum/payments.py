@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, timedelta
 
+from .billing import is_draft
 from .text import fold
 from .values import as_date
 
@@ -80,6 +81,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                         links[b].append(inv)
         entries = {}
         for r in recs:
+            if is_draft(r):
+                continue  # not issued: nobody owes anything yet
             g = _num(r["data"].get(p["gross"]))
             if g is None:
                 continue

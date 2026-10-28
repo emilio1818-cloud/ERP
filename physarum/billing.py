@@ -251,6 +251,22 @@ def missing_for_issue(rt, spec: dict, rec: dict) -> list[str]:
     return out
 
 
+def issue_warnings(rt, spec: dict, rec: dict) -> list[str]:
+    """What the invoice may lack without blocking it: above 250 € gross (§ 33 UStDV) the
+    customer's full address belongs on it."""
+    party = party_attr(rt, spec)
+    mf = money_fields(spec)
+    gross = _num(rec["data"].get(mf["gross"]["id"])) if mf["gross"] else None
+    if not party or not isinstance(rec["data"].get(party["id"]), int) or gross is None or gross <= 250:
+        return []
+    b = recipient(rt, rec["data"][party["id"]])
+    lack = [n for k, n in (("street", "Straße"), ("zip", "PLZ"), ("city", "Ort")) if not b.get(k)]
+    if not lack:
+        return []
+    return [f"Bei {rt.title(rec['data'][party['id']])} fehlt noch {', '.join(lack)}. Über 250 € gehört die vollständige "
+            f"Anschrift des Kunden auf die Rechnung (§ 14 UStG) – bitte beim Kunden ergänzen."]
+
+
 def recipient(rt, party_rid: int | None) -> dict:
     cust = rt.by_id.get(party_rid) if isinstance(party_rid, int) else None
     if not cust:
@@ -317,6 +333,23 @@ def issue(rt, rid: int, actor: str, today: date | None = None) -> str:
         _write_refs_and_search(rt, c, rid, spec, data)
         rt.bump(c)
     return number
+
+
+def usual_due(rt, spec: dict, data: dict) -> dict | None:
+    """A draft without a due date (the customer has no payment term): the firm's usual term."""
+    proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+    if not proc or not proc.get("deadlines"):
+        return None
+    due = proc["deadlines"][0]["attr"]
+    start = as_date(data.get(proc["start"]["attr"]))
+    if data.get(due) or not start:
+        return None
+    days = _usual_term(rt, spec, proc)
+    if not days:
+        return None
+    a = rt.attr(spec["id"], due)
+    return dict(attr=due, value=(start + timedelta(days=days)).isoformat(), hint=f"üblich {days} Tage nach Rechnungsdatum",
+                why=f"{a['name'] if a else 'Fällig'}: üblich {days} Tage nach Rechnungsdatum (so bei den meisten bisherigen Rechnungen)")
 
 
 def _usual_term(rt, spec, proc) -> int | None:
@@ -449,3 +482,55 @@ def company_missing(store) -> list[str]:
     if not c.get("vat_id") and not c.get("tax_no"):
         out.append("Steuernummer oder USt-IdNr.")
     return out
+
+
+# --- the printed and the electronic invoice ---------------------------------------------------------------
+
+def document(rt, rec: dict) -> dict:
+    """Everything an invoice states (§ 14 UStG): for the print page and the XRechnung."""
+    spec = rt.spec(rec["type"])
+    meta = rec.get("meta") or {}
+    d = rec["data"]
+    mf = money_fields(spec)
+    proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+    start = as_date(d.get(proc["start"]["attr"])) if proc else None
+    due = None
+    if proc:
+        for dl in proc.get("deadlines", []):
+            due = as_date(d.get(dl["attr"])) or due
+    party = party_attr(rt, spec)
+    buyer = meta.get("recipient") or recipient(rt, d.get(party["id"]) if party else None)
+    pos = meta.get("positions") or positions(rt, rec)
+    groups = (tax_by_lines(pos) or {}).get("groups")
+    net = _num(d.get(mf["net"]["id"])) if mf["net"] else None
+    tax = _num(d.get(mf["tax"]["id"])) if mf["tax"] else None
+    gross = _num(d.get(mf["gross"]["id"])) if mf["gross"] else None
+    if not groups:
+        rate = (tax / net) if net and tax is not None else 0.0
+        groups = [dict(rate=round(rate, 4), net=net or 0.0, tax=tax or 0.0)]
+    if not pos:
+        pos = [dict(text=f"Leistungen laut {rt.title(d.get(source_attr(rt, spec)['id']))}" if source_attr(rt, spec)
+                    and d.get(source_attr(rt, spec)["id"]) else "Leistung", qty=1, unit=None, price=net, total=net,
+                    rate=groups[0]["rate"], sku=None)]
+    src = source_attr(rt, spec)
+    order = rt.by_id.get(d.get(src["id"])) if src else None
+    delivery = None
+    if order:
+        oproc = next((p for p in rt.model.get("processes", []) if p["type"] == order["type"]), None)
+        for st in (oproc or {}).get("steps", []):
+            if fold(st["label"]) in ("geliefert", "versendet", "erledigt"):
+                for s2 in [st] + st.get("also", []):
+                    if s2["source"] == "own":
+                        delivery = as_date(order["data"].get(s2["attr"])) or delivery
+    corrects = None
+    if meta.get("storno_of") and meta["storno_of"] in rt.by_id:
+        corrects = rt.by_id[meta["storno_of"]]["data"].get(spec["key"])
+    terms = None
+    if due and start:
+        terms = f"Zahlbar ohne Abzug bis {due.strftime('%d.%m.%Y')} ({(due - start).days} Tage)."
+    return dict(number=d.get(spec["key"]), date=(start or date.today()).isoformat(), due=due.isoformat() if due else None,
+                delivery=delivery.isoformat() if delivery else None, seller=meta.get("company") or company(rt.store),
+                buyer=buyer, positions=pos, groups=groups, net=net, tax=tax, gross=gross,
+                order=rt.title(order["id"]) if order else None, corrects=corrects, terms=terms,
+                draft=is_draft(rec), cancelled_by=rt.by_id.get(meta.get("storno_by"), {}).get("data", {}).get(spec["key"])
+                if meta.get("storno_by") else None)

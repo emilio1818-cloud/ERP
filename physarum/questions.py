@@ -23,6 +23,22 @@ def _rec_brief(t, g, limit=4) -> list[list[str]]:
     return out
 
 
+def _member_examples(c, t: dict, member: dict, limit: int = 3) -> list[str]:
+    """A few entries that came from this file, so the owner sees what is meant."""
+    tables = set(member.get("tables") or [])
+    out = []
+    if not tables:
+        return out
+    for r in c.execute("SELECT id, data, meta FROM records WHERE type=? AND deleted=0 AND merged_into IS NULL ORDER BY id",
+                       (t["id"],)):
+        prov = (loads(r["meta"]) or {}).get("prov") or {}
+        if any(len(p) > 1 and p[1] in tables for ps in prov.values() for p in ps):
+            out.append(record_title(t, loads(r["data"]) or {}, r["id"]))
+            if len(out) >= limit:
+                break
+    return out
+
+
 def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict], c, matches: list | None = None,
                       titles: dict | None = None) -> int:
     ts = now_iso()
@@ -91,12 +107,17 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
             if "Spalten" in (m.get("reason") or "") and "Nummern" not in m["reason"] and "Namen" not in m["reason"]:
                 subj = f"confirm|{t['id']}|{m['obs']}"
                 member = next((x for x in t["members"] if x["label"] == m["obs"]), {})
+                into = next((x for x in t["members"] if x["label"] == m["into"]), {})
                 n = member.get("rows")
+                ex_a, ex_b = _member_examples(c, t, member), _member_examples(c, t, into)
+                examples = ""
+                if ex_a and ex_b:
+                    examples = (f" Zum Beispiel aus „{m['obs']}“: {', '.join(ex_a)} – aus „{m['into']}“: {', '.join(ex_b)}.")
                 found[subj] = dict(kind="confirm_merge", subject=subj, impact=5,
                                    payload=dict(text=f"Ich habe {n or 'die'} {t['plural']} aus „{m['obs']}“ zu den "
-                                                     f"{t['plural']} aus „{m['into']}“ gelegt. Gehören sie zusammen?",
-                                                detail=f"Grund: {m['reason']}. Gemeinsame Datensätze gibt es keine – "
-                                                       f"die Entscheidung liegt bei Ihnen. Getrennt geführt entstehen zwei Listen.",
+                                                     f"{t['plural']} aus „{m['into']}“ gelegt. Gehören sie in eine Liste?",
+                                                detail=f"Grund: {m['reason']}; kein Eintrag steht in beiden Dateien – darum frage ich."
+                                                       f"{examples} Ja: eine gemeinsame Liste. Nein: zwei getrennte Listen.",
                                                 decision=dict(kind="same_type", subject=None, obs=m["obs"], into=m["into"],
                                                               type=t["id"]),
                                                 options=[["ok", "Ja, passt"], ["split", "Nein, getrennt führen"]]))

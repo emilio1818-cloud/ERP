@@ -66,6 +66,85 @@ def _components(n: int, edges: list[tuple[int, int, float]]) -> list[list[int]]:
 def tero(n: int, edges: list[tuple[int, int, float]], nutrients: list[float], usage: list[float] | None = None,
          iters: int = ITER, mu: float = MU) -> tuple[list[float], list[float]]:
     """Run the Physarum solver. Returns (conductivity per edge, mean |flux| per edge)."""
+    try:
+        import numpy  # noqa: F401
+    except ImportError:  # pragma: no cover - the pure version below does the same, only slower
+        return _tero_py(n, edges, nutrients, usage, iters, mu)
+    return _tero_np(n, edges, nutrients, usage, iters, mu)
+
+
+def _tero_np(n, edges, nutrients, usage, iters, mu):
+    """Same model, vectorised: one Laplacian solve per component and iteration; the flux of all
+    nutrient pairs over all edges at once."""
+    import numpy as np
+
+    m = len(edges)
+    D = np.ones(m)
+    use = np.array(usage or [0.0] * m, dtype=float)
+    if m == 0:
+        return [], []
+    I = np.array([e[0] for e in edges])
+    J = np.array([e[1] for e in edges])
+    L = np.array([e[2] for e in edges], dtype=float)
+    comps = [c for c in _components(n, edges) if len(c) > 1]
+    flux = np.zeros(m)
+    for _ in range(iters):
+        Q = np.zeros(m)
+        total_w = 0.0
+        for comp in comps:
+            ground = comp[-1]
+            nodes = [v for v in comp if v != ground]
+            pos = {v: k for k, v in enumerate(nodes)}
+            in_c = np.array([(i in pos or i == ground) and (j in pos or j == ground) for i, j, _ in edges])
+            if not in_c.any():
+                continue
+            g = np.where(in_c, D / L, 0.0)
+            size = len(nodes)
+            lap = np.zeros((size, size))
+            for e in np.nonzero(in_c)[0]:
+                a, b = int(I[e]), int(J[e])
+                for x, y in ((a, b), (b, a)):
+                    if x in pos:
+                        lap[pos[x], pos[x]] += g[e]
+                        if y in pos:
+                            lap[pos[x], pos[y]] -= g[e]
+            try:
+                G = np.linalg.inv(lap)
+            except np.linalg.LinAlgError:
+                continue
+            food = [v for v in comp if nutrients[v] > 0]
+            if len(food) < 2:
+                continue
+            # potential at every node for a unit injection at every food node (ground row = 0)
+            P = np.zeros((n, len(food)))
+            for k, s in enumerate(food):
+                if s == ground:
+                    continue
+                col = G[:, pos[s]]
+                for v, idx in pos.items():
+                    P[v, k] = col[idx]
+            w = np.array([nutrients[v] for v in food], dtype=float)
+            W = np.triu(np.outer(w, w), 1)
+            total_w += W.sum()
+            idx = np.nonzero(in_c)[0]
+            d = P[I[idx]] - P[J[idx]]                       # (edges, food)
+            diff = np.abs(d[:, :, None] - d[:, None, :])     # (edges, food, food)
+            Q[idx] += g[idx] * (diff * W[None, :, :]).sum(axis=(1, 2))
+        if total_w > 0:
+            Q = Q / total_w
+        q = Q + use
+        f = q ** mu / (1.0 + q ** mu)
+        nd = np.maximum(1e-6, D + DT * (f - GAMMA * D))
+        change = float(np.max(np.abs(nd - D))) if m else 0.0
+        D = nd
+        flux = Q
+        if change < 1e-5:
+            break
+    return [float(x) for x in D], [float(x) for x in flux]
+
+
+def _tero_py(n: int, edges: list[tuple[int, int, float]], nutrients: list[float], usage: list[float] | None = None,
+             iters: int = ITER, mu: float = MU) -> tuple[list[float], list[float]]:
     m = len(edges)
     D = [1.0] * m
     usage = usage or [0.0] * m

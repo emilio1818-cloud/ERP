@@ -254,7 +254,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     for r in store.q("SELECT from_id, attr, to_id FROM refs WHERE kind='mention' AND attr!='doc'"):
         mention_map[r["attr"]][r["to_id"]].append(r["from_id"])
     specs = {t["id"]: t for t in model["types"]}
-    titles = {r["id"]: record_title(specs[t], r["data"], r["id"]) for t, rs in records.items() if t in specs for r in rs}
+    titles = record_titles(specs, ((r["id"], t, r["data"]) for t, rs in records.items() for r in rs))
     from .payments import ledger as pay_ledger, stale_statuses
     led: dict = {}
     _learn(model, "Zahlungen nach Betrag", lambda: led.update(pay_ledger(model, records, mention_map)))
@@ -822,9 +822,58 @@ def _reindex(c, model: dict, live: dict | None = None):
     if live is None:
         live = {r["id"]: (r["type"], loads(r["data"]) or {}) for r in
                 c.execute("SELECT id, type, data FROM records WHERE deleted=0 AND merged_into IS NULL").fetchall()}
-    titles = {rid: record_title(specs[t], d, rid) for rid, (t, d) in live.items() if t in specs}
+    titles = record_titles(specs, ((rid, t, d) for rid, (t, d) in live.items()))
     c.executemany("INSERT INTO search(body, record_id, type) VALUES(?,?,?)",
                   [(record_text(specs[t], d, titles), rid, t) for rid, (t, d) in live.items() if t in specs])
+
+
+def _de_date(v) -> str:
+    s = str(v)[:10]
+    return f"{s[8:10]}.{s[5:7]}.{s[:4]}" if len(s) == 10 and s[4] == "-" and s[7] == "-" else s
+
+
+def _de_money(v, cur: str | None = None) -> str:
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    return f"{x:,.2f}".replace(",", "\x00").replace(".", ",").replace("\x00", ".") + (" €" if (cur or "EUR") == "EUR" else f" {cur}")
+
+
+def event_title(spec: dict, data: dict, titles: dict | None = None) -> str | None:
+    """A row without its own number (a bank line, a time entry): when, how much, with whom."""
+    when = amount = party = None
+    for a in spec["attrs"]:
+        v = data.get(a["id"])
+        if v is None or a.get("hidden"):
+            continue
+        if when is None and a["kind"] in ("date", "datetime") and a.get("role") != "due":
+            when = _de_date(v)
+        elif amount is None and a["kind"] == "money":
+            amount = _de_money(v, a.get("currency"))
+    t = spec.get("title")
+    cands = ([t] if t else []) + [a["id"] for a in spec["attrs"] if a["kind"] == "ref" and not a.get("hidden")]
+    for aid in cands:
+        v = data.get(aid)
+        if isinstance(v, int) and not isinstance(v, bool):
+            party = (titles or {}).get(v)
+        elif v is not None and aid == t:
+            party = str(v)
+        if party:
+            break
+    parts = [x for x in (when, amount, party) if x]
+    return " · ".join(parts) if len(parts) >= 2 else None
+
+
+def record_titles(specs: dict, items) -> dict[int, str]:
+    """Titles for (rid, type, data) items; rows without their own number name their party, so they come second."""
+    items = [(rid, t, d) for rid, t, d in items if t in specs]
+    out = {rid: record_title(specs[t], d, rid) for rid, t, d in items}
+    for rid, t, d in items:
+        sp = specs[t]
+        if sp["kind"] == "transaction" and not (sp.get("key") and d.get(sp["key"]) is not None):
+            out[rid] = event_title(sp, d, out) or out[rid]
+    return out
 
 
 def record_title(spec: dict, data: dict, rid: int | None = None) -> str:

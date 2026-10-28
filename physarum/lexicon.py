@@ -419,3 +419,26 @@ def specific_name(text: str, concept: str) -> tuple[str, str] | None:
             pl = w[:1].upper() + w[1:]
         return sg, pl
     return None
+
+
+EN_VALUES = {
+    "fulfilled": "versendet", "unfulfilled": "nicht versendet", "partial": "teilweise", "partially_fulfilled": "teilweise versendet",
+    "paid": "bezahlt", "pending": "ausstehend", "refunded": "erstattet", "partially_refunded": "teilweise erstattet",
+    "partially_paid": "teilweise bezahlt", "authorized": "autorisiert", "voided": "storniert", "cancelled": "storniert",
+    "canceled": "storniert", "open": "offen", "closed": "abgeschlossen", "done": "erledigt", "draft": "Entwurf",
+    "retail": "Einzelhandel", "wholesale": "Großhandel", "office": "Büro", "private": "Privat", "business": "Gewerbe",
+    "active": "aktiv", "inactive": "inaktiv", "yes": "ja", "no": "nein", "true": "ja", "false": "nein",
+    "scheduled": "geplant", "confirmed": "bestätigt", "in_progress": "in Arbeit", "completed": "erledigt",
+}
+
+
+def show_value(v) -> str:
+    """Values from English exports read in German; the original stays in the data."""
+    s = str(v)
+    return EN_VALUES.get(s.strip().casefold().replace(" ", "_"), s)
+
+
+def dative_plural(plural: str) -> str:
+    """„zwischen den Aufträgen“, „mit den Artikeln“ – German plural nouns take -n in the dative."""
+    p = plural.strip()
+    return p if not p or p.endswith(("n", "s")) or not p[-1].isalpha() else p + "n"

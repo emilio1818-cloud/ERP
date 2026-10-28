@@ -15,9 +15,12 @@ from collections import Counter, defaultdict
 from datetime import date, timedelta
 
 from . import lexicon
+from .billing import is_draft
 from .text import fold, tokens
 from .values import as_date
 
+RECURRING = {"monatlich", "monatspauschale", "pauschale", "mtl", "monthly", "abo", "miete", "monatsbeitrag",
+             "monatsrate", "rate", "grundgebuehr", "wartungspauschale"}
 PARTICIPLES = {"geliefert", "bezahlt", "versendet", "berechnet", "eingegangen", "erledigt", "abgeschlossen",
                "storniert", "angenommen", "unterschrieben", "gemahnt", "freigegeben", "montiert", "installiert",
                "gewartet", "beendet", "ausgetreten"}
@@ -294,7 +297,7 @@ def _status_for(sa, recs, steps, stage_of, comb) -> dict | None:
             ok = sum(1 for r in reached if str(r["data"].get(sa["id"])) == v)
             if ok / len(reached) >= 0.9:
                 autos.append(dict(step=st["id"], attr=sa["id"], value=v, ok=ok, n=len(reached),
-                                  text=f"Wenn „{st['name']}“ eingetragen wird: {sa['name']} = „{v}“"))
+                                  text=f"Wenn „{st['name']}“ eingetragen wird: {sa['name']} = „{lexicon.show_value(v)}“"))
     # stale statuses: the status says "not yet" although a linked record says "done"
     stale = []
     for i, st in enumerate(steps, start=1):
@@ -397,7 +400,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
 
     today = today or date.today()
     specs = {t["id"]: t for t in model["types"]}
-    titles = {}
+    titles = dict(titles_in or {})
 
     def title(rid):
         if rid in titles:
@@ -419,9 +422,12 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         return bool(attr and str(c["data"].get(attr)) in neg)
 
     groups = []
+    draft_of: dict[int, int] = {}   # order -> its invoice draft
+    drafts = []
     for p in model.get("processes", []):
         spec = specs[p["type"]]
-        recs = records.get(p["type"], [])
+        drafts += [(r, p) for r in records.get(p["type"], []) if is_draft(r)]
+        recs = [r for r in records.get(p["type"], []) if not is_draft(r)]
         rid_set = {r["id"] for r in recs}
         step_dates = {}
 
@@ -446,6 +452,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 else:
                     for c in records.get(src["type"], []):
                         t = c["data"].get(src["rel_attr"])
+                        if t in rid_set and is_draft(c):
+                            draft_of[t] = c["id"]  # drafted, not yet issued
+                            continue
                         if t in rid_set and not void(c):
                             v = as_date(c["data"].get(src["attr"]))
                             if v:
@@ -503,9 +512,14 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 break
             for dl in free_dues:
                 due = as_date(r["data"].get(dl["attr"]))
+                e = ledger.get(r["id"]) if ledger else None
+                if e and e["state"] in ("bezahlt", "überzahlt", "storniert"):
+                    continue  # the money has gone out already
                 if due and (due - today).days <= 14:
-                    buckets[(dl["attr"], "due")].append(dict(rid=r["id"], days=(due - today).days, money=_money(r, p),
-                                                             due=due.isoformat(), name=dl["name"]))
+                    kind = "payable" if e and e["outgoing"] else "due"
+                    buckets[(dl["attr"], kind)].append(dict(rid=r["id"], days=(due - today).days,
+                                                            money=e["open"] if e else _money(r, p),
+                                                            due=due.isoformat(), name=dl["name"]))
         for (sid, kind), items in buckets.items():
             st = next((s for s in p["steps"] if s["id"] == sid), None)
             items.sort(key=lambda x: (-x["days"] if kind in ("overdue", "late") else x["days"]))
@@ -518,6 +532,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 x["party"] = title(pv) if isinstance(pv, int) and pv in by_id else None
                 if pending_payments and x["rid"] in pending_payments:
                     x["maybe_paid"] = pending_payments[x["rid"]]  # a transfer without reference fits: do not dun
+                if x["rid"] in draft_of and st and st["source"] == "child":
+                    x["draft"] = draft_of[x["rid"]]
             if kind == "overdue":
                 head = f"{spec['plural']} {st['phrase']} – überfällig"
                 sev = 3
@@ -527,6 +543,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             elif kind == "soon":
                 head = f"{spec['plural']} {st['phrase']} – bald fällig"
                 sev = 1
+            elif kind == "payable":
+                head = f"{spec['plural']} zu bezahlen"
+                sev = 2 if any(x["days"] < 0 for x in items) else 1
             else:
                 dname = items[0].get("name", "Termin")
                 head = f"{spec['plural']}: {dname} steht an"
@@ -540,6 +559,20 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                count=len(items), amount=total, items=items[:50], action=action,
                                step=st["label"] if st else None,
                                explain=_explain(p, st, kind)))
+    if drafts:
+        items = []
+        for r, p in drafts:
+            made = as_date((r.get("created_at") or "")[:10]) or today
+            pv = r["data"].get(p.get("party")) if p.get("party") else None
+            items.append(dict(rid=r["id"], title=title(r["id"]), days=(today - made).days, money=_money(r, p),
+                              party=title(pv) if isinstance(pv, int) and pv in by_id else None,
+                              reason="Entwurf seit " + ("heute" if made == today else made.strftime("%d.%m.%Y"))))
+        items.sort(key=lambda x: -x["days"])
+        names = {specs[p["type"]]["plural"] for _, p in drafts}
+        groups.append(dict(id="drafts", type=drafts[0][1]["type"], kind="draft", severity=2 if items[0]["days"] >= 2 else 1,
+                           title=f"Entwürfe, noch nicht ausgestellt ({', '.join(sorted(names))})", count=len(items),
+                           amount=round(sum(x["money"] or 0 for x in items), 2), items=items[:50], action=None,
+                           explain="Erst beim Ausstellen bekommen sie ihre Nummer und werden verschickt. Bis dahin schuldet niemand etwas."))
     if ledger:
         from .payments import problems
         bad = problems(ledger)
@@ -586,13 +619,19 @@ def _money(r, p):
 
 
 def _explain(p, st, kind) -> str:
+    if kind == "payable":
+        return ("Fällig laut Rechnung des Lieferanten, noch keine Zahlung im Kontoauszug. Vor dem Überweisen die "
+                "Bankverbindung mit der bekannten vergleichen.")
     if not st:
         return "Termin aus den Daten"
     if kind == "overdue":
         return f"Die Frist ist abgelaufen und „{st['label']}“ fehlt noch."
     if kind == "late":
-        return (f"Üblich sind {st['median_days']:.0f} Tage bis „{st['label']}“ (bei 80 % höchstens {st['p80_days']:.0f}), "
-                f"gelernt aus {st['n']} Fällen.")
+        m, p80 = round(st["median_days"] or 0), round(st["p80_days"] or 0)
+        usual = "am selben Tag" if m <= 0 else ("1 Tag" if m == 1 else f"{m} Tage")
+        return (f"Üblich {'ist' if m == 1 else 'sind'} {usual} bis „{st['label']}“ (bei 80 % höchstens "
+                f"{p80} {'Tag' if p80 == 1 else 'Tage'}), gelernt aus {st['n']} Fällen."
+                if m > 0 else f"Üblich passiert „{st['label']}“ am selben Tag, gelernt aus {st['n']} Fällen.")
     if kind == "soon":
         return "Die Frist läuft in den nächsten Tagen ab."
     return ""
@@ -645,7 +684,7 @@ def _rhythm_work(model, records, by_id, title, today) -> list[dict]:
             out.append(dict(id=f"rh:{rh['rel']}", type=rh["dst"], kind="rhythm", severity=1,
                             title=f"{dst['plural']}, die ungewöhnlich lange keine {rh['label']} mehr hatten",
                             count=len(items), amount=None, items=items[:30], action=None,
-                            explain=f"Gelernt aus dem üblichen Abstand zwischen den {rh['label']} je {dst['name']}."))
+                            explain=f"Gelernt aus dem üblichen Abstand zwischen den {lexicon.dative_plural(rh['label'])} je {dst['name']}."))
     return out
 
 
@@ -696,15 +735,42 @@ def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
             agg = next((a for a in model.get("aggregates", []) if a["type"] == p["type"]), None)
             if not agg:
                 continue
-        recs = records.get(p["type"], [])
+        recs = [r for r in records.get(p["type"], []) if not is_draft(r)]
         negative = set((p.get("status") or {}).get("negative") or [])
         sattr = (p.get("status") or {}).get("attr")
+        other_neg = [(x["attr"], set(x["values"])) for x in (p.get("status") or {}).get("negative_other", [])]
+        aspec = next((a for a in spec["attrs"] if a["id"] == aid), None) if aid else None
+        if aspec and set(tokens(aspec["name"], camel=False)) & RECURRING:
+            # a monthly fee is not revenue of the month the contract started: show what runs per month
+            running = 0.0
+            n_run = 0
+            end = next((a["id"] for a in spec["attrs"] if a["kind"] in ("date", "datetime") and
+                        set(tokens(a["name"])) & {"ende", "bis", "gekuendigt", "end", "kuendigung"}), None)
+            for r in recs:
+                if sattr and str(r["data"].get(sattr)) in negative:
+                    continue
+                if any(str(r["data"].get(a)) in vals for a, vals in other_neg):
+                    continue
+                e = as_date(r["data"].get(end)) if end else None
+                v = r["data"].get(aid)
+                if (e is None or e >= today) and isinstance(v, (int, float)):
+                    running += float(v)
+                    n_run += 1
+            if n_run:
+                out.append(dict(type=p["type"], name=spec["plural"], attr=aid, attr_name=aspec["name"], series=[],
+                                current=round(running, 2), previous=None, previous_mtd=None, day=today.day,
+                                currency=aspec.get("currency") or "EUR", concept=spec.get("concept"),
+                                salience=spec.get("salience", 0), recurring=True, n=n_run,
+                                date_attr=p["start"]["attr"], month_end=None))
+            continue
         months = defaultdict(float)
         prev_mtd = 0.0
         py, pm = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
         for r in recs:
             if sattr and str(r["data"].get(sattr)) in negative:
                 continue
+            if any(str(r["data"].get(a)) in vals for a, vals in other_neg):
+                continue  # refunded shop orders are not revenue
             d = as_date(r["data"].get(p["start"]["attr"]))
             v = r["data"].get(aid) if aid else None
             if d and isinstance(v, (int, float)):
@@ -724,11 +790,13 @@ def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
         cur = series[-1]["value"]
         # same day-of-month progress last month, for a fair comparison
         prev_full = series[-2]["value"]
-        aspec = next(a for a in spec["attrs"] if a["id"] == aid)
+        import calendar
+        last = calendar.monthrange(today.year, today.month)[1]
         out.append(dict(type=p["type"], name=spec["plural"], attr=aid, attr_name=aspec["name"], series=series,
                         current=cur, previous=prev_full, previous_mtd=round(prev_mtd, 2), day=today.day,
                         currency=aspec.get("currency") or "EUR", concept=spec.get("concept"),
-                        salience=spec.get("salience", 0)))
+                        salience=spec.get("salience", 0), date_attr=p["start"]["attr"],
+                        month_end=f"{today.year}-{today.month:02d}-{last:02d}"))
     return out
 
 

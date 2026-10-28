@@ -91,22 +91,40 @@ class InvoiceFromOrder(unittest.TestCase):
             billing.issue(self.rt, rid, "Test")
 
     def test_cancelled_invoice_does_not_bill_the_order(self):
-        inv = self.spec("Rechnung")
+        from datetime import date, timedelta
+        from physarum.process import compute_work
+        inv, order = self.spec("Rechnung"), self.spec("Auftrag")
         order_rid, _ = self.new_order([(self.rt.records[self.spec("Artikel")["id"]][1]["id"], 1)])
+        ops.set_step(self.rt, order_rid, self.attr(order, "Geliefert am")["id"], None, "Test")
         rid = ops.create(self.rt, inv["id"], {self.attr(inv, "Auftrag")["id"]: str(order_rid)}, "Test")
         billing.issue(self.rt, rid, "Test")
         ops.storno(self.rt, rid, "falsch", "Test")
         self.rt.ensure()
-        self.rt._work = None
-        from physarum.process import compute_work
-        work = compute_work(self.rt.model, self.rt.records, self.rt.mentions)
-        # the order is again waiting for an invoice (or simply not billed): never "berechnet" by a cancelled one
-        proc = next(p for p in self.rt.model["processes"] if p["type"] == self.spec("Auftrag")["id"])
-        billed = next(s for s in proc["steps"] if s["label"] == "berechnet")
-        self.assertTrue(billed)
-        self.assertFalse(any(x["rid"] == order_rid for g in work if g.get("step") == "geliefert" for x in g["items"]
-                             if False))
+        later = date.today() + timedelta(days=60)
+        work = compute_work(self.rt.model, self.rt.records, self.rt.mentions, later, ledger=self.rt.ledger)
+        waiting = {x["rid"] for g in work if g.get("step") == "berechnet" for x in g["items"]}
+        self.assertIn(order_rid, waiting)  # the cancelled invoice does not count as "berechnet"
 
+    def test_a_draft_is_not_owed(self):
+        from datetime import date, timedelta
+        from physarum.process import compute_work, kpis
+        inv, order = self.spec("Rechnung"), self.spec("Auftrag")
+        before = {k["type"]: k["current"] for k in kpis(self.rt.model, self.rt.records)}
+        order_rid, _ = self.new_order([(self.rt.records[self.spec("Artikel")["id"]][2]["id"], 3)])
+        ops.set_step(self.rt, order_rid, self.attr(order, "Geliefert am")["id"], None, "Test")
+        rid = ops.create(self.rt, inv["id"], {self.attr(inv, "Auftrag")["id"]: str(order_rid)}, "Test")
+        self.rt.ensure()
+        self.assertNotIn(rid, self.rt.ledger)                       # no receivable, no payment matching
+        self.assertEqual(before.get(inv["id"]), {k["type"]: k["current"] for k in kpis(self.rt.model, self.rt.records)}
+                         .get(inv["id"]))                           # no revenue
+        later = date.today() + timedelta(days=60)
+        work = compute_work(self.rt.model, self.rt.records, self.rt.mentions, later, ledger=self.rt.ledger)
+        self.assertFalse(any(x["rid"] == rid for g in work if g["kind"] in ("overdue", "late", "soon") for x in g["items"]))
+        drafts = next(g for g in work if g["kind"] == "draft")
+        self.assertIn(rid, {x["rid"] for x in drafts["items"]})     # but it is not forgotten
+        waiting = [x for g in work if g.get("step") == "berechnet" for x in g["items"] if x["rid"] == order_rid]
+        self.assertTrue(waiting and all(x.get("draft") == rid for x in waiting))  # open the draft, not a second one
+        self.assertTrue(self.rt.title(rid).startswith("Entwurf"))
 
 if __name__ == "__main__":
     unittest.main()

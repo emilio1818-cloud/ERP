@@ -1,66 +1,80 @@
 {% extends "base.html" %}
 {% block title %}{{ spec.plural }}{% endblock %}
+{% macro keep(drop=None) -%}
+{%- if state.q and drop != 'q' %}q={{ state.q|urlencode }}&{% endif -%}
+{%- for k, v in state.filters.items() if drop != k %}f_{{ k }}={{ v|urlencode }}&{% endfor -%}
+{%- if state.range and drop != 'range' %}von={{ state.range.von }}&bis={{ state.range.bis }}&feld={{ state.range.feld }}&{% endif -%}
+{%- if state.sort and drop != 'sort' %}sort={{ state.sort }}&{% endif -%}
+{%- endmacro %}
 {% block content %}
 <div class="pagehead">
   <div>
     <h1>{{ spec.plural }}</h1>
-    <p>{{ total|de }} {{ 'Eintrag' if total == 1 else 'Einträge' }}{% if state.q or state.filters %} gefunden{% endif %} ·
-      aus {% for m in spec.members[:3] %}{{ m.source or m.label }}{% if m.asof %} <span class="pill {{ 'warn' if stale_days(m.asof) > 180 else '' }}" title="Stand laut Datei">Stand {{ display(m.asof, 'date') }}</span>{% endif %}{{ ', ' if not loop.last }}{% endfor %}{% if spec.members|length > 3 %} u. a.{% endif %}</p>
+    <p>{{ total|de }} {{ 'Eintrag' if total == 1 else 'Einträge' }}{% if state.q or state.filters or state.range %} gefunden{% endif %} ·
+      aus {% for m in spec.members[:3] %}{{ m.source or m.label }}{% if m.versions and m.versions.files > 1 %} <span class="faint">({{ m.versions.files }} Fassungen)</span>{% endif %}{% if m.asof %} <span class="pill {{ 'warn' if stale_days(m.asof) > 180 else '' }}" title="Stand laut Datei">Stand {{ display(m.asof, 'date') }}</span>{% endif %}{{ ', ' if not loop.last }}{% endfor %}{% if spec.members|length > 3 %} u. a.{% endif %}{% if spec.carried %}hier angelegt{% endif %}</p>
     {% for m in spec.members if m.asof and stale_days(m.asof) > 180 and not m.extracted %}
       <p class="notice warn" style="margin-top:8px">„{{ m.source }}“ ist vom {{ display(m.asof, 'date') }} – über {{ (stale_days(m.asof) / 30)|round|int }} Monate alt. Neuere Angaben aus anderen Quellen haben Vorrang; eine aktuelle Fassung einzuwerfen lohnt sich.</p>
     {% endfor %}
+    {% for m in spec.members if m.versions and m.versions.vanished %}
+      <p class="notice warn" style="margin-top:8px">In der neuesten Fassung von „{{ m.versions.vanished_from }}“ fehlen {{ m.versions.vanished|length }} Einträge, die frühere Fassungen hatten (z. B. {{ m.versions.vanished[:3]|join(', ') }}). Sie bleiben erhalten – bitte prüfen, ob sie im anderen Programm gelöscht wurden.</p>
+    {% endfor %}
   </div>
   <div class="row noprint">
-    <a class="btn ghost" href="/export/{{ spec.id }}.xlsx" title="Als Excel exportieren">Excel</a>
-    <a class="btn ghost" href="/export/{{ spec.id }}.csv" title="Als CSV exportieren">CSV</a>
+    <a class="btn ghost" href="/export/{{ spec.id }}.xlsx?{{ keep() }}" title="Als Excel exportieren (mit Ihren Filtern)">Excel</a>
+    <a class="btn ghost" href="/export/{{ spec.id }}.csv?{{ keep() }}" title="Als CSV exportieren (mit Ihren Filtern)">CSV</a>
     {% if spec.kind != 'document' %}<a class="btn primary" href="/t/{{ spec.id }}/neu">+ {{ spec.name }}</a>{% endif %}
   </div>
 </div>
 
 <div class="toolbar noprint">
   <input type="search" name="q" value="{{ state.q }}" placeholder="In {{ spec.plural }} suchen …" data-live aria-label="Suchen">
+  {% if state.range %}<a class="chip on" href="?{{ keep('range') }}" title="Zeitraum entfernen">{{ state.range.label }} ✕</a>{% endif %}
   {% for f in facets %}
   <div class="chips" aria-label="Filter {{ f.attr.name }}">
-    {% for v, n in f['values'] %}
-      {% set on = state.filters.get(f.attr.id) == v %}
-      <a class="chip {{ 'on' if on }}" href="?{% if state.q %}q={{ state.q|urlencode }}&{% endif %}{% if not on %}f_{{ f.attr.id }}={{ v|urlencode }}{% endif %}">{{ v }} <span class="faint">{{ n }}</span></a>
+    {% for k, label, n in f['values'] %}
+      {% set on = state.filters.get(f.attr.id) == k %}
+      <a class="chip {{ 'on' if on }}" href="?{{ keep(f.attr.id) }}{% if not on %}f_{{ f.attr.id }}={{ k|urlencode }}{% endif %}">{{ label }} <span class="faint">{{ n }}</span></a>
     {% endfor %}
   </div>
   {% endfor %}
 </div>
 
 <div class="table-wrap">
-  <table class="table">
+  <table class="table list">
     <thead><tr>
       {% for c in cols %}
         {% set s = state.sort %}
         <th class="{{ 'num' if c.kind in ('money','number','percent','duration') }}">
-          <a href="?{% if state.q %}q={{ state.q|urlencode }}&{% endif %}{% for k, v in state.filters.items() %}f_{{ k }}={{ v|urlencode }}&{% endfor %}sort={{ ('-' if s == c.id else '') ~ c.id }}">{{ c.name }}{% if s == c.id %} ↑{% elif s == '-' ~ c.id %} ↓{% endif %}</a>
+          <a href="?{{ keep('sort') }}sort={{ ('-' if s == c.id else '') ~ c.id }}">{{ c.name }}{% if s == c.id %} ↑{% elif s == '-' ~ c.id %} ↓{% endif %}</a>
         </th>
       {% endfor %}
     </tr></thead>
     <tbody id="list-body">
       {% include "list_rows.html" %}
     </tbody>
+    {% if sums %}<tfoot><tr>{% for c in cols %}<td class="{{ 'num' if c.kind in ('money','number','percent','duration') }}{{ ' blank' if not loop.first and c.id not in sums }}" data-label="{{ c.name }}">{% if loop.first %}Summe{% if total > rows|length %} (alle {{ total|de }}){% endif %}{% elif c.id in sums %}{{ money(sums[c.id], c.currency) }}{% endif %}</td>{% endfor %}</tr></tfoot>{% endif %}
   </table>
 </div>
 {% if pages > 1 %}
 <div class="pager">
   Seite {{ page }} von {{ pages }}
-  {% if page > 1 %}<a class="btn small" href="?{% if state.q %}q={{ state.q|urlencode }}&{% endif %}{% if state.sort %}sort={{ state.sort }}&{% endif %}seite={{ page - 1 }}">← zurück</a>{% endif %}
-  {% if page < pages %}<a class="btn small" href="?{% if state.q %}q={{ state.q|urlencode }}&{% endif %}{% if state.sort %}sort={{ state.sort }}&{% endif %}seite={{ page + 1 }}">weiter →</a>{% endif %}
+  {% if page > 1 %}<a class="btn small" href="?{{ keep() }}seite={{ page - 1 }}">← zurück</a>{% endif %}
+  {% if page < pages %}<a class="btn small" href="?{{ keep() }}seite={{ page + 1 }}">weiter →</a>{% endif %}
 </div>
 {% endif %}
 <details class="card noprint" style="margin-top:18px" data-remember="cols-{{ spec.id }}">
-  <summary class="muted">Weitere Felder ({{ spec.attrs|rejectattr('hidden')|list|length - cols|length }}) und ausgeblendete ({{ spec.attrs|selectattr('hidden')|list|length }})</summary>
-  <p class="muted" style="font-size:.85rem">Die Liste zeigt die Felder mit der höchsten Leitfähigkeit: gut gefüllt, aussagekräftig und von Ihnen genutzt. Was Sie oft sortieren, filtern oder bearbeiten, rückt nach vorn.</p>
+  <summary class="muted">Spalten wählen ({{ cols|length }} von {{ spec.attrs|rejectattr('hidden')|list|length }} sichtbar)</summary>
+  <p class="muted" style="font-size:.85rem">Physarum zeigt zuerst, was gut gefüllt ist und im Ablauf zählt. Was Sie hier anheften, bleibt in der Liste.</p>
   <table class="table" style="font-size:.86rem">
     {% for a in spec.attrs %}
-    <tr><td>{{ a.name }}{% if a.virtual %} <span class="tag calc">berechnet</span>{% endif %}</td><td class="muted">{{ {'text':'Text','id':'Nummer','money':'Betrag','number':'Zahl','date':'Datum','datetime':'Zeitpunkt','ref':'Verweis','email':'E-Mail','phone':'Telefon','zip':'PLZ','percent':'Prozent','duration':'Tage','iban':'IBAN','bool':'Ja/Nein','url':'Web'}.get(a.kind, a.kind) }}</td>
+    {% set shown = a.id in col_ids %}
+    <tr><td>{{ a.name }}{% if a.virtual %} <span class="tag calc">errechnet</span>{% endif %}</td><td class="muted">{{ {'text':'Text','id':'Nummer','money':'Betrag','number':'Zahl','date':'Datum','datetime':'Zeitpunkt','time':'Uhrzeit','ref':'Verweis','email':'E-Mail','phone':'Telefon','zip':'PLZ','percent':'Prozent','duration':'Tage','iban':'IBAN','bool':'Ja/Nein','url':'Web'}.get(a.kind, a.kind) }}</td>
       <td class="muted">{{ (a.fill * 100)|round|int }} % gefüllt</td>
-      <td class="muted">{% if a.hidden %}{% if a.derived %}ausgeblendet: wiederholt nur den Verweis{% elif a.constant %}ausgeblendet: überall gleich ({{ a.value }}){% else %}ausgeblendet{% endif %}{% endif %}</td>
-      <td>{% if not a.virtual %}<form method="post" action="/organismus/feld" style="display:inline"><input type="hidden" name="type" value="{{ spec.id }}"><input type="hidden" name="attr" value="{{ a.id }}">
-        {% if a.hidden %}<button class="small ghost" name="action" value="show">einblenden</button>{% else %}<button class="small ghost" name="action" value="hide">ausblenden</button>{% endif %}</form>{% endif %}</td></tr>
+      <td class="muted">{% if a.hidden %}{% if a.derived %}ausgeblendet: wiederholt nur den Verweis{% elif a.constant %}ausgeblendet: überall gleich ({{ a.value }}){% else %}ausgeblendet{% endif %}{% elif shown %}in der Liste{% endif %}</td>
+      <td style="white-space:nowrap">
+        {% if not a.hidden %}<button class="small ghost" data-post="/t/{{ spec.id }}/spalte" data-body='{"attr": "{{ a.id }}", "action": "{{ 'unpin' if shown else 'pin' }}"}'>{{ 'aus der Liste' if shown else 'in die Liste' }}</button>{% endif %}
+        {% if not a.virtual %}<form method="post" action="/organismus/feld" style="display:inline"><input type="hidden" name="type" value="{{ spec.id }}"><input type="hidden" name="attr" value="{{ a.id }}">
+        {% if a.hidden %}<button class="small ghost" name="action" value="show">einblenden</button>{% else %}<button class="small ghost" name="action" value="hide" title="überall ausblenden">ausblenden</button>{% endif %}</form>{% endif %}</td></tr>
     {% endfor %}
   </table>
 </details>

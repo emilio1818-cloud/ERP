@@ -47,7 +47,11 @@ def fmt(rt, attr: dict, value, link: bool = True, short: bool = False) -> Markup
     if short and len(s) > 70:
         return Markup(f'<span title="{escape(s[:500])}">{escape(s[:68])}…</span>')
     if attr.get("role") == "status" or (attr.get("enum") and attr.get("role") in ("status",)):
-        return Markup(f'<span class="pill {status_class(s)}">{escape(s)}</span>')
+        shown = show_value(s)
+        tip = f' title="{escape(s)}"' if shown != s else ""
+        return Markup(f'<span class="pill {status_class(s)}"{tip}>{escape(shown)}</span>')
+    if attr.get("enum") and show_value(s) != s:
+        return Markup(f'<span title="{escape(s)}">{escape(show_value(s))}</span>')
     if "\n" in s:
         return Markup("<br>".join(escape(x) for x in s.splitlines()))
     return Markup(escape(s))
@@ -62,8 +66,11 @@ def status_class(v: str) -> str:
         return "good"
     if f in NEGATIVE_STATES:
         return "bad"
-    if f in ("gemahnt", "ueberfaellig", "mahnung", "overdue", "pending", "in pruefung", "unfulfilled"):
+    if f in ("gemahnt", "ueberfaellig", "mahnung", "overdue", "pending", "in pruefung", "unfulfilled", "teilbezahlt",
+             "ueberzahlt", "partially paid", "partially_refunded"):
         return "warn"
+    if f in ("offen", "open"):
+        return "info"
     return "info"
 
 
@@ -71,14 +78,17 @@ def input_value(attr: dict, value) -> str:
     if value is None:
         return ""
     k = attr["kind"]
-    if k == "money":
+    num = isinstance(value, (int, float)) and not isinstance(value, bool)
+    if k == "money" and num:
         return f"{float(value):.2f}".replace(".", ",")
-    if k == "number":
+    if k == "number" and num:
         x = float(value)
         return str(int(x)) if x.is_integer() else str(x).replace(".", ",")
-    if k == "percent":
+    if k == "percent" and num:
         x = float(value) * 100
         return (str(int(x)) if abs(x - round(x)) < 1e-9 else f"{x:.1f}".replace(".", ","))
+    if k in ("money", "number", "percent"):
+        return str(value)  # "ca. 50 €" stays what it says
     if k == "date":
         return str(value)[:10]
     if k == "datetime":
@@ -86,23 +96,72 @@ def input_value(attr: dict, value) -> str:
     return str(value)
 
 
-def list_columns(spec: dict, limit: int = 7) -> list[dict]:
-    """The columns a list shows: the most conductive attributes, in their natural order."""
-    attrs = [a for a in spec["attrs"] if not a.get("hidden") and a.get("role") != "notes"]
-    ranked = sorted(attrs, key=lambda a: -(a.get("salience") or 0))
-    keep = ranked[:limit]
+def list_columns(spec: dict, limit: int = 7, pins: dict | None = None) -> list[dict]:
+    """The columns a list shows: what the person pinned, then the most conductive attributes
+    (as of the last growth – between two feedings the list does not rearrange itself)."""
+    pins = pins or {}
+    pinned, unpinned = set(pins.get("pin") or []), set(pins.get("unpin") or [])
+    attrs = [a for a in spec["attrs"] if not a.get("hidden") and a.get("role") != "notes" and a["id"] not in unpinned]
+    paid = any(a["id"] == "pay_state" for a in attrs)
+    if paid:
+        # the payment column says it with money; the stored status only on request
+        attrs = [a for a in attrs if not (a.get("role") == "status" and a["id"] != "pay_state" and a["id"] not in pinned)]
+    sal = {a["id"]: (a.get("salience") or 0) for a in attrs}
+    for k in (spec.get("key"), spec.get("title")):
+        if k in sal:
+            sal[k] = 10.0
+    if spec["kind"] == "transaction":
+        # a transaction is read by its date; an invoice also by when it falls due
+        when = next((a["id"] for a in attrs if a["kind"] in ("date", "datetime") and a.get("role") != "due"), None)
+        if when:
+            sal[when] = max(sal[when], 8.5)
+        due = next((a["id"] for a in attrs if a.get("role") == "due"), None)
+        if due and paid:
+            sal[due] = max(sal[due], 8.0)
+        if paid:
+            # what is owed is the gross amount: it belongs next to "offen"
+            from ..billing import money_fields
+            g = money_fields(spec)["gross"]
+            if g and g["id"] in sal:
+                sal[g["id"]] = max(sal[g["id"]], 8.2)
+    if paid:
+        sal["pay_state"] = sal["pay_open"] = 9.0
+    ranked = sorted(attrs, key=lambda a: (a["id"] not in pinned, -sal[a["id"]]))
+    keep = ranked[:max(limit, len(pinned & set(sal)))]
     order = {a["id"]: i for i, a in enumerate(spec["attrs"])}
     keep.sort(key=lambda a: (0 if a["id"] in (spec.get("key"), spec.get("title")) else 1, order[a["id"]]))
     return keep
 
 
+from ..lexicon import EN_VALUES, show_value  # noqa: E402,F401  (German display of English values)
+
+
+def facet_key(v) -> str:
+    from ..text import fold
+    return " ".join(fold(show_value(v)).split())
+
+
 def facets(rt, spec: dict, recs: list[dict], limit: int = 2) -> list[dict]:
+    """Filter chips. "Café" and "Cafe", "Office" and "Büro" are one chip."""
     out = []
-    cands = [a for a in spec["attrs"] if a.get("enum") and not a.get("hidden") and 2 <= len(a["enum"]) <= 12]
-    cands.sort(key=lambda a: (0 if a.get("role") == "status" else 1, -(a.get("salience") or 0)))
+    cands = [a for a in spec["attrs"] if a.get("enum") and not a.get("hidden") and 2 <= len(a["enum"]) <= 14]
+    if any(a["id"] == "pay_state" for a in cands):
+        cands = [a for a in cands if a["id"] == "pay_state" or a.get("role") != "status"]
+    cands.sort(key=lambda a: (0 if a["id"] == "pay_state" else 1 if a.get("role") == "status" else 2,
+                              -(a.get("salience") or 0)))
     for a in cands[:limit]:
-        cnt = Counter(str(r["data"].get(a["id"])) for r in recs if r["data"].get(a["id"]) is not None)
-        out.append(dict(attr=a, values=cnt.most_common(12)))
+        cnt, label = Counter(), {}
+        variants: dict[str, Counter] = defaultdict(Counter)
+        for r in recs:
+            v = r["data"].get(a["id"])
+            if v is None:
+                continue
+            k = facet_key(v)
+            cnt[k] += 1
+            variants[k][show_value(v)] += 1
+        for k in cnt:
+            label[k] = variants[k].most_common(1)[0][0]
+        out.append(dict(attr=a, values=[(k, label[k], n) for k, n in cnt.most_common(12)]))
     return out
 
 
@@ -149,6 +208,21 @@ def ago(ts: str | None) -> str:
         n = int(s // 86400)
         return "gestern" if n == 1 else f"vor {n} Tagen"
     return t.strftime("%d.%m.%Y")
+
+
+def after_days(n) -> str:
+    """'nach 1 Tag', 'nach 3 Tagen', 'nach 2 Wochen', 'am selben Tag'."""
+    try:
+        n = round(float(n))
+    except (TypeError, ValueError):
+        return str(n)
+    if n <= 0:
+        return "am selben Tag"
+    if n == 1:
+        return "nach 1 Tag"
+    if n >= 21:
+        return f"nach {round(n / 7)} Wochen"
+    return f"nach {n} Tagen"
 
 
 def days_text(n: int) -> str:

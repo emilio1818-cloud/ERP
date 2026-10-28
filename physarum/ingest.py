@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import io
+import itertools
 import json
 import re
 import zipfile
@@ -111,29 +112,69 @@ def read_file(name: str, data: bytes) -> Digest:
 
 # --- text / csv ---------------------------------------------------------------------------------
 
-def _sniff_delimiter(lines: list[str]) -> str | None:
+def _sniff_delimiter(text: str) -> str | None:
+    """The delimiter that gives the longest run of equally wide records. Records, not lines:
+    bank exports put line breaks inside quoted purposes, and many files start with a preamble
+    (bank name, account, period) that has fewer fields than the table below it."""
     best, best_score = None, 0.0
-    sample = [l for l in lines[:60] if l.strip()]
-    if len(sample) < 2:
-        return None
+    head = text[:300000]
     for delim in (";", "\t", ",", "|"):
-        counts = []
-        for l in sample:
-            try:
-                counts.append(len(next(csv.reader([l], delimiter=delim))))
-            except (csv.Error, StopIteration):
-                counts.append(1)
-        common, freq = Counter(counts).most_common(1)[0]
-        if common < 2:
+        try:
+            recs = [r for r in itertools.islice(csv.reader(io.StringIO(head), delimiter=delim), 600)
+                    if any(c.strip() for c in r)]
+        except csv.Error:
             continue
-        score = freq / len(sample) * min(common, 12)
+        if len(recs) < 2:
+            continue
+        counts = Counter(len(r) for r in recs)
+        cands = [(w, f) for w, f in counts.items() if w >= 2]
+        if not cands:
+            continue
+        width, freq = max(cands, key=lambda x: (x[1] * min(x[0], 12), x[0]))
+        run = longest = 0
+        for r in recs:
+            run = run + 1 if width - 1 <= len(r) <= width + 1 else 0
+            longest = max(longest, run)
+        if longest < 2 or (longest < 5 and freq / len(recs) < 0.6):
+            continue
+        score = longest * min(width, 12)
         if score > best_score:
             best, best_score = delim, score
-    if best is None:
-        return None
-    sample_counts = Counter(len(next(csv.reader([l], delimiter=best))) for l in sample)
-    common, freq = sample_counts.most_common(1)[0]
-    return best if freq / len(sample) >= 0.6 else None
+    return best
+
+
+_DEBIT_CREDIT = {"s": -1, "soll": -1, "h": 1, "haben": 1}
+
+
+def _apply_debit_credit(t: "RawTable"):
+    """Bank exports with positive amounts and a separate S/H column: Soll is money going out."""
+    if not t.rows:
+        return
+    width = len(t.columns)
+    for j in range(width):
+        vals = [str(r[j]).strip().casefold() for r in t.rows if j < len(r) and r[j] not in (None, "")]
+        if len(vals) < max(3, 0.9 * len(t.rows)) or not all(v in _DEBIT_CREDIT for v in vals):
+            continue
+        amount = None
+        for k in list(range(j - 1, -1, -1)) + list(range(j + 1, width)):
+            nums = [r[k] for r in t.rows if k < len(r) and r[k] not in (None, "")]
+            ok = sum(1 for v in nums if (isinstance(v, (int, float)) and not isinstance(v, bool))
+                     or parse_number(str(v)) is not None)
+            if nums and ok >= 0.9 * len(nums):
+                amount = k
+                break
+        if amount is None:
+            return
+        for r in t.rows:
+            if j < len(r) and amount < len(r) and _DEBIT_CREDIT.get(str(r[j]).strip().casefold()) == -1:
+                v = r[amount]
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    r[amount] = -abs(v)
+                elif isinstance(v, str) and v.strip() and not v.strip().startswith("-"):
+                    r[amount] = "-" + v.strip()
+        if not str(t.columns[j]).strip():
+            t.columns[j] = "Soll/Haben"
+        return
 
 
 _KV = re.compile(r"^\s*([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß .\-/()&]{0,40}?)\s*:\s+(.*\S)?\s*$")
@@ -190,8 +231,7 @@ def _kv_blocks(text: str) -> RawTable | None:
 
 
 def _read_text(stem: str, text: str, enc: str, ext: str, d: Digest):
-    lines = text.splitlines()
-    delim = _sniff_delimiter(lines) if ext != ".md" else None
+    delim = _sniff_delimiter(text) if ext != ".md" else None
     if delim:
         grid = list(csv.reader(io.StringIO(text), delimiter=delim))
         locale = "de" if delim == ";" else None
@@ -324,7 +364,21 @@ def detect_tables(grid: list[list], name: str, meta: dict) -> list[RawTable]:
         for k, t in enumerate(tables):
             if t.name == name:
                 t.name = f"{name} ({k + 1})"
+    for t in tables:
+        _apply_debit_credit(t)
+        if _is_crosstab(t.columns):
+            t.meta["report"] = "Auswertung"  # months as columns: a pivot of other data, not records
     return tables
+
+
+_PERIOD_HEAD = re.compile(r"^(jan\w*|feb\w*|m[aä]r\w*|apr\w*|mai|may|jun\w*|jul\w*|aug\w*|sep\w*|okt\w*|oct\w*|"
+                          r"nov\w*|dez\w*|dec\w*|q[1-4]|kw\s?\d{1,2}|\d{4}|\d{1,2}/\d{2,4})\.?$", re.I)
+
+
+def _is_crosstab(columns: list) -> bool:
+    heads = [str(c).strip() for c in columns if c is not None and str(c).strip()]
+    periods = sum(1 for h in heads if _PERIOD_HEAD.match(h))
+    return periods >= 3 and periods >= 0.5 * len(heads)
 
 
 def _block_to_table(block, name, meta, pending_title) -> RawTable | None:
@@ -374,6 +428,9 @@ def _block_to_table(block, name, meta, pending_title) -> RawTable | None:
         first_val = next((v for v in r if v is not None), None)
         if lexicon.is_total_label(first_val) and ne <= max(2, int(0.75 * width)):
             totals += 1
+            continue
+        if ne <= max(3, int(0.5 * width)) and any(lexicon.is_balance_label(v) for v in r):
+            totals += 1  # "Anfangssaldo", "Endsaldo", "Übertrag": a statement's balance, not a booking
             continue
         if ne == 1 and width >= 3 and isinstance(r[0], str) and r[0] is first_val and _is_label(r[0]):
             current_section = r[0].strip()

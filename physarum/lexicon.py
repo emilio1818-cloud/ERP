@@ -5,6 +5,8 @@ Terms are folded (see text.fold) and matched against header/file-name tokens.
 """
 from __future__ import annotations
 
+import re
+
 from .text import fold, tokens
 
 # concept -> singular, plural, compound stem, kind, terms (folded; prefix match for terms ending in '*')
@@ -15,7 +17,7 @@ CONCEPTS: dict[str, dict] = {
                          "auftraggeber", "mandant", "mandanten", "account", "accounts"]),
     "lieferant": dict(sg="Lieferant", pl="Lieferanten", stem="Lieferanten", kind="master",
                       terms=["lieferant", "lieferanten", "liefnr", "supplier", "suppliers", "vendor", "vendors",
-                             "kreditor", "kreditoren", "hersteller", "manufacturer", "haendler"]),
+                             "kreditor", "kreditoren", "haendler", "grosshaendler", "grosshandel"]),
     "artikel": dict(sg="Artikel", pl="Artikel", stem="Artikel", kind="master",
                     terms=["artikel", "artnr", "artikelnr", "artikelnummer", "produkt", "produkte", "product",
                            "products", "item", "items", "ware", "waren", "sku", "material", "materialien",
@@ -44,7 +46,7 @@ CONCEPTS: dict[str, dict] = {
                                  "statement", "transactions", "girokonto"]),
     "mitarbeiter": dict(sg="Mitarbeiter", pl="Mitarbeiter", stem="Mitarbeiter", kind="master",
                         terms=["mitarbeiter", "mitarbeiterin", "personal", "employee", "employees", "staff", "team",
-                               "angestellte", "belegschaft"]),
+                               "angestellte", "belegschaft", "resources", "ressourcen", "monteure", "techniker"]),
     "projekt": dict(sg="Projekt", pl="Projekte", stem="Projekt", kind="transaction", party="kunde",
                     terms=["projekt", "projekte", "project", "projects", "baustelle", "baustellen"]),
     "vertrag": dict(sg="Vertrag", pl="Verträge", stem="Vertrags", kind="transaction", party="kunde",
@@ -127,6 +129,10 @@ ROLE_PHRASES: dict[str, str] = {
     "preis kg": "money", "summe eur": "money", "vk netto": "money", "created at": "date", "fulfilled at": "date",
     "customer since": "date", "bezahlt am": "date", "geliefert am": "date", "eingang am": "date",
     "naechste wartung": "due", "letzte wartung": "date", "faellig am": "due",
+    "postal code": "zip", "zip code": "zip", "post code": "zip", "postleitzahl": "zip", "display name": "name",
+    "empfaenger zahlungspflichtiger": "name", "auftraggeber zahlungsempfaenger": "name",
+    "naechster termin": "due", "naechste pruefung": "due", "faellig bis": "due", "wartung faellig": "due",
+    "resource ids": "person", "monteur": "person", "techniker": "person", "bearbeiter": "person",
 }
 
 # words that, in a header, mark the *end* of a process ("Bezahlt am", "Geliefert am")
@@ -208,9 +214,31 @@ def concept_of(text: str) -> str | None:
     return trans[0] if trans else hits[0][1]
 
 
+_re_digit_tail = re.compile(r"(?<=[a-z])\d$")
+_PATH = re.compile(r"[A-Za-z_][A-Za-z0-9_]+(?:\.[A-Za-z_][A-Za-z0-9_]+)+")
+
+
+def json_path(header: str) -> list[str] | None:
+    """'customer.address.postal_code' -> its parts; 'Art.-Nr' or 'z.B.' are not paths."""
+    h = str(header).strip()
+    return h.split(".") if _PATH.fullmatch(h) else None
+_PATH_ID = {"id", "nr", "no", "number", "uuid", "key", "code", "display name", "name"}
+
+
 def header_concept(header: str) -> str | None:
     """Entity concept a column header *refers to*: 'Kd-Nr' -> kunde, 'Lieferant' -> lieferant,
-    'Kundennummer' -> kunde, but 'Kundengruppe' -> None and 'Rechnungsdatum' -> None."""
+    'Kundennummer' -> kunde, but 'Kundengruppe' -> None and 'Rechnungsdatum' -> None.
+    Paths from nested exports ('customer.address.postal_code') speak through their last part:
+    a postal code inside a customer is a postal code, not a customer."""
+    parts = json_path(header)
+    if parts:
+        if len(parts) >= 2:
+            c = header_concept(parts[-1])
+            if c:
+                return c
+            if " ".join(tokens(parts[-1])) in _PATH_ID and len(parts) == 2:
+                return header_concept(parts[-2])
+            return None
     plain = tokens(header, camel=False)
     c = _header_concept(plain)
     if c is None:
@@ -247,8 +275,11 @@ def qualifier_of(text: str) -> str | None:
 
 def header_role(header: str) -> str | None:
     """Role suggested by a column header alone (values may override)."""
-    plain = tokens(header, camel=False)
-    split = tokens(header)
+    parts = json_path(header)
+    if parts:
+        return header_role(parts[-1])
+    plain = [_re_digit_tail.sub("", t) or t for t in tokens(header, camel=False)]  # "Name1", "Strasse2"
+    split = [_re_digit_tail.sub("", t) or t for t in tokens(header)]
     r = _header_role(plain)
     if r is None and split != plain:
         r = _header_role(split)
@@ -310,6 +341,16 @@ def is_total_label(value) -> bool:
     return bool(toks) and toks[0] in TOTAL_WORDS and len(toks) <= 4
 
 
+BALANCE_WORDS = {"anfangssaldo", "endsaldo", "schlusssaldo", "saldovortrag", "kontostand", "saldo", "uebertrag",
+                 "alter saldo", "neuer saldo", "opening balance", "closing balance", "balance"}
+
+
+def is_balance_label(value) -> bool:
+    if not isinstance(value, str) or len(value) > 40:
+        return False
+    return " ".join(tokens(value)) in BALANCE_WORDS
+
+
 def folded_state(v) -> str:
     return fold(str(v)).strip()
 
@@ -364,9 +405,10 @@ def specific_name(text: str, concept: str) -> tuple[str, str] | None:
         c, rest = _compound_concept(f)
         if c != concept or rest:
             continue  # concept not at the end of the word (rest is e.g. "liste")
-        terms = [t for t in CONCEPTS[c]["terms"] if f.endswith(t)]
+        head = {fold(CONCEPTS[c]["sg"]), fold(CONCEPTS[c]["pl"])}
+        terms = [t for t in CONCEPTS[c]["terms"] if f.endswith(t) and (t in head or t[:5] == fold(CONCEPTS[c]["sg"])[:5])]
         if not terms:
-            continue
+            continue  # "Volksbank" ends with a synonym ("bank"), not with the thing itself
         term = min(terms, key=len)  # the base word ("vertraege"), not the compound listed as a synonym
         if len(f) - len(term) < 3:
             continue

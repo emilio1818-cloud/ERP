@@ -61,7 +61,12 @@ def ingest(store: Store, files: list[tuple[str, bytes]], actor: str | None = Non
                     store.set_active(known["id"], True, c)
             out.append(dict(id=known["id"], name=name, new=False))
             continue
-        d = read_file(name, data)  # parsing happens outside the write lock
+        try:
+            d = read_file(name, data)  # parsing happens outside the write lock
+        except Exception as e:  # noqa: BLE001 - one unreadable file must not stop the others
+            from .ingest import Digest
+            d = Digest()
+            d.notes.append(f"Konnte {name} nicht lesen ({type(e).__name__}: {str(e)[:120]}). Die Datei ist aufbewahrt.")
         with store.tx() as c:
             sid, new = store.add_source(name, data, parent_id=parent, actor=actor, c=c)
             if not new:
@@ -146,7 +151,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     for rt_ in raw_tables:
         d = asof_date((rt_["meta"] or {}).get("title")) or asof_date(rt_["source_name"])
         table_time[rt_["id"]] = d.isoformat() if d else (rt_["added_at"] or "")
-    raw = merge_versions(raw_tables)
+    raw = merge_versions([t for t in raw_tables if not (t["meta"] or {}).get("report")])
     del raw_tables
     progress(f"Lese {len(raw)} Tabellen …", 0.05)
     observations: list[Obs] = []
@@ -230,9 +235,10 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     from .physarum import grow_network
     from .process import infer_processes
     records = store.all_records()
-    infer_behavior(model, records)
-    infer_processes(model, records, store)
-    grow_network(model, store)
+    model["errors"] = []
+    _learn(model, "Formeln und Regeln", lambda: infer_behavior(model, records))
+    _learn(model, "Abläufe", lambda: infer_processes(model, records, store))
+    _learn(model, "Netzwerk", lambda: grow_network(model, store))
     progress("Formeln, Abläufe und Rückgrat gelernt", 0.9)
 
     from .reconcile import find_matches
@@ -241,7 +247,8 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         mention_map[r["attr"]][r["to_id"]].append(r["from_id"])
     specs = {t["id"]: t for t in model["types"]}
     titles = {r["id"]: record_title(specs[t], r["data"], r["id"]) for t, rs in records.items() if t in specs for r in rs}
-    matches = find_matches(model, records, mention_map, titles)
+    matches = []
+    _learn(model, "Zahlungsabgleich", lambda: matches.extend(find_matches(model, records, mention_map, titles)))
     progress(f"{len(matches)} Zahlungen ohne Rechnungsnummer über den Betrag zugeordnet (zur Bestätigung)", 0.92)
 
     from .questions import collect_questions
@@ -254,6 +261,17 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         store.kv_set("dirty", False, c)
     progress(f"Fertig in {time.time() - t0:.1f} s. {nq} offene Fragen.", 1.0)
     return summary
+
+
+def _learn(model: dict, what: str, fn):
+    """A learning step that fails is reported, but the model (and with it every record) is still
+    saved: a strange value in one column must not leave the firm without its ERP."""
+    import traceback
+    try:
+        fn()
+    except Exception as e:  # noqa: BLE001 - deliberately broad, see docstring
+        model.setdefault("errors", []).append(dict(step=what, error=f"{type(e).__name__}: {e}",
+                                                   where=traceback.format_exc(limit=3)[-600:]))
 
 
 # --- derived columns ---------------------------------------------------------------------------------

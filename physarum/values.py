@@ -11,14 +11,17 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
+from datetime import time as dtime
 
 from . import lexicon
 from .text import fold, norm_key, tokens
 
 EMPTY = {"", "-", "--", "—", "–", "n/a", "na", "null", "none", "#n/a", "#nv", "nan", "k.a.", "k. a.", "?", "/", "."}
 
-KINDS = ("empty", "bool", "int", "number", "money", "percent", "duration", "date", "datetime", "email", "phone",
-         "url", "iban", "zip", "id", "text")
+KINDS = ("empty", "bool", "int", "number", "money", "percent", "duration", "date", "datetime", "time", "email",
+         "phone", "url", "iban", "zip", "id", "text")
+_TIME = re.compile(r"^([01]?\d|2[0-3])[:.]([0-5]\d)(?::([0-5]\d))?\s*(?:uhr|h)?$", re.I)
+_NUM_PREFIX = re.compile(r"^(?:ca\.?|circa|etwa|rund|pauschal|ab|~|≈)\s*", re.I)
 
 _CURRENCY = re.compile(r"(€|eur\b|euro\b|\$|usd\b|chf\b|£|gbp\b)", re.I)
 _EMAIL = re.compile(r"^[\w.+%'-]+@[\w-]+(\.[\w-]+)*\.[a-z]{2,}$", re.I)
@@ -57,9 +60,28 @@ def is_empty(v) -> bool:
     return False
 
 
+def parse_time(v) -> str | None:
+    """'07:30', '7.30 Uhr', a spreadsheet time cell -> '07:30'."""
+    if isinstance(v, dtime):
+        return v.strftime("%H:%M")
+    if isinstance(v, timedelta):
+        mins = int(v.total_seconds() // 60)
+        return f"{mins // 60:02d}:{mins % 60:02d}" if 0 <= mins < 24 * 60 else None
+    if not isinstance(v, str):
+        return None
+    m = _TIME.match(v.strip())
+    if not m:
+        return None
+    if "." in v and ":" not in v and "uhr" not in v.lower():
+        return None  # "7.30" alone is a number, not a time
+    return f"{int(m.group(1)):02d}:{m.group(2)}"
+
+
 def _clean_num_str(s: str) -> tuple[str, bool, str | None]:
     """Strip currency, spaces and sign markers. Returns (digits_and_separators, negative, currency)."""
-    s = s.strip()
+    s = _NUM_PREFIX.sub("", s.strip())
+    if re.search(r"[,.]-{1,2}\s*(€|eur)?$", s, re.I):
+        s = re.sub(r"([,.])-{1,2}(\s*(€|eur)?)$", r"\g<1>00\2", s, flags=re.I)  # "139,-" is 139,00
     cur = None
     m = _CURRENCY.search(s)
     if m:
@@ -237,10 +259,17 @@ def parse_duration(v) -> int | None:
     if not isinstance(v, str):
         return None
     s = fold(v.strip())
-    if s in ("sofort", "sofort netto", "immediately", "bar", "vorkasse"):
+    if s in ("sofort", "sofort netto", "immediately", "bar", "vorkasse", "zahlbar sofort", "sofort ohne abzug"):
         return 0
     m = _DURATION.match(s)
     if not m:
+        # payment terms: "8 Tage 2 % Skonto, 30 Tage netto", "zahlbar innerhalb 14 Tagen ohne Abzug"
+        net = re.search(r"(\d{1,3})\s*(?:tage?n?|t)\.?\s*(?:rein\s+)?(?:netto|ohne abzug|netto kasse)", s)
+        if net:
+            return int(net.group(1))
+        days = [int(x) for x in re.findall(r"(\d{1,3})\s*(?:tage?n?|t\b)", s)]
+        if days and ("zahlbar" in s or "skonto" in s or "netto" in s or "ziel" in s):
+            return max(days)
         return None
     n = int(m.group(1))
     unit = (m.group(2) or "t")[0]
@@ -342,6 +371,8 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
     if n_nat >= 0.8 * len(present):
         if all(isinstance(v, bool) for v in natives):
             kind = "bool"
+        elif all(isinstance(v, (dtime, timedelta)) for v in natives):
+            kind = "time"
         elif all(isinstance(v, (datetime, date)) for v in natives):
             kind = "datetime" if any(isinstance(v, datetime) and v.time() != time(0, 0) for v in natives) else "date"
         elif all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in natives):
@@ -354,12 +385,16 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
             ("email", lambda x: bool(_EMAIL.match(x))),
             ("url", lambda x: bool(_URL.match(x))),
             ("iban", lambda x: iban_ok(x)),
+            ("time", lambda x: parse_time(x) is not None),
             ("date", lambda x: parse_date(x, p.date_order) is not None),
             ("percent", lambda x: parse_percent(x, p.locale) is not None),
             ("number", lambda x: parse_number(x, p.locale) is not None),
         ]
         for k, pred in tests:
-            if share(pred, s_all[:3000]) >= 0.9:
+            need = 0.9
+            if k == "number" and hrole in ("money", "quantity"):
+                need = 0.6  # "nach Aufwand" in an amount column does not make it text
+            if share(pred, s_all[:3000]) >= need:
                 kind = k
                 break
         if kind == "date":
@@ -531,6 +566,13 @@ def _as_text(v) -> str:
 
 
 def _parse_as(kind: str, v, p: Profile):
+    if kind == "phone" and isinstance(v, (int, float)) and not isinstance(v, bool):
+        digits = str(int(v))  # a spreadsheet ate the leading zero
+        if digits.startswith("49") and len(digits) >= 11:
+            return "+" + digits
+        return digits if digits.startswith("0") else "0" + digits
+    if kind == "time":
+        return parse_time(v)
     if kind in ("text", "id", "phone"):
         return _as_text(v)
     if kind == "email":

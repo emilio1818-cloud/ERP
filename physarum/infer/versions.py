@@ -9,6 +9,7 @@ first version that arrived) gives it its stable name; later versions never renam
 """
 from __future__ import annotations
 
+import re
 from collections import Counter
 from datetime import date, datetime
 
@@ -123,9 +124,12 @@ def merge_group(ts: list[dict]) -> dict:
             info["vanished"] = sorted(set(gone))[:200]
             info["vanished_from"] = newest.get("source_name")
     else:
-        counts = [Counter(_sig(r, volatile) for r in t["rows"]) for t in ts]
+        # sheets of one workbook are parts of one list, not versions of it: count per file
+        per_source: dict = {}
+        for t in ts:
+            per_source.setdefault(t.get("source_id"), Counter()).update(_sig(r, volatile) for r in t["rows"])
         most: Counter = Counter()
-        for cnt in counts:
+        for cnt in per_source.values():
             for h, n in cnt.items():
                 most[h] = max(most[h], n)
         used: Counter = Counter()
@@ -138,7 +142,13 @@ def merge_group(ts: list[dict]) -> dict:
                 else:
                     info["dropped"] += 1
     keep.sort()
-    rows = [ts[n]["rows"][i] for n, i in keep]
+    extra = _sheet_column(ts)
+    if extra:
+        header, per_table = extra
+        columns = list(columns) + [header]
+        rows = [list(ts[n]["rows"][i]) + [per_table[n]] for n, i in keep]
+    else:
+        rows = [ts[n]["rows"][i] for n, i in keep]
     lines = [(ts[n]["id"], ts[n]["lines"][i] if i < len(ts[n]["lines"]) else i + 1) for n, i in keep]
     names = [t["name"] for t in ts]
     stems = {nm.split(" › ")[0] for nm in names}
@@ -149,10 +159,52 @@ def merge_group(ts: list[dict]) -> dict:
     else:
         label = founder["name"]
     srcs = list(dict.fromkeys(t.get("source_name") for t in ts))
-    return dict(founder, name=label, sig_name=founder["name"], rows=rows, lines=lines, tables=[t["id"] for t in ts],
+    return dict(founder, name=label, sig_name=founder["name"], columns=columns, rows=rows, lines=lines,
+                tables=[t["id"] for t in ts],
                 source_id=max(t.get("source_id") or 0 for t in ts), sources=srcs,
                 source_name=srcs[0] if len(srcs) == 1 else f"{srcs[0]} + {len(srcs) - 1} weitere",
                 added_at=max(t.get("added_at") or "" for t in ts), versions=info, key_cols=key)
+
+
+_PERIOD = re.compile(r"^(?:\d{4}|\d{1,2}[./-]?\d{2,4}|q[1-4]|kw\s?\d{1,2}|"
+                     r"jan\w*|feb\w*|m[aä]r\w*|apr\w*|mai|may|jun\w*|jul\w*|aug\w*|sep\w*|okt\w*|oct\w*|"
+                     r"nov\w*|dez\w*|dec\w*)(?:\s+\d{2,4})?$", re.I)
+
+
+def _sheet_column(ts: list[dict]) -> tuple[str, list[str]] | None:
+    """Sheets of one workbook that differ by *who* or *what* (one sheet per fitter, per branch)
+    carry that information in their name or title. Merged into one list, it becomes a column;
+    sheets that are only periods (2025, 2026, Januar) need none, the dates say it."""
+    if len(ts) < 2 or len({t.get("source_id") for t in ts}) != 1 or not all(t.get("sheet") for t in ts):
+        return None
+    sheets = [str(t["sheet"]).strip() for t in ts]
+    if all(_PERIOD.match(x) for x in sheets) or len(set(sheets)) < len(sheets):
+        return None
+    titles = [str((t.get("meta") or {}).get("title") or "") for t in ts]
+    values = sheets
+    if all(titles):
+        pre = _common_prefix(titles)
+        suf = _common_prefix([x[::-1] for x in titles])[::-1]
+        var = [x[len(pre):len(x) - len(suf) if suf else None].strip(" -–—:|,") for x in titles]
+        if all(var) and len(set(var)) == len(var):
+            values = var
+    values = [re.sub(r"\s*\([^)]*\)", "", v).strip() or v for v in values]
+    people = sum(1 for v in values if lexicon.looks_like_person(v))
+    wordy = all(1 <= len(v.split()) <= 3 and not any(ch.isdigit() for ch in v) for v in values)
+    return ("Mitarbeiter" if wordy and people >= 0.5 * len(values) else "Blatt"), values
+
+
+def _common_prefix(xs: list[str]) -> str:
+    if not xs:
+        return ""
+    p = xs[0]
+    for x in xs[1:]:
+        while not x.startswith(p):
+            p = p[:-1]
+            if not p:
+                return ""
+    # do not cut inside a word
+    return p if not p or p[-1] in " -–—:|,(" else p[:max(p.rfind(" "), 0) + 1] if " " in p else ""
 
 
 def merge_versions(raw: list[dict]) -> list[dict]:

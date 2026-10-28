@@ -1,0 +1,992 @@
+"Volksbank Dresden-Bautzen eG"
+
+"Umsatzanzeige"
+
+"BLZ:";"85090000";;"Datum:";"15.10.2026"
+"Konto:";"4471230";;"Uhrzeit:";"07:58:12"
+"Abfrage von:";"Sabine Brenner";;"Kontoinhaber:";"Brenner Haustechnik GmbH"
+
+"Zeitraum:";;"von:";"01.01.2026";"bis:";"30.09.2026"
+"Betrag in EUR:";;"von:";" ";"bis:";" "
+"Sortiert nach:";"Buchungstag";"absteigend"
+
+"Buchungstag";"Valuta";"Auftraggeber/Zahlungsempfänger";"Empfänger/Zahlungspflichtiger";"Konto-Nr.";"IBAN";"BLZ";"BIC";"Vorgang/Verwendungszweck";"Kundenreferenz";"Währung";"Umsatz";" "
+"30.09.2026";"30.09.2026";"Brenner Haustechnik GmbH";"AOK PLUS";"";"DE48860100902039979529";"";"";"Lastschrift
+Beitragsnachweis 09/2026 BNR 12345678";"";"EUR";"7.052,84";"S"
+"30.09.2026";"01.10.2026";"Brenner Haustechnik GmbH";"Thomas Brenner";"";"DE88860100901102726785";"";"";"Lohn/Gehalt
+LOHN/GEHALT 09/2026 PNR 101";"";"EUR";"3.837,50";"S"
+"30.09.2026";"30.09.2026";"Brenner Haustechnik GmbH";"Jens Kowalski";"";"DE49850400008436460547";"";"";"Lohn/Gehalt
+LOHN/GEHALT 09/2026 PNR 103";"";"EUR";"2.450,00";"S"
+"30.09.2026";"30.09.2026";"Brenner Haustechnik GmbH";"Marco Richter";"";"DE16500105177002485391";"";"";"Lohn/Gehalt
+LOHN/GEHALT 09/2026 PNR 104";"";"EUR";"2.332,80";"S"
+"30.09.2026";"30.09.2026";"Brenner Haustechnik GmbH";"Dennis Hoffmann";"";"DE43860100907680956904";"";"";"Lohn/Gehalt
+LOHN/GEHALT 09/2026 PNR 105";"";"EUR";"2.242,80";"S"
+"30.09.2026";"30.09.2026";"Brenner Haustechnik GmbH";"Ayse Yilmaz";"";"DE07120300003840134074";"";"";"Lohn/Gehalt
+LOHN/GEHALT 09/2026 PNR 106";"";"EUR";"2.227,50";"S"
+"30.09.2026";"30.09.2026";"Brenner Haustechnik GmbH";"Sabine Brenner";"";"DE50850503005620975962";"";"";"Lohn/Gehalt
+LOHN/GEHALT 09/2026 PNR 102";"";"EUR";"1.687,50";"S"
+"30.09.2026";"30.09.2026";"Brenner Haustechnik GmbH";"Kevin Schmidt";"";"DE53500105176344352626";"";"";"Lohn/Gehalt
+LOHN/GEHALT 09/2026 PNR 107";"";"EUR";"1.017,50";"S"
+"30.09.2026";"30.09.2026";"Brenner Haustechnik GmbH";"Lukas Weber";"";"DE67850503000187928832";"";"";"Lohn/Gehalt
+LOHN/GEHALT 09/2026 PNR 108";"";"EUR";"820,00";"S"
+"30.09.2026";"30.09.2026";"Brenner Haustechnik GmbH";"VOLKSBANK DRESDEN-BAUTZEN EG";"";"DE92860100901419867437";"";"";"Abschluss
+Kontoführung";"";"EUR";"34,50";"S"
+"30.09.2026";"30.09.2026";"Brenner Haustechnik GmbH";"GASTSTAETTE ZUR LINDE";"";"DE37120300004428678997";"";"";"Gutschrift
+RE-2026-0222";"";"EUR";"165,41";"H"
+"29.09.2026";"29.09.2026";"Brenner Haustechnik GmbH";"Fischer, Susanne";"";"DE93850503002786676995";"";"";"Gutschrift
+SVWZ+RE-2026-0225 EREF+NOTPROVIDED";"";"EUR";"502,18";"H"
+"28.09.2026";"28.09.2026";"Brenner Haustechnik GmbH";"RALF SCHWARZ";"";"DE32850900007043408668";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE-2026-0221";"";"EUR";"561,68";"H"
+"25.09.2026";"25.09.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4719326 KD-NR D-4471";"";"EUR";"848,59";"S"
+"24.09.2026";"24.09.2026";"Brenner Haustechnik GmbH";"HOTEL ELBBLICK GMBH";"";"DE92850200864838570174";"";"";"Gutschrift
+Re 214/2026";"";"EUR";"656,88";"H"
+"23.09.2026";"23.09.2026";"Brenner Haustechnik GmbH";"SIMONE FIEDLER";"";"DE45850400003713553026";"";"";"Überweisungsgutschr.
+Montage Fiedler";"";"EUR";"329,63";"H"
+"22.09.2026";"22.09.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4754437 KD-NR 33810";"";"EUR";"1.428,12";"S"
+"21.09.2026";"21.09.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE37850200869182660680";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"63,21";"S"
+"21.09.2026";"21.09.2026";"Brenner Haustechnik GmbH";"HEIKE MUELLER";"";"DE33850503006702133806";"";"";"SEPA-Gutschrift
+Rg.-Nr. 2026-0219 Kd-Nr. 10131";"";"EUR";"340,94";"H"
+"18.09.2026";"18.09.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4782882 KD-NR D-4471";"";"EUR";"1.818,17";"S"
+"18.09.2026";"18.09.2026";"Brenner Haustechnik GmbH";"MUELLER GMBH + CO. KG";"";"DE89500105174269784460";"";"";"SEPA-Gutschrift
+RE20260210";"";"EUR";"1.112,65";"H"
+"15.09.2026";"15.09.2026";"Brenner Haustechnik GmbH";"DKV EURO SERVICE";"";"DE30850900006287288175";"";"GENODEF1DRS";"Lastschrift
+Tankkarte Abrechnung";"";"EUR";"887,49";"S"
+"14.09.2026";"14.09.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE08850900007782983757";"";"GENODEF1DRS";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"120,11";"S"
+"14.09.2026";"14.09.2026";"Brenner Haustechnik GmbH";"LARS THIELE";"";"DE76850400000145334233";"";"";"Gutschrift
+RE-2026-0212";"";"EUR";"9.068,99";"H"
+"11.09.2026";"14.09.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4726296 KD-NR 33810";"";"EUR";"579,79";"S"
+"11.09.2026";"11.09.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE18120300008796894016";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"80,57";"S"
+"10.09.2026";"10.09.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE10850900008667375013";"";"GENODEF1DRS";"Überweisung
+Lohnsteuer 08/2026 StNr 202/118/54321";"";"EUR";"2.158,20";"S"
+"10.09.2026";"10.09.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE62860100907319074297";"";"";"Überweisung
+USt-VZ 08/2026 StNr 202/118/54321";"";"EUR";"918,42";"S"
+"07.09.2026";"07.09.2026";"Brenner Haustechnik GmbH";"TELEKOM DEUTSCHLAND GMBH";"";"DE58850200863496228817";"";"";"Lastschrift
+Festnetz/Mobil Kd 4455661";"";"EUR";"89,90";"S"
+"07.09.2026";"07.09.2026";"Brenner Haustechnik GmbH";"YVONNE HORN";"";"DE15860100903346208798";"";"";"Überweisungsgutschr.
+Rg.-Nr. 2026-0213 Kd-Nr. 10085";"";"EUR";"165,41";"H"
+"03.09.2026";"03.09.2026";"Brenner Haustechnik GmbH";"ELEKTROGROSSHANDEL NORD";"";"DE20850503005133620760";"";"";"Überweisung
+RG 4765225 KD-NR 10-5588";"";"EUR";"1.400,46";"S"
+"02.09.2026";"03.09.2026";"Brenner Haustechnik GmbH";"ANJA ULLRICH";"";"DE15120300002221687087";"";"";"SEPA-Gutschrift
+Re 206/2026";"";"EUR";"783,02";"H"
+"01.09.2026";"01.09.2026";"Brenner Haustechnik GmbH";"GRUNDSTUECKSVERWALTUNG LEHNERT";"";"DE02850400000427264804";"";"";"Dauerauftrag
+Miete Werkstatt/Lager Hechtstr. 41 09/2026";"";"EUR";"2.150,00";"S"
+"01.09.2026";"01.09.2026";"Brenner Haustechnik GmbH";"ELEKTROGROSSHANDEL NORD";"";"DE20850503005133620760";"";"";"Überweisung
+RG 4792006 KD-NR 10-5588";"";"EUR";"787,82";"S"
+"01.09.2026";"01.09.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE12500105172966765834";"";"";"Lastschrift
+Leasingrate 09/2026 Vertrag 77-101 DD-BH 101";"";"EUR";"489,00";"S"
+"01.09.2026";"01.09.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE89860100901587756158";"";"";"Lastschrift
+Leasingrate 09/2026 Vertrag 77-102 DD-BH 102";"";"EUR";"489,00";"S"
+"01.09.2026";"02.09.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE11850200862234131041";"";"";"Lastschrift
+Leasingrate 09/2026 Vertrag 77-103 DD-BH 103";"";"EUR";"489,00";"S"
+"01.09.2026";"01.09.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE24850900006892127321";"";"GENODEF1DRS";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"10,59";"S"
+"01.09.2026";"01.09.2026";"Brenner Haustechnik GmbH";"PENSION LOSCHWITZ";"";"DE21500105176076461415";"";"";"SEPA-Gutschrift
+SVWZ+RE-2026-0211 EREF+NOTPROVIDED abzgl. 2% Skonto";"";"EUR";"520,13";"H"
+"01.09.2026";"01.09.2026";"Brenner Haustechnik GmbH";"Engel, Grit";"";"DE50850900002581916333";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE-2026-0203";"";"EUR";"8.366,89";"H"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"AOK PLUS";"";"DE17860100908482441794";"";"";"Lastschrift
+Beitragsnachweis 08/2026 BNR 12345678";"";"EUR";"6.894,41";"S"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"Thomas Brenner";"";"DE96500105176149810883";"";"";"Lohn/Gehalt
+LOHN/GEHALT 08/2026 PNR 101";"";"EUR";"3.837,50";"S"
+"31.08.2026";"01.09.2026";"Brenner Haustechnik GmbH";"Jens Kowalski";"";"DE76120300003828058078";"";"";"Lohn/Gehalt
+LOHN/GEHALT 08/2026 PNR 103";"";"EUR";"2.502,80";"S"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"Marco Richter";"";"DE96500105174396748313";"";"";"Lohn/Gehalt
+LOHN/GEHALT 08/2026 PNR 104";"";"EUR";"2.317,50";"S"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"Dennis Hoffmann";"";"DE49500105178299637667";"";"";"Lohn/Gehalt
+LOHN/GEHALT 08/2026 PNR 105";"";"EUR";"2.190,00";"S"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"Ayse Yilmaz";"";"DE91850900001927995236";"";"GENODEF1DRS";"Lohn/Gehalt
+LOHN/GEHALT 08/2026 PNR 106";"";"EUR";"2.190,00";"S"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4739920 KD-NR 33810";"";"EUR";"2.019,01";"S"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"Sabine Brenner";"";"DE98850503002917841760";"";"";"Lohn/Gehalt
+LOHN/GEHALT 08/2026 PNR 102";"";"EUR";"1.687,50";"S"
+"31.08.2026";"01.09.2026";"Brenner Haustechnik GmbH";"Kevin Schmidt";"";"DE23850200864228235776";"";"";"Lohn/Gehalt
+LOHN/GEHALT 08/2026 PNR 107";"";"EUR";"1.032,80";"S"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"Lukas Weber";"";"DE29850400002146603771";"";"";"Lohn/Gehalt
+LOHN/GEHALT 08/2026 PNR 108";"";"EUR";"872,80";"S"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"VOLKSBANK DRESDEN-BAUTZEN EG";"";"DE26850900003122048364";"";"GENODEF1DRS";"Abschluss
+Kontoführung";"";"EUR";"34,50";"S"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"IMMOBILIENVERWALTUNG WEISSE";"";"DE58500105174845096965";"";"";"Gutschrift
+SVWZ+RE-2026-0195 EREF+NOTPROVIDED";"";"EUR";"165,41";"H"
+"31.08.2026";"31.08.2026";"Brenner Haustechnik GmbH";"Ebert, Ute";"";"DE28500105179943172483";"";"";"SEPA-Gutschrift
+Heizungstausch Ebert";"";"EUR";"7.775,46";"H"
+"28.08.2026";"28.08.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4726991 KD-NR D-4471";"";"EUR";"3.373,69";"S"
+"28.08.2026";"28.08.2026";"Brenner Haustechnik GmbH";"FLEISCHEREI GEISSLER GMBH";"";"DE42850503004843859442";"";"";"SEPA-Gutschrift
+Wartung Fleischerei";"";"EUR";"165,41";"H"
+"26.08.2026";"26.08.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE18500105175856014613";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"20,00";"S"
+"25.08.2026";"25.08.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4727722 KD-NR 33810";"";"EUR";"1.510,90";"S"
+"25.08.2026";"25.08.2026";"Brenner Haustechnik GmbH";"CAFÉ NEUSTADT UG";"";"DE27850900004681428882";"";"GENODEF1DRS";"Gutschrift
+Reparatur Café abzgl. 2% Skonto";"";"EUR";"344,03";"H"
+"25.08.2026";"25.08.2026";"Brenner Haustechnik GmbH";"STAEDTISCHE WOHNUNGSGESELLS";"";"DE82850503000277235104";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0189 vom 24.07.2026";"";"EUR";"680,09";"H"
+"24.08.2026";"24.08.2026";"Brenner Haustechnik GmbH";"STEUERBUERO ULLRICH";"";"DE86850900005203477746";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE-2026-0199";"";"EUR";"165,41";"H"
+"24.08.2026";"25.08.2026";"Brenner Haustechnik GmbH";"LARS THIELE";"";"DE76850400000145334233";"";"";"Gutschrift
+RE20260198";"";"EUR";"5.950,00";"H"
+"20.08.2026";"20.08.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4723125 KD-NR D-4471";"";"EUR";"1.098,64";"S"
+"19.08.2026";"19.08.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4748860 KD-NR 33810";"";"EUR";"2.931,44";"S"
+"19.08.2026";"19.08.2026";"Brenner Haustechnik GmbH";"SPORTVEREIN BLAU-WEISS DRES";"";"DE86500105171968895238";"";"";"SEPA-Gutschrift
+RE-2026-0205";"";"EUR";"543,24";"H"
+"18.08.2026";"18.08.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE78850400009332552621";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"71,31";"S"
+"18.08.2026";"18.08.2026";"Brenner Haustechnik GmbH";"YVONNE HORN";"";"DE15860100903346208798";"";"";"Gutschrift
+RE-2026-0192";"";"EUR";"698,53";"H"
+"17.08.2026";"17.08.2026";"Brenner Haustechnik GmbH";"DKV EURO SERVICE";"";"DE04500105177187546766";"";"";"Lastschrift
+Tankkarte Abrechnung";"";"EUR";"1.086,20";"S"
+"17.08.2026";"17.08.2026";"Brenner Haustechnik GmbH";"WEINSTUBE RADEBEUL";"";"DE94850900003082304203";"";"GENODEF1DRS";"SEPA-Gutschrift
+Wartung Weinstube";"";"EUR";"189,21";"H"
+"17.08.2026";"17.08.2026";"Brenner Haustechnik GmbH";"HOTEL ELBBLICK GMBH";"";"DE92850200864838570174";"";"";"Überweisungsgutschr.
+RE-2026-0200";"";"EUR";"666,40";"H"
+"14.08.2026";"14.08.2026";"Brenner Haustechnik GmbH";"ELEKTROGROSSHANDEL NORD";"";"DE20850503005133620760";"";"";"Überweisung
+RG 4713949 KD-NR 10-5588";"";"EUR";"581,83";"S"
+"12.08.2026";"12.08.2026";"Brenner Haustechnik GmbH";"SCHRAUBEN-WOLF GMBH";"";"DE15850503004357181634";"";"";"Überweisung
+RG 4723631 KD-NR 883 112";"";"EUR";"2.992,83";"S"
+"12.08.2026";"12.08.2026";"Brenner Haustechnik GmbH";"YVONNE WAGNER";"";"DE10500105174239258915";"";"";"Überweisungsgutschr.
+Montage Wagner";"";"EUR";"923,44";"H"
+"11.08.2026";"11.08.2026";"Brenner Haustechnik GmbH";"APOTHEKE AM BISCHOFSPLATZ";"";"DE94850400001069543992";"";"";"SEPA-Gutschrift
+RE-2026-0187";"";"EUR";"439,11";"H"
+"11.08.2026";"11.08.2026";"Brenner Haustechnik GmbH";"UWE GRAFE";"";"DE78850200863748193232";"";"";"SEPA-Gutschrift
+RE-2026-0186";"";"EUR";"1.261,40";"H"
+"10.08.2026";"10.08.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE98850900009579975134";"";"GENODEF1DRS";"Überweisung
+Lohnsteuer 07/2026 StNr 202/118/54321";"";"EUR";"2.180,64";"S"
+"10.08.2026";"10.08.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE12850900001241005992";"";"GENODEF1DRS";"Überweisung
+USt-VZ 07/2026 StNr 202/118/54321";"";"EUR";"1.976,85";"S"
+"10.08.2026";"10.08.2026";"Brenner Haustechnik GmbH";"GASTSTAETTE ZUR LINDE";"";"DE37120300004428678997";"";"";"Gutschrift
+Wartung Gaststätte";"";"EUR";"165,41";"H"
+"10.08.2026";"10.08.2026";"Brenner Haustechnik GmbH";"Franke, Mirko";"";"DE56850200862237847174";"";"";"Gutschrift
+Rg.-Nr. 2026-0196 Kd-Nr. 10003";"";"EUR";"165,41";"H"
+"10.08.2026";"10.08.2026";"Brenner Haustechnik GmbH";"FLEISCHEREI GEISSLER GMBH";"";"DE42850503004843859442";"";"";"Gutschrift
+Wartung Fleischerei";"";"EUR";"177,31";"H"
+"10.08.2026";"11.08.2026";"Brenner Haustechnik GmbH";"WOHNUNGSBAUGENOSSENSCHAFT J";"";"DE86850900009235633692";"";"GENODEF1DRS";"Gutschrift
+Re 183/2026";"";"EUR";"602,14";"H"
+"07.08.2026";"07.08.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4729558 KD-NR 33810";"";"EUR";"3.416,91";"S"
+"07.08.2026";"07.08.2026";"Brenner Haustechnik GmbH";"ELEKTRO MUELLER E.K.";"";"DE04500105179060352441";"";"";"SEPA-Gutschrift
+RE20260184";"";"EUR";"173,74";"H"
+"07.08.2026";"07.08.2026";"Brenner Haustechnik GmbH";"DRUCKEREI LINDNER GMBH";"";"DE10860100909912802659";"";"";"Überweisungsgutschr.
+RE-2026-0194";"";"EUR";"698,53";"H"
+"06.08.2026";"06.08.2026";"Brenner Haustechnik GmbH";"IMMOBILIENVERWALTUNG WEISSE";"";"DE58500105174845096965";"";"";"Gutschrift
+Rg.-Nr. 2026-0172 Kd-Nr. 10013";"";"EUR";"447,44";"H"
+"05.08.2026";"05.08.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4768149 KD-NR D-4471";"";"EUR";"3.762,16";"S"
+"05.08.2026";"06.08.2026";"Brenner Haustechnik GmbH";"TELEKOM DEUTSCHLAND GMBH";"";"DE25860100900888847575";"";"";"Lastschrift
+Festnetz/Mobil Kd 4455661";"";"EUR";"89,90";"S"
+"05.08.2026";"05.08.2026";"Brenner Haustechnik GmbH";"WEINSTUBE RADEBEUL";"";"DE94850900003082304203";"";"GENODEF1DRS";"SEPA-Gutschrift
+Rechnung RE-2026-0188 vom 23.07.2026";"";"EUR";"165,41";"H"
+"03.08.2026";"03.08.2026";"Brenner Haustechnik GmbH";"GRUNDSTUECKSVERWALTUNG LEHNERT";"";"DE33860100904262914734";"";"";"Dauerauftrag
+Miete Werkstatt/Lager Hechtstr. 41 08/2026";"";"EUR";"2.150,00";"S"
+"03.08.2026";"03.08.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE38850400001593365758";"";"";"Lastschrift
+Leasingrate 08/2026 Vertrag 77-101 DD-BH 101";"";"EUR";"489,00";"S"
+"03.08.2026";"04.08.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE83850200864482020937";"";"";"Lastschrift
+Leasingrate 08/2026 Vertrag 77-102 DD-BH 102";"";"EUR";"489,00";"S"
+"03.08.2026";"03.08.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE74120300003039976570";"";"";"Lastschrift
+Leasingrate 08/2026 Vertrag 77-103 DD-BH 103";"";"EUR";"489,00";"S"
+"03.08.2026";"03.08.2026";"Brenner Haustechnik GmbH";"Jana Heinrich";"";"DE41860100907047264185";"";"";"Gutschrift
+Wartung Heinrich";"";"EUR";"165,41";"H"
+"03.08.2026";"04.08.2026";"Brenner Haustechnik GmbH";"RESTAURANT ZUM GOLDENEN ANK";"";"DE45850900007567551426";"";"GENODEF1DRS";"SEPA-Gutschrift
+SVWZ+RE-2026-0181 EREF+NOTPROVIDED";"";"EUR";"224,91";"H"
+"03.08.2026";"04.08.2026";"Brenner Haustechnik GmbH";"Steffi Fiedler";"";"DE86850200865216117562";"";"";"Gutschrift
+Badsanierung Fiedler";"";"EUR";"7.569,59";"H"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"AOK PLUS";"";"DE56850900005681730675";"";"GENODEF1DRS";"Lastschrift
+Beitragsnachweis 07/2026 BNR 12345678";"";"EUR";"6.575,93";"S"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"Thomas Brenner";"";"DE80120300009004984478";"";"";"Lohn/Gehalt
+LOHN/GEHALT 07/2026 PNR 101";"";"EUR";"3.800,00";"S"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"Jens Kowalski";"";"DE91850503002570159257";"";"";"Lohn/Gehalt
+LOHN/GEHALT 07/2026 PNR 103";"";"EUR";"2.450,00";"S"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"Marco Richter";"";"DE90860100907191833073";"";"";"Lohn/Gehalt
+LOHN/GEHALT 07/2026 PNR 104";"";"EUR";"2.317,50";"S"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"Ayse Yilmaz";"";"DE93850400008658648731";"";"";"Lohn/Gehalt
+LOHN/GEHALT 07/2026 PNR 106";"";"EUR";"2.242,80";"S"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"Dennis Hoffmann";"";"DE48850900005175675320";"";"GENODEF1DRS";"Lohn/Gehalt
+LOHN/GEHALT 07/2026 PNR 105";"";"EUR";"2.190,00";"S"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"Sabine Brenner";"";"DE26860100901547132237";"";"";"Lohn/Gehalt
+LOHN/GEHALT 07/2026 PNR 102";"";"EUR";"1.702,80";"S"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"Kevin Schmidt";"";"DE03860100905384677982";"";"";"Lohn/Gehalt
+LOHN/GEHALT 07/2026 PNR 107";"";"EUR";"980,00";"S"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"Lukas Weber";"";"DE43850503007172253147";"";"";"Lohn/Gehalt
+LOHN/GEHALT 07/2026 PNR 108";"";"EUR";"857,50";"S"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"VOLKSBANK DRESDEN-BAUTZEN EG";"";"DE47850200865859798333";"";"";"Abschluss
+Kontoführung";"";"EUR";"34,50";"S"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"SUSANNE MEIER";"";"DE17850503004507661675";"";"";"SEPA-Gutschrift
+RE-2026-0180";"";"EUR";"165,41";"H"
+"31.07.2026";"03.08.2026";"Brenner Haustechnik GmbH";"PETER SCHMIDT";"";"DE95120300000976598109";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0176 vom 13.07.2026";"";"EUR";"775,88";"H"
+"31.07.2026";"31.07.2026";"Brenner Haustechnik GmbH";"Jana Heinrich";"";"DE41860100907047264185";"";"";"Überweisungsgutschr.
+Rg.-Nr. 2026-0177 Kd-Nr. 10105";"";"EUR";"2.007,53";"H"
+"28.07.2026";"28.07.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4747770 KD-NR 33810";"";"EUR";"3.142,71";"S"
+"28.07.2026";"28.07.2026";"Brenner Haustechnik GmbH";"KERSTIN SCHROEDER";"";"DE67850503004773700638";"";"";"Gutschrift
+RE20260179";"";"EUR";"145,18";"H"
+"28.07.2026";"29.07.2026";"Brenner Haustechnik GmbH";"Ebert, Ute";"";"DE28500105179943172483";"";"";"Gutschrift
+RE-2026-0174";"";"EUR";"5.117,00";"H"
+"27.07.2026";"27.07.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4708902 KD-NR 33810";"";"EUR";"1.530,86";"S"
+"27.07.2026";"27.07.2026";"Brenner Haustechnik GmbH";"HAUSVERWALTUNG SCHULZE UND PARTNER";"";"DE75860100903036376720";"";"";"Gutschrift
+RE-2026-0160";"";"EUR";"165,41";"H"
+"27.07.2026";"28.07.2026";"Brenner Haustechnik GmbH";"Neumann, Nadine";"";"DE17850200865675782598";"";"";"Gutschrift
+Re 171/2026";"";"EUR";"478,38";"H"
+"27.07.2026";"27.07.2026";"Brenner Haustechnik GmbH";"Wagner, Martin";"";"DE21850200863262677733";"";"";"Gutschrift
+RE-2026-0175";"";"EUR";"1.154,30";"H"
+"24.07.2026";"24.07.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4786496 KD-NR D-4471";"";"EUR";"3.516,40";"S"
+"24.07.2026";"27.07.2026";"Brenner Haustechnik GmbH";"Susanne Pohl";"";"DE55860100907374285562";"";"";"Überweisungsgutschr.
+Reparatur Pohl";"";"EUR";"132,09";"H"
+"24.07.2026";"24.07.2026";"Brenner Haustechnik GmbH";"HAUSVERWALTUNG SCHULZE UND PARTNER";"";"DE75860100903036376720";"";"";"Überweisungsgutschr.
+RE-2026-0170";"";"EUR";"177,31";"H"
+"23.07.2026";"24.07.2026";"Brenner Haustechnik GmbH";"Kerstin Kretschmar";"";"DE67850503005167612012";"";"";"Überweisungsgutschr.
+Re 182/2026";"";"EUR";"24,51";"H"
+"23.07.2026";"23.07.2026";"Brenner Haustechnik GmbH";"FRISEURSALON HAARMONIE";"";"DE40850400006630184909";"";"";"SEPA-Gutschrift
+RE-2026-0173";"";"EUR";"315,35";"H"
+"23.07.2026";"23.07.2026";"Brenner Haustechnik GmbH";"WOHNUNGSGENOSSENSCHAFT ELBTAL EG";"";"DE81860100904126085961";"";"";"SEPA-Gutschrift
+RE-2026-0158";"";"EUR";"336,77";"H"
+"17.07.2026";"17.07.2026";"Brenner Haustechnik GmbH";"Florian Lange";"";"DE88120300008071692141";"";"";"Überweisungsgutschr.
+Rg.-Nr. 2026-0178 Kd-Nr. 10126";"";"EUR";"165,41";"H"
+"15.07.2026";"15.07.2026";"Brenner Haustechnik GmbH";"DKV EURO SERVICE";"";"DE53500105171178772438";"";"";"Lastschrift
+Tankkarte Abrechnung";"";"EUR";"1.328,33";"S"
+"15.07.2026";"15.07.2026";"Brenner Haustechnik GmbH";"SV SACHSEN VERSICHERUNG AG";"";"DE77850200864921873753";"";"";"Lastschrift
+Kfz-Versicherung 3 Fzg";"";"EUR";"1.284,00";"S"
+"15.07.2026";"15.07.2026";"Brenner Haustechnik GmbH";"SV SACHSEN VERSICHERUNG AG";"";"DE82850200868215288376";"";"";"Lastschrift
+Betriebshaftpflicht Q";"";"EUR";"612,40";"S"
+"14.07.2026";"14.07.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4783322 KD-NR D-4471";"";"EUR";"896,94";"S"
+"14.07.2026";"14.07.2026";"Brenner Haustechnik GmbH";"IMMOBILIENVERWALTUNG WEISSE";"";"DE58500105174845096965";"";"";"SEPA-Gutschrift
+RE-2026-0159";"";"EUR";"297,50";"H"
+"13.07.2026";"13.07.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE67850503005446900426";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"43,72";"S"
+"13.07.2026";"13.07.2026";"Brenner Haustechnik GmbH";"WOHNUNGSGENOSSENSCHAFT ELBTAL EG";"";"DE81860100904126085961";"";"";"SEPA-Gutschrift
+Wartung Wohnungsgenossenschaft";"";"EUR";"165,41";"H"
+"13.07.2026";"14.07.2026";"Brenner Haustechnik GmbH";"Engel, Grit";"";"DE50850900002581916333";"";"GENODEF1DRS";"Überweisungsgutschr.
+Rechnung RE-2026-0161 vom 25.06.2026";"";"EUR";"5.593,00";"H"
+"10.07.2026";"10.07.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE66850900008856324573";"";"GENODEF1DRS";"Überweisung
+Lohnsteuer 06/2026 StNr 202/118/54321";"";"EUR";"2.101,70";"S"
+"10.07.2026";"10.07.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE51860100900548609325";"";"";"Überweisung
+USt-VZ 06/2026 StNr 202/118/54321";"";"EUR";"1.930,85";"S"
+"10.07.2026";"10.07.2026";"Brenner Haustechnik GmbH";"HAUSVERWALTUNG SCHULZE UND PARTNER";"";"DE75860100903036376720";"";"";"Gutschrift
+RE-2026-0154";"";"EUR";"715,19";"H"
+"10.07.2026";"10.07.2026";"Brenner Haustechnik GmbH";"UWE SEIDEL";"";"DE79860100908613955412";"";"";"SEPA-Gutschrift
+RE-2026-0169";"";"EUR";"9.467,64";"H"
+"09.07.2026";"09.07.2026";"Brenner Haustechnik GmbH";"HEIKE MUELLER";"";"DE15850200868852246581";"";"";"Überweisungsgutschr.
+Rg.-Nr. 2026-0167 Kd-Nr. 10088";"";"EUR";"120,19";"H"
+"08.07.2026";"08.07.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE32850200866341526502";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"56,49";"S"
+"07.07.2026";"07.07.2026";"Brenner Haustechnik GmbH";"STEFFI BOEHME";"";"DE02850503004021350020";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0155 vom 18.06.2026";"";"EUR";"1.331,61";"H"
+"06.07.2026";"06.07.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4797777 KD-NR 33810";"";"EUR";"1.594,17";"S"
+"06.07.2026";"06.07.2026";"Brenner Haustechnik GmbH";"TELEKOM DEUTSCHLAND GMBH";"";"DE13850200863949573871";"";"";"Lastschrift
+Festnetz/Mobil Kd 4455661";"";"EUR";"89,90";"S"
+"06.07.2026";"06.07.2026";"Brenner Haustechnik GmbH";"Mirko Vogel";"";"DE20850400003773995922";"";"";"SEPA-Gutschrift
+RE-2026-0163";"";"EUR";"837,76";"H"
+"06.07.2026";"06.07.2026";"Brenner Haustechnik GmbH";"FLEISCHEREI GEISSLER GMBH";"";"DE42850503004843859442";"";"";"SEPA-Gutschrift
+Re 166/2026";"";"EUR";"1.344,70";"H"
+"03.07.2026";"03.07.2026";"Brenner Haustechnik GmbH";"MUELLER GMBH + CO. KG";"";"DE89500105174269784460";"";"";"SEPA-Gutschrift
+RE-2026-0162";"";"EUR";"8.821,47";"H"
+"02.07.2026";"02.07.2026";"Brenner Haustechnik GmbH";"ANDRE KAISER FLIESENLEGERMEISTER";"";"DE55850200865863947364";"";"";"Überweisung
+RG 4711536 KD-NR —";"";"EUR";"2.037,63";"S"
+"01.07.2026";"01.07.2026";"Brenner Haustechnik GmbH";"GRUNDSTUECKSVERWALTUNG LEHNERT";"";"DE41850400006976622525";"";"";"Dauerauftrag
+Miete Werkstatt/Lager Hechtstr. 41 07/2026";"";"EUR";"2.150,00";"S"
+"01.07.2026";"02.07.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE28850503009901891811";"";"";"Lastschrift
+Leasingrate 07/2026 Vertrag 77-101 DD-BH 101";"";"EUR";"489,00";"S"
+"01.07.2026";"01.07.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE53500105177137009272";"";"";"Lastschrift
+Leasingrate 07/2026 Vertrag 77-102 DD-BH 102";"";"EUR";"489,00";"S"
+"01.07.2026";"01.07.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE69850200862175409301";"";"";"Lastschrift
+Leasingrate 07/2026 Vertrag 77-103 DD-BH 103";"";"EUR";"489,00";"S"
+"01.07.2026";"01.07.2026";"Brenner Haustechnik GmbH";"SUSANNE HAASE";"";"DE60850900002019251551";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE20260164";"";"EUR";"129,71";"H"
+"01.07.2026";"01.07.2026";"Brenner Haustechnik GmbH";"Berger, Gerd";"";"DE60120300009346526785";"";"";"Gutschrift
+Montage Berger";"";"EUR";"505,75";"H"
+"30.06.2026";"01.07.2026";"Brenner Haustechnik GmbH";"AOK PLUS";"";"DE65850400004981007822";"";"";"Lastschrift
+Beitragsnachweis 06/2026 BNR 12345678";"";"EUR";"7.016,31";"S"
+"30.06.2026";"30.06.2026";"Brenner Haustechnik GmbH";"Thomas Brenner";"";"DE51860100903404153137";"";"";"Lohn/Gehalt
+LOHN/GEHALT 06/2026 PNR 101";"";"EUR";"3.800,00";"S"
+"30.06.2026";"30.06.2026";"Brenner Haustechnik GmbH";"Jens Kowalski";"";"DE39850900006447229955";"";"GENODEF1DRS";"Lohn/Gehalt
+LOHN/GEHALT 06/2026 PNR 103";"";"EUR";"2.450,00";"S"
+"30.06.2026";"30.06.2026";"Brenner Haustechnik GmbH";"Marco Richter";"";"DE24860100906025072283";"";"";"Lohn/Gehalt
+LOHN/GEHALT 06/2026 PNR 104";"";"EUR";"2.280,00";"S"
+"30.06.2026";"30.06.2026";"Brenner Haustechnik GmbH";"Dennis Hoffmann";"";"DE26850200867157202811";"";"";"Lohn/Gehalt
+LOHN/GEHALT 06/2026 PNR 105";"";"EUR";"2.190,00";"S"
+"30.06.2026";"30.06.2026";"Brenner Haustechnik GmbH";"Ayse Yilmaz";"";"DE47860100903634316652";"";"";"Lohn/Gehalt
+LOHN/GEHALT 06/2026 PNR 106";"";"EUR";"2.190,00";"S"
+"30.06.2026";"30.06.2026";"Brenner Haustechnik GmbH";"Sabine Brenner";"";"DE26500105178319637153";"";"";"Lohn/Gehalt
+LOHN/GEHALT 06/2026 PNR 102";"";"EUR";"1.702,80";"S"
+"30.06.2026";"30.06.2026";"Brenner Haustechnik GmbH";"Kevin Schmidt";"";"DE91850200862244562339";"";"";"Lohn/Gehalt
+LOHN/GEHALT 06/2026 PNR 107";"";"EUR";"1.017,50";"S"
+"30.06.2026";"30.06.2026";"Brenner Haustechnik GmbH";"Lukas Weber";"";"DE67120300007869374769";"";"";"Lohn/Gehalt
+LOHN/GEHALT 06/2026 PNR 108";"";"EUR";"820,00";"S"
+"30.06.2026";"30.06.2026";"Brenner Haustechnik GmbH";"VOLKSBANK DRESDEN-BAUTZEN EG";"";"DE67120300003202015681";"";"";"Abschluss
+Kontoführung";"";"EUR";"34,50";"S"
+"29.06.2026";"29.06.2026";"Brenner Haustechnik GmbH";"RESTAURANT ZUM GOLDENEN ANK";"";"DE45850900007567551426";"";"GENODEF1DRS";"SEPA-Gutschrift
+RE-2026-0150";"";"EUR";"177,31";"H"
+"29.06.2026";"29.06.2026";"Brenner Haustechnik GmbH";"HAUSVERWALTUNG KROEBER";"";"DE14850503008970071942";"";"";"Gutschrift
+RE-2026-0137";"";"EUR";"224,91";"H"
+"29.06.2026";"29.06.2026";"Brenner Haustechnik GmbH";"WOHNUNGSBAUGENOSSENSCHAFT J";"";"DE86850900009235633692";"";"GENODEF1DRS";"Gutschrift
+Rg.-Nr. 2026-0148 Kd-Nr. 10056";"";"EUR";"226,10";"H"
+"29.06.2026";"29.06.2026";"Brenner Haustechnik GmbH";"YVONNE WAGNER";"";"DE10500105174239258915";"";"";"SEPA-Gutschrift
+RE-2026-0146";"";"EUR";"299,29";"H"
+"26.06.2026";"29.06.2026";"Brenner Haustechnik GmbH";"CAFÉ NEUSTADT UG";"";"DE27850900004681428882";"";"GENODEF1DRS";"SEPA-Gutschrift
+SVWZ+RE-2026-0156 EREF+NOTPROVIDED abzgl. 2% Skonto";"";"EUR";"162,10";"H"
+"26.06.2026";"26.06.2026";"Brenner Haustechnik GmbH";"SENIORENRESIDENZ AM GROSSEN";"";"DE50850900007400269986";"";"GENODEF1DRS";"Überweisungsgutschr.
+Re 157/2026 abzgl. 2% Skonto";"";"EUR";"162,10";"H"
+"25.06.2026";"25.06.2026";"Brenner Haustechnik GmbH";"SANDRA SCHROEDER";"";"DE86850503000646429739";"";"";"Gutschrift
+Re 151/2026";"";"EUR";"861,56";"H"
+"25.06.2026";"25.06.2026";"Brenner Haustechnik GmbH";"OPTIK HAUBOLD E.K.";"";"DE96500105171153357470";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0144 vom 04.06.2026";"";"EUR";"1.007,93";"H"
+"24.06.2026";"24.06.2026";"Brenner Haustechnik GmbH";"SCHRAUBEN-WOLF GMBH";"";"DE15850503004357181634";"";"";"Überweisung
+RG 4710075 KD-NR 883 112";"";"EUR";"2.242,33";"S"
+"24.06.2026";"24.06.2026";"Brenner Haustechnik GmbH";"HOSTEL NEUSTADT GMBH";"";"DE56850900006153446719";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE-2026-0147";"";"EUR";"189,21";"H"
+"24.06.2026";"24.06.2026";"Brenner Haustechnik GmbH";"BLUMEN KRETSCHMAR";"";"DE50500105176411406355";"";"";"SEPA-Gutschrift
+RE-2026-0145";"";"EUR";"1.370,88";"H"
+"23.06.2026";"23.06.2026";"Brenner Haustechnik GmbH";"HAUSVERWALTUNG SCHULZE UND PARTNER";"";"DE75860100903036376720";"";"";"Überweisungsgutschr.
+Rg.-Nr. 2026-0140 Kd-Nr. 10008";"";"EUR";"189,21";"H"
+"23.06.2026";"23.06.2026";"Brenner Haustechnik GmbH";"Uhlig, Matthias";"";"DE49120300008644123793";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0142 vom 03.06.2026";"";"EUR";"197,54";"H"
+"23.06.2026";"23.06.2026";"Brenner Haustechnik GmbH";"Steffi Fiedler";"";"DE86850200865216117562";"";"";"SEPA-Gutschrift
+Badsanierung Fiedler";"";"EUR";"4.998,00";"H"
+"22.06.2026";"22.06.2026";"Brenner Haustechnik GmbH";"SIMONE FIEDLER";"";"DE45850400003713553026";"";"";"Überweisungsgutschr.
+Rechnung RE-2026-0143 vom 03.06.2026";"";"EUR";"165,41";"H"
+"22.06.2026";"22.06.2026";"Brenner Haustechnik GmbH";"Kerstin Kretschmar";"";"DE67850503005167612012";"";"";"SEPA-Gutschrift
+RE-2026-0138";"";"EUR";"224,91";"H"
+"18.06.2026";"18.06.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4707685 KD-NR 33810";"";"EUR";"1.174,54";"S"
+"18.06.2026";"18.06.2026";"Brenner Haustechnik GmbH";"HOSTEL NEUSTADT GMBH";"";"DE56850900006153446719";"";"GENODEF1DRS";"Gutschrift
+Re 134/2026";"";"EUR";"165,41";"H"
+"17.06.2026";"17.06.2026";"Brenner Haustechnik GmbH";"Heinrich, Steffi";"";"DE81850503007555759908";"";"";"SEPA-Gutschrift
+RE-2026-0141";"";"EUR";"165,41";"H"
+"16.06.2026";"16.06.2026";"Brenner Haustechnik GmbH";"WOHNUNGSBAUGENOSSENSCHAFT J";"";"DE86850900009235633692";"";"GENODEF1DRS";"SEPA-Gutschrift
+RE-2026-0125";"";"EUR";"668,78";"H"
+"15.06.2026";"15.06.2026";"Brenner Haustechnik GmbH";"DKV EURO SERVICE";"";"DE66860100905793834294";"";"";"Lastschrift
+Tankkarte Abrechnung";"";"EUR";"1.273,50";"S"
+"15.06.2026";"15.06.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE46860100907199434397";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"93,00";"S"
+"15.06.2026";"15.06.2026";"Brenner Haustechnik GmbH";"KANZLEI SEIDEL & KOLLEGEN";"";"DE39850900009067626367";"";"GENODEF1DRS";"SEPA-Gutschrift
+RE-2026-0132";"";"EUR";"114,28";"H"
+"15.06.2026";"15.06.2026";"Brenner Haustechnik GmbH";"ZAHNARZTPRAXIS DR. LEHMANN";"";"DE14860100904046209122";"";"";"Gutschrift
+Rechnung RE-2026-0129 vom 27.05.2026";"";"EUR";"779,45";"H"
+"15.06.2026";"15.06.2026";"Brenner Haustechnik GmbH";"Seidel, Doreen";"";"DE08850400006256903974";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0139 vom 01.06.2026";"";"EUR";"942,48";"H"
+"15.06.2026";"15.06.2026";"Brenner Haustechnik GmbH";"WEG-VERWALTUNG BLASEWITZ GM";"";"DE97850503003490709422";"";"";"Gutschrift
+RE20260130";"";"EUR";"1.087,66";"H"
+"15.06.2026";"15.06.2026";"Brenner Haustechnik GmbH";"UWE SEIDEL";"";"DE79860100908613955412";"";"";"Überweisungsgutschr.
+Re 128/2026";"";"EUR";"3.153,50";"H"
+"12.06.2026";"15.06.2026";"Brenner Haustechnik GmbH";"MUELLER GMBH + CO. KG";"";"DE89500105174269784460";"";"";"SEPA-Gutschrift
+RE-2026-0136";"";"EUR";"5.950,00";"H"
+"10.06.2026";"10.06.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE96850900004131900912";"";"GENODEF1DRS";"Überweisung
+USt-VZ 05/2026 StNr 202/118/54321";"";"EUR";"2.803,32";"S"
+"10.06.2026";"10.06.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE06850503000700670087";"";"";"Überweisung
+Lohnsteuer 05/2026 StNr 202/118/54321";"";"EUR";"2.139,18";"S"
+"08.06.2026";"09.06.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE70860100905816819536";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"157,90";"S"
+"08.06.2026";"08.06.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE90850503003268103375";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"92,51";"S"
+"08.06.2026";"08.06.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE52850200869193233119";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"35,38";"S"
+"08.06.2026";"08.06.2026";"Brenner Haustechnik GmbH";"ELEKTRO MUELLER E.K.";"";"DE04500105179060352441";"";"";"SEPA-Gutschrift
+RE-2026-0135";"";"EUR";"224,91";"H"
+"05.06.2026";"05.06.2026";"Brenner Haustechnik GmbH";"TELEKOM DEUTSCHLAND GMBH";"";"DE58860100907666226117";"";"";"Lastschrift
+Festnetz/Mobil Kd 4455661";"";"EUR";"89,90";"S"
+"04.06.2026";"04.06.2026";"Brenner Haustechnik GmbH";"KINDERGARTEN ELBSPATZEN E.V";"";"DE14500105174363921691";"";"";"Gutschrift
+Rechnung RE-2026-0133 vom 28.05.2026 abzgl. 2% Skonto";"";"EUR";"355,69";"H"
+"04.06.2026";"04.06.2026";"Brenner Haustechnik GmbH";"Franziska Haase";"";"DE24850200863787467273";"";"";"Überweisungsgutschr.
+Rg.-Nr. 2026-0131 Kd-Nr. 10125";"";"EUR";"1.322,09";"H"
+"01.06.2026";"01.06.2026";"Brenner Haustechnik GmbH";"GRUNDSTUECKSVERWALTUNG LEHNERT";"";"DE98860100900698621695";"";"";"Dauerauftrag
+Miete Werkstatt/Lager Hechtstr. 41 06/2026";"";"EUR";"2.150,00";"S"
+"01.06.2026";"02.06.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE41120300000719095121";"";"";"Lastschrift
+Leasingrate 06/2026 Vertrag 77-101 DD-BH 101";"";"EUR";"489,00";"S"
+"01.06.2026";"01.06.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE44850900009156199499";"";"GENODEF1DRS";"Lastschrift
+Leasingrate 06/2026 Vertrag 77-102 DD-BH 102";"";"EUR";"489,00";"S"
+"01.06.2026";"01.06.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE15850900006197044010";"";"GENODEF1DRS";"Lastschrift
+Leasingrate 06/2026 Vertrag 77-103 DD-BH 103";"";"EUR";"489,00";"S"
+"01.06.2026";"01.06.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE37850503006052645693";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"93,15";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"AOK PLUS";"";"DE87850503003349649292";"";"";"Lastschrift
+Beitragsnachweis 05/2026 BNR 12345678";"";"EUR";"6.701,79";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"Thomas Brenner";"";"DE32850503001349621444";"";"";"Lohn/Gehalt
+LOHN/GEHALT 05/2026 PNR 101";"";"EUR";"3.800,00";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"Jens Kowalski";"";"DE19850503005031846632";"";"";"Lohn/Gehalt
+LOHN/GEHALT 05/2026 PNR 103";"";"EUR";"2.450,00";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"Marco Richter";"";"DE10850503003860480808";"";"";"Lohn/Gehalt
+LOHN/GEHALT 05/2026 PNR 104";"";"EUR";"2.280,00";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"Dennis Hoffmann";"";"DE79860100900293338383";"";"";"Lohn/Gehalt
+LOHN/GEHALT 05/2026 PNR 105";"";"EUR";"2.190,00";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"Ayse Yilmaz";"";"DE87500105179128189837";"";"";"Lohn/Gehalt
+LOHN/GEHALT 05/2026 PNR 106";"";"EUR";"2.190,00";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4702090 KD-NR 33810";"";"EUR";"2.003,03";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"Sabine Brenner";"";"DE91850503005620228518";"";"";"Lohn/Gehalt
+LOHN/GEHALT 05/2026 PNR 102";"";"EUR";"1.687,50";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"Kevin Schmidt";"";"DE20120300006314364541";"";"";"Lohn/Gehalt
+LOHN/GEHALT 05/2026 PNR 107";"";"EUR";"1.017,50";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"Lukas Weber";"";"DE86120300003317861275";"";"";"Lohn/Gehalt
+LOHN/GEHALT 05/2026 PNR 108";"";"EUR";"820,00";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"VOLKSBANK DRESDEN-BAUTZEN EG";"";"DE54500105171401155202";"";"";"Abschluss
+Kontoführung";"";"EUR";"34,50";"S"
+"29.05.2026";"29.05.2026";"Brenner Haustechnik GmbH";"Wolf, Hans-Jürgen";"";"DE09850200860493479851";"";"";"Überweisungsgutschr.
+Rechnung RE-2026-0127 vom 20.05.2026";"";"EUR";"158,27";"H"
+"28.05.2026";"28.05.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4751479 KD-NR 33810";"";"EUR";"2.440,38";"S"
+"27.05.2026";"27.05.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4771196 KD-NR 33810";"";"EUR";"2.858,28";"S"
+"27.05.2026";"27.05.2026";"Brenner Haustechnik GmbH";"PENSION LOSCHWITZ";"";"DE21500105176076461415";"";"";"SEPA-Gutschrift
+Re 126/2026 abzgl. 2% Skonto";"";"EUR";"899,14";"H"
+"27.05.2026";"27.05.2026";"Brenner Haustechnik GmbH";"Thiele, Ines";"";"DE87850900006807785269";"";"GENODEF1DRS";"Gutschrift
+SVWZ+RE-2026-0124 EREF+NOTPROVIDED";"";"EUR";"1.040,06";"H"
+"26.05.2026";"26.05.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE41120300002898237951";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"19,05";"S"
+"26.05.2026";"26.05.2026";"Brenner Haustechnik GmbH";"PHYSIOTHERAPIE AM ALAUNPARK";"";"DE89850503000730573402";"";"";"SEPA-Gutschrift
+RE-2026-0122";"";"EUR";"224,91";"H"
+"26.05.2026";"27.05.2026";"Brenner Haustechnik GmbH";"Schulz, Michael";"";"DE93850200867161586102";"";"";"Überweisungsgutschr.
+RE-2026-0121";"";"EUR";"264,18";"H"
+"26.05.2026";"26.05.2026";"Brenner Haustechnik GmbH";"RALF SCHWARZ";"";"DE32850900007043408668";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE-2026-0120";"";"EUR";"1.119,79";"H"
+"26.05.2026";"26.05.2026";"Brenner Haustechnik GmbH";"DAGMAR FRANKE";"";"DE53500105174742047262";"";"";"Überweisungsgutschr.
+Re 123/2026";"";"EUR";"7.025,76";"H"
+"22.05.2026";"22.05.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4724218 KD-NR 33810";"";"EUR";"3.479,18";"S"
+"21.05.2026";"21.05.2026";"Brenner Haustechnik GmbH";"RALF SCHWARZ";"";"DE32850900007043408668";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE-2026-0119";"";"EUR";"1.527,96";"H"
+"19.05.2026";"19.05.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE49850900004367193397";"";"GENODEF1DRS";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"32,78";"S"
+"19.05.2026";"20.05.2026";"Brenner Haustechnik GmbH";"OPTIK HAUBOLD E.K.";"";"DE96500105171153357470";"";"";"Überweisungsgutschr.
+RE-2026-0118";"";"EUR";"428,40";"H"
+"19.05.2026";"19.05.2026";"Brenner Haustechnik GmbH";"Dagmar Rößler";"";"DE34120300004442317445";"";"";"Überweisungsgutschr.
+RE-2026-0113";"";"EUR";"468,86";"H"
+"18.05.2026";"18.05.2026";"Brenner Haustechnik GmbH";"WOHNUNGSBAUGENOSSENSCHAFT J";"";"DE86850900009235633692";"";"GENODEF1DRS";"Gutschrift
+RE-2026-0115";"";"EUR";"165,41";"H"
+"15.05.2026";"18.05.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4732057 KD-NR 33810";"";"EUR";"1.388,58";"S"
+"15.05.2026";"15.05.2026";"Brenner Haustechnik GmbH";"DKV EURO SERVICE";"";"DE11850400008756176626";"";"";"Lastschrift
+Tankkarte Abrechnung";"";"EUR";"863,09";"S"
+"15.05.2026";"15.05.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE58500105174980574149";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"83,35";"S"
+"15.05.2026";"15.05.2026";"Brenner Haustechnik GmbH";"MALERBETRIEB THIELE GMBH";"";"DE77860100902860293748";"";"";"Gutschrift
+SVWZ+RE-2026-0117 EREF+NOTPROVIDED";"";"EUR";"165,41";"H"
+"12.05.2026";"12.05.2026";"Brenner Haustechnik GmbH";"TIERARZTPRAXIS DR. FIEDLER";"";"DE35860100903557270350";"";"";"Gutschrift
+RE20260112";"";"EUR";"1.400,63";"H"
+"11.05.2026";"11.05.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE04850400008677910750";"";"";"Überweisung
+Lohnsteuer 04/2026 StNr 202/118/54321";"";"EUR";"2.091,72";"S"
+"11.05.2026";"11.05.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE33500105172352606076";"";"";"Überweisung
+USt-VZ 04/2026 StNr 202/118/54321";"";"EUR";"1.663,72";"S"
+"11.05.2026";"11.05.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE40850900003407463337";"";"GENODEF1DRS";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"132,13";"S"
+"11.05.2026";"11.05.2026";"Brenner Haustechnik GmbH";"MUELLER BAU GMBH";"";"DE56860100903747835493";"";"";"Gutschrift
+RE-2026-0091";"";"EUR";"4.974,20";"H"
+"11.05.2026";"11.05.2026";"Brenner Haustechnik GmbH";"KLAUS HOFMANN";"";"DE27850503001228949848";"";"";"Gutschrift
+Rechnung RE-2026-0116 vom 04.05.2026";"";"EUR";"8.170,54";"H"
+"08.05.2026";"08.05.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4751263 KD-NR D-4471";"";"EUR";"2.769,27";"S"
+"08.05.2026";"08.05.2026";"Brenner Haustechnik GmbH";"WOHNUNGSGENOSSENSCHAFT ELBTAL EG";"";"DE81860100904126085961";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0107 vom 20.04.2026";"";"EUR";"224,91";"H"
+"07.05.2026";"07.05.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4721999 KD-NR 33810";"";"EUR";"2.198,27";"S"
+"07.05.2026";"07.05.2026";"Brenner Haustechnik GmbH";"Rainer Vogel";"";"DE37850503001502793763";"";"";"SEPA-Gutschrift
+RE-2026-0104";"";"EUR";"165,41";"H"
+"07.05.2026";"07.05.2026";"Brenner Haustechnik GmbH";"Volker Wagner";"";"DE36850503008180097241";"";"";"Überweisungsgutschr.
+RE-2026-0110";"";"EUR";"189,21";"H"
+"06.05.2026";"06.05.2026";"Brenner Haustechnik GmbH";"ANETT GOEBEL";"";"DE63850200863358667401";"";"";"Gutschrift
+RE-2026-0114";"";"EUR";"165,41";"H"
+"06.05.2026";"06.05.2026";"Brenner Haustechnik GmbH";"HAUSVERWALTUNG KROEBER";"";"DE14850503008970071942";"";"";"SEPA-Gutschrift
+RE-2026-0093";"";"EUR";"586,67";"H"
+"06.05.2026";"06.05.2026";"Brenner Haustechnik GmbH";"WOHNUNGSGENOSSENSCHAFT ELBTAL EG";"";"DE81860100904126085961";"";"";"Gutschrift
+RE-2026-0108";"";"EUR";"1.106,70";"H"
+"06.05.2026";"06.05.2026";"Brenner Haustechnik GmbH";"IKK CLASSIC";"";"DE04850400008113311968";"";"";"Gutschrift
+Erstattung U1 Kowalski";"";"EUR";"1.460,22";"H"
+"05.05.2026";"05.05.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4796315 KD-NR 33810";"";"EUR";"2.964,13";"S"
+"05.05.2026";"05.05.2026";"Brenner Haustechnik GmbH";"TELEKOM DEUTSCHLAND GMBH";"";"DE82850503001315747950";"";"";"Lastschrift
+Festnetz/Mobil Kd 4455661";"";"EUR";"89,90";"S"
+"04.05.2026";"05.05.2026";"Brenner Haustechnik GmbH";"GRUNDSTUECKSVERWALTUNG LEHNERT";"";"DE93860100906974842758";"";"";"Dauerauftrag
+Miete Werkstatt/Lager Hechtstr. 41 05/2026";"";"EUR";"2.150,00";"S"
+"04.05.2026";"04.05.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4742170 KD-NR 33810";"";"EUR";"2.119,49";"S"
+"04.05.2026";"04.05.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE19860100901956248875";"";"";"Lastschrift
+Leasingrate 05/2026 Vertrag 77-101 DD-BH 101";"";"EUR";"489,00";"S"
+"04.05.2026";"04.05.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE47850200860141244813";"";"";"Lastschrift
+Leasingrate 05/2026 Vertrag 77-102 DD-BH 102";"";"EUR";"489,00";"S"
+"04.05.2026";"04.05.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE02850900005975970283";"";"GENODEF1DRS";"Lastschrift
+Leasingrate 05/2026 Vertrag 77-103 DD-BH 103";"";"EUR";"489,00";"S"
+"04.05.2026";"04.05.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE25860100900462413847";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"121,92";"S"
+"04.05.2026";"04.05.2026";"Brenner Haustechnik GmbH";"Manuela Böhme";"";"DE48850200865892403895";"";"";"Gutschrift
+RE20260106";"";"EUR";"267,75";"H"
+"04.05.2026";"04.05.2026";"Brenner Haustechnik GmbH";"OLAF KRAUSE";"";"DE10120300000705988069";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0111 vom 24.04.2026";"";"EUR";"893,69";"H"
+"04.05.2026";"04.05.2026";"Brenner Haustechnik GmbH";"Franziska Frank";"";"DE85500105170931934216";"";"";"Überweisungsgutschr.
+SVWZ+RE-2026-0100 EREF+NOTPROVIDED";"";"EUR";"11.698,89";"H"
+"30.04.2026";"30.04.2026";"Brenner Haustechnik GmbH";"AOK PLUS";"";"DE65850400001042310212";"";"";"Lastschrift
+Beitragsnachweis 04/2026 BNR 12345678";"";"EUR";"6.719,75";"S"
+"30.04.2026";"30.04.2026";"Brenner Haustechnik GmbH";"Thomas Brenner";"";"DE66850400006176820894";"";"";"Lohn/Gehalt
+LOHN/GEHALT 04/2026 PNR 101";"";"EUR";"3.800,00";"S"
+"30.04.2026";"30.04.2026";"Brenner Haustechnik GmbH";"Jens Kowalski";"";"DE83860100908159594924";"";"";"Lohn/Gehalt
+LOHN/GEHALT 04/2026 PNR 103";"";"EUR";"2.487,50";"S"
+"30.04.2026";"30.04.2026";"Brenner Haustechnik GmbH";"Marco Richter";"";"DE60850900005593695052";"";"GENODEF1DRS";"Lohn/Gehalt
+LOHN/GEHALT 04/2026 PNR 104";"";"EUR";"2.280,00";"S"
+"30.04.2026";"04.05.2026";"Brenner Haustechnik GmbH";"Ayse Yilmaz";"";"DE27120300001295954470";"";"";"Lohn/Gehalt
+LOHN/GEHALT 04/2026 PNR 106";"";"EUR";"2.227,50";"S"
+"30.04.2026";"30.04.2026";"Brenner Haustechnik GmbH";"Dennis Hoffmann";"";"DE97860100909829277788";"";"";"Lohn/Gehalt
+LOHN/GEHALT 04/2026 PNR 105";"";"EUR";"2.190,00";"S"
+"30.04.2026";"30.04.2026";"Brenner Haustechnik GmbH";"Sabine Brenner";"";"DE85120300009253144144";"";"";"Lohn/Gehalt
+LOHN/GEHALT 04/2026 PNR 102";"";"EUR";"1.650,00";"S"
+"30.04.2026";"30.04.2026";"Brenner Haustechnik GmbH";"Kevin Schmidt";"";"DE46120300000332324312";"";"";"Lohn/Gehalt
+LOHN/GEHALT 04/2026 PNR 107";"";"EUR";"1.032,80";"S"
+"30.04.2026";"04.05.2026";"Brenner Haustechnik GmbH";"Lukas Weber";"";"DE72500105175078665147";"";"";"Lohn/Gehalt
+LOHN/GEHALT 04/2026 PNR 108";"";"EUR";"820,00";"S"
+"30.04.2026";"30.04.2026";"Brenner Haustechnik GmbH";"VOLKSBANK DRESDEN-BAUTZEN EG";"";"DE23850200860844113744";"";"";"Abschluss
+Kontoführung";"";"EUR";"34,50";"S"
+"30.04.2026";"30.04.2026";"Brenner Haustechnik GmbH";"Schwarz, Gerd";"";"DE22850900005804341615";"";"GENODEF1DRS";"SEPA-Gutschrift
+RE-2026-0094";"";"EUR";"171,36";"H"
+"30.04.2026";"30.04.2026";"Brenner Haustechnik GmbH";"Wolf, Hans-Jürgen";"";"DE09850200860493479851";"";"";"Gutschrift
+SVWZ+RE-2026-0103 EREF+NOTPROVIDED";"";"EUR";"224,91";"H"
+"27.04.2026";"27.04.2026";"Brenner Haustechnik GmbH";"SCHRAUBEN-WOLF GMBH";"";"DE15850503004357181634";"";"";"Überweisung
+RG 4743860 KD-NR 883 112";"";"EUR";"676,92";"S"
+"27.04.2026";"27.04.2026";"Brenner Haustechnik GmbH";"Martin Zimmermann";"";"DE13500105172086676086";"";"";"Überweisungsgutschr.
+Rechnung RE-2026-0101 vom 13.04.2026";"";"EUR";"197,54";"H"
+"27.04.2026";"27.04.2026";"Brenner Haustechnik GmbH";"RESTAURANT ZUM GOLDENEN ANK";"";"DE45850900007567551426";"";"GENODEF1DRS";"SEPA-Gutschrift
+RE20260096";"";"EUR";"315,35";"H"
+"27.04.2026";"27.04.2026";"Brenner Haustechnik GmbH";"WEG-VERWALTUNG BLASEWITZ GM";"";"DE97850503003490709422";"";"";"Gutschrift
+SVWZ+RE-2026-0099 EREF+NOTPROVIDED";"";"EUR";"567,63";"H"
+"27.04.2026";"27.04.2026";"Brenner Haustechnik GmbH";"HOTEL ELBBLICK GMBH";"";"DE92850200864838570174";"";"";"SEPA-Gutschrift
+RE20260109";"";"EUR";"567,63";"H"
+"27.04.2026";"27.04.2026";"Brenner Haustechnik GmbH";"Jana Heinrich";"";"DE41860100907047264185";"";"";"Gutschrift
+Rechnung RE-2026-0105 vom 16.04.2026";"";"EUR";"11.341,89";"H"
+"22.04.2026";"22.04.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4703381 KD-NR 33810";"";"EUR";"2.814,94";"S"
+"21.04.2026";"21.04.2026";"Brenner Haustechnik GmbH";"RALF SCHWARZ";"";"DE32850900007043408668";"";"GENODEF1DRS";"Gutschrift
+Montage Schwarz";"";"EUR";"890,12";"H"
+"20.04.2026";"20.04.2026";"Brenner Haustechnik GmbH";"Dagmar Rößler";"";"DE34120300004442317445";"";"";"Überweisungsgutschr.
+Rechnung RE-2026-0098 vom 09.04.2026";"";"EUR";"10.155,46";"H"
+"16.04.2026";"16.04.2026";"Brenner Haustechnik GmbH";"Franziska Frank";"";"DE85500105170931934216";"";"";"Überweisungsgutschr.
+RE-2026-0095";"";"EUR";"1.577,94";"H"
+"15.04.2026";"16.04.2026";"Brenner Haustechnik GmbH";"BERUFSGENOSSENSCHAFT ETEM";"";"DE93850400007972587519";"";"";"Lastschrift
+Beitrag 2025";"";"EUR";"2.840,00";"S"
+"15.04.2026";"15.04.2026";"Brenner Haustechnik GmbH";"SV SACHSEN VERSICHERUNG AG";"";"DE10850400006160144110";"";"";"Lastschrift
+Kfz-Versicherung 3 Fzg";"";"EUR";"1.284,00";"S"
+"15.04.2026";"15.04.2026";"Brenner Haustechnik GmbH";"DKV EURO SERVICE";"";"DE52850503009105454837";"";"";"Lastschrift
+Tankkarte Abrechnung";"";"EUR";"1.234,46";"S"
+"15.04.2026";"15.04.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4729816 KD-NR D-4471";"";"EUR";"676,85";"S"
+"15.04.2026";"15.04.2026";"Brenner Haustechnik GmbH";"SV SACHSEN VERSICHERUNG AG";"";"DE74850900003813047855";"";"GENODEF1DRS";"Lastschrift
+Betriebshaftpflicht Q";"";"EUR";"612,40";"S"
+"15.04.2026";"15.04.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE41850900008214432567";"";"GENODEF1DRS";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"148,27";"S"
+"14.04.2026";"14.04.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4762632 KD-NR 33810";"";"EUR";"3.721,94";"S"
+"14.04.2026";"14.04.2026";"Brenner Haustechnik GmbH";"WOHNUNGSBAUGENOSSENSCHAFT J";"";"DE86850900009235633692";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE-2026-0079";"";"EUR";"332,01";"H"
+"13.04.2026";"13.04.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4782356 KD-NR 33810";"";"EUR";"720,87";"S"
+"13.04.2026";"13.04.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE33850200868442573935";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"13,53";"S"
+"13.04.2026";"14.04.2026";"Brenner Haustechnik GmbH";"WOHNUNGSBAUGENOSSENSCHAFT J";"";"DE86850900009235633692";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE-2026-0072";"";"EUR";"24.385,48";"H"
+"10.04.2026";"10.04.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE43120300002998013764";"";"";"Überweisung
+Lohnsteuer 03/2026 StNr 202/118/54321";"";"EUR";"2.385,22";"S"
+"10.04.2026";"10.04.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE72850503003076932219";"";"";"Überweisung
+USt-VZ 03/2026 StNr 202/118/54321";"";"EUR";"1.475,55";"S"
+"10.04.2026";"10.04.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4747895 KD-NR 33810";"";"EUR";"1.047,51";"S"
+"10.04.2026";"10.04.2026";"Brenner Haustechnik GmbH";"IMMOBILIENVERWALTUNG WEISSE";"";"DE58500105174845096965";"";"";"SEPA-Gutschrift
+RE-2026-0082";"";"EUR";"165,41";"H"
+"08.04.2026";"08.04.2026";"Brenner Haustechnik GmbH";"Ebert, Ute";"";"DE28500105179943172483";"";"";"Gutschrift
+Rechnung RE-2026-0089 vom 30.03.2026";"";"EUR";"189,21";"H"
+"07.04.2026";"07.04.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4748298 KD-NR D-4471";"";"EUR";"2.087,15";"S"
+"07.04.2026";"07.04.2026";"Brenner Haustechnik GmbH";"TELEKOM DEUTSCHLAND GMBH";"";"DE77850503002932494182";"";"";"Lastschrift
+Festnetz/Mobil Kd 4455661";"";"EUR";"89,90";"S"
+"07.04.2026";"07.04.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE51850900008768751109";"";"GENODEF1DRS";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"26,53";"S"
+"07.04.2026";"08.04.2026";"Brenner Haustechnik GmbH";"Thiele, Ines";"";"DE87850900006807785269";"";"GENODEF1DRS";"Überweisungsgutschr.
+Rg.-Nr. 2026-0092 Kd-Nr. 10130";"";"EUR";"128,52";"H"
+"07.04.2026";"07.04.2026";"Brenner Haustechnik GmbH";"ZAHNARZTPRAXIS DR. LEHMANN";"";"DE14860100904046209122";"";"";"Gutschrift
+RE-2026-0086 abzgl. 2% Skonto";"";"EUR";"162,10";"H"
+"07.04.2026";"07.04.2026";"Brenner Haustechnik GmbH";"Susanne Pohl";"";"DE55860100907374285562";"";"";"Überweisungsgutschr.
+Restzahlung 2026-0058";"";"EUR";"189,21";"H"
+"07.04.2026";"07.04.2026";"Brenner Haustechnik GmbH";"HAUSVERWALTUNG KROEBER";"";"DE14850503008970071942";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0066 vom 04.03.2026";"";"EUR";"447,44";"H"
+"07.04.2026";"07.04.2026";"Brenner Haustechnik GmbH";"Schulz, Michael";"";"DE93850200867161586102";"";"";"SEPA-Gutschrift
+Rg.-Nr. 2026-0078 Kd-Nr. 10120";"";"EUR";"1.173,34";"H"
+"07.04.2026";"08.04.2026";"Brenner Haustechnik GmbH";"BAECKEREI HOFFMANN";"";"DE73850200864077499883";"";"";"Gutschrift
+RE-2026-0084";"";"EUR";"1.842,12";"H"
+"07.04.2026";"08.04.2026";"Brenner Haustechnik GmbH";"DAGMAR FRANKE";"";"DE53500105174742047262";"";"";"SEPA-Gutschrift
+Rg.-Nr. 2026-0085 Kd-Nr. 10034";"";"EUR";"4.760,00";"H"
+"07.04.2026";"07.04.2026";"Brenner Haustechnik GmbH";"KLAUS HOFMANN";"";"DE27850503001228949848";"";"";"Überweisungsgutschr.
+RE-2026-0083";"";"EUR";"5.474,00";"H"
+"07.04.2026";"07.04.2026";"Brenner Haustechnik GmbH";"Bauer, Uwe";"";"DE44850400003300595817";"";"";"Überweisungsgutschr.
+Rechnung RE-2026-0088 vom 27.03.2026";"";"EUR";"9.718,73";"H"
+"02.04.2026";"02.04.2026";"Brenner Haustechnik GmbH";"SCHRAUBEN-WOLF GMBH";"";"DE15850503004357181634";"";"";"Überweisung
+RG 4731028 KD-NR 883 112";"";"EUR";"3.496,67";"S"
+"02.04.2026";"02.04.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE43860100907358469928";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"12,23";"S"
+"01.04.2026";"01.04.2026";"Brenner Haustechnik GmbH";"GRUNDSTUECKSVERWALTUNG LEHNERT";"";"DE82850900004472162323";"";"GENODEF1DRS";"Dauerauftrag
+Miete Werkstatt/Lager Hechtstr. 41 04/2026";"";"EUR";"2.150,00";"S"
+"01.04.2026";"01.04.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE71120300007871331866";"";"";"Lastschrift
+Leasingrate 04/2026 Vertrag 77-101 DD-BH 101";"";"EUR";"489,00";"S"
+"01.04.2026";"01.04.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE20120300007458836792";"";"";"Lastschrift
+Leasingrate 04/2026 Vertrag 77-102 DD-BH 102";"";"EUR";"489,00";"S"
+"01.04.2026";"01.04.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE04500105173395503262";"";"";"Lastschrift
+Leasingrate 04/2026 Vertrag 77-103 DD-BH 103";"";"EUR";"489,00";"S"
+"01.04.2026";"01.04.2026";"Brenner Haustechnik GmbH";"STAEDTISCHE WOHNUNGSGESELLS";"";"DE82850503000277235104";"";"";"Überweisungsgutschr.
+RE-2026-0070";"";"EUR";"177,31";"H"
+"31.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"AOK PLUS";"";"DE02850400009233941558";"";"";"Lastschrift
+Beitragsnachweis 03/2026 BNR 12345678";"";"EUR";"6.505,01";"S"
+"31.03.2026";"01.04.2026";"Brenner Haustechnik GmbH";"Thomas Brenner";"";"DE15500105179901874773";"";"";"Lohn/Gehalt
+LOHN/GEHALT 03/2026 PNR 101";"";"EUR";"3.852,80";"S"
+"31.03.2026";"01.04.2026";"Brenner Haustechnik GmbH";"Jens Kowalski";"";"DE73860100904174806295";"";"";"Lohn/Gehalt
+LOHN/GEHALT 03/2026 PNR 103";"";"EUR";"2.487,50";"S"
+"31.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"Marco Richter";"";"DE34860100909400724386";"";"";"Lohn/Gehalt
+LOHN/GEHALT 03/2026 PNR 104";"";"EUR";"2.280,00";"S"
+"31.03.2026";"01.04.2026";"Brenner Haustechnik GmbH";"Dennis Hoffmann";"";"DE21850900008270300271";"";"GENODEF1DRS";"Lohn/Gehalt
+LOHN/GEHALT 03/2026 PNR 105";"";"EUR";"2.227,50";"S"
+"31.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"Ayse Yilmaz";"";"DE90860100907864458718";"";"";"Lohn/Gehalt
+LOHN/GEHALT 03/2026 PNR 106";"";"EUR";"2.190,00";"S"
+"31.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"Sabine Brenner";"";"DE41500105175293032310";"";"";"Lohn/Gehalt
+LOHN/GEHALT 03/2026 PNR 102";"";"EUR";"1.650,00";"S"
+"31.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4705118 KD-NR 33810";"";"EUR";"1.611,74";"S"
+"31.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"Kevin Schmidt";"";"DE44860100909308235773";"";"";"Lohn/Gehalt
+LOHN/GEHALT 03/2026 PNR 107";"";"EUR";"980,00";"S"
+"31.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"Lukas Weber";"";"DE66850400005028141656";"";"";"Lohn/Gehalt
+LOHN/GEHALT 03/2026 PNR 108";"";"EUR";"820,00";"S"
+"31.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"VOLKSBANK DRESDEN-BAUTZEN EG";"";"DE33500105172274164698";"";"";"Abschluss
+Kontoführung";"";"EUR";"34,50";"S"
+"31.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"KLAUS HOFMANN";"";"DE44850503005237370461";"";"";"Gutschrift
+Re 73/2026";"";"EUR";"165,41";"H"
+"30.03.2026";"30.03.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4779068 KD-NR 33810";"";"EUR";"3.894,97";"S"
+"30.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"Dagmar Rößler";"";"DE34120300004442317445";"";"";"Gutschrift
+Rg.-Nr. 2026-0075 Kd-Nr. 10122";"";"EUR";"6.783,00";"H"
+"30.03.2026";"30.03.2026";"Brenner Haustechnik GmbH";"Jana Heinrich";"";"DE41860100907047264185";"";"";"Gutschrift
+SVWZ+RE-2026-0081 EREF+NOTPROVIDED";"";"EUR";"7.616,00";"H"
+"30.03.2026";"31.03.2026";"Brenner Haustechnik GmbH";"WOHNUNGSBAUGENOSSENSCHAFT J";"";"DE86850900009235633692";"";"GENODEF1DRS";"Gutschrift
+Strangsanierung Wohnungsbaugenossenschaft";"";"EUR";"29.532,23";"H"
+"26.03.2026";"26.03.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE41500105172516432142";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"17,20";"S"
+"25.03.2026";"25.03.2026";"Brenner Haustechnik GmbH";"HOTEL ELBBLICK GMBH";"";"DE92850200864838570174";"";"";"Gutschrift
+Rechnung RE-2026-0077 vom 16.03.2026";"";"EUR";"530,74";"H"
+"23.03.2026";"23.03.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE79120300004615717521";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"73,90";"S"
+"23.03.2026";"23.03.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE06500105175756832329";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"62,90";"S"
+"23.03.2026";"23.03.2026";"Brenner Haustechnik GmbH";"STAEDTISCHE WOHNUNGSGESELLS";"";"DE82850503000277235104";"";"";"Überweisungsgutschr.
+RE-2026-0055";"";"EUR";"440,30";"H"
+"23.03.2026";"23.03.2026";"Brenner Haustechnik GmbH";"WOHNUNGSGENOSSENSCHAFT ELBTAL EG";"";"DE81860100904126085961";"";"";"Gutschrift
+RE20260064";"";"EUR";"459,34";"H"
+"23.03.2026";"23.03.2026";"Brenner Haustechnik GmbH";"BLUMEN KRETSCHMAR";"";"DE50500105176411406355";"";"";"Gutschrift
+Rg.-Nr. 2026-0068 Kd-Nr. 10046";"";"EUR";"731,85";"H"
+"19.03.2026";"19.03.2026";"Brenner Haustechnik GmbH";"MUELLER BAU GMBH";"";"DE56860100903747835493";"";"";"Gutschrift
+RE20260032";"";"EUR";"445,06";"H"
+"18.03.2026";"18.03.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4746265 KD-NR 33810";"";"EUR";"3.134,02";"S"
+"18.03.2026";"18.03.2026";"Brenner Haustechnik GmbH";"Uhlig, Matthias";"";"DE49120300008644123793";"";"";"Gutschrift
+Re 63/2026";"";"EUR";"107,68";"H"
+"18.03.2026";"18.03.2026";"Brenner Haustechnik GmbH";"AUTOHAUS PIESCHEN GMBH";"";"DE23850200860902966263";"";"";"Gutschrift
+RE-2026-0065";"";"EUR";"10.802,82";"H"
+"17.03.2026";"17.03.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4725134 KD-NR 33810";"";"EUR";"1.588,74";"S"
+"17.03.2026";"17.03.2026";"Brenner Haustechnik GmbH";"HAUSVERWALTUNG KROEBER";"";"DE14850503008970071942";"";"";"Überweisungsgutschr.
+RE-2026-0052";"";"EUR";"336,77";"H"
+"16.03.2026";"16.03.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4724599 KD-NR 33810";"";"EUR";"2.127,92";"S"
+"16.03.2026";"16.03.2026";"Brenner Haustechnik GmbH";"DKV EURO SERVICE";"";"DE59850503006096508212";"";"";"Lastschrift
+Tankkarte Abrechnung";"";"EUR";"1.202,17";"S"
+"16.03.2026";"16.03.2026";"Brenner Haustechnik GmbH";"HANDWERKSKAMMER DRESDEN";"";"DE44850503004492082504";"";"";"Lastschrift
+Kammerbeitrag 2026";"";"EUR";"380,00";"S"
+"16.03.2026";"16.03.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE33850900005857226884";"";"GENODEF1DRS";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"12,25";"S"
+"16.03.2026";"16.03.2026";"Brenner Haustechnik GmbH";"MUELLER GMBH + CO. KG";"";"DE89500105174269784460";"";"";"Gutschrift
+Re 74/2026";"";"EUR";"165,41";"H"
+"16.03.2026";"16.03.2026";"Brenner Haustechnik GmbH";"Mirko Vogel";"";"DE20850400003773995922";"";"";"SEPA-Gutschrift
+RE-2026-0071";"";"EUR";"11.378,78";"H"
+"12.03.2026";"12.03.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4712150 KD-NR 33810";"";"EUR";"3.123,73";"S"
+"12.03.2026";"12.03.2026";"Brenner Haustechnik GmbH";"WOHNUNGSBAUGENOSSENSCHAFT J";"";"DE86850900009235633692";"";"GENODEF1DRS";"SEPA-Gutschrift
+RE-2026-0048";"";"EUR";"16.303,00";"H"
+"11.03.2026";"11.03.2026";"Brenner Haustechnik GmbH";"JOERG UHLIG";"";"DE83120300006763918734";"";"";"Überweisungsgutschr.
+Rg.-Nr. 2026-0062 Kd-Nr. 10062";"";"EUR";"123,76";"H"
+"10.03.2026";"10.03.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE51500105171735242171";"";"";"Überweisung
+Lohnsteuer 02/2026 StNr 202/118/54321";"";"EUR";"2.168,77";"S"
+"10.03.2026";"10.03.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE46120300009481696343";"";"";"Überweisung
+USt-VZ 02/2026 StNr 202/118/54321";"";"EUR";"1.606,51";"S"
+"10.03.2026";"10.03.2026";"Brenner Haustechnik GmbH";"GABRIELE LUDWIG";"";"DE68120300002879502885";"";"";"Überweisungsgutschr.
+RE-2026-0051";"";"EUR";"860,37";"H"
+"09.03.2026";"10.03.2026";"Brenner Haustechnik GmbH";"SCHRAUBEN-WOLF GMBH";"";"DE15850503004357181634";"";"";"Überweisung
+RG 4705952 KD-NR 883 112";"";"EUR";"493,72";"S"
+"09.03.2026";"09.03.2026";"Brenner Haustechnik GmbH";"WEG-VERWALTUNG BLASEWITZ GM";"";"DE97850503003490709422";"";"";"Überweisungsgutschr.
+RE-2026-0044";"";"EUR";"499,80";"H"
+"09.03.2026";"10.03.2026";"Brenner Haustechnik GmbH";"ZAHNARZTPRAXIS DR. LEHMANN";"";"DE14860100904046209122";"";"";"SEPA-Gutschrift
+Heizungstausch Zahnarztpraxis abzgl. 2% Skonto";"";"EUR";"4.727,28";"H"
+"06.03.2026";"06.03.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4721665 KD-NR D-4471";"";"EUR";"2.876,78";"S"
+"06.03.2026";"06.03.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE25500105173627660744";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"120,93";"S"
+"06.03.2026";"06.03.2026";"Brenner Haustechnik GmbH";"Susanne Pohl";"";"DE55860100907374285562";"";"";"Überweisungsgutschr.
+RE-2026-0058";"";"EUR";"189,21";"H"
+"06.03.2026";"06.03.2026";"Brenner Haustechnik GmbH";"Wagner, Martin";"";"DE21850200863262677733";"";"";"Überweisungsgutschr.
+RE-2026-0061";"";"EUR";"937,72";"H"
+"05.03.2026";"05.03.2026";"Brenner Haustechnik GmbH";"TELEKOM DEUTSCHLAND GMBH";"";"DE30850200867286692598";"";"";"Lastschrift
+Festnetz/Mobil Kd 4455661";"";"EUR";"89,90";"S"
+"05.03.2026";"05.03.2026";"Brenner Haustechnik GmbH";"RALF BECKER";"";"DE60850900004293298114";"";"GENODEF1DRS";"Gutschrift
+SVWZ+RE-2026-0050 EREF+NOTPROVIDED";"";"EUR";"224,91";"H"
+"03.03.2026";"03.03.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4746844 KD-NR 33810";"";"EUR";"3.355,19";"S"
+"03.03.2026";"03.03.2026";"Brenner Haustechnik GmbH";"RESTAURANT ZUM GOLDENEN ANK";"";"DE45850900007567551426";"";"GENODEF1DRS";"SEPA-Gutschrift
+RE20260056";"";"EUR";"224,91";"H"
+"03.03.2026";"03.03.2026";"Brenner Haustechnik GmbH";"MUELLER GMBH + CO. KG";"";"DE89500105174269784460";"";"";"SEPA-Gutschrift
+SVWZ+RE-2026-0047 EREF+NOTPROVIDED";"";"EUR";"308,21";"H"
+"02.03.2026";"02.03.2026";"Brenner Haustechnik GmbH";"GRUNDSTUECKSVERWALTUNG LEHNERT";"";"DE29850200866718954817";"";"";"Dauerauftrag
+Miete Werkstatt/Lager Hechtstr. 41 03/2026";"";"EUR";"2.150,00";"S"
+"02.03.2026";"02.03.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE55500105178856749008";"";"";"Lastschrift
+Leasingrate 03/2026 Vertrag 77-101 DD-BH 101";"";"EUR";"489,00";"S"
+"02.03.2026";"02.03.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE48860100909397375015";"";"";"Lastschrift
+Leasingrate 03/2026 Vertrag 77-102 DD-BH 102";"";"EUR";"489,00";"S"
+"02.03.2026";"02.03.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE19860100903712770077";"";"";"Lastschrift
+Leasingrate 03/2026 Vertrag 77-103 DD-BH 103";"";"EUR";"489,00";"S"
+"02.03.2026";"03.03.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4768514 KD-NR 33810";"";"EUR";"446,53";"S"
+"02.03.2026";"02.03.2026";"Brenner Haustechnik GmbH";"STAEDTISCHE WOHNUNGSGESELLS";"";"DE82850503000277235104";"";"";"SEPA-Gutschrift
+RE20260025";"";"EUR";"177,31";"H"
+"02.03.2026";"02.03.2026";"Brenner Haustechnik GmbH";"HAUSVERWALTUNG KROEBER";"";"DE14850503008970071942";"";"";"Überweisungsgutschr.
+RE-2026-0029";"";"EUR";"575,96";"H"
+"02.03.2026";"02.03.2026";"Brenner Haustechnik GmbH";"Martin Zimmermann";"";"DE13500105172086676086";"";"";"Gutschrift
+RE20260059";"";"EUR";"1.269,73";"H"
+"27.02.2026";"27.02.2026";"Brenner Haustechnik GmbH";"AOK PLUS";"";"DE77500105173773447122";"";"";"Lastschrift
+Beitragsnachweis 02/2026 BNR 12345678";"";"EUR";"7.299,99";"S"
+"27.02.2026";"27.02.2026";"Brenner Haustechnik GmbH";"Thomas Brenner";"";"DE63850900002788653945";"";"GENODEF1DRS";"Lohn/Gehalt
+LOHN/GEHALT 02/2026 PNR 101";"";"EUR";"3.852,80";"S"
+"27.02.2026";"02.03.2026";"Brenner Haustechnik GmbH";"Jens Kowalski";"";"DE59120300008309522986";"";"";"Lohn/Gehalt
+LOHN/GEHALT 02/2026 PNR 103";"";"EUR";"2.450,00";"S"
+"27.02.2026";"02.03.2026";"Brenner Haustechnik GmbH";"Marco Richter";"";"DE07500105178822298382";"";"";"Lohn/Gehalt
+LOHN/GEHALT 02/2026 PNR 104";"";"EUR";"2.332,80";"S"
+"27.02.2026";"27.02.2026";"Brenner Haustechnik GmbH";"Dennis Hoffmann";"";"DE42120300005125529332";"";"";"Lohn/Gehalt
+LOHN/GEHALT 02/2026 PNR 105";"";"EUR";"2.190,00";"S"
+"27.02.2026";"27.02.2026";"Brenner Haustechnik GmbH";"Ayse Yilmaz";"";"DE32120300008805316177";"";"";"Lohn/Gehalt
+LOHN/GEHALT 02/2026 PNR 106";"";"EUR";"2.190,00";"S"
+"27.02.2026";"27.02.2026";"Brenner Haustechnik GmbH";"Sabine Brenner";"";"DE45850503004512967653";"";"";"Lohn/Gehalt
+LOHN/GEHALT 02/2026 PNR 102";"";"EUR";"1.702,80";"S"
+"27.02.2026";"27.02.2026";"Brenner Haustechnik GmbH";"Kevin Schmidt";"";"DE42850200861000524932";"";"";"Lohn/Gehalt
+LOHN/GEHALT 02/2026 PNR 107";"";"EUR";"1.017,50";"S"
+"27.02.2026";"27.02.2026";"Brenner Haustechnik GmbH";"Lukas Weber";"";"DE74850400007889749279";"";"";"Lohn/Gehalt
+LOHN/GEHALT 02/2026 PNR 108";"";"EUR";"820,00";"S"
+"27.02.2026";"27.02.2026";"Brenner Haustechnik GmbH";"VOLKSBANK DRESDEN-BAUTZEN EG";"";"DE29850200860473703907";"";"";"Abschluss
+Kontoführung";"";"EUR";"34,50";"S"
+"27.02.2026";"27.02.2026";"Brenner Haustechnik GmbH";"FITNESSSTUDIO ELBEFIT GMBH";"";"DE02850200861979961424";"";"";"Überweisungsgutschr.
+RE-2026-0053";"";"EUR";"505,75";"H"
+"26.02.2026";"27.02.2026";"Brenner Haustechnik GmbH";"THERMO-WERK GMBH";"";"DE29850900004632094840";"";"GENODEF1DRS";"Überweisung
+RG 4759368 KD-NR KD-2210-77";"";"EUR";"727,80";"S"
+"25.02.2026";"25.02.2026";"Brenner Haustechnik GmbH";"Franziska Frank";"";"DE85500105170931934216";"";"";"Gutschrift
+RE-2026-0057";"";"EUR";"7.854,00";"H"
+"23.02.2026";"23.02.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4782461 KD-NR 33810";"";"EUR";"2.441,80";"S"
+"23.02.2026";"23.02.2026";"Brenner Haustechnik GmbH";"Schwarz, Romy";"";"DE83860100904778071425";"";"";"Gutschrift
+Rechnung RE-2026-0036 vom 04.02.2026";"";"EUR";"189,21";"H"
+"23.02.2026";"23.02.2026";"Brenner Haustechnik GmbH";"YVONNE WAGNER";"";"DE10500105174239258915";"";"";"SEPA-Gutschrift
+RE-2026-0045";"";"EUR";"633,08";"H"
+"23.02.2026";"23.02.2026";"Brenner Haustechnik GmbH";"AUTOHAUS PIESCHEN GMBH";"";"DE23850200860902966263";"";"";"Gutschrift
+RE-2026-0038";"";"EUR";"1.820,70";"H"
+"23.02.2026";"24.02.2026";"Brenner Haustechnik GmbH";"KITA SONNENBLUME";"";"DE23850400008030453062";"";"";"Überweisungsgutschr.
+SVWZ+RE-2026-0040 EREF+NOTPROVIDED";"";"EUR";"6.326,04";"H"
+"23.02.2026";"23.02.2026";"Brenner Haustechnik GmbH";"Mirko Vogel";"";"DE20850400003773995922";"";"";"SEPA-Gutschrift
+RE-2026-0043";"";"EUR";"7.497,00";"H"
+"23.02.2026";"23.02.2026";"Brenner Haustechnik GmbH";"Neumann, Nadine";"";"DE17850200865675782598";"";"";"Überweisungsgutschr.
+Rg.-Nr. 2026-0049 Kd-Nr. 10078";"";"EUR";"15.091,58";"H"
+"23.02.2026";"23.02.2026";"Brenner Haustechnik GmbH";"WOHNUNGSBAUGENOSSENSCHAFT J";"";"DE86850900009235633692";"";"GENODEF1DRS";"SEPA-Gutschrift
+RE-2026-0034";"";"EUR";"19.754,00";"H"
+"20.02.2026";"20.02.2026";"Brenner Haustechnik GmbH";"UWE GRAFE";"";"DE78850200863748193232";"";"";"Gutschrift
+Wartung Grafe";"";"EUR";"165,41";"H"
+"20.02.2026";"20.02.2026";"Brenner Haustechnik GmbH";"RAINER ENGEL";"";"DE80500105179276916474";"";"";"SEPA-Gutschrift
+RE-2026-0042";"";"EUR";"635,46";"H"
+"19.02.2026";"19.02.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4793840 KD-NR 33810";"";"EUR";"2.813,18";"S"
+"18.02.2026";"19.02.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4752994 KD-NR 33810";"";"EUR";"2.579,08";"S"
+"18.02.2026";"18.02.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE27120300002596511943";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"117,38";"S"
+"18.02.2026";"18.02.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE20850900003473543977";"";"GENODEF1DRS";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"51,56";"S"
+"17.02.2026";"18.02.2026";"Brenner Haustechnik GmbH";"Florian Lange";"";"DE88120300008071692141";"";"";"Überweisungsgutschr.
+Restzahlung 2026-0004";"";"EUR";"3.734,22";"H"
+"16.02.2026";"16.02.2026";"Brenner Haustechnik GmbH";"DKV EURO SERVICE";"";"DE04120300004070380021";"";"";"Lastschrift
+Tankkarte Abrechnung";"";"EUR";"1.185,36";"S"
+"16.02.2026";"16.02.2026";"Brenner Haustechnik GmbH";"INNUNG SHK DRESDEN";"";"DE36860100903605682450";"";"";"Überweisung
+Innungsbeitrag 2026";"";"EUR";"450,00";"S"
+"16.02.2026";"16.02.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE65500105172922478560";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"125,45";"S"
+"16.02.2026";"16.02.2026";"Brenner Haustechnik GmbH";"ANJA ULLRICH";"";"DE15120300002221687087";"";"";"Überweisungsgutschr.
+RE-2026-0035";"";"EUR";"224,91";"H"
+"16.02.2026";"16.02.2026";"Brenner Haustechnik GmbH";"Uwe Vogel";"";"DE09500105179811291528";"";"";"Überweisungsgutschr.
+Badsanierung Vogel";"";"EUR";"11.410,91";"H"
+"12.02.2026";"12.02.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4721607 KD-NR D-4471";"";"EUR";"1.793,88";"S"
+"12.02.2026";"12.02.2026";"Brenner Haustechnik GmbH";"Engel, Grit";"";"DE50850900002581916333";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE-2026-0022";"";"EUR";"1.616,02";"H"
+"11.02.2026";"11.02.2026";"Brenner Haustechnik GmbH";"Göbel, Sandra";"";"DE07850503004675762079";"";"";"Gutschrift
+RE-2026-0015";"";"EUR";"165,41";"H"
+"11.02.2026";"11.02.2026";"Brenner Haustechnik GmbH";"Berger, Ramona";"";"DE79120300004767942337";"";"";"Gutschrift
+Heizungstausch Berger";"";"EUR";"10.594,57";"H"
+"10.02.2026";"10.02.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE29850400004152318167";"";"";"Überweisung
+Lohnsteuer 01/2026 StNr 202/118/54321";"";"EUR";"2.205,82";"S"
+"10.02.2026";"10.02.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE39850503006175346874";"";"";"Überweisung
+USt-VZ 01/2026 StNr 202/118/54321";"";"EUR";"2.052,02";"S"
+"10.02.2026";"10.02.2026";"Brenner Haustechnik GmbH";"Bauer, Uwe";"";"DE44850400003300595817";"";"";"Gutschrift
+RE-2026-0037";"";"EUR";"6.545,00";"H"
+"09.02.2026";"09.02.2026";"Brenner Haustechnik GmbH";"UWE SEIDEL";"";"DE79860100908613955412";"";"";"Überweisungsgutschr.
+RE20260020";"";"EUR";"165,41";"H"
+"09.02.2026";"09.02.2026";"Brenner Haustechnik GmbH";"TIERARZTPRAXIS DR. FIEDLER";"";"DE35860100903557270350";"";"";"SEPA-Gutschrift
+RE-2026-0023";"";"EUR";"177,31";"H"
+"09.02.2026";"09.02.2026";"Brenner Haustechnik GmbH";"KINDERGARTEN ELBSPATZEN E.V";"";"DE14500105174363921691";"";"";"SEPA-Gutschrift
+RE20260033 abzgl. 2% Skonto";"";"EUR";"674,06";"H"
+"09.02.2026";"09.02.2026";"Brenner Haustechnik GmbH";"ELEKTRO MUELLER E.K.";"";"DE04500105179060352441";"";"";"SEPA-Gutschrift
+Reparatur Elektro";"";"EUR";"1.141,21";"H"
+"09.02.2026";"09.02.2026";"Brenner Haustechnik GmbH";"AUTOHAUS PIESCHEN GMBH";"";"DE23850200860902966263";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0021 vom 22.01.2026";"";"EUR";"7.259,00";"H"
+"06.02.2026";"06.02.2026";"Brenner Haustechnik GmbH";"ELKE PETZOLD";"";"DE98860100907099709701";"";"";"SEPA-Gutschrift
+RE-2026-0024";"";"EUR";"510,51";"H"
+"06.02.2026";"06.02.2026";"Brenner Haustechnik GmbH";"Göbel, Sandra";"";"DE07850503004675762079";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0014 vom 20.01.2026";"";"EUR";"11.100,32";"H"
+"05.02.2026";"06.02.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4702809 KD-NR 33810";"";"EUR";"1.301,38";"S"
+"05.02.2026";"05.02.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE70120300006267721288";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"139,20";"S"
+"05.02.2026";"05.02.2026";"Brenner Haustechnik GmbH";"TELEKOM DEUTSCHLAND GMBH";"";"DE98500105173782638755";"";"";"Lastschrift
+Festnetz/Mobil Kd 4455661";"";"EUR";"89,90";"S"
+"04.02.2026";"04.02.2026";"Brenner Haustechnik GmbH";"KITA SONNENBLUME";"";"DE23850400008030453062";"";"";"Gutschrift
+Rechnung RE-2026-0031 vom 30.01.2026";"";"EUR";"165,41";"H"
+"03.02.2026";"03.02.2026";"Brenner Haustechnik GmbH";"BAECKEREI HOFFMANN";"";"DE73850200864077499883";"";"";"Gutschrift
+Rechnung RE-2026-0028 vom 29.01.2026";"";"EUR";"165,41";"H"
+"03.02.2026";"04.02.2026";"Brenner Haustechnik GmbH";"CAFÉ NEUSTADT UG";"";"DE27850900004681428882";"";"GENODEF1DRS";"Überweisungsgutschr.
+RE-2026-0027 abzgl. 2% Skonto";"";"EUR";"185,43";"H"
+"02.02.2026";"02.02.2026";"Brenner Haustechnik GmbH";"GRUNDSTUECKSVERWALTUNG LEHNERT";"";"DE86850400005861323378";"";"";"Dauerauftrag
+Miete Werkstatt/Lager Hechtstr. 41 02/2026";"";"EUR";"2.150,00";"S"
+"02.02.2026";"03.02.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4776669 KD-NR 33810";"";"EUR";"1.056,76";"S"
+"02.02.2026";"02.02.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE20850400001797680480";"";"";"Lastschrift
+Leasingrate 02/2026 Vertrag 77-101 DD-BH 101";"";"EUR";"489,00";"S"
+"02.02.2026";"02.02.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE93860100905916582361";"";"";"Lastschrift
+Leasingrate 02/2026 Vertrag 77-102 DD-BH 102";"";"EUR";"489,00";"S"
+"02.02.2026";"02.02.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE93850200863144376498";"";"";"Lastschrift
+Leasingrate 02/2026 Vertrag 77-103 DD-BH 103";"";"EUR";"489,00";"S"
+"02.02.2026";"02.02.2026";"Brenner Haustechnik GmbH";"PHYSIOTHERAPIE AM ALAUNPARK";"";"DE89850503000730573402";"";"";"Gutschrift
+RE-2026-0006";"";"EUR";"165,41";"H"
+"02.02.2026";"03.02.2026";"Brenner Haustechnik GmbH";"MALERBETRIEB THIELE GMBH";"";"DE77860100902860293748";"";"";"Gutschrift
+Rg.-Nr. 2026-0011 Kd-Nr. 10110";"";"EUR";"224,91";"H"
+"02.02.2026";"02.02.2026";"Brenner Haustechnik GmbH";"IMMOBILIENVERWALTUNG WEISSE";"";"DE58500105174845096965";"";"";"Überweisungsgutschr.
+Trinkwasser Immobilienverwaltung";"";"EUR";"561,68";"H"
+"02.02.2026";"02.02.2026";"Brenner Haustechnik GmbH";"Wagner, Martin";"";"DE21850200863262677733";"";"";"Überweisungsgutschr.
+RE-2026-0008";"";"EUR";"2.084,88";"H"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"AOK PLUS";"";"DE77850200867801744583";"";"";"Lastschrift
+Beitragsnachweis 01/2026 BNR 12345678";"";"EUR";"6.896,97";"S"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"Thomas Brenner";"";"DE47850200866430225166";"";"";"Lohn/Gehalt
+LOHN/GEHALT 01/2026 PNR 101";"";"EUR";"3.800,00";"S"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"Jens Kowalski";"";"DE71850900001668302443";"";"GENODEF1DRS";"Lohn/Gehalt
+LOHN/GEHALT 01/2026 PNR 103";"";"EUR";"2.450,00";"S"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"Marco Richter";"";"DE98500105171701479311";"";"";"Lohn/Gehalt
+LOHN/GEHALT 01/2026 PNR 104";"";"EUR";"2.332,80";"S"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"Dennis Hoffmann";"";"DE17120300002710906454";"";"";"Lohn/Gehalt
+LOHN/GEHALT 01/2026 PNR 105";"";"EUR";"2.190,00";"S"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"Ayse Yilmaz";"";"DE23860100904906609436";"";"";"Lohn/Gehalt
+LOHN/GEHALT 01/2026 PNR 106";"";"EUR";"2.190,00";"S"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"Sabine Brenner";"";"DE53850200867915209698";"";"";"Lohn/Gehalt
+LOHN/GEHALT 01/2026 PNR 102";"";"EUR";"1.650,00";"S"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"Kevin Schmidt";"";"DE95850400003338059500";"";"";"Lohn/Gehalt
+LOHN/GEHALT 01/2026 PNR 107";"";"EUR";"1.017,50";"S"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"Lukas Weber";"";"DE59500105176019065928";"";"";"Lohn/Gehalt
+LOHN/GEHALT 01/2026 PNR 108";"";"EUR";"820,00";"S"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"VOLKSBANK DRESDEN-BAUTZEN EG";"";"DE76850900008083392503";"";"GENODEF1DRS";"Abschluss
+Kontoführung";"";"EUR";"34,50";"S"
+"30.01.2026";"30.01.2026";"Brenner Haustechnik GmbH";"UTE BRAUN";"";"DE82500105174685852215";"";"";"SEPA-Gutschrift
+Re 26/2026";"";"EUR";"165,41";"H"
+"29.01.2026";"29.01.2026";"Brenner Haustechnik GmbH";"Mirko Vogel";"";"DE20850400003773995922";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0016 vom 21.01.2026";"";"EUR";"1.310,19";"H"
+"28.01.2026";"28.01.2026";"Brenner Haustechnik GmbH";"BAECKEREI HOFFMANN";"";"DE73850200864077499883";"";"";"SEPA-Gutschrift
+Rechnung RE-2026-0013 vom 19.01.2026";"";"EUR";"1.098,37";"H"
+"27.01.2026";"27.01.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4796437 KD-NR D-4471";"";"EUR";"2.413,45";"S"
+"26.01.2026";"26.01.2026";"Brenner Haustechnik GmbH";"KITA SONNENBLUME";"";"DE23850400008030453062";"";"";"Überweisungsgutschr.
+RE-2026-0019";"";"EUR";"165,41";"H"
+"23.01.2026";"23.01.2026";"Brenner Haustechnik GmbH";"ZAHNARZTPRAXIS DR. LEHMANN";"";"DE14860100904046209122";"";"";"SEPA-Gutschrift
+RE20260009 abzgl. 2% Skonto";"";"EUR";"6.180,86";"H"
+"22.01.2026";"22.01.2026";"Brenner Haustechnik GmbH";"Dagmar Rößler";"";"DE34120300004442317445";"";"";"SEPA-Gutschrift
+RE20260001";"";"EUR";"8.628,69";"H"
+"21.01.2026";"22.01.2026";"Brenner Haustechnik GmbH";"SCHRAUBEN-WOLF GMBH";"";"DE15850503004357181634";"";"";"Überweisung
+RG 4700270 KD-NR 883 112";"";"EUR";"1.797,04";"S"
+"20.01.2026";"20.01.2026";"Brenner Haustechnik GmbH";"Florian Lange";"";"DE88120300008071692141";"";"";"SEPA-Gutschrift
+RE20260004";"";"EUR";"3.734,22";"H"
+"19.01.2026";"20.01.2026";"Brenner Haustechnik GmbH";"SENIORENRESIDENZ AM GROSSEN";"";"DE50850900007400269986";"";"GENODEF1DRS";"SEPA-Gutschrift
+Rechnung RE-2026-0012 vom 16.01.2026 abzgl. 2% Skonto";"";"EUR";"312,54";"H"
+"19.01.2026";"19.01.2026";"Brenner Haustechnik GmbH";"Berger, Ramona";"";"DE79120300004767942337";"";"";"SEPA-Gutschrift
+Heizungstausch Berger";"";"EUR";"7.140,00";"H"
+"19.01.2026";"19.01.2026";"Brenner Haustechnik GmbH";"UTE BRAUN";"";"DE82500105174685852215";"";"";"Überweisungsgutschr.
+SVWZ+RE-2026-0005 EREF+NOTPROVIDED";"";"EUR";"11.379,97";"H"
+"16.01.2026";"19.01.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE02120300008138809735";"";"";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"156,15";"S"
+"15.01.2026";"15.01.2026";"Brenner Haustechnik GmbH";"SV SACHSEN VERSICHERUNG AG";"";"DE44850200864089611534";"";"";"Lastschrift
+Kfz-Versicherung 3 Fzg";"";"EUR";"1.284,00";"S"
+"15.01.2026";"15.01.2026";"Brenner Haustechnik GmbH";"DKV EURO SERVICE";"";"DE31860100903495146190";"";"";"Lastschrift
+Tankkarte Abrechnung";"";"EUR";"1.060,61";"S"
+"15.01.2026";"15.01.2026";"Brenner Haustechnik GmbH";"SHK-FACHHANDEL SACHSEN KG";"";"DE80850200865295087698";"";"";"Überweisung
+RG 4709764 KD-NR D-4471";"";"EUR";"776,73";"S"
+"15.01.2026";"15.01.2026";"Brenner Haustechnik GmbH";"SV SACHSEN VERSICHERUNG AG";"";"DE38850200868205185066";"";"";"Lastschrift
+Betriebshaftpflicht Q";"";"EUR";"612,40";"S"
+"14.01.2026";"14.01.2026";"Brenner Haustechnik GmbH";"KERSTIN NEUMANN";"";"DE85120300003388347022";"";"";"SEPA-Gutschrift
+RE-2026-0003";"";"EUR";"165,41";"H"
+"13.01.2026";"13.01.2026";"Brenner Haustechnik GmbH";"IMMOBILIENVERWALTUNG WEISSE";"";"DE58500105174845096965";"";"";"Überweisungsgutschr.
+RE-2025-0269";"";"EUR";"715,19";"H"
+"12.01.2026";"12.01.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE40850503009325134639";"";"";"Überweisung
+USt-VZ 12/2025 StNr 202/118/54321";"";"EUR";"3.035,79";"S"
+"12.01.2026";"12.01.2026";"Brenner Haustechnik GmbH";"ANDRE KAISER FLIESENLEGERMEISTER";"";"DE55850200865863947364";"";"";"Überweisung
+RG 4756798 KD-NR —";"";"EUR";"2.758,66";"S"
+"12.01.2026";"12.01.2026";"Brenner Haustechnik GmbH";"FINANZAMT DRESDEN-NORD";"";"DE38860100903017242390";"";"";"Überweisung
+Lohnsteuer 12/2025 StNr 202/118/54321";"";"EUR";"1.894,09";"S"
+"12.01.2026";"12.01.2026";"Brenner Haustechnik GmbH";"HOTEL ELBBLICK GMBH";"";"DE92850200864838570174";"";"";"Überweisungsgutschr.
+Rechnung RE-2025-0271 vom 31.12.2025";"";"EUR";"165,41";"H"
+"12.01.2026";"12.01.2026";"Brenner Haustechnik GmbH";"IMMOBILIENVERWALTUNG WEISSE";"";"DE58500105174845096965";"";"";"Gutschrift
+RE-2025-0263";"";"EUR";"499,80";"H"
+"12.01.2026";"12.01.2026";"Brenner Haustechnik GmbH";"Göbel, Sandra";"";"DE07850503004675762079";"";"";"SEPA-Gutschrift
+Re 264/2025";"";"EUR";"7.497,00";"H"
+"09.01.2026";"09.01.2026";"Brenner Haustechnik GmbH";"KITA SONNENBLUME";"";"DE23850400008030453062";"";"";"Überweisungsgutschr.
+RE-2025-0261";"";"EUR";"4.165,00";"H"
+"07.01.2026";"08.01.2026";"Brenner Haustechnik GmbH";"ELBE-HAUSTECHNIK GROSSHANDEL";"";"DE54850503007491626031";"";"";"Überweisung
+RG 4705851 KD-NR 33810";"";"EUR";"949,66";"S"
+"07.01.2026";"07.01.2026";"Brenner Haustechnik GmbH";"BAECKEREI HOFFMANN";"";"DE73850200864077499883";"";"";"Gutschrift
+RE-2025-0267";"";"EUR";"189,21";"H"
+"05.01.2026";"06.01.2026";"Brenner Haustechnik GmbH";"TELEKOM DEUTSCHLAND GMBH";"";"DE80860100908572353452";"";"";"Lastschrift
+Festnetz/Mobil Kd 4455661";"";"EUR";"89,90";"S"
+"05.01.2026";"05.01.2026";"Brenner Haustechnik GmbH";"BAUMARKT DRESDEN NICKERN";"";"DE95850900001477883542";"";"GENODEF1DRS";"Kartenzahlung girocard
+Baumarkt Kartenzahlung";"";"EUR";"21,57";"S"
+"05.01.2026";"05.01.2026";"Brenner Haustechnik GmbH";"WOHNUNGSGENOSSENSCHAFT ELBTAL EG";"";"DE81860100904126085961";"";"";"Gutschrift
+Rg.-Nr. 2025-0246 Kd-Nr. 10005";"";"EUR";"1.295,91";"H"
+"05.01.2026";"05.01.2026";"Brenner Haustechnik GmbH";"HAUSVERWALTUNG SCHULZE UND PARTNER";"";"DE75860100903036376720";"";"";"Gutschrift
+RE-2025-0252";"";"EUR";"1.857,59";"H"
+"05.01.2026";"05.01.2026";"Brenner Haustechnik GmbH";"Uwe Vogel";"";"DE09500105179811291528";"";"";"Gutschrift
+SVWZ+RE-2025-0270 EREF+NOTPROVIDED";"";"EUR";"7.616,00";"H"
+"05.01.2026";"05.01.2026";"Brenner Haustechnik GmbH";"IMMOBILIENVERWALTUNG WEISSE";"";"DE58500105174845096965";"";"";"SEPA-Gutschrift
+SVWZ+RE-2025-0247 EREF+NOTPROVIDED";"";"EUR";"24.713,92";"H"
+"02.01.2026";"02.01.2026";"Brenner Haustechnik GmbH";"GRUNDSTUECKSVERWALTUNG LEHNERT";"";"DE80860100909062770417";"";"";"Dauerauftrag
+Miete Werkstatt/Lager Hechtstr. 41 01/2026";"";"EUR";"2.150,00";"S"
+"02.01.2026";"02.01.2026";"Brenner Haustechnik GmbH";"SCHRAUBEN-WOLF GMBH";"";"DE15850503004357181634";"";"";"Überweisung
+RG 4764195 KD-NR 883 112";"";"EUR";"1.646,43";"S"
+"02.01.2026";"02.01.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE33120300003118379692";"";"";"Lastschrift
+Leasingrate 01/2026 Vertrag 77-101 DD-BH 101";"";"EUR";"489,00";"S"
+"02.01.2026";"02.01.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE19850200868358988511";"";"";"Lastschrift
+Leasingrate 01/2026 Vertrag 77-102 DD-BH 102";"";"EUR";"489,00";"S"
+"02.01.2026";"02.01.2026";"Brenner Haustechnik GmbH";"AUTOLEASING SACHSEN GMBH";"";"DE36860100902408779177";"";"";"Lastschrift
+Leasingrate 01/2026 Vertrag 77-103 DD-BH 103";"";"EUR";"489,00";"S"
+"02.01.2026";"05.01.2026";"Brenner Haustechnik GmbH";"RESTAURANT ZUM GOLDENEN ANK";"";"DE45850900007567551426";"";"GENODEF1DRS";"Überweisungsgutschr.
+Rechnung RE-2025-0258 vom 17.12.2025";"";"EUR";"189,21";"H"
+"02.01.2026";"02.01.2026";"Brenner Haustechnik GmbH";"Franziska Haase";"";"DE24850200863787467273";"";"";"Gutschrift
+Re 266/2025";"";"EUR";"1.260,21";"H"
+
+"01.01.2026";;;;;;;;;"Anfangssaldo";"EUR";"48.432,17";"H"
+"30.09.2026";;;;;;;;;"Endsaldo";"EUR";"162.516,00";"H"

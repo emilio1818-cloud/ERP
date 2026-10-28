@@ -1,0 +1,9 @@
+Employee ID,First name,Last name,Position,Department,Hire date,Weekly hours,Mobile phone,Email,Short code
+101,Thomas,Brenner,Geschäftsführer / SHK-Meister,Management,04/01/2009,45,+49 172 3301101,thomas.brenner@brenner-haustechnik.de,TB
+102,Sabine,Brenner,Office / Accounting,Administration,04/01/2009,30,+49 172 3301102,sabine.brenner@brenner-haustechnik.de,SB
+103,Jens,Kowalski,Kundendiensttechniker,Service,08/15/2012,40,+49 172 3301103,jens.kowalski@brenner-haustechnik.de,JK
+104,Marco,Richter,Anlagenmechaniker SHK,Installation,02/01/2016,40,+49 172 3301104,marco.richter@brenner-haustechnik.de,MR
+105,Dennis,Hoffmann,Anlagenmechaniker SHK,Installation,09/01/2019,40,+49 172 3301105,dennis.hoffmann@brenner-haustechnik.de,DH
+106,Ayşe,Yılmaz,Anlagenmechanikerin SHK,Installation,03/15/2021,40,+49 172 3301106,ayse.yilmaz@brenner-haustechnik.de,AY
+107,Kevin,Schmidt,Auszubildender (3. Lj.),Installation,08/28/2023,40,+49 152 5507107,kevin.schmidt@brenner-haustechnik.de,KS
+108,Lukas,Weber,Auszubildender (1. Lj.),Installation,09/01/2025,40,+49 152 5507108,lukas.weber@brenner-haustechnik.de,LW

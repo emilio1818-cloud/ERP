@@ -64,7 +64,8 @@ def header_sim(a: Col, b: Col) -> float:
     jac = len(ta & tb) / len(ta | tb) if ta | tb else 0.0
     sim = jac * 0.9
     ca, cb = na.replace(" ", ""), nb.replace(" ", "")
-    if ca and cb:
+    if ca and cb and len(ta) == len(tb):
+        # spelling variants ("Strasse"/"Straße", "E-Mail"/"Email"), not "Kunde" vs "Kunde seit"
         jw = jaro_winkler(ca, cb)
         if jw >= 0.9:
             sim = max(sim, jw - 0.05)
@@ -95,6 +96,9 @@ def col_sim(a: Col, b: Col) -> float:
     v = value_overlap(a, b) if ga in ("text", "email", "phone", "zip", "iban") else 0.0
     if ga == "text" and a.role in ("notes",) and b.role in ("notes",):
         h = max(h, 0.7)
+    names = ("name", "person")
+    if ga == "text" and (a.role in names) != (b.role in names) and v < 0.2:
+        h *= 0.6  # a column of names belongs with names, whatever its header says
     if h >= 0.75:
         return min(1.0, h + 0.1 * v)
     if v >= 0.5 and h >= 0.25:
@@ -133,9 +137,11 @@ def _ident_overlap(a: Obs, b: Obs) -> tuple[float, str]:
         v = value_overlap(ka, kb)
         if v > best:
             best, why = v, f"gleiche Nummern in „{ka.name}“ und „{kb.name}“"
-    if ka and kb and best < 0.2:
-        # both have their own numbers and they do not match: names in them are references
-        # ("Kunde" in an order list), not evidence that the records are the same things
+    same_master = bool(a.concept and a.concept == b.concept and lexicon.CONCEPTS[a.concept]["kind"] == "master")
+    if ka and kb and best < 0.2 and ((ka.prof.pattern or "") == (kb.prof.pattern or "") or not same_master):
+        # both have their own numbers of the same kind and they do not match: names in them are
+        # references ("Kunde" in an order list), not evidence that the records are the same things.
+        # Numbers of different systems ("101" and "res_101") say nothing either way.
         return best, why
     ta, tb = a.title_col(), b.title_col()
     if ta and tb:
@@ -324,11 +330,15 @@ def _finish(t: TypeDraft):
         t.plural = plural_de(t.name)
     # kind
     has_date = any(a.kind in ("date", "datetime") for a in t.attrs)
+    tc = lead.title_col()
+    # master data lists each thing once; a list whose names repeat day after day records events
+    repeats = tc is not None and tc.filled >= 10 and tc.distinct / tc.filled < 0.6
     if lead.kind_hint == "line":
         t.kind = "line"
     elif concept:
         t.kind = lexicon.CONCEPTS[concept]["kind"]
-    elif lead.kind_hint == "header" or (has_date and any(a.kind == "money" for a in t.attrs)):
+    elif lead.kind_hint == "header" or (has_date and any(a.kind == "money" for a in t.attrs)) or \
+            (has_date and (repeats or any(a.kind == "time" for a in t.attrs))):
         t.kind = "transaction"
     else:
         t.kind = "master"

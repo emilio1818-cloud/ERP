@@ -12,7 +12,7 @@ from collections import Counter, defaultdict
 from datetime import date
 
 from .text import fold, tokens
-from .values import as_date
+from .values import parse_duration, as_date
 
 NUMERIC = ("number", "money", "percent", "duration")
 NICE = [0.07, 0.19, 0.16, 0.05, 1.07, 1.19, 1.16, 0.5, 2, 3, 4, 5, 6, 10, 12, 20, 24, 25, 30, 50, 60, 100, 1000, 0.01, 0.1]
@@ -248,11 +248,11 @@ def find_date_offsets(spec: dict, recs: list[dict], model: dict, records: dict) 
                         target = by_id.get(r["data"].get(ref["id"]))
                         if not target:
                             continue
-                        dv = target["data"].get(dur["id"])
+                        dv = parse_duration(target["data"].get(dur["id"]))
                         if dv is None:
                             continue
                         n += 1
-                        if int(dv) == d:
+                        if dv == d:
                             ok += 1
                     if n >= 8 and ok / n >= 0.9:
                         best = dict(attr=due["id"], op="date_add_ref", args=[base["id"]], ref=ref["id"],

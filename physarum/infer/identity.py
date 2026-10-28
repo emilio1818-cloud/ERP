@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 from .. import lexicon
@@ -89,6 +89,13 @@ def build_protos(t: TypeDraft) -> list[Proto]:
     return protos
 
 
+def _key_shape(k: str) -> str:
+    out = []
+    for ch in str(k):
+        out.append("9" if ch.isdigit() else "A" if ch.isalpha() else ch)
+    return "".join(out)
+
+
 def _domain(email: str) -> str:
     return email.rsplit("@", 1)[-1].lower() if "@" in email else ""
 
@@ -119,7 +126,11 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
     def conflict(ra, rb, by_name=False) -> bool:
         ka, kb = root_keys[ra], root_keys[rb]
         if ka and kb and not (ka & kb):
-            return True
+            # two numbers from the same numbering system contradict each other; an old number
+            # ("D-1009") and today's ("10023") do not – the firm changed its system
+            sa, sb = {_key_shape(k) for k in ka}, {_key_shape(k) for k in kb}
+            if not by_name or (sa & sb):
+                return True
         if by_name:
             ma, mb = root_mails[ra], root_mails[rb]
             if ma and mb and not (ma & mb):
@@ -152,6 +163,15 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
                 join(first[k], i)
             else:
                 first[k] = i
+    # a name or address that repeats inside one list does not identify a row of that list
+    # (a timesheet names the same building site every day)
+    inside = Counter()
+    for p in protos:
+        if title_aid and p.values.get(title_aid):
+            inside[(id(p.member), "n", norm_name(p.values[title_aid]))] += 1
+        for ea in email_aids:
+            if p.values.get(ea):
+                inside[(id(p.member), "e", str(p.values[ea]).strip().casefold())] += 1
     # 2. same e-mail (master data only: two invoices to one address are two invoices)
     if master and email_aids:
         first = {}
@@ -161,6 +181,8 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
                 if not v:
                     continue
                 k = str(v).strip().casefold()
+                if inside[(id(p.member), "e", k)] > 1:
+                    continue
                 if k in first:
                     join(first[k], i)
                 else:
@@ -173,7 +195,7 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
             if not v:
                 continue
             k = norm_name(v)
-            if len(k) < 3:
+            if len(k) < 3 or inside[(id(p.member), "n", k)] > 1:
                 continue
             if k in first:
                 join(first[k], i, by_name=True)
@@ -188,6 +210,14 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
     for g in groups:
         _merge_values(t, g)
         _idents(t, g, key_aid, email_aids, title_aid, link_aids, pos_aids)
+    # an identity several groups share identifies none of them: such groups are known by content
+    shared = Counter(i for g in groups for i in g.idents)
+    for g in groups:
+        amb = {i for i in g.idents if shared[i] > 1 and not i.startswith(("h~", "l~"))}
+        if amb:
+            g.idents -= amb
+            if not g.idents:
+                g.idents = {f"h~{_content_hash(p)}" for p in g.protos}
     _number_occurrences(groups)
     if master and title_aid:
         groups = _fuzzy(t, groups, decisions, questions, log)
@@ -320,7 +350,10 @@ def _evidence(t: TypeDraft, a: Group, b: Group) -> tuple[list[str], list[str]]:
             else:
                 con.append("anderer Ort")
         elif attr is t.key and norm_key(va) != norm_key(vb):
-            con.append(f"verschiedene {attr.name} ({va} / {vb})")
+            if _key_shape(norm_key(va)) == _key_shape(norm_key(vb)):
+                con.append(f"verschiedene {attr.name} ({va} / {vb})")
+            else:
+                pro.append(f"alte und neue {attr.name} ({va} / {vb})")
     return sorted(set(pro)), sorted(set(con))
 
 
@@ -366,12 +399,18 @@ def _fuzzy(t: TypeDraft, groups: list[Group], decisions: dict, questions: list |
                     if "verschiedene E-Mail-Adressen" in con and not (set(pro) & strong):
                         continue  # same name, different private addresses: most likely two people
                 key_conflict = any(c.startswith("verschiedene") and "E-Mail" not in c for c in con)
+                strong_pro = set(pro) & {"gleiche Telefonnummer", "gleiche Straße", "gleiche E-Mail"}
+                strong_con = set(con) & {"andere Straße", "verschiedene E-Mail-Adressen"}
+                if key_conflict and not strong_pro:
+                    continue  # two numbers and nothing else in common: two things
                 score = sim + 0.06 * len(pro) - 0.1 * len(con)
                 pk = pair_key(groups[i], groups[j])
                 d = decisions.get(pk)
                 if d == "different":
                     continue
-                if d == "same" or (not key_conflict and sim >= 0.95 and pro and not con):
+                # a new phone number does not make a new person: the address speaks louder
+                if d == "same" or (not key_conflict and sim >= 0.95 and pro and
+                                   (not con or (strong_pro and not strong_con and len(pro) >= 2))):
                     merges.append((i, j, sim, pro, d == "same"))
                 elif score >= 0.86 and questions is not None:
                     questions.append(dict(kind="same_record", type=t, a=groups[i], b=groups[j], sim=round(sim, 3),
@@ -390,7 +429,10 @@ def _fuzzy(t: TypeDraft, groups: list[Group], decisions: dict, questions: list |
                 for y in members[rj]:
                     if (x, y) in ((i, j), (j, i)):
                         continue
-                    if name_similarity(names[x], names[y]) < 0.9 or _evidence(t, groups[x], groups[y])[1]:
+                    if name_similarity(names[x], names[y]) < 0.9 or \
+                            set(_evidence(t, groups[x], groups[y])[1]) & {"andere Straße", "verschiedene E-Mail-Adressen"} or \
+                            any(c.startswith("verschiedene") and "E-Mail" not in c
+                                for c in _evidence(t, groups[x], groups[y])[1]):
                         ok = False
                         break
                 if not ok:

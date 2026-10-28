@@ -70,7 +70,9 @@ def _ubl(r, credit=False) -> dict:
     cus = ["AccountingCustomerParty", "Party"]
     lines = []
     for ln in [x for x in r if _local(x.tag) in ("InvoiceLine", "CreditNoteLine")]:
-        q = _find(ln, ["InvoicedQuantity"]) or _find(ln, ["CreditedQuantity"])
+        q = _find(ln, ["InvoicedQuantity"])
+        if q is None:
+            q = _find(ln, ["CreditedQuantity"])
         lines.append(dict(pos=_text(ln, ["ID"]), name=_text(ln, ["Item", "Name"]) or _text(ln, ["Item", "Description"]),
                           qty=_num(q.text if q is not None else None), unit=q.get("unitCode") if q is not None else None,
                           price=_num(_text(ln, ["Price", "PriceAmount"])),

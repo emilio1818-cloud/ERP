@@ -16,7 +16,7 @@ from datetime import date, datetime
 from . import lexicon
 from .store import dumps, loads, now_iso
 from .text import fold, norm_key, norm_name, tokens
-from .values import _EMAIL, as_date, iban_ok, parse_date, parse_number
+from .values import _EMAIL, as_date, iban_ok, parse_date, parse_duration, parse_number
 
 LOCKED_CONCEPTS = {"rechnung"}
 
@@ -119,11 +119,11 @@ def eval_formula(rt, f: dict, data: dict):
             target = rt.by_id.get(data.get(f["ref"]))
             if d is None or not target:
                 return None
-            n = target["data"].get(f["ref_attr"])
+            n = parse_duration(target["data"].get(f["ref_attr"]))
             if n is None:
                 return None
             return d.fromordinal(d.toordinal() + int(n)).isoformat()
-    except (TypeError, ValueError, KeyError):
+    except (TypeError, ValueError, KeyError, OverflowError):
         return None
     return None
 

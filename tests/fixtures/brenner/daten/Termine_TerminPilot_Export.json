@@ -1,0 +1,2645 @@
+{
+  "export": {
+    "source": "TerminPilot Online",
+    "account": "brenner-haustechnik",
+    "exported_at": "2026-10-15T07:42:11Z",
+    "timezone": "Europe/Berlin",
+    "version": "3.2"
+  },
+  "resources": [
+    {
+      "id": "res_101",
+      "name": "Thomas Brenner",
+      "short": "TB"
+    },
+    {
+      "id": "res_103",
+      "name": "Jens Kowalski",
+      "short": "JK"
+    },
+    {
+      "id": "res_104",
+      "name": "Marco Richter",
+      "short": "MR"
+    },
+    {
+      "id": "res_105",
+      "name": "Dennis Hoffmann",
+      "short": "DH"
+    },
+    {
+      "id": "res_106",
+      "name": "Ayşe Yılmaz",
+      "short": "AY"
+    },
+    {
+      "id": "res_107",
+      "name": "Kevin Schmidt",
+      "short": "KS"
+    },
+    {
+      "id": "res_108",
+      "name": "Lukas Weber",
+      "short": "LW"
+    }
+  ],
+  "appointments": [
+    {
+      "id": "tp_09eadc",
+      "title": "Wartung Wärmepumpe",
+      "start": "2026-08-03T07:00:00+02:00",
+      "end": "2026-08-03T09:00:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Fleischerei Geißler GmbH",
+        "phone": "+49 351 8813023",
+        "email": "info@fleischerei-dresden.de",
+        "address": {
+          "street": "Tolkewitzer Straße 174",
+          "postal_code": "01279",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-187",
+      "notes": "bitte vorher anrufen",
+      "created_at": "2026-07-29T09:12:00+02:00"
+    },
+    {
+      "id": "tp_5a5090",
+      "title": "Zirkulationspumpe defekt",
+      "start": "2026-08-03T13:00:00+02:00",
+      "end": "2026-08-03T15:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Anja Ullrich",
+        "phone": "+49 351 7287364",
+        "email": null,
+        "address": {
+          "street": "Rudolf-Leonhard-Straße 114",
+          "postal_code": "01097",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-186",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-07-28T09:12:00+02:00"
+    },
+    {
+      "id": "tp_bd9e6c",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-08-04T07:00:00+02:00",
+      "end": "2026-08-04T08:00:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Weinstube Radebeul",
+        "phone": "+49 3501 411970",
+        "email": "info@weinstube-dresden.de",
+        "address": {
+          "street": "Bahnhofstraße 67b",
+          "postal_code": "01454",
+          "city": "Radeberg"
+        }
+      },
+      "reference": "A-26-193",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-07-31T09:12:00+02:00"
+    },
+    {
+      "id": "tp_368e26",
+      "title": "Armatur tropft",
+      "start": "2026-08-04T13:00:00+02:00",
+      "end": "2026-08-04T14:30:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Hotel Elbblick GmbH",
+        "phone": "0351 6820994",
+        "email": "info@hotel-dresden.de",
+        "address": {
+          "street": "Chemnitzer Straße 133",
+          "postal_code": "01187",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-07-30T09:12:00+02:00"
+    },
+    {
+      "id": "tp_18fd89",
+      "title": "Armatur tropft",
+      "start": "2026-08-05T09:00:00+02:00",
+      "end": "2026-08-05T11:00:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Sportverein Blau-Weiß Dresden e.V.",
+        "phone": "+49 351 3705255",
+        "email": "info@sportverein-dresden.de",
+        "address": {
+          "street": "Borsbergstraße 115",
+          "postal_code": "01309",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-191",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-07-31T09:12:00+02:00"
+    },
+    {
+      "id": "tp_3e870a",
+      "title": "Rohrbruch Küche",
+      "start": "2026-08-07T10:00:00+02:00",
+      "end": "2026-08-07T12:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Städtische Wohnungsgesellschaft Freital mbH",
+        "phone": "+49 351 8046701",
+        "email": "technik@staedtische.de",
+        "address": {
+          "street": "Hamburger Straße 23",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-196",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-08-04T09:12:00+02:00"
+    },
+    {
+      "id": "tp_3c14aa",
+      "title": "Spülung Trinkwasseranlage",
+      "start": "2026-08-10T07:00:00+02:00",
+      "end": "2026-08-10T08:00:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Immobilienverwaltung Weißer Hirsch GmbH",
+        "phone": "03528 209494",
+        "email": "technik@immobilienverwaltung.de",
+        "address": {
+          "street": "Freiberger Straße 112",
+          "postal_code": null,
+          "city": "Radeberg"
+        }
+      },
+      "reference": "A-26-195",
+      "notes": "bitte vorher anrufen",
+      "created_at": "2026-08-04T09:12:00+02:00"
+    },
+    {
+      "id": "tp_f0f130",
+      "title": "Rohrbruch Küche",
+      "start": "2026-08-12T10:00:00+02:00",
+      "end": "2026-08-12T11:30:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Hausverwaltung Schulze & Partner GbR",
+        "phone": "+49 351 3104455",
+        "email": "technik@hv-schulze-partner.de",
+        "address": {
+          "street": "Tharandter Straße 55",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "Hund im Haus",
+      "created_at": "2026-08-10T09:12:00+02:00"
+    },
+    {
+      "id": "tp_661859",
+      "title": "Austausch Warmwasserspeicher Lager",
+      "start": "2026-08-13T10:00:00+02:00",
+      "end": "2026-08-13T11:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Müller Getränke",
+        "phone": "0351 8494420",
+        "email": "buchhaltung@mueller-getraenke.de",
+        "address": {
+          "street": "Großenhainer Straße 101",
+          "postal_code": "01127",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-200",
+      "notes": "",
+      "created_at": "2026-08-11T09:12:00+02:00"
+    },
+    {
+      "id": "tp_02f7a7",
+      "title": "Druckverlust Heizung",
+      "start": "2026-08-14T07:00:00+02:00",
+      "end": "2026-08-14T10:00:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Café Neustadt UG",
+        "phone": "0351 3943354",
+        "email": "info@cafe-dresden.de",
+        "address": {
+          "street": "Cossebauder Straße 153b",
+          "postal_code": "01157",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-198",
+      "notes": "",
+      "created_at": "2026-08-10T09:12:00+02:00"
+    },
+    {
+      "id": "tp_1d3b99",
+      "title": "Heizung ohne Funktion",
+      "start": "2026-08-14T10:00:00+02:00",
+      "end": "2026-08-14T13:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Städtische Wohnungsgesellschaft Freital mbH",
+        "phone": "0351 8046701",
+        "email": "technik@staedtische.de",
+        "address": {
+          "street": "Tharandter Straße 78",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-201",
+      "notes": "",
+      "created_at": "2026-08-12T09:12:00+02:00"
+    },
+    {
+      "id": "tp_69ad4e",
+      "title": "Jahreswartung Gastherme",
+      "start": "2026-08-19T13:00:00+02:00",
+      "end": "2026-08-19T16:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Apotheke am Bischofsplatz",
+        "phone": "+49 351 4112222",
+        "email": "info@apotheke-dresden.de",
+        "address": {
+          "street": "Kesselsdorfer Straße 159a",
+          "postal_code": "01159",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-202",
+      "notes": "bitte vorher anrufen",
+      "created_at": "2026-08-14T09:12:00+02:00"
+    },
+    {
+      "id": "tp_15ba21",
+      "title": "Badumbau barrierefrei",
+      "start": "2026-08-25T07:00:00+02:00",
+      "end": "2026-08-25T15:00:00+02:00",
+      "resource_ids": [
+        "res_105",
+        "res_108"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Lars Thiele",
+        "phone": "+49 351 6716507",
+        "email": null,
+        "address": {
+          "street": "Tolkewitzer Straße 175b",
+          "postal_code": "01279",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-184",
+      "notes": "",
+      "created_at": "2026-07-24T09:12:00+02:00"
+    },
+    {
+      "id": "tp_bda002",
+      "title": "Kein Warmwasser",
+      "start": "2026-08-25T10:00:00+02:00",
+      "end": "2026-08-25T11:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Pension Loschwitz",
+        "phone": "+49 351 3521586",
+        "email": "info@pension-dresden.de",
+        "address": {
+          "street": "Bautzner Straße 13a",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-205",
+      "notes": "",
+      "created_at": "2026-08-25T09:12:00+02:00"
+    },
+    {
+      "id": "tp_7c6c6e",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-08-25T13:00:00+02:00",
+      "end": "2026-08-25T14:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Yvonne Horn",
+        "phone": "0351 4777174",
+        "email": null,
+        "address": {
+          "street": "Kesselsdorfer Straße 116",
+          "postal_code": "01159",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-203",
+      "notes": "Hund im Haus",
+      "created_at": "2026-08-19T09:12:00+02:00"
+    },
+    {
+      "id": "tp_f2da5a",
+      "title": "Montage Wand-WC",
+      "start": "2026-09-01T10:00:00+02:00",
+      "end": "2026-09-01T12:00:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Hotel Elbblick GmbH",
+        "phone": "0351 6820994",
+        "email": "info@hotel-dresden.de",
+        "address": {
+          "street": "Chemnitzer Straße 133",
+          "postal_code": "01187",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "",
+      "created_at": "2026-08-27T09:12:00+02:00"
+    },
+    {
+      "id": "tp_6369d5",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-09-02T08:00:00+02:00",
+      "end": "2026-09-02T09:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Gaststätte Zur Linde",
+        "phone": "0351 7945618",
+        "email": "info@gaststaette-dresden.de",
+        "address": {
+          "street": "Nürnberger Straße 164",
+          "postal_code": "01187",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "Parken im Hof",
+      "created_at": "2026-08-28T09:12:00+02:00"
+    },
+    {
+      "id": "tp_c342c4",
+      "title": "Einbau Wärmepumpe Luft/Wasser",
+      "start": "2026-09-02T10:00:00+02:00",
+      "end": "2026-09-02T18:00:00+02:00",
+      "resource_ids": [
+        "res_104",
+        "res_107"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Jan Zimmermann",
+        "phone": "0351 3645061",
+        "email": "j.zimmermann@gmail.com",
+        "address": {
+          "street": "Freiberger Straße 126",
+          "postal_code": "01067",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-179",
+      "notes": "",
+      "created_at": "2026-07-20T09:12:00+02:00"
+    },
+    {
+      "id": "tp_45a59b",
+      "title": "Trinkwasseruntersuchung",
+      "start": "2026-09-02T10:00:00+02:00",
+      "end": "2026-09-02T11:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Müller Bau GmbH",
+        "phone": "+49 351 8803311",
+        "email": "info@mueller-bau-dd.de",
+        "address": {
+          "street": "Radeburger Straße 5",
+          "postal_code": "01109",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-212",
+      "notes": "Parken im Hof",
+      "created_at": "2026-09-01T09:12:00+02:00"
+    },
+    {
+      "id": "tp_8b861f",
+      "title": "Montage Waschtisch",
+      "start": "2026-09-04T10:00:00+02:00",
+      "end": "2026-09-04T11:30:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Simone Fiedler",
+        "phone": "0351 6707647",
+        "email": "s.fiedler@web.de",
+        "address": {
+          "street": "Hamburger Straße 127",
+          "postal_code": "01157",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-216",
+      "notes": "",
+      "created_at": "2026-09-04T09:12:00+02:00"
+    },
+    {
+      "id": "tp_7766a2",
+      "title": "Wartung Ölheizung",
+      "start": "2026-09-04T13:00:00+02:00",
+      "end": "2026-09-04T14:00:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "WEG-Verwaltung Blasewitz GmbH",
+        "phone": "0351 8583100",
+        "email": "technik@wegverwaltung.de",
+        "address": {
+          "street": "Martin-Luther-Straße 55",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-210",
+      "notes": "Hund im Haus",
+      "created_at": "2026-08-31T09:12:00+02:00"
+    },
+    {
+      "id": "tp_4e70c9",
+      "title": "Montage Waschtisch",
+      "start": "2026-09-07T09:00:00+02:00",
+      "end": "2026-09-07T10:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Uwe Lorenz",
+        "phone": "0351 2669173",
+        "email": null,
+        "address": {
+          "street": "Alaunstraße 155b",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-219",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-09-07T09:12:00+02:00"
+    },
+    {
+      "id": "tp_46abe0",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-09-08T07:00:00+02:00",
+      "end": "2026-09-08T09:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Gaststätte Zur Linde",
+        "phone": "0351 7945618",
+        "email": "info@gaststaette-dresden.de",
+        "address": {
+          "street": "Nürnberger Straße 164",
+          "postal_code": "01187",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-221",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-09-07T09:12:00+02:00"
+    },
+    {
+      "id": "tp_0be09e",
+      "title": "Spülkasten läuft nach",
+      "start": "2026-09-08T13:00:00+02:00",
+      "end": "2026-09-08T14:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Hausverwaltung Schulze & Partner GbR",
+        "phone": "+49 351 3104455",
+        "email": "technik@hv-schulze-partner.de",
+        "address": {
+          "street": "Gompitzer Höhe 4",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-214",
+      "notes": "bitte vorher anrufen",
+      "created_at": "2026-09-04T09:12:00+02:00"
+    },
+    {
+      "id": "tp_82fbf9",
+      "title": "Wartung Ölheizung",
+      "start": "2026-09-09T10:00:00+02:00",
+      "end": "2026-09-09T11:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Wohnungsgenossenschaft Elbtal eG",
+        "phone": "0351 4102030",
+        "email": "technik@wg-elbtal.de",
+        "address": {
+          "street": "Merianplatz 9",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-213",
+      "notes": "",
+      "created_at": "2026-09-04T09:12:00+02:00"
+    },
+    {
+      "id": "tp_7abe83",
+      "title": "Reparatur Waschtischarmatur Bad OG",
+      "start": "2026-09-09T13:00:00+02:00",
+      "end": "2026-09-09T15:00:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Heike Müller",
+        "phone": "0351 2689044",
+        "email": "heike.mueller@web.de",
+        "address": {
+          "street": "Am Hang 3",
+          "postal_code": "01328",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "",
+      "created_at": "2026-09-08T09:12:00+02:00"
+    },
+    {
+      "id": "tp_74367e",
+      "title": "Druckverlust Heizung",
+      "start": "2026-09-10T13:00:00+02:00",
+      "end": "2026-09-10T16:00:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Müller Getränke",
+        "phone": "0351 8494420",
+        "email": "buchhaltung@mueller-getraenke.de",
+        "address": {
+          "street": "Großenhainer Straße 101",
+          "postal_code": "01127",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-215",
+      "notes": "",
+      "created_at": "2026-09-04T09:12:00+02:00"
+    },
+    {
+      "id": "tp_92cfc9",
+      "title": "Einbau Enthärtungsanlage",
+      "start": "2026-09-10T13:00:00+02:00",
+      "end": "2026-09-10T14:00:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Susanne Fischer",
+        "phone": "+49 351 8722065",
+        "email": "s.fischer@t-online.de",
+        "address": {
+          "street": "Borsbergstraße 100",
+          "postal_code": "01309",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "",
+      "created_at": "2026-09-07T09:12:00+02:00"
+    },
+    {
+      "id": "tp_5383f0",
+      "title": "Heizung ohne Funktion",
+      "start": "2026-09-14T09:00:00+02:00",
+      "end": "2026-09-14T12:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Marion Lorenz",
+        "phone": "+49 351 4774522",
+        "email": "m.lorenz@posteo.de",
+        "address": {
+          "street": "Görlitzer Straße 114a",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-225",
+      "notes": "",
+      "created_at": "2026-09-10T09:12:00+02:00"
+    },
+    {
+      "id": "tp_b95c3f",
+      "title": "Austausch Warmwasserspeicher",
+      "start": "2026-09-15T08:00:00+02:00",
+      "end": "2026-09-15T09:30:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Ralf Schwarz",
+        "phone": "+49 351 6341080",
+        "email": "r.schwarz@gmx.de",
+        "address": {
+          "street": "Görlitzer Straße 121",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-229",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-09-14T09:12:00+02:00"
+    },
+    {
+      "id": "tp_f452dc",
+      "title": "Wartung Ölheizung",
+      "start": "2026-09-16T08:00:00+02:00",
+      "end": "2026-09-16T10:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Apotheke am Bischofsplatz",
+        "phone": "+49 351 4112222",
+        "email": "info@apotheke-dresden.de",
+        "address": {
+          "street": "Kesselsdorfer Straße 159a",
+          "postal_code": "01159",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-231",
+      "notes": "Hund im Haus",
+      "created_at": "2026-09-14T09:12:00+02:00"
+    },
+    {
+      "id": "tp_09c700",
+      "title": "Jahreswartung Gastherme",
+      "start": "2026-09-17T07:00:00+02:00",
+      "end": "2026-09-17T08:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Wohnungsbaugenossenschaft Johannstadt eG",
+        "phone": "+49 351 4995039",
+        "email": "technik@wohnungsbaugenossenschaft.de",
+        "address": {
+          "street": "Stauffenbergallee 79",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-228",
+      "notes": "bitte vorher anrufen",
+      "created_at": "2026-09-14T09:12:00+02:00"
+    },
+    {
+      "id": "tp_b75313",
+      "title": "Heizungsausfall Wochenende",
+      "start": "2026-09-17T09:00:00+02:00",
+      "end": "2026-09-17T11:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Physiotherapie am Alaunpark",
+        "phone": "+49 351 3114695",
+        "email": "info@physiotherapie-dresden.de",
+        "address": {
+          "street": "Leipziger Straße 158b",
+          "postal_code": "01127",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-226",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-09-11T09:12:00+02:00"
+    },
+    {
+      "id": "tp_f850f9",
+      "title": "Badumbau barrierefrei",
+      "start": "2026-09-18T09:00:00+02:00",
+      "end": "2026-09-18T17:00:00+02:00",
+      "resource_ids": [
+        "res_104",
+        "res_107"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Susanne Pohl",
+        "phone": "0351 3837783",
+        "email": "s.pohl@web.de",
+        "address": {
+          "street": "Teplitzer Straße 117",
+          "postal_code": "01219",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-08-21T09:12:00+02:00"
+    },
+    {
+      "id": "tp_b8cce1",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-09-18T10:00:00+02:00",
+      "end": "2026-09-18T11:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "WEG-Verwaltung Blasewitz GmbH",
+        "phone": "+49 351 8583100",
+        "email": "technik@wegverwaltung.de",
+        "address": {
+          "street": "Chemnitzer Straße 19",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-234",
+      "notes": "Parken im Hof",
+      "created_at": "2026-09-16T09:12:00+02:00"
+    },
+    {
+      "id": "tp_71ff60",
+      "title": "Wartung Ölheizung",
+      "start": "2026-09-21T10:00:00+02:00",
+      "end": "2026-09-21T11:00:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Zahnarztpraxis Dr. Lehmann",
+        "phone": "0351 4796610",
+        "email": "praxis@za-lehmann.de",
+        "address": {
+          "street": "Wiener Straße 33",
+          "postal_code": "01219",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-232",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-09-15T09:12:00+02:00"
+    },
+    {
+      "id": "tp_1b2fc9",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-09-21T10:00:00+02:00",
+      "end": "2026-09-21T11:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Hausverwaltung Schulze & Partner GbR",
+        "phone": "+49 351 3104455",
+        "email": "technik@hv-schulze-partner.de",
+        "address": {
+          "street": "Altgorbitzer Ring 21",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-237",
+      "notes": "bitte vorher anrufen",
+      "created_at": "2026-09-18T09:12:00+02:00"
+    },
+    {
+      "id": "tp_672096",
+      "title": "Einbau Enthärtungsanlage",
+      "start": "2026-09-22T09:00:00+02:00",
+      "end": "2026-09-22T10:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Hostel Neustadt GmbH",
+        "phone": "+49 351 8111264",
+        "email": "info@hostel-dresden.de",
+        "address": {
+          "street": "Görlitzer Straße 91",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-236",
+      "notes": "Parken im Hof",
+      "created_at": "2026-09-17T09:12:00+02:00"
+    },
+    {
+      "id": "tp_b2da48",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-09-22T13:00:00+02:00",
+      "end": "2026-09-22T15:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "René Thiele",
+        "phone": "0351 6372223",
+        "email": null,
+        "address": {
+          "street": "Hamburger Straße 123",
+          "postal_code": "01157",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-239",
+      "notes": "Hund im Haus",
+      "created_at": "2026-09-21T09:12:00+02:00"
+    },
+    {
+      "id": "tp_6c3abc",
+      "title": "Montage Wand-WC",
+      "start": "2026-09-23T09:00:00+02:00",
+      "end": "2026-09-23T10:00:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "WEG-Verwaltung Blasewitz GmbH",
+        "phone": "+49 351 8583100",
+        "email": "technik@wegverwaltung.de",
+        "address": {
+          "street": "Hechtstraße 25",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-240",
+      "notes": "",
+      "created_at": "2026-09-21T09:12:00+02:00"
+    },
+    {
+      "id": "tp_4fb9af",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-09-23T09:00:00+02:00",
+      "end": "2026-09-23T11:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Sportverein Blau-Weiß Dresden e.V.",
+        "phone": "+49 351 3705255",
+        "email": "info@sportverein-dresden.de",
+        "address": {
+          "street": "Borsbergstraße 115",
+          "postal_code": "01309",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-243",
+      "notes": "Parken im Hof",
+      "created_at": "2026-09-21T09:12:00+02:00"
+    },
+    {
+      "id": "tp_04ac35",
+      "title": "Wartung Ölheizung",
+      "start": "2026-09-24T08:00:00+02:00",
+      "end": "2026-09-24T09:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Yvonne Horn",
+        "phone": "+49 351 4777174",
+        "email": null,
+        "address": {
+          "street": "Kesselsdorfer Straße 116",
+          "postal_code": "01159",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-247",
+      "notes": "Hund im Haus",
+      "created_at": "2026-09-23T09:12:00+02:00"
+    },
+    {
+      "id": "tp_8ac0fe",
+      "title": "Trinkwasseruntersuchung",
+      "start": "2026-09-24T09:00:00+02:00",
+      "end": "2026-09-24T11:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Optik Haubold e.K.",
+        "phone": "+49 351 2325635",
+        "email": "info@optik-dresden.de",
+        "address": {
+          "street": "Prießnitzstraße 30",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-241",
+      "notes": "",
+      "created_at": "2026-09-21T09:12:00+02:00"
+    },
+    {
+      "id": "tp_9cd42d",
+      "title": "Zirkulationspumpe defekt",
+      "start": "2026-09-24T13:00:00+02:00",
+      "end": "2026-09-24T14:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Sportverein Blau-Weiß Dresden e.V.",
+        "phone": "0351 3705255",
+        "email": "info@sportverein-dresden.de",
+        "address": {
+          "street": "Borsbergstraße 115",
+          "postal_code": "01309",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-248",
+      "notes": "Hund im Haus",
+      "created_at": "2026-09-24T09:12:00+02:00"
+    },
+    {
+      "id": "tp_d88f08",
+      "title": "Armatur tropft",
+      "start": "2026-09-25T13:00:00+02:00",
+      "end": "2026-09-25T16:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Elektro Müller e.K.",
+        "phone": "+49 351 2563340",
+        "email": "kontakt@elektro-mueller-dresden.de",
+        "address": {
+          "street": "Pirnaer Landstraße 88",
+          "postal_code": "01237",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-242",
+      "notes": "bitte vorher anrufen",
+      "created_at": "2026-09-21T09:12:00+02:00"
+    },
+    {
+      "id": "tp_9aa20d",
+      "title": "Druckverlust Heizung",
+      "start": "2026-09-25T13:00:00+02:00",
+      "end": "2026-09-25T14:30:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Steffi Heinrich",
+        "phone": "+49 351 8038316",
+        "email": null,
+        "address": {
+          "street": "Hamburger Straße 73a",
+          "postal_code": "01157",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-249",
+      "notes": "",
+      "created_at": "2026-09-25T09:12:00+02:00"
+    },
+    {
+      "id": "tp_457e91",
+      "title": "Wartung Ölheizung",
+      "start": "2026-09-29T07:00:00+02:00",
+      "end": "2026-09-29T10:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Wohnungsgenossenschaft Elbtal eG",
+        "phone": "+49 351 4102030",
+        "email": "technik@wg-elbtal.de",
+        "address": {
+          "street": "Omsewitzer Ring 2",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-250",
+      "notes": "Parken im Hof",
+      "created_at": "2026-09-28T09:12:00+02:00"
+    },
+    {
+      "id": "tp_eb1190",
+      "title": "Einbau Wärmepumpe Luft/Wasser",
+      "start": "2026-09-29T08:00:00+02:00",
+      "end": "2026-09-29T16:00:00+02:00",
+      "resource_ids": [
+        "res_106",
+        "res_107"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Kerstin Neumann",
+        "phone": "+49 351 8456396",
+        "email": null,
+        "address": {
+          "street": "Stauffenbergallee 92a",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-218",
+      "notes": "",
+      "created_at": "2026-09-07T09:12:00+02:00"
+    },
+    {
+      "id": "tp_28c6d9",
+      "title": "Montage Wand-WC",
+      "start": "2026-09-30T07:00:00+02:00",
+      "end": "2026-09-30T09:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Autohaus Pieschen GmbH",
+        "phone": "+49 351 3000005",
+        "email": "info@autohaus-dresden.de",
+        "address": {
+          "street": "Bergstraße 11",
+          "postal_code": "01069",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-251",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-09-28T09:12:00+02:00"
+    },
+    {
+      "id": "tp_05f42c",
+      "title": "Wartung Wärmepumpe",
+      "start": "2026-09-30T13:00:00+02:00",
+      "end": "2026-09-30T14:00:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Marion Lorenz",
+        "phone": "+49 351 4774522",
+        "email": "m.lorenz@posteo.de",
+        "address": {
+          "street": "Görlitzer Straße 114a",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-253",
+      "notes": "",
+      "created_at": "2026-09-29T09:12:00+02:00"
+    },
+    {
+      "id": "tp_7b5454",
+      "title": "Spülkasten läuft nach",
+      "start": "2026-10-05T08:00:00+02:00",
+      "end": "2026-10-05T09:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "done",
+      "customer": {
+        "display_name": "Ines Hartmann",
+        "phone": "+49 351 6765624",
+        "email": "i.hartmann@gmail.com",
+        "address": {
+          "street": "Chemnitzer Straße 145",
+          "postal_code": "01187",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "",
+      "created_at": "2026-09-30T09:12:00+02:00"
+    },
+    {
+      "id": "tp_a08e5b",
+      "title": "Jahreswartung Viessmann Vitocal 250-A",
+      "start": "2026-10-12T13:00:00+02:00",
+      "end": "2026-10-12T14:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Bäckerei Hoffmann",
+        "phone": "0351 8028811",
+        "email": null,
+        "address": {
+          "street": "Königsbrücker Straße 56",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2019-002",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 229.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_cb4989",
+      "title": "Jahreswartung Wolf CGB-2-20",
+      "start": "2026-10-14T08:00:00+02:00",
+      "end": "2026-10-14T09:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Hausverwaltung Schulze & Partner GbR",
+        "phone": "+49 351 3104455",
+        "email": "technik@hv-schulze-partner.de",
+        "address": {
+          "street": "Altgorbitzer Ring 21",
+          "postal_code": "01277",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2024-012",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 189.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_c9a884",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-10-16T13:00:00+02:00",
+      "end": "2026-10-16T16:00:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Martin Zimmermann",
+        "phone": "0351 4971297",
+        "email": "m.zimmermann@web.de",
+        "address": {
+          "street": "Hechtstraße 151",
+          "postal_code": "01097",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-262",
+      "notes": "Hund im Haus",
+      "created_at": "2026-10-09T09:12:00+02:00"
+    },
+    {
+      "id": "tp_83f27b",
+      "title": "Jahreswartung Brötje WGB 20 E",
+      "start": "2026-10-19T08:00:00+02:00",
+      "end": "2026-10-19T09:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Müller Getränke",
+        "phone": "0351 8494420",
+        "email": "buchhaltung@mueller-getraenke.de",
+        "address": {
+          "street": "Großenhainer Straße 101",
+          "postal_code": "01127",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2024-003",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 149.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_d51286",
+      "title": "Jahreswartung Gastherme",
+      "start": "2026-10-19T09:00:00+02:00",
+      "end": "2026-10-19T12:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Gerda Schulze",
+        "phone": "0351 3108877",
+        "email": null,
+        "address": {
+          "street": "Hüblerstraße 8",
+          "postal_code": "01309",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-260",
+      "notes": "",
+      "created_at": "2026-10-06T09:12:00+02:00"
+    },
+    {
+      "id": "tp_06ff32",
+      "title": "Jahreswartung Gastherme",
+      "start": "2026-10-19T09:00:00+02:00",
+      "end": "2026-10-19T10:30:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Gabriele Ludwig",
+        "phone": "+49 351 8660535",
+        "email": "g.ludwig@web.de",
+        "address": {
+          "street": "Prießnitzstraße 98",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-261",
+      "notes": "",
+      "created_at": "2026-10-08T09:12:00+02:00"
+    },
+    {
+      "id": "tp_4ad4ea",
+      "title": "Jahreswartung Weishaupt WTC-GW 25",
+      "start": "2026-10-19T09:00:00+02:00",
+      "end": "2026-10-19T10:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Dagmar Franke",
+        "phone": "0351 8469400",
+        "email": null,
+        "address": {
+          "street": "Freiberger Straße 153b",
+          "postal_code": "01067",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2021-005",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 260.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_7a8576",
+      "title": "Besichtigung Badumbau, Angebot erstellen",
+      "start": "2026-10-19T10:00:00+02:00",
+      "end": "2026-10-19T18:00:00+02:00",
+      "resource_ids": [
+        "res_101"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Petra Schmidt",
+        "phone": "0351 3108899",
+        "email": "petra.schmidt@gmx.net",
+        "address": {
+          "street": "Hüblerstraße 14",
+          "postal_code": "01309",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "Hund im Haus",
+      "created_at": "2026-10-12T09:12:00+02:00"
+    },
+    {
+      "id": "tp_06e724",
+      "title": "Beratung Wärmepumpe",
+      "start": "2026-10-21T15:00:00+02:00",
+      "end": "2026-10-21T16:00:00+02:00",
+      "resource_ids": [
+        "res_101"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Kerstin Vogt",
+        "phone": "0160 9988776",
+        "email": null,
+        "address": {
+          "street": "Tolkewitzer Straße 41",
+          "postal_code": "01279",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "Neukunde – über Website",
+      "created_at": "2026-10-13T18:22:00+02:00"
+    },
+    {
+      "id": "tp_917fc4",
+      "title": "Heizungsmodernisierung",
+      "start": "2026-10-22T07:00:00+02:00",
+      "end": "2026-10-22T15:00:00+02:00",
+      "resource_ids": [
+        "res_104",
+        "res_108"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Gerd Berger",
+        "phone": "+49 3501 627379",
+        "email": "g.berger@t-online.de",
+        "address": {
+          "street": "Gartenstraße 102a",
+          "postal_code": "01796",
+          "city": "Pirna"
+        }
+      },
+      "reference": null,
+      "notes": "bitte vorher anrufen",
+      "created_at": "2026-09-16T09:12:00+02:00"
+    },
+    {
+      "id": "tp_019a40",
+      "title": "Jahreswartung Gastherme",
+      "start": "2026-10-22T09:00:00+02:00",
+      "end": "2026-10-22T10:30:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Tierarztpraxis Dr. Fiedler",
+        "phone": "0351 5799084",
+        "email": "info@tierarztpraxis-dresden.de",
+        "address": {
+          "street": "Pirnaer Landstraße 48",
+          "postal_code": "01237",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-207",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-08-28T09:12:00+02:00"
+    },
+    {
+      "id": "tp_93d319",
+      "title": "Heizung ohne Funktion",
+      "start": "2026-10-22T09:00:00+02:00",
+      "end": "2026-10-22T10:00:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Wohnungsgenossenschaft Elbtal eG",
+        "phone": "+49 351 4102030",
+        "email": "technik@wg-elbtal.de",
+        "address": {
+          "street": "Leutewitzer Ring 12",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-263",
+      "notes": "Hund im Haus",
+      "created_at": "2026-10-12T09:12:00+02:00"
+    },
+    {
+      "id": "tp_a99804",
+      "title": "Besichtigung Heizungstausch Neubau",
+      "start": "2026-10-22T15:00:00+02:00",
+      "end": "2026-10-22T16:00:00+02:00",
+      "resource_ids": [
+        "res_101"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Familie Bergmann",
+        "phone": "+49 351 8331200",
+        "email": "bergmann.radebeul@gmail.com",
+        "address": {
+          "street": "Meißner Straße 288",
+          "postal_code": "01445",
+          "city": "Radebeul"
+        }
+      },
+      "reference": null,
+      "notes": "Neukunde – über Website",
+      "created_at": "2026-10-13T18:22:00+02:00"
+    },
+    {
+      "id": "tp_f3bc28",
+      "title": "Angebot Trinkwasser-Check",
+      "start": "2026-10-23T15:00:00+02:00",
+      "end": "2026-10-23T16:00:00+02:00",
+      "resource_ids": [
+        "res_101"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Praxis für Ergotherapie Lange",
+        "phone": "+49 351 4440011",
+        "email": "info@ergo-lange.de",
+        "address": {
+          "street": "Teplitzer Straße 12",
+          "postal_code": "01219",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "Neukunde – über Website",
+      "created_at": "2026-10-13T18:22:00+02:00"
+    },
+    {
+      "id": "tp_f45e34",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-10-26T07:00:00+02:00",
+      "end": "2026-10-26T10:00:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Malerbetrieb Thiele GmbH",
+        "phone": "+49 351 4970677",
+        "email": "info@malerbetrieb-dresden.de",
+        "address": {
+          "street": "Altenberger Straße 44",
+          "postal_code": "01277",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-222",
+      "notes": "Parken im Hof",
+      "created_at": "2026-09-07T09:12:00+02:00"
+    },
+    {
+      "id": "tp_753723",
+      "title": "Hydraulischer Abgleich",
+      "start": "2026-10-26T07:00:00+02:00",
+      "end": "2026-10-26T10:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Ralf Schwarz",
+        "phone": "+49 351 6341080",
+        "email": "r.schwarz@gmx.de",
+        "address": {
+          "street": "Görlitzer Straße 121",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-257",
+      "notes": "",
+      "created_at": "2026-10-01T09:12:00+02:00"
+    },
+    {
+      "id": "tp_46aed5",
+      "title": "Austausch Warmwasserspeicher",
+      "start": "2026-10-26T08:00:00+02:00",
+      "end": "2026-10-26T11:00:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Klaus Hofmann",
+        "phone": "+49 351 3361208",
+        "email": "k.hofmann@gmx.de",
+        "address": {
+          "street": "Borsbergstraße 22",
+          "postal_code": "01309",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-244",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-09-22T09:12:00+02:00"
+    },
+    {
+      "id": "tp_ad2d9d",
+      "title": "Wartung Ölheizung",
+      "start": "2026-10-26T08:00:00+02:00",
+      "end": "2026-10-26T11:00:00+02:00",
+      "resource_ids": [
+        "res_105"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Städtische Wohnungsgesellschaft Freital mbH",
+        "phone": "+49 351 8046701",
+        "email": "technik@staedtische.de",
+        "address": {
+          "street": "Hamburger Straße 23",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "",
+      "created_at": "2026-10-01T09:12:00+02:00"
+    },
+    {
+      "id": "tp_7788cc",
+      "title": "Austausch Warmwasserspeicher",
+      "start": "2026-10-26T09:00:00+02:00",
+      "end": "2026-10-26T10:00:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Weinstube Radebeul",
+        "phone": "03501 411970",
+        "email": "info@weinstube-dresden.de",
+        "address": {
+          "street": "Bahnhofstraße 67b",
+          "postal_code": "01454",
+          "city": "Radeberg"
+        }
+      },
+      "reference": null,
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-08-10T09:12:00+02:00"
+    },
+    {
+      "id": "tp_be824c",
+      "title": "Jahreswartung Weishaupt WTC-GW 25",
+      "start": "2026-10-26T10:00:00+02:00",
+      "end": "2026-10-26T11:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Autohaus Pieschen GmbH",
+        "phone": "0351 3000005",
+        "email": "info@autohaus-dresden.de",
+        "address": {
+          "street": "Bergstraße 11",
+          "postal_code": "01069",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2019-003",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 139.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_f4b8e1",
+      "title": "Heizungsausfall Wochenende",
+      "start": "2026-10-27T07:00:00+02:00",
+      "end": "2026-10-27T08:30:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Anett Neumann",
+        "phone": "0351 2229575",
+        "email": "a.neumann@gmail.com",
+        "address": {
+          "street": "Rudolf-Leonhard-Straße 147",
+          "postal_code": "01097",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-235",
+      "notes": "bitte vorher anrufen",
+      "created_at": "2026-09-16T09:12:00+02:00"
+    },
+    {
+      "id": "tp_6f1656",
+      "title": "Badsanierung lt. Angebot AN-26-044",
+      "start": "2026-10-27T07:00:00+02:00",
+      "end": "2026-10-27T15:00:00+02:00",
+      "resource_ids": [
+        "res_104",
+        "res_107"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Dr. Andreas Krüger",
+        "phone": "0351 4718823",
+        "email": "andreas.krueger@t-online.de",
+        "address": {
+          "street": "Bergstraße 61",
+          "postal_code": "01069",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-252",
+      "notes": "Hund im Haus",
+      "created_at": "2026-09-28T09:12:00+02:00"
+    },
+    {
+      "id": "tp_2f8d3d",
+      "title": "Jahreswartung Buderus Logamax plus GB172-20",
+      "start": "2026-10-27T09:00:00+02:00",
+      "end": "2026-10-27T10:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Wohnungsgenossenschaft Elbtal eG",
+        "phone": "+49 351 4102030",
+        "email": "technik@wg-elbtal.de",
+        "address": {
+          "street": "Harthaer Straße 7",
+          "postal_code": "01169",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2020-001",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 149.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_b236ec",
+      "title": "Badumbau barrierefrei",
+      "start": "2026-10-27T13:00:00+02:00",
+      "end": "2026-10-27T21:00:00+02:00",
+      "resource_ids": [
+        "res_105",
+        "res_108"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Manuela Böhme",
+        "phone": "+49 351 5140137",
+        "email": null,
+        "address": {
+          "street": "Pillnitzer Landstraße 153",
+          "postal_code": "01326",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-211",
+      "notes": "Hund im Haus",
+      "created_at": "2026-08-31T09:12:00+02:00"
+    },
+    {
+      "id": "tp_26fec1",
+      "title": "Heizung ohne Funktion",
+      "start": "2026-10-28T07:00:00+02:00",
+      "end": "2026-10-28T10:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Sandra Horn",
+        "phone": "+49 351 4501889",
+        "email": "s.horn@web.de",
+        "address": {
+          "street": "Bergstraße 39a",
+          "postal_code": "01069",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-230",
+      "notes": "",
+      "created_at": "2026-09-14T09:12:00+02:00"
+    },
+    {
+      "id": "tp_3b6792",
+      "title": "Siphon undicht",
+      "start": "2026-10-28T09:00:00+02:00",
+      "end": "2026-10-28T10:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Kanzlei Seidel & Kollegen",
+        "phone": "+49 351 5924302",
+        "email": "info@kanzlei-dresden.de",
+        "address": {
+          "street": "Görlitzer Straße 148",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-266",
+      "notes": "",
+      "created_at": "2026-10-14T09:12:00+02:00"
+    },
+    {
+      "id": "tp_e10533",
+      "title": "Jahreswartung Wolf CGB-2-20",
+      "start": "2026-10-28T13:00:00+02:00",
+      "end": "2026-10-28T14:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Wohnungsgenossenschaft Elbtal eG",
+        "phone": "+49 351 4102030",
+        "email": "technik@wg-elbtal.de",
+        "address": {
+          "street": "Leutewitzer Ring 12",
+          "postal_code": "01169",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2025-002",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 139.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_0f8725",
+      "title": "Wartung Wärmepumpe",
+      "start": "2026-10-29T09:00:00+02:00",
+      "end": "2026-10-29T12:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Hotel Elbblick GmbH",
+        "phone": "+49 351 6820994",
+        "email": "info@hotel-dresden.de",
+        "address": {
+          "street": "Chemnitzer Straße 133",
+          "postal_code": "01187",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-220",
+      "notes": "Parken im Hof",
+      "created_at": "2026-09-07T09:12:00+02:00"
+    },
+    {
+      "id": "tp_0c4fa0",
+      "title": "Jahreswartung Wolf CGB-2-20",
+      "start": "2026-10-29T14:00:00+02:00",
+      "end": "2026-10-29T15:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Zahnarztpraxis Dr. Lehmann",
+        "phone": "+49 351 4796610",
+        "email": "praxis@za-lehmann.de",
+        "address": {
+          "street": "Wiener Straße 33",
+          "postal_code": "01219",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2019-001",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 260.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_9cbc36",
+      "title": "Druckverlust Heizung",
+      "start": "2026-10-30T13:00:00+02:00",
+      "end": "2026-10-30T16:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Jan Zimmermann",
+        "phone": "0351 3645061",
+        "email": "j.zimmermann@gmail.com",
+        "address": {
+          "street": "Freiberger Straße 126",
+          "postal_code": "01067",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-256",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-10-01T09:12:00+02:00"
+    },
+    {
+      "id": "tp_9239b1",
+      "title": "Hydraulischer Abgleich",
+      "start": "2026-11-02T07:00:00+02:00",
+      "end": "2026-11-02T08:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Hausverwaltung Schulze & Partner GbR",
+        "phone": "+49 351 3104455",
+        "email": "technik@hv-schulze-partner.de",
+        "address": {
+          "street": "Kesselsdorfer Straße 210",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-227",
+      "notes": "Parken im Hof",
+      "created_at": "2026-09-14T09:12:00+02:00"
+    },
+    {
+      "id": "tp_5dbaab",
+      "title": "Komplettsanierung Bad",
+      "start": "2026-11-02T08:00:00+02:00",
+      "end": "2026-11-02T16:00:00+02:00",
+      "resource_ids": [
+        "res_104",
+        "res_108"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Michael Schulz",
+        "phone": "0351 3516235",
+        "email": null,
+        "address": {
+          "street": "Grundstraße 64",
+          "postal_code": "01326",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-209",
+      "notes": "Hund im Haus",
+      "created_at": "2026-08-28T09:12:00+02:00"
+    },
+    {
+      "id": "tp_dec320",
+      "title": "Wasserschaden Keller",
+      "start": "2026-11-02T10:00:00+02:00",
+      "end": "2026-11-02T11:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "WEG-Verwaltung Blasewitz GmbH",
+        "phone": "0351 8583100",
+        "email": "technik@wegverwaltung.de",
+        "address": {
+          "street": "Prießnitzstraße 111",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "",
+      "created_at": "2026-08-03T09:12:00+02:00"
+    },
+    {
+      "id": "tp_942cf0",
+      "title": "Wartung Wärmepumpe",
+      "start": "2026-11-02T10:00:00+02:00",
+      "end": "2026-11-02T11:00:00+02:00",
+      "resource_ids": [
+        "res_104"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Müller Bau GmbH",
+        "phone": "0351 8803311",
+        "email": "info@mueller-bau-dd.de",
+        "address": {
+          "street": "Radeburger Straße 5",
+          "postal_code": "01109",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-264",
+      "notes": "Hund im Haus",
+      "created_at": "2026-10-12T09:12:00+02:00"
+    },
+    {
+      "id": "tp_fa8ac7",
+      "title": "Druckverlust Heizung",
+      "start": "2026-11-02T13:00:00+02:00",
+      "end": "2026-11-02T14:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "tentative",
+      "customer": {
+        "display_name": "Susanne Pohl",
+        "phone": "+49 351 3837783",
+        "email": "s.pohl@web.de",
+        "address": {
+          "street": "Teplitzer Straße 117",
+          "postal_code": "01219",
+          "city": "Dresden"
+        }
+      },
+      "reference": null,
+      "notes": "Hund im Haus",
+      "created_at": "2026-09-08T09:12:00+02:00"
+    },
+    {
+      "id": "tp_fb35b1",
+      "title": "Wartung Gas-Brennwertkessel",
+      "start": "2026-11-02T13:00:00+02:00",
+      "end": "2026-11-02T15:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Pension Loschwitz",
+        "phone": "+49 351 3521586",
+        "email": "info@pension-dresden.de",
+        "address": {
+          "street": "Bautzner Straße 13a",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-238",
+      "notes": "Hund im Haus",
+      "created_at": "2026-09-18T09:12:00+02:00"
+    },
+    {
+      "id": "tp_023aac",
+      "title": "Jahreswartung Weishaupt WTC-GW 25",
+      "start": "2026-11-03T08:00:00+02:00",
+      "end": "2026-11-03T09:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Blumen Kretschmar",
+        "phone": "+49 351 7275975",
+        "email": "info@blumen-dresden.de",
+        "address": {
+          "street": "Rudolf-Leonhard-Straße 2",
+          "postal_code": "01097",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2021-003",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 229.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_f22fab",
+      "title": "Wartung Wärmepumpe",
+      "start": "2026-11-03T09:00:00+02:00",
+      "end": "2026-11-03T10:00:00+02:00",
+      "resource_ids": [
+        "res_106"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Lars Thiele",
+        "phone": "+49 351 6716507",
+        "email": null,
+        "address": {
+          "street": "Tolkewitzer Straße 175b",
+          "postal_code": "01279",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-245",
+      "notes": "Hund im Haus",
+      "created_at": "2026-09-22T09:12:00+02:00"
+    },
+    {
+      "id": "tp_da59fe",
+      "title": "Wartung Heizungsanlagen lt. WV-2024-012 (Mail 01.10.)",
+      "start": "2026-11-03T10:00:00+02:00",
+      "end": "2026-11-03T11:00:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Hausverwaltung Schulze & Partner GbR",
+        "phone": "+49 351 3104455",
+        "email": "technik@hv-schulze-partner.de",
+        "address": {
+          "street": "Altgorbitzer Ring 21",
+          "postal_code": null,
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-259",
+      "notes": "Schlüssel beim Hausmeister",
+      "created_at": "2026-10-02T09:12:00+02:00"
+    },
+    {
+      "id": "tp_42e87c",
+      "title": "Komplettsanierung Bad",
+      "start": "2026-11-04T09:00:00+02:00",
+      "end": "2026-11-04T17:00:00+02:00",
+      "resource_ids": [
+        "res_106",
+        "res_107"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Ramona Berger",
+        "phone": "+49 351 6833202",
+        "email": null,
+        "address": {
+          "street": "Teplitzer Straße 163",
+          "postal_code": "01219",
+          "city": "Dresden"
+        }
+      },
+      "reference": "A-26-246",
+      "notes": "",
+      "created_at": "2026-09-22T09:12:00+02:00"
+    },
+    {
+      "id": "tp_e15b2f",
+      "title": "Jahreswartung Viessmann Vitocal 250-A",
+      "start": "2026-11-06T08:00:00+02:00",
+      "end": "2026-11-06T09:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Wohnungsbaugenossenschaft Johannstadt eG",
+        "phone": "0351 4995039",
+        "email": "technik@wohnungsbaugenossenschaft.de",
+        "address": {
+          "street": "Stauffenbergallee 79",
+          "postal_code": "01326",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2021-009",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 149.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_f93ddb",
+      "title": "Jahreswartung Viessmann Vitocal 250-A",
+      "start": "2026-11-09T09:00:00+02:00",
+      "end": "2026-11-09T10:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Steffi Fiedler",
+        "phone": "+49 351 6086980",
+        "email": "s.fiedler@web.de",
+        "address": {
+          "street": "Nürnberger Straße 88b",
+          "postal_code": "01187",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2020-006",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 139.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_33c67e",
+      "title": "Jahreswartung Viessmann Vitocal 250-A",
+      "start": "2026-11-11T10:00:00+02:00",
+      "end": "2026-11-11T11:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Tierarztpraxis Dr. Fiedler",
+        "phone": "+49 351 5799084",
+        "email": "info@tierarztpraxis-dresden.de",
+        "address": {
+          "street": "Pirnaer Landstraße 48",
+          "postal_code": "01237",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2024-005",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 139.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_667fff",
+      "title": "Jahreswartung Viessmann Vitodens 200-W 19 kW",
+      "start": "2026-11-16T09:00:00+02:00",
+      "end": "2026-11-16T10:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Detlef Petzold",
+        "phone": "+49 351 6216965",
+        "email": null,
+        "address": {
+          "street": "Bischofsweg 111a",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2021-010",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 260.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_b1f20c",
+      "title": "Jahreswartung Viessmann Vitocal 250-A",
+      "start": "2026-11-16T13:00:00+02:00",
+      "end": "2026-11-16T14:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Steffi Heinrich",
+        "phone": "+49 351 8038316",
+        "email": null,
+        "address": {
+          "street": "Hamburger Straße 73a",
+          "postal_code": "01157",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2024-008",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 139.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_a65c03",
+      "title": "Jahreswartung Junkers Cerapur ZWB 24",
+      "start": "2026-11-16T14:00:00+02:00",
+      "end": "2026-11-16T15:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Stefan Fischer",
+        "phone": "0351 2073277",
+        "email": "s.fischer@gmx.de",
+        "address": {
+          "street": "Alaunstraße 58b",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2025-005",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 149.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_a5dd75",
+      "title": "Jahreswartung Buderus Logamax plus GB172-20",
+      "start": "2026-11-17T10:00:00+02:00",
+      "end": "2026-11-17T11:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Gerd Pohl",
+        "phone": "+49 3501 649006",
+        "email": "g.pohl@posteo.de",
+        "address": {
+          "street": "Dresdner Straße 121",
+          "postal_code": "01705",
+          "city": "Freital"
+        }
+      },
+      "reference": "WV-2022-003",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 139.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_3e844e",
+      "title": "Jahreswartung Wolf CGB-2-20",
+      "start": "2026-11-19T10:00:00+02:00",
+      "end": "2026-11-19T11:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Matthias Uhlig",
+        "phone": "0351 8276217",
+        "email": null,
+        "address": {
+          "street": "Kesselsdorfer Straße 37",
+          "postal_code": "01159",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2022-001",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 229.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_a7c82e",
+      "title": "Jahreswartung Viessmann Vitocal 250-A",
+      "start": "2026-11-24T14:00:00+02:00",
+      "end": "2026-11-24T15:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Bernd Klein",
+        "phone": "+49 351 2377301",
+        "email": "b.klein@web.de",
+        "address": {
+          "street": "Lockwitzer Straße 52",
+          "postal_code": "01219",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2021-004",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 139.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_27a445",
+      "title": "Jahreswartung Wolf CGB-2-20",
+      "start": "2026-11-25T09:00:00+02:00",
+      "end": "2026-11-25T10:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Gerda Schulze",
+        "phone": "0351 3108877",
+        "email": null,
+        "address": {
+          "street": "Hüblerstraße 8",
+          "postal_code": "01309",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2021-002",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 139.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_c0114f",
+      "title": "Jahreswartung Weishaupt WTC-GW 25",
+      "start": "2026-11-30T09:00:00+02:00",
+      "end": "2026-11-30T10:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Immobilienverwaltung Weißer Hirsch GmbH",
+        "phone": "+49 3528 209494",
+        "email": "technik@immobilienverwaltung.de",
+        "address": {
+          "street": "Stauffenbergallee 105",
+          "postal_code": "01454",
+          "city": "Radeberg"
+        }
+      },
+      "reference": "WV-2019-005",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 189.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_2413a0",
+      "title": "Jahreswartung Vaillant aroTHERM plus 7 kW",
+      "start": "2026-11-30T13:00:00+02:00",
+      "end": "2026-11-30T14:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Uwe Bauer",
+        "phone": "+49 351 8476675",
+        "email": "u.bauer@t-online.de",
+        "address": {
+          "street": "Alaunstraße 127",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2025-004",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 149.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_5741da",
+      "title": "Jahreswartung Wolf CGB-2-20",
+      "start": "2026-12-03T14:00:00+02:00",
+      "end": "2026-12-03T15:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Wohnungsbaugenossenschaft Johannstadt eG",
+        "phone": "+49 351 4995039",
+        "email": "technik@wohnungsbaugenossenschaft.de",
+        "address": {
+          "street": "Zwinglistraße 4",
+          "postal_code": "01326",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2019-004",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 189.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_81f470",
+      "title": "Jahreswartung Buderus Logamax plus GB172-20",
+      "start": "2026-12-07T07:00:00+02:00",
+      "end": "2026-12-07T08:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Hausverwaltung Schulze & Partner GbR",
+        "phone": "+49 351 3104455",
+        "email": "technik@hv-schulze-partner.de",
+        "address": {
+          "street": "Gompitzer Höhe 4",
+          "postal_code": "01277",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2020-002",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 260.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_dee503",
+      "title": "Jahreswartung Viessmann Vitocal 250-A",
+      "start": "2026-12-07T10:00:00+02:00",
+      "end": "2026-12-07T11:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Anja Ullrich",
+        "phone": "+49 351 7287364",
+        "email": null,
+        "address": {
+          "street": "Rudolf-Leonhard-Straße 114",
+          "postal_code": "01097",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2020-005",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 139.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_45d8fc",
+      "title": "Jahreswartung Weishaupt WTC-GW 25",
+      "start": "2026-12-07T14:00:00+02:00",
+      "end": "2026-12-07T15:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Optik Haubold e.K.",
+        "phone": "+49 351 2325635",
+        "email": "info@optik-dresden.de",
+        "address": {
+          "street": "Prießnitzstraße 30",
+          "postal_code": "01099",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2024-006",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 260.0,
+        "currency": "EUR"
+      }
+    },
+    {
+      "id": "tp_626208",
+      "title": "Jahreswartung Vaillant aroTHERM plus 7 kW",
+      "start": "2026-12-09T14:00:00+02:00",
+      "end": "2026-12-09T15:30:00+02:00",
+      "resource_ids": [
+        "res_103"
+      ],
+      "status": "confirmed",
+      "customer": {
+        "display_name": "Volker Wagner",
+        "phone": "0351 4693963",
+        "email": "v.wagner@posteo.de",
+        "address": {
+          "street": "Pillnitzer Landstraße 80a",
+          "postal_code": "01326",
+          "city": "Dresden"
+        }
+      },
+      "reference": "WV-2024-010",
+      "notes": "",
+      "created_at": "2026-09-30T10:00:00+02:00",
+      "price_estimate": {
+        "amount": 189.0,
+        "currency": "EUR"
+      }
+    }
+  ]
+}

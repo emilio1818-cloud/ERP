@@ -15,7 +15,9 @@ import sqlite3
 import threading
 import time
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from datetime import time as dtime
+from decimal import Decimal
 from pathlib import Path
 
 SCHEMA = """
@@ -102,9 +104,18 @@ def _default(o):
         return o.isoformat(timespec="minutes")
     if isinstance(o, date):
         return o.isoformat()
+    if isinstance(o, dtime):
+        return o.strftime("%H:%M")
+    if isinstance(o, timedelta):
+        mins = int(o.total_seconds() // 60)
+        return f"{mins // 60}:{mins % 60:02d}"
     if isinstance(o, (set, frozenset)):
         return sorted(o)
-    raise TypeError(type(o))
+    if isinstance(o, Decimal):
+        return float(o)
+    if isinstance(o, bytes):
+        return o.decode("utf-8", "replace")
+    return str(o)  # whatever a file contains, it must never stop the growth
 
 
 def dumps(o) -> str:

@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-_FOLD = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "ae", "Ö": "oe", "Ü": "ue"})
+_FOLD = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "ae", "Ö": "oe", "Ü": "ue", "ı": "i", "ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "æ": "ae", "Æ": "Ae", "œ": "oe", "þ": "th", "ŀ": "l"})
 _CAMEL = re.compile(r"(?<=[a-zäöüß])(?=[A-ZÄÖÜ])")
 _NON_ALNUM = re.compile(r"[^0-9a-z]+")
 
@@ -53,11 +53,18 @@ def norm_key(v) -> str:
     return s
 
 
+_LAST_FIRST = re.compile(r"^\s*([a-z][a-z\-]+(?:\s[a-z][a-z\-]+)?)\s*,\s*([a-z][a-z\-.]+(?:\s[a-z][a-z\-.]+)?)\s*$")
+_STREET_WORDS = {"str", "strasse", "weg", "platz", "allee", "ring", "gasse", "damm", "ufer", "chaussee"}
+
+
 def norm_name(v) -> str:
     """Normalise a company or person name: fold, drop legal forms and punctuation."""
     if v is None:
         return ""
     s = fold(str(v))
+    m = _LAST_FIRST.match(s)
+    if m and not any(w in _STREET_WORDS for w in m.group(2).replace(".", " ").split()):
+        s = f"{m.group(2)} {m.group(1)}"  # "Schulze, Gerda" is "Gerda Schulze"
     s = _LEGAL_RE.sub(" ", s)
     s = s.replace("+", " und ").replace("&", " und ")
     s = _NON_ALNUM.sub(" ", s)

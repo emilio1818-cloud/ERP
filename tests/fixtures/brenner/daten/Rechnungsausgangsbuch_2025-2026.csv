@@ -1,0 +1,499 @@
+Belegnr;Belegdatum;Kd-Nr;Kunde;Betreff;Netto;USt 19%;Brutto;Fällig am;Bezahlt am;Status
+RE-2025-0001;14.01.2025;10050;WEG-Verwaltung Blasewitz GmbH;Zirkulationspumpe defekt, Prießnitzstraße 111;910,00;172,90;1.082,90;13.02.2025;14.02.2025;bezahlt
+RE-2025-0002;14.01.2025;10126;Lange, Florian;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-25-006;4.500,00;855,00;5.355,00;28.01.2025;27.01.2025;bezahlt
+RE-2025-0003;15.01.2025;10107;Ebert, Ute;Abschlagsrechnung 1 Badumbau barrierefrei, Auftrag A-25-005;7.700,00;1.463,00;9.163,00;29.01.2025;21.01.2025;bezahlt
+RE-2025-0004;16.01.2025;10126;Lange, Florian;Austausch Thermostatventil lt. Auftrag A-25-002;394,00;74,86;468,86;30.01.2025;27.01.2025;bezahlt
+RE-2025-0005;17.01.2025;10097;Berger, Ramona;Wartung Ölheizung lt. Auftrag A-25-001;139,00;26,41;165,41;31.01.2025;22.01.2025;bezahlt
+RE-2025-0006;20.01.2025;10027;Hausverwaltung Kröber;Verstopfung Grundleitung lt. Auftrag A-25-003;468,00;88,92;556,92;19.02.2025;10.02.2025;bezahlt
+RE-2025-0007;21.01.2025;10043;Bauer, Claudia;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-25-007;5.500,00;1.045,00;6.545,00;04.02.2025;27.01.2025;bezahlt
+RE-2025-0008;21.01.2025;10082;Städtische Wohnungsgesellschaft Freital mbH;Notdienst vom 15.01.2025;271,00;51,49;322,49;20.02.2025;17.02.2025;bezahlt
+RE-2025-0009;24.01.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Jahreswartung Gastherme lt. Auftrag A-25-011;139,00;26,41;165,41;23.02.2025;24.02.2025;bezahlt
+RE-2025-0010;27.01.2025;10065;Wagner, Yvonne;Verkauf Ersatzteil ab Lager;117,94;22,41;140,35;10.02.2025;14.02.2025;bezahlt
+RE-2025-0011;31.01.2025;10070;Bäckerei Hoffmann;Wartung Gas-Brennwertkessel, Königsbrücker Straße 56;189,00;35,91;224,91;14.02.2025;04.02.2025;bezahlt
+RE-2025-0012;31.01.2025;10077;Schwarz, Ralf;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-25-014;4.000,00;760,00;4.760,00;14.02.2025;12.02.2025;bezahlt
+RE-2025-0013;04.02.2025;10070;Bäckerei Hoffmann;Montage Königsbrücker Straße 56 (A-25-012);1.678,00;318,82;1.996,82;18.02.2025;10.02.2025;bezahlt
+RE-2025-0014;05.02.2025;10011;Wagner, Volker;Heizungsausfall Wochenende lt. Auftrag A-25-017;197,00;37,43;234,43;19.02.2025;24.02.2025;bezahlt
+RE-2025-0015;05.02.2025;10043;Bauer, Claudia;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-25-007;8.186,00;1.555,34;9.741,34;19.02.2025;24.02.2025;bezahlt
+RE-2025-0016;05.02.2025;10075;Engel, Rainer;Montage Nürnberger Straße 9 (A-25-025);635,00;120,65;755,65;19.02.2025;17.02.2025;bezahlt
+RE-2025-0017;05.02.2025;10114;Seidel, Doreen;Wartung Ölheizung lt. Auftrag A-25-016;139,00;26,41;165,41;19.02.2025;24.02.2025;bezahlt
+RE-2025-0018;05.02.2025;10126;Lange, Florian;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-25-006;6.647,00;1.262,93;7.909,93;19.02.2025;25.02.2025;bezahlt
+RE-2025-0019;06.02.2025;10005;Wohnungsgenossenschaft Elbtal eG;Heizung ohne Funktion, Harthaer Straße 7;866,00;164,54;1.030,54;08.03.2025;10.03.2025;bezahlt
+RE-2025-0020;07.02.2025;10041;Fitnessstudio ElbeFit GmbH;Wartung Wärmepumpe lt. Auftrag A-25-021;149,00;28,31;177,31;09.03.2025;20.02.2025;bezahlt
+RE-2025-0021;07.02.2025;10107;Ebert, Ute;Schlussrechnung Badumbau barrierefrei (abzgl. Abschlag), Auftrag A-25-005;11.642,00;2.211,98;13.853,98;21.02.2025;24.02.2025;bezahlt
+RE-2025-0022;10.02.2025;10030;Autohaus Pieschen GmbH;Druckverlust Heizung lt. Auftrag A-25-018;123,00;23,37;146,37;24.02.2025;18.02.2025;bezahlt
+RE-2025-0023;10.02.2025;10100;Krause, Anja;Austausch Warmwasserspeicher lt. Auftrag A-25-022;1.710,00;324,90;2.034,90;24.02.2025;24.02.2025;bezahlt
+RE-2025-0024;11.02.2025;10024;Vogel, Mirko;Wartung vom 31.01.2025;189,00;35,91;224,91;25.02.2025;03.03.2025;bezahlt
+RE-2025-0025;11.02.2025;10109;Horn, Sandra;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-25-026;5.400,00;1.026,00;6.426,00;25.02.2025;21.02.2025;bezahlt
+RE-2025-0026;12.02.2025;10023;Müller GmbH & Co. KG;Wartung Ölheizung lt. Auftrag A-25-023;139,00;26,41;165,41;26.02.2025;19.02.2025;bezahlt
+RE-2025-0027;13.02.2025;10030;Autohaus Pieschen GmbH;Reparatur Bergstraße 11 (A-25-029);402,00;76,38;478,38;27.02.2025;17.02.2025;bezahlt
+RE-2025-0028;14.02.2025;10085;Horn, Yvonne;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-25-028;6.200,00;1.178,00;7.378,00;28.02.2025;04.03.2025;bezahlt
+RE-2025-0029;17.02.2025;10050;WEG-Verwaltung Blasewitz GmbH;Wartung Martin-Luther-Straße 55 (A-25-019);149,00;28,31;177,31;19.03.2025;06.03.2025;bezahlt
+RE-2025-0030;18.02.2025;10069;Schröder, Kerstin;Montage Tharandter Straße 103a (A-25-024);1.297,00;246,43;1.543,43;04.03.2025;06.03.2025;bezahlt
+RE-2025-0031;18.02.2025;10096;Ebert, Anja;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-25-031;5.600,00;1.064,00;6.664,00;04.03.2025;12.03.2025;bezahlt
+RE-2025-0032;19.02.2025;10024;Vogel, Mirko;Abschlagsrechnung 1 Gäste-WC Sanierung, Auftrag A-25-036;6.300,00;1.197,00;7.497,00;05.03.2025;10.03.2025;bezahlt
+RE-2025-0033;19.02.2025;10104;Gaststätte Zur Linde;Montage Nürnberger Straße 164 (A-25-033);1.723,00;327,37;2.050,37;05.03.2025;25.02.2025;bezahlt
+RE-2025-0034;20.02.2025;10081;Neumann, Anett;Montage Rudolf-Leonhard-Straße 147 (A-25-030);820,00;155,80;975,80;06.03.2025;13.03.2025;bezahlt
+RE-2025-0035;26.02.2025;10062;Uhlig, Jörg;Montage Martin-Luther-Straße 99b (A-25-035);700,00;133,00;833,00;12.03.2025;03.03.2025;bezahlt
+RE-2025-0036;27.02.2025;10005;Wohnungsgenossenschaft Elbtal eG;Wartung vom 21.02.2025;139,00;26,41;165,41;29.03.2025;25.03.2025;bezahlt
+RE-2025-0037;28.02.2025;10014;Hofmann, Klaus;Wartung vom 17.02.2025;139,00;26,41;165,41;14.03.2025;06.03.2025;bezahlt
+RE-2025-0038;03.03.2025;10081;Neumann, Anett;Siphon undicht lt. Auftrag A-25-039;933,00;177,27;1.110,27;17.03.2025;11.03.2025;bezahlt
+RE-2025-0039;05.03.2025;10132;Weinstube Radebeul;Wartung Ölheizung lt. Auftrag A-25-044;149,00;28,31;177,31;19.03.2025;24.03.2025;bezahlt
+RE-2025-0040;06.03.2025;10046;Blumen Kretschmar;Montage Wand-WC, Rudolf-Leonhard-Straße 2;1.340,00;254,60;1.594,60;20.03.2025;11.03.2025;bezahlt
+RE-2025-0041;10.03.2025;10085;Horn, Yvonne;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-25-028;9.404,00;1.786,76;11.190,76;24.03.2025;31.03.2025;bezahlt
+RE-2025-0042;11.03.2025;10027;Hausverwaltung Kröber;Notdienst vom 07.03.2025;206,00;39,14;245,14;10.04.2025;31.03.2025;bezahlt
+RE-2025-0043;11.03.2025;10050;WEG-Verwaltung Blasewitz GmbH;Verstopfung Grundleitung, Martin-Luther-Straße 55;625,00;118,75;743,75;10.04.2025;07.04.2025;bezahlt
+RE-2025-0045;12.03.2025;10027;Hausverwaltung Kröber;Verstopfung Grundleitung lt. Auftrag A-25-042;490,00;93,10;583,10;11.04.2025;04.04.2025;bezahlt
+RE-2025-0046;12.03.2025;10114;Seidel, Doreen;Montage Wand-WC, Meißner Landstraße 51;992,00;188,48;1.180,48;26.03.2025;02.04.2025;bezahlt
+RE-2025-0047;13.03.2025;10113;Schwarz, Gerd;Spülkasten läuft nach, Tolkewitzer Straße 48;617,00;117,23;734,23;27.03.2025;31.03.2025;bezahlt
+RE-2025-0048;18.03.2025;10094;Steuerbüro Ullrich;Wartung Grundstraße 116 (A-25-048);139,00;26,41;165,41;17.04.2025;25.03.2025;bezahlt
+RE-2025-0049;19.03.2025;10002;Restaurant Zum Goldenen Anker GmbH;Heizungsausfall Wochenende lt. Auftrag A-25-049;614,00;116,66;730,66;18.04.2025;25.03.2025;bezahlt
+RE-2025-0050;19.03.2025;10077;Schwarz, Ralf;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-25-014;6.019,00;1.143,61;7.162,61;02.04.2025;10.04.2025;bezahlt
+RE-2025-0051;20.03.2025;10023;Müller GmbH & Co. KG;Montage Großenhainer Straße 101 (A-25-051);943,00;179,17;1.122,17;03.04.2025;25.03.2025;bezahlt
+RE-2025-0052;21.03.2025;10008;Hausverwaltung Schulze & Partner GbR;Spülung Trinkwasseranlage, Gompitzer Höhe 4;429,00;81,51;510,51;11.04.2025;22.04.2025;bezahlt
+RE-2025-0053;24.03.2025;10082;Städtische Wohnungsgesellschaft Freital mbH;Abschlagsrechnung 1 Strangsanierung Trinkwasser, Auftrag A-25-053;11.500,00;2.185,00;13.685,00;23.04.2025;22.04.2025;bezahlt
+RE-2025-0054;27.03.2025;10096;Ebert, Anja;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-25-031;8.280,00;1.573,20;9.853,20;10.04.2025;14.04.2025;bezahlt
+RE-2025-0055;31.03.2025;10109;Horn, Sandra;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-25-026;8.034,00;1.526,46;9.560,46;14.04.2025;08.04.2025;bezahlt
+RE-2025-0056;02.04.2025;10008;Hausverwaltung Schulze & Partner GbR;Kein Warmwasser lt. Auftrag A-25-055;699,00;132,81;831,81;23.04.2025;28.04.2025;bezahlt
+RE-2025-0057;02.04.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Verstopfung Grundleitung lt. Auftrag A-25-059;462,00;87,78;549,78;02.05.2025;05.05.2025;bezahlt
+RE-2025-0058;02.04.2025;10068;Pension Loschwitz;Montage Wand-WC lt. Auftrag A-25-057;1.729,00;328,51;2.057,51;02.05.2025;07.04.2025;bezahlt
+RE-2025-0059;02.04.2025;10085;Horn, Yvonne;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-25-054;6.900,00;1.311,00;8.211,00;16.04.2025;10.04.2025;bezahlt
+RE-2025-0060;03.04.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Jahreswartung Gastherme lt. Auftrag A-25-052;149,00;28,31;177,31;03.05.2025;06.05.2025;bezahlt
+RE-2025-0061;04.04.2025;10032;Grafe, Uwe;Reparatur vom 27.03.2025;907,00;172,33;1.079,33;18.04.2025;22.04.2025;bezahlt
+RE-2025-0062;07.04.2025;10045;Müller Bau GmbH;Trinkwasser Radeburger Straße 5 (A-25-061);441,00;83,79;524,79;07.05.2025;30.05.2025;bezahlt
+RE-2025-0063;09.04.2025;10008;Hausverwaltung Schulze & Partner GbR;Wartung Gas-Brennwertkessel lt. Auftrag A-25-065;139,00;26,41;165,41;30.04.2025;12.05.2025;bezahlt
+RE-2025-0064;09.04.2025;10024;Vogel, Mirko;Schlussrechnung Gäste-WC Sanierung (abzgl. Abschlag), Auftrag A-25-036;9.527,00;1.810,13;11.337,13;23.04.2025;24.04.2025;bezahlt
+RE-2025-0065;11.04.2025;10082;Städtische Wohnungsgesellschaft Freital mbH;Schlussrechnung Strangsanierung Trinkwasser (abzgl. Abschlag), Auftrag A-25-053;17.243,00;3.276,17;20.519,17;11.05.2025;05.05.2025;bezahlt
+RE-2025-0066;14.04.2025;10061;Schmidt, Peter;Wartung Leipziger Straße 12 (A-25-060);189,00;35,91;224,91;28.04.2025;28.04.2025;bezahlt
+RE-2025-0067;14.04.2025;10104;Gaststätte Zur Linde;Austausch Thermostatventil lt. Auftrag A-25-058;876,00;166,44;1.042,44;28.04.2025;22.04.2025;bezahlt
+RE-2025-0068;15.04.2025;10026;Kanzlei Seidel & Kollegen;Reparatur Görlitzer Straße 148 (A-25-070);99,00;18,81;117,81;29.04.2025;06.05.2025;bezahlt
+RE-2025-0069;15.04.2025;10040;Zahnarztpraxis Dr. Lehmann;Wartung Ölheizung, Wiener Straße 33;139,00;26,41;165,41;29.04.2025;02.05.2025;bezahlt
+RE-2025-0070;16.04.2025;10007;Horn, Torsten;Wartung Gas-Brennwertkessel lt. Auftrag A-25-062;189,00;35,91;224,91;30.04.2025;22.04.2025;bezahlt
+RE-2025-0071;16.04.2025;10008;Hausverwaltung Schulze & Partner GbR;Hydraulischer Abgleich lt. Auftrag A-25-068;1.204,00;228,76;1.432,76;07.05.2025;16.05.2025;bezahlt
+RE-2025-0072;16.04.2025;10027;Hausverwaltung Kröber;Trinkwasseruntersuchung, Chemnitzer Straße 45;377,00;71,63;448,63;16.05.2025;15.05.2025;bezahlt
+RE-2025-0073;17.04.2025;10094;Steuerbüro Ullrich;Austausch Warmwasserspeicher, Grundstraße 116;830,00;157,70;987,70;17.05.2025;28.04.2025;bezahlt
+RE-2025-0074;23.04.2025;10051;Neumann, Uwe;Siphon undicht lt. Auftrag A-25-076;115,00;21,85;136,85;07.05.2025;06.05.2025;bezahlt
+RE-2025-0075;23.04.2025;10110;Malerbetrieb Thiele GmbH;Montage Altenberger Straße 44 (A-25-067);610,00;115,90;725,90;07.05.2025;12.05.2025;bezahlt
+RE-2025-0076;24.04.2025;10002;Restaurant Zum Goldenen Anker GmbH;Kein Warmwasser, Gamigstraße 52;918,00;174,42;1.092,42;24.05.2025;08.05.2025;bezahlt
+RE-2025-0077;24.04.2025;10020;Berger, Sandra;Heizungsausfall Wochenende lt. Auftrag A-25-073;468,00;88,92;556,92;08.05.2025;16.05.2025;bezahlt
+RE-2025-0078;28.04.2025;10076;Hartmann, Ines;Wartung Wärmepumpe lt. Auftrag A-25-077;139,00;26,41;165,41;12.05.2025;02.05.2025;bezahlt
+RE-2025-0079;28.04.2025;10094;Steuerbüro Ullrich;Reparatur Grundstraße 116 (A-25-078);218,00;41,42;259,42;28.05.2025;02.05.2025;bezahlt
+RE-2025-0080;28.04.2025;10108;Günther, Franziska;Montage Waschtisch lt. Auftrag A-25-074;1.389,00;263,91;1.652,91;12.05.2025;16.05.2025;bezahlt
+RE-2025-0081;30.04.2025;10033;Petzold, Detlef;Wartung vom 16.04.2025;189,00;35,91;224,91;14.05.2025;13.05.2025;bezahlt
+RE-2025-0082;30.04.2025;10108;Günther, Franziska;Zirkulationspumpe defekt lt. Auftrag A-25-072;1.128,00;214,32;1.342,32;14.05.2025;12.05.2025;bezahlt
+RE-2025-0083;06.05.2025;10094;Steuerbüro Ullrich;Wartung Grundstraße 116 (A-25-080);139,00;26,41;165,41;05.06.2025;28.05.2025;bezahlt
+RE-2025-0084;07.05.2025;10056;Wohnungsbaugenossenschaft Johannstadt eG;Reparatur Leipziger Straße 20 (A-25-079);922,00;175,18;1.097,18;06.06.2025;10.06.2025;bezahlt
+RE-2025-0085;07.05.2025;10091;Kühn, Doreen;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-25-084;5.600,00;1.064,00;6.664,00;21.05.2025;30.05.2025;bezahlt
+RE-2025-0086;08.05.2025;10094;Steuerbüro Ullrich;Rohrbruch Küche, Grundstraße 116;396,00;75,24;471,24;07.06.2025;26.05.2025;bezahlt
+RE-2025-0087;09.05.2025;10117;Sportverein Blau-Weiß Dresden e.V.;Montage vom 06.05.2025;1.556,00;295,64;1.851,64;08.06.2025;30.05.2025;bezahlt
+RE-2025-0088;12.05.2025;10031;Krüger, Andreas (Dr.);Wartung Gas-Brennwertkessel, Bergstraße 61;139,00;26,41;165,41;26.05.2025;30.05.2025;bezahlt
+RE-2025-0089;12.05.2025;10085;Horn, Yvonne;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-25-054;10.356,00;1.967,64;12.323,64;26.05.2025;16.05.2025;bezahlt
+RE-2025-0090;12.05.2025;10109;Horn, Sandra;Montage Heizkörper lt. Auftrag A-25-083;342,00;64,98;406,98;26.05.2025;22.05.2025;bezahlt
+RE-2025-0091;14.05.2025;10050;WEG-Verwaltung Blasewitz GmbH;Abschlagsrechnung 1 Strangsanierung Abwasser + TW, Auftrag A-25-090;11.800,00;2.242,00;14.042,00;13.06.2025;04.06.2025;bezahlt
+RE-2025-0092;15.05.2025;10027;Hausverwaltung Kröber;Trinkwasseruntersuchung lt. Auftrag A-25-082;427,00;81,13;508,13;14.06.2025;02.06.2025;bezahlt
+RE-2025-0093;15.05.2025;10117;Sportverein Blau-Weiß Dresden e.V.;Siphon undicht lt. Auftrag A-25-085;344,00;65,36;409,36;14.06.2025;26.05.2025;bezahlt
+RE-2025-0094;16.05.2025;10107;Ebert, Ute;Montage Kesselsdorfer Straße 124 (A-25-087);714,00;135,66;849,66;30.05.2025;20.05.2025;bezahlt
+RE-2025-0095;20.05.2025;10045;Müller Bau GmbH;Spülung Trinkwasseranlage lt. Auftrag A-25-086;345,00;65,55;410,55;19.06.2025;02.07.2025;bezahlt
+RE-2025-0096;23.05.2025;10043;Bauer, Claudia;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-25-095;5.500,00;1.045,00;6.545,00;06.06.2025;03.06.2025;bezahlt
+RE-2025-0097;23.05.2025;10070;Bäckerei Hoffmann;Wartung Gas-Brennwertkessel, Königsbrücker Straße 56;189,00;35,91;224,91;06.06.2025;16.06.2025;bezahlt
+RE-2025-0098;23.05.2025;10081;Neumann, Anett;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-25-094;4.000,00;760,00;4.760,00;06.06.2025;27.05.2025;bezahlt
+RE-2025-0099;26.05.2025;10051;Neumann, Uwe;Reparatur Gartenstraße 118a (A-25-100);491,00;93,29;584,29;09.06.2025;02.06.2025;bezahlt
+RE-2025-0100;26.05.2025;10135;Bauer, Uwe;Abschlagsrechnung 1 Gäste-WC Sanierung, Auftrag A-25-098;4.700,00;893,00;5.593,00;09.06.2025;11.06.2025;bezahlt
+RE-2025-0101;27.05.2025;10002;Restaurant Zum Goldenen Anker GmbH;Legionellenprüfung, Gamigstraße 52;430,00;81,70;511,70;26.06.2025;02.06.2025;bezahlt
+RE-2025-0102;27.05.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Legionellenprüfung lt. Auftrag A-25-099;257,00;48,83;305,83;26.06.2025;18.06.2025;bezahlt
+RE-2025-0103;27.05.2025;10068;Pension Loschwitz;Wartung Ölheizung, Bautzner Straße 13a;149,00;28,31;177,31;26.06.2025;02.06.2025;bezahlt
+RE-2025-0104;28.05.2025;10040;Zahnarztpraxis Dr. Lehmann;Trinkwasseruntersuchung lt. Auftrag A-25-092;424,00;80,56;504,56;11.06.2025;04.06.2025;bezahlt
+RE-2025-0105;28.05.2025;10060;Optik Haubold e.K.;Heizungsausfall Wochenende lt. Auftrag A-25-097;307,00;58,33;365,33;11.06.2025;16.06.2025;bezahlt
+RE-2025-0106;28.05.2025;10094;Steuerbüro Ullrich;Wartung Grundstraße 116 (A-25-104);139,00;26,41;165,41;27.06.2025;16.06.2025;bezahlt
+RE-2025-0107;30.05.2025;10099;Hotel Elbblick GmbH;Legionellenprüfung, Chemnitzer Straße 133;281,00;53,39;334,39;29.06.2025;05.06.2025;bezahlt
+RE-2025-0108;02.06.2025;10003;Franke, Mirko;Druckverlust Heizung lt. Auftrag A-25-103;521,00;98,99;619,99;16.06.2025;23.06.2025;bezahlt
+RE-2025-0109;02.06.2025;10052;Schulze, Gerda;Verkauf Dichtungssatz + Kleinmaterial;65,60;12,46;78,06;16.06.2025;18.06.2025;bezahlt
+RE-2025-0110;02.06.2025;10129;Lorenz, Martin;Druckverlust Heizung lt. Auftrag A-25-102;244,00;46,36;290,36;16.06.2025;23.06.2025;bezahlt
+RE-2025-0111;03.06.2025;10027;Hausverwaltung Kröber;Jahreswartung Gastherme lt. Auftrag A-25-105;139,00;26,41;165,41;03.07.2025;26.06.2025;bezahlt
+RE-2025-0112;03.06.2025;10061;Schmidt, Peter;Verstopfung Grundleitung, Leipziger Straße 12;572,00;108,68;680,68;17.06.2025;10.06.2025;bezahlt
+RE-2025-0113;03.06.2025;10126;Lange, Florian;Abschlagsrechnung 1 Gäste-WC Sanierung, Auftrag A-25-109;4.800,00;912,00;5.712,00;17.06.2025;10.06.2025;bezahlt
+RE-2025-0114;04.06.2025;10047;Krause, Olaf;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-25-108;3.800,00;722,00;4.522,00;18.06.2025;10.06.2025;bezahlt
+RE-2025-0115;06.06.2025;10002;Restaurant Zum Goldenen Anker GmbH;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-25-110;3.800,00;722,00;4.522,00;06.07.2025;23.06.2025;bezahlt
+RE-2025-0116;10.06.2025;10050;WEG-Verwaltung Blasewitz GmbH;Schlussrechnung Strangsanierung Abwasser + TW (abzgl. Abschlag), Auftrag A-25-090;17.622,00;3.348,18;20.970,18;10.07.2025;26.06.2025;bezahlt
+RE-2025-0117;17.06.2025;10022;Thiele, René;Wartung Wärmepumpe, Hamburger Straße 123;139,00;26,41;165,41;01.07.2025;24.06.2025;bezahlt
+RE-2025-0118;18.06.2025;10046;Blumen Kretschmar;Montage Rudolf-Leonhard-Straße 2 (A-25-118);1.284,00;243,96;1.527,96;02.07.2025;10.07.2025;bezahlt
+RE-2025-0119;19.06.2025;10045;Müller Bau GmbH;Materialverkauf (Abholung);108,25;20,57;128,82;19.07.2025;11.08.2025;bezahlt
+RE-2025-0120;19.06.2025;10053;Ullrich, Anja;Reparatur Rudolf-Leonhard-Straße 114 (A-25-112);225,00;42,75;267,75;03.07.2025;27.06.2025;bezahlt
+RE-2025-0121;19.06.2025;10119;Hoffmann, Klaus;Notdienst Borsbergstr. 22 (A-25-113);297,00;56,43;353,43;03.07.2025;07.07.2025;bezahlt
+RE-2025-0122;20.06.2025;10034;Franke, Dagmar;Wasserschaden Keller lt. Auftrag A-25-114;362,00;68,78;430,78;04.07.2025;08.07.2025;bezahlt
+RE-2025-0123;20.06.2025;10081;Neumann, Anett;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-25-094;6.037,00;1.147,03;7.184,03;04.07.2025;02.07.2025;bezahlt
+RE-2025-0124;23.06.2025;10135;Bauer, Uwe;Schlussrechnung Gäste-WC Sanierung (abzgl. Abschlag), Auftrag A-25-098;6.969,00;1.324,11;8.293,11;07.07.2025;30.06.2025;bezahlt
+RE-2025-0125;24.06.2025;10047;Krause, Olaf;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-25-108;5.676,00;1.078,44;6.754,44;08.07.2025;08.07.2025;bezahlt
+RE-2025-0126;24.06.2025;10082;Städtische Wohnungsgesellschaft Freital mbH;Zirkulationspumpe defekt, Hamburger Straße 23;832,00;158,08;990,08;24.07.2025;10.07.2025;bezahlt
+RE-2025-0127;25.06.2025;10001;Friseursalon Haarmonie;Montage Wand-WC lt. Auftrag A-25-117;1.282,00;243,58;1.525,58;25.07.2025;10.07.2025;bezahlt
+RE-2025-0128;25.06.2025;10067;Elektro Müller e.K.;Heizungsausfall Wochenende lt. Auftrag A-25-120;332,00;63,08;395,08;09.07.2025;07.07.2025;bezahlt
+RE-2025-0129;25.06.2025;10116;Wagner, Steffi;Wartung Ölheizung lt. Auftrag A-25-116;159,00;30,21;189,21;09.07.2025;30.06.2025;bezahlt
+RE-2025-0131;26.06.2025;10057;Neumann, Kerstin;Heizung ohne Funktion, Stauffenbergallee 92a;600,00;114,00;714,00;10.07.2025;08.07.2025;bezahlt
+RE-2025-0132;26.06.2025;10066;Petzold, Elke;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-25-126;6.700,00;1.273,00;7.973,00;10.07.2025;02.07.2025;bezahlt
+RE-2025-0133;26.06.2025;10132;Weinstube Radebeul;Heizungsausfall Wochenende, Bahnhofstraße 67b;621,00;117,99;738,99;10.07.2025;07.07.2025;bezahlt
+RE-2025-0134;30.06.2025;10001;Friseursalon Haarmonie;Trinkwasser Altenberger Straße 163 (A-25-128);388,00;73,72;461,72;30.07.2025;14.07.2025;bezahlt
+RE-2025-0135;30.06.2025;10008;Hausverwaltung Schulze & Partner GbR;Reparatur Kesselsdorfer Straße 210 (A-25-124);825,00;156,75;981,75;21.07.2025;21.07.2025;bezahlt
+RE-2025-0136;30.06.2025;10056;Wohnungsbaugenossenschaft Johannstadt eG;Zirkulationspumpe defekt, Bautzner Straße 13;467,00;88,73;555,73;30.07.2025;23.07.2025;bezahlt
+RE-2025-0137;01.07.2025;10047;Krause, Olaf;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-25-125;5.200,00;988,00;6.188,00;15.07.2025;09.07.2025;bezahlt
+RE-2025-0138;02.07.2025;10091;Kühn, Doreen;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-25-084;8.298,00;1.576,62;9.874,62;16.07.2025;17.07.2025;bezahlt
+RE-2025-0139;03.07.2025;10094;Steuerbüro Ullrich;Wartung Wärmepumpe, Grundstraße 116;189,00;35,91;224,91;02.08.2025;17.07.2025;bezahlt
+RE-2025-0140;11.07.2025;10008;Hausverwaltung Schulze & Partner GbR;Heizung ohne Funktion lt. Auftrag A-25-129;145,00;27,55;172,55;01.08.2025;04.08.2025;bezahlt
+RE-2025-0141;11.07.2025;10043;Bauer, Claudia;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-25-095;8.349,00;1.586,31;9.935,31;25.07.2025;18.07.2025;bezahlt
+RE-2025-0142;11.07.2025;10129;Lorenz, Martin;Notdienst vom 08.07.2025;239,00;45,41;284,41;25.07.2025;21.07.2025;bezahlt
+RE-2025-0143;15.07.2025;10107;Ebert, Ute;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-25-131;4.900,00;931,00;5.831,00;29.07.2025;28.07.2025;bezahlt
+RE-2025-0144;16.07.2025;10126;Lange, Florian;Schlussrechnung Gäste-WC Sanierung (abzgl. Abschlag), Auftrag A-25-109;7.174,00;1.363,06;8.537,06;30.07.2025;28.07.2025;bezahlt
+RE-2025-0145;21.07.2025;10136;Werner, Susanne;Hydr. Abgleich vom 16.07.2025;601,00;114,19;715,19;04.08.2025;07.08.2025;bezahlt
+RE-2025-0146;22.07.2025;10003;Franke, Mirko;Wartung Gas-Brennwertkessel lt. Auftrag A-25-130;159,00;30,21;189,21;05.08.2025;13.08.2025;bezahlt
+RE-2025-0147;22.07.2025;10054;Fischer, Stefan;Abschlagsrechnung 1 Gäste-WC Sanierung, Auftrag A-25-135;9.700,00;1.843,00;11.543,00;05.08.2025;07.08.2025;bezahlt
+RE-2025-0148;22.07.2025;10059;Horn, Holger;Wartung Wärmepumpe lt. Auftrag A-25-133;139,00;26,41;165,41;05.08.2025;31.07.2025;bezahlt
+RE-2025-0149;23.07.2025;10041;Fitnessstudio ElbeFit GmbH;Montage Wand-WC, Bahnhofstraße 142;1.089,00;206,91;1.295,91;22.08.2025;04.08.2025;bezahlt
+RE-2025-0150;23.07.2025;10112;Fiedler, Steffi;Montage Nürnberger Straße 88b (A-25-140);1.180,00;224,20;1.404,20;06.08.2025;07.08.2025;bezahlt
+RE-2025-0151;25.07.2025;10041;Fitnessstudio ElbeFit GmbH;Wartung Bahnhofstraße 142 (A-25-138);139,00;26,41;165,41;24.08.2025;14.08.2025;bezahlt
+RE-2025-0152;29.07.2025;10045;Müller Bau GmbH;Rohrbruch Küche, Radeburger Straße 5;467,00;88,73;555,73;28.08.2025;10.10.2025;bezahlt
+RE-2025-0153;30.07.2025;10018;Böhme, Steffi;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-25-146;5.100,00;969,00;6.069,00;13.08.2025;18.08.2025;bezahlt
+RE-2025-0154;30.07.2025;10089;Günther, Silke;Abschlagsrechnung 1 Komplettsanierung Bad, Auftrag A-25-139;4.400,00;836,00;5.236,00;13.08.2025;19.08.2025;bezahlt
+RE-2025-0155;30.07.2025;10130;Thiele, Ines;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-25-145;5.000,00;950,00;5.950,00;13.08.2025;08.08.2025;bezahlt
+RE-2025-0156;31.07.2025;10002;Restaurant Zum Goldenen Anker GmbH;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-25-110;5.648,00;1.073,12;6.721,12;30.08.2025;06.08.2025;bezahlt
+RE-2025-0157;31.07.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Montage Stauffenbergallee 105 (A-25-148);1.079,00;205,01;1.284,01;30.08.2025;01.09.2025;bezahlt
+RE-2025-0158;01.08.2025;10012;Heinrich, Steffi;Abschlagsrechnung 1 Gäste-WC Sanierung, Auftrag A-25-147;8.600,00;1.634,00;10.234,00;15.08.2025;11.08.2025;bezahlt
+RE-2025-0159;01.08.2025;10047;Krause, Olaf;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-25-125;7.910,00;1.502,90;9.412,90;15.08.2025;13.08.2025;bezahlt
+RE-2025-0160;01.08.2025;10096;Ebert, Anja;Jahreswartung Gastherme, Hamburger Straße 97;139,00;26,41;165,41;15.08.2025;12.08.2025;bezahlt
+RE-2025-0161;05.08.2025;10056;Wohnungsbaugenossenschaft Johannstadt eG;Hydr. Abgleich + Pumpentausch lt. Auftrag A-25-143;1.022,00;194,18;1.216,18;04.09.2025;25.08.2025;bezahlt
+RE-2025-0162;05.08.2025;10122;Rößler, Dagmar;Abschlagsrechnung 1 Gäste-WC Sanierung, Auftrag A-25-151;5.000,00;950,00;5.950,00;19.08.2025;11.08.2025;bezahlt
+RE-2025-0163;07.08.2025;10133;Frank, Franziska;Wartung Gas-Brennwertkessel, Stauffenbergallee 156a;139,00;26,41;165,41;21.08.2025;27.08.2025;bezahlt
+RE-2025-0164;08.08.2025;10073;Ullrich, René;Hydraulischer Abgleich lt. Auftrag A-25-149;1.154,00;219,26;1.373,26;22.08.2025;26.08.2025;bezahlt
+RE-2025-0165;12.08.2025;10008;Hausverwaltung Schulze & Partner GbR;Montage Wand-WC lt. Auftrag A-25-152;1.469,00;279,11;1.748,11;02.09.2025;01.09.2025;bezahlt
+RE-2025-0166;12.08.2025;10032;Grafe, Uwe;Montage vom 04.08.2025;449,00;85,31;534,31;26.08.2025;28.08.2025;bezahlt
+RE-2025-0167;13.08.2025;10070;Bäckerei Hoffmann;Zirkulationspumpe defekt, Königsbrücker Straße 56;606,00;115,14;721,14;27.08.2025;02.09.2025;bezahlt
+RE-2025-0168;13.08.2025;10110;Malerbetrieb Thiele GmbH;Montage Altenberger Straße 44 (A-25-150);1.605,00;304,95;1.909,95;27.08.2025;27.08.2025;bezahlt
+RE-2025-0169;14.08.2025;10066;Petzold, Elke;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-25-126;10.133,00;1.925,27;12.058,27;28.08.2025;19.08.2025;bezahlt
+RE-2025-0170;15.08.2025;10099;Hotel Elbblick GmbH;Materialverkauf (Abholung);25,75;4,89;30,64;14.09.2025;08.09.2025;bezahlt
+RE-2025-0171;18.08.2025;10065;Wagner, Yvonne;Montage Heizkörper, Louisenstraße 116a;1.545,00;293,55;1.838,55;01.09.2025;25.08.2025;bezahlt
+RE-2025-0172;19.08.2025;10104;Gaststätte Zur Linde;Wartung Gas-Brennwertkessel lt. Auftrag A-25-157;189,00;35,91;224,91;02.09.2025;10.09.2025;bezahlt
+RE-2025-0173;21.08.2025;10005;Wohnungsgenossenschaft Elbtal eG;Wartung Wölfnitzer Ring 40 (A-25-160);139,00;26,41;165,41;20.09.2025;19.09.2025;bezahlt
+RE-2025-0174;21.08.2025;10089;Günther, Silke;Schlussrechnung Komplettsanierung Bad (abzgl. Abschlag), Auftrag A-25-139;6.610,00;1.255,90;7.865,90;04.09.2025;08.09.2025;bezahlt
+RE-2025-0175;22.08.2025;10027;Hausverwaltung Kröber;Legionellenprüfung, Winterbergstraße 69;320,00;60,80;380,80;21.09.2025;09.09.2025;bezahlt
+RE-2025-0176;22.08.2025;10050;WEG-Verwaltung Blasewitz GmbH;Legionellenprüfung, Hechtstraße 25;411,00;78,09;489,09;21.09.2025;22.09.2025;bezahlt
+RE-2025-0177;22.08.2025;10108;Günther, Franziska;Abschlagsrechnung 1 Badumbau barrierefrei, Auftrag A-25-158;4.200,00;798,00;4.998,00;05.09.2025;08.09.2025;bezahlt
+RE-2025-0178;26.08.2025;10012;Heinrich, Steffi;Schlussrechnung Gäste-WC Sanierung (abzgl. Abschlag), Auftrag A-25-147;12.912,00;2.453,28;15.365,28;09.09.2025;09.09.2025;bezahlt
+RE-2025-0179;27.08.2025;10061;Schmidt, Peter;Reparatur vom 22.08.2025;850,00;161,50;1.011,50;10.09.2025;09.09.2025;bezahlt
+RE-2025-0180;29.08.2025;10107;Ebert, Ute;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-25-131;7.421,00;1.409,99;8.830,99;12.09.2025;08.09.2025;bezahlt
+RE-2025-0181;29.08.2025;10130;Thiele, Ines;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-25-145;7.526,00;1.429,94;8.955,94;12.09.2025;15.09.2025;bezahlt
+RE-2025-0182;02.09.2025;10056;Wohnungsbaugenossenschaft Johannstadt eG;Heizung ohne Funktion, Stauffenbergallee 79;738,00;140,22;878,22;02.10.2025;06.10.2025;bezahlt
+RE-2025-0183;05.09.2025;10018;Böhme, Steffi;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-25-146;7.619,00;1.447,61;9.066,61;19.09.2025;18.09.2025;bezahlt
+RE-2025-0184;05.09.2025;10050;WEG-Verwaltung Blasewitz GmbH;Spülung Trinkwasseranlage lt. Auftrag A-25-164;446,00;84,74;530,74;05.10.2025;01.10.2025;bezahlt
+RE-2025-0185;08.09.2025;10005;Wohnungsgenossenschaft Elbtal eG;Trinkwasseruntersuchung lt. Auftrag A-25-167;463,00;87,97;550,97;08.10.2025;10.10.2025;bezahlt
+RE-2025-0186;08.09.2025;10010;Wagner, Martin;Montage Wand-WC, Cossebauder Straße 58;1.173,00;222,87;1.395,87;22.09.2025;29.09.2025;bezahlt
+RE-2025-0187;08.09.2025;10116;Wagner, Steffi;Hydr. Abgleich Cossebauder Straße 117a (A-25-166);1.335,00;253,65;1.588,65;22.09.2025;29.09.2025;bezahlt
+RE-2025-0188;11.09.2025;10135;Bauer, Uwe;Montage vom 08.09.2025;391,00;74,29;465,29;25.09.2025;30.09.2025;bezahlt
+RE-2025-0189;12.09.2025;10122;Rößler, Dagmar;Schlussrechnung Gäste-WC Sanierung (abzgl. Abschlag), Auftrag A-25-151;7.555,00;1.435,45;8.990,45;26.09.2025;06.10.2025;bezahlt
+RE-2025-0190;15.09.2025;10054;Fischer, Stefan;Schlussrechnung Gäste-WC Sanierung (abzgl. Abschlag), Auftrag A-25-135;14.446,00;2.744,74;17.190,74;29.09.2025;29.09.2025;bezahlt
+RE-2025-0191;15.09.2025;10132;Weinstube Radebeul;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-25-170;4.900,00;931,00;5.831,00;29.09.2025;01.10.2025;bezahlt
+RE-2025-0192;18.09.2025;10090;Meier, Susanne;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-25-173;4.300,00;817,00;5.117,00;02.10.2025;24.09.2025;bezahlt
+RE-2025-0193;19.09.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Wartung Ölheizung lt. Auftrag A-25-174;139,00;26,41;165,41;19.10.2025;06.10.2025;bezahlt
+RE-2025-0194;19.09.2025;10029;Seidel, Antje;Montage Hansastraße 131a (A-25-169);417,00;79,23;496,23;03.10.2025;07.10.2025;bezahlt
+RE-2025-0195;25.09.2025;10040;Zahnarztpraxis Dr. Lehmann;Wartung Gas-Brennwertkessel lt. Auftrag A-25-171;139,00;26,41;165,41;09.10.2025;02.10.2025;bezahlt
+RE-2025-0196;29.09.2025;10087;Lorenz, Uwe;Wartung Gas-Brennwertkessel, Alaunstraße 155b;149,00;28,31;177,31;13.10.2025;08.10.2025;bezahlt
+RE-2025-0197;29.09.2025;10090;Meier, Susanne;Wartung Kesselsdorfer Straße 43a (A-25-172);139,00;26,41;165,41;13.10.2025;20.10.2025;bezahlt
+RE-2025-0198;01.10.2025;10137;Hostel Neustadt GmbH;Reparatur Görlitzer Straße 91 (A-25-179);369,00;70,11;439,11;15.10.2025;13.10.2025;bezahlt
+RE-2025-0199;06.10.2025;10045;Müller Bau GmbH;Montage Wand-WC lt. Auftrag A-25-177;1.378,00;261,82;1.639,82;05.11.2025;26.11.2025;bezahlt
+RE-2025-0200;06.10.2025;10099;Hotel Elbblick GmbH;Wartung Chemnitzer Straße 133 (A-25-182);149,00;28,31;177,31;05.11.2025;14.10.2025;bezahlt
+RE-2025-0201;06.10.2025;10108;Günther, Franziska;Schlussrechnung Badumbau barrierefrei (abzgl. Abschlag), Auftrag A-25-158;6.211,00;1.180,09;7.391,09;20.10.2025;;gemahnt
+RE-2025-0202;06.10.2025;10116;Wagner, Steffi;Wartung Cossebauder Straße 117a (A-25-180);149,00;28,31;177,31;20.10.2025;14.10.2025;bezahlt
+RE-2025-0203;07.10.2025;10056;Wohnungsbaugenossenschaft Johannstadt eG;Trinkwasseruntersuchung lt. Auftrag A-25-181;472,00;89,68;561,68;06.11.2025;27.10.2025;bezahlt
+RE-2025-0204;08.10.2025;10040;Zahnarztpraxis Dr. Lehmann;Spülkasten läuft nach lt. Auftrag A-25-176;866,00;164,54;1.030,54;22.10.2025;15.10.2025;bezahlt
+RE-2025-0205;08.10.2025;10060;Optik Haubold e.K.;Siphon undicht lt. Auftrag A-25-184;196,00;37,24;233,24;22.10.2025;28.10.2025;bezahlt
+RE-2025-0206;08.10.2025;10082;Städtische Wohnungsgesellschaft Freital mbH;Trinkwasser vom 06.10.2025;473,00;89,87;562,87;07.11.2025;30.10.2025;bezahlt
+RE-2025-0207;09.10.2025;10106;Becker, Ralf;Heizung ohne Funktion, Görlitzer Straße 156;918,00;174,42;1.092,42;23.10.2025;27.10.2025;bezahlt
+RE-2025-0208;10.10.2025;10137;Hostel Neustadt GmbH;Verstopfung Grundleitung lt. Auftrag A-25-178;222,00;42,18;264,18;24.10.2025;27.10.2025;bezahlt
+RE-2025-0209;15.10.2025;10028;Haase, Susanne;Spülkasten läuft nach lt. Auftrag A-25-187;179,00;34,01;213,01;29.10.2025;20.10.2025;bezahlt
+RE-2025-0210;16.10.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Rohrbruch Küche lt. Auftrag A-25-185;554,00;105,26;659,26;15.11.2025;13.11.2025;bezahlt
+RE-2025-0211;16.10.2025;10118;Ludwig, Gabriele;Wartung Wärmepumpe lt. Auftrag A-25-192;139,00;26,41;165,41;30.10.2025;;gemahnt
+RE-2025-0212;16.10.2025;10121;Druckerei Lindner GmbH;Heizungsausfall Wochenende lt. Auftrag A-25-189;622,00;118,18;740,18;15.11.2025;03.11.2025;bezahlt
+RE-2025-0213;17.10.2025;10132;Weinstube Radebeul;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-25-170;7.408,00;1.407,52;8.815,52;31.10.2025;07.11.2025;bezahlt
+RE-2025-0214;20.10.2025;10023;Müller GmbH & Co. KG;Notdienst Großenhainer Straße 101 (A-25-191);242,00;45,98;287,98;03.11.2025;03.11.2025;bezahlt
+RE-2025-0215;21.10.2025;10052;Schulze, Gerda;Wartung Gas-Brennwertkessel, Hüblerstraße 8;189,00;35,91;224,91;04.11.2025;27.10.2025;bezahlt
+RE-2025-0216;21.10.2025;10105;Heinrich, Jana;Heizung ohne Funktion lt. Auftrag A-25-195;327,00;62,13;389,13;04.11.2025;12.11.2025;bezahlt
+RE-2025-0217;22.10.2025;10068;Pension Loschwitz;Wartung Gas-Brennwertkessel lt. Auftrag A-25-202;139,00;26,41;165,41;21.11.2025;27.10.2025;bezahlt
+RE-2025-0218;22.10.2025;10083;Schwarz, Romy;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-25-199;6.400,00;1.216,00;7.616,00;05.11.2025;04.11.2025;bezahlt
+RE-2025-0219;22.10.2025;10090;Meier, Susanne;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-25-173;6.453,00;1.226,07;7.679,07;05.11.2025;;gemahnt
+RE-2025-0220;22.10.2025;10102;Schwarz, Elke;Hydr. Abgleich Löbtauer Straße 88 (A-25-194);1.352,00;256,88;1.608,88;05.11.2025;28.10.2025;bezahlt
+RE-2025-0221;23.10.2025;10051;Neumann, Uwe;Wartung Wärmepumpe, Gartenstraße 118a;139,00;26,41;165,41;06.11.2025;10.11.2025;bezahlt
+RE-2025-0222;24.10.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Abschlagsrechnung 1 Strangsanierung Trinkwasser, Auftrag A-25-203;13.800,00;2.622,00;16.422,00;23.11.2025;10.11.2025;bezahlt
+RE-2025-0223;24.10.2025;10124;Meier, Elke;Jahreswartung Gastherme, Cossebauder Straße 114;189,00;35,91;224,91;07.11.2025;;gemahnt
+RE-2025-0224;27.10.2025;10102;Schwarz, Elke;Reparatur Löbtauer Straße 88 (A-25-204);646,00;122,74;768,74;10.11.2025;07.11.2025;bezahlt
+RE-2025-0225;28.10.2025;10057;Neumann, Kerstin;Wartung Stauffenbergallee 92a (A-25-205);149,00;28,31;177,31;11.11.2025;11.11.2025;bezahlt
+RE-2025-0226;03.11.2025;10008;Hausverwaltung Schulze & Partner GbR;Wartung Gas-Brennwertkessel lt. Auftrag A-25-207;139,00;26,41;165,41;24.11.2025;21.11.2025;bezahlt
+RE-2025-0227;03.11.2025;10026;Kanzlei Seidel & Kollegen;Reparatur Görlitzer Straße 148 (A-25-200);706,00;134,14;840,14;17.11.2025;11.11.2025;bezahlt
+RE-2025-0228;05.11.2025;10056;Wohnungsbaugenossenschaft Johannstadt eG;Jahreswartung Gastherme lt. Auftrag A-25-208;139,00;26,41;165,41;05.12.2025;05.12.2025;bezahlt
+RE-2025-0229;06.11.2025;10127;Pohl, Susanne;Reparatur vom 23.10.2025;964,00;183,16;1.147,16;20.11.2025;24.11.2025;bezahlt
+RE-2025-0230;07.11.2025;10010;Wagner, Martin;Notdienst vom 03.11.2025;588,00;111,72;699,72;21.11.2025;26.11.2025;bezahlt
+RE-2025-0231;07.11.2025;10043;Bauer, Claudia;Wartung Wärmepumpe lt. Auftrag A-25-211;149,00;28,31;177,31;21.11.2025;26.11.2025;bezahlt
+RE-2025-0232;07.11.2025;10117;Sportverein Blau-Weiß Dresden e.V.;Trinkwasser Borsbergstraße 115 (A-25-212);289,00;54,91;343,91;07.12.2025;20.11.2025;bezahlt
+RE-2025-0233;10.11.2025;10088;Müller, Heike;Jahreswartung Gastherme lt. Auftrag A-25-213;139,00;26,41;165,41;24.11.2025;24.11.2025;bezahlt
+RE-2025-0234;11.11.2025;10040;Zahnarztpraxis Dr. Lehmann;Austausch Warmwasserspeicher lt. Auftrag A-25-209;282,00;53,58;335,58;25.11.2025;21.11.2025;bezahlt
+RE-2025-0235;11.11.2025;10122;Rößler, Dagmar;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-25-214;4.800,00;912,00;5.712,00;25.11.2025;24.11.2025;bezahlt
+RE-2025-0236;14.11.2025;10136;Werner, Susanne;Wartung Wärmepumpe lt. Auftrag A-25-216;139,00;26,41;165,41;28.11.2025;27.11.2025;bezahlt
+RE-2025-0237;20.11.2025;10049;Kretschmar, Kerstin;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-25-222;6.300,00;1.197,00;7.497,00;04.12.2025;08.12.2025;bezahlt
+RE-2025-0238;20.11.2025;10111;Apotheke am Bischofsplatz;Wartung Kesselsdorfer Straße 159a (A-25-215);159,00;30,21;189,21;20.12.2025;24.11.2025;bezahlt
+RE-2025-0239;21.11.2025;10021;Seidel, Uwe;Reparatur vom 11.11.2025;516,00;98,04;614,04;05.12.2025;10.12.2025;bezahlt
+RE-2025-0240;21.11.2025;10050;WEG-Verwaltung Blasewitz GmbH;Spülung Trinkwasseranlage, Hechtstraße 25;364,00;69,16;433,16;21.12.2025;24.12.2025;bezahlt
+RE-2025-0241;21.11.2025;10083;Schwarz, Romy;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-25-221;5.100,00;969,00;6.069,00;05.12.2025;01.12.2025;bezahlt
+RE-2025-0242;24.11.2025;10108;Günther, Franziska;Kein Warmwasser lt. Auftrag A-25-220;743,00;141,17;884,17;08.12.2025;01.12.2025;bezahlt
+RE-2025-0243;27.11.2025;10008;Hausverwaltung Schulze & Partner GbR;Jahreswartung Gastherme, Gompitzer Höhe 4;139,00;26,41;165,41;18.12.2025;29.12.2025;bezahlt
+RE-2025-0244;02.12.2025;10001;Friseursalon Haarmonie;Wartung Altenberger Straße 163 (A-25-224);139,00;26,41;165,41;01.01.2026;08.12.2025;bezahlt
+RE-2025-0245;02.12.2025;10002;Restaurant Zum Goldenen Anker GmbH;Austausch Thermostatventil lt. Auftrag A-25-227;800,00;152,00;952,00;01.01.2026;19.12.2025;bezahlt
+RE-2025-0246;02.12.2025;10005;Wohnungsgenossenschaft Elbtal eG;Kein Warmwasser lt. Auftrag A-25-230;1.089,00;206,91;1.295,91;01.01.2026;05.01.2026;bezahlt
+RE-2025-0247;03.12.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Schlussrechnung Strangsanierung Trinkwasser (abzgl. Abschlag), Auftrag A-25-203;20.768,00;3.945,92;24.713,92;02.01.2026;05.01.2026;bezahlt
+RE-2025-0248;03.12.2025;10115;Böhme, Manuela;Wartung Pillnitzer Landstraße 153 (A-25-226);159,00;30,21;189,21;17.12.2025;;gemahnt
+RE-2025-0249;04.12.2025;10019;Physiotherapie am Alaunpark;Montage Wand-WC lt. Auftrag A-25-229;607,00;115,33;722,33;03.01.2026;22.12.2025;bezahlt
+RE-2025-0250;04.12.2025;10068;Pension Loschwitz;Montage Bautzner Straße 13a (A-25-233);1.265,00;240,35;1.505,35;03.01.2026;23.12.2025;bezahlt
+RE-2025-0251;04.12.2025;10126;Lange, Florian;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-25-231;4.200,00;798,00;4.998,00;18.12.2025;15.12.2025;bezahlt
+RE-2025-0252;05.12.2025;10008;Hausverwaltung Schulze & Partner GbR;Hydr. Abgleich vom 26.11.2025;1.561,00;296,59;1.857,59;26.12.2025;05.01.2026;bezahlt
+RE-2025-0253;08.12.2025;10056;Wohnungsbaugenossenschaft Johannstadt eG;Hydraulischer Abgleich lt. Auftrag A-25-225;1.399,00;265,81;1.664,81;07.01.2026;29.12.2025;bezahlt
+RE-2025-0254;11.12.2025;10083;Schwarz, Romy;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-25-199;9.479,00;1.801,01;11.280,01;25.12.2025;29.12.2025;bezahlt
+RE-2025-0255;11.12.2025;10083;Schwarz, Romy;Reparatur vom 10.12.2025;1.056,00;200,64;1.256,64;25.12.2025;22.12.2025;bezahlt
+RE-2025-0256;15.12.2025;10014;Hofmann, Klaus;Jahreswartung Gastherme lt. Auftrag A-25-232;139,00;26,41;165,41;29.12.2025;;gemahnt
+RE-2025-0257;16.12.2025;10049;Kretschmar, Kerstin;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-25-222;9.337,00;1.774,03;11.111,03;30.12.2025;23.12.2025;bezahlt
+RE-2025-0258;17.12.2025;10002;Restaurant Zum Goldenen Anker GmbH;Wartung Ölheizung, Gamigstraße 52;159,00;30,21;189,21;16.01.2026;02.01.2026;bezahlt
+RE-2025-0259;17.12.2025;10036;Berger, Gerd;Rohrbruch Küche lt. Auftrag A-25-239;449,00;85,31;534,31;31.12.2025;29.12.2025;bezahlt
+RE-2025-0260;17.12.2025;10128;Braun, Ute;Abschlagsrechnung 1 Badumbau barrierefrei, Auftrag A-25-235;6.400,00;1.216,00;7.616,00;31.12.2025;29.12.2025;bezahlt
+RE-2025-0261;18.12.2025;10103;Kita Sonnenblume;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-25-242;3.500,00;665,00;4.165,00;01.01.2026;09.01.2026;bezahlt
+RE-2025-0262;19.12.2025;10135;Bauer, Uwe;Wartung Alaunstraße 127 (A-25-245);139,00;26,41;165,41;02.01.2026;23.12.2025;bezahlt
+RE-2025-0263;22.12.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Spülung Trinkwasseranlage lt. Auftrag A-25-241;420,00;79,80;499,80;21.01.2026;12.01.2026;bezahlt
+RE-2025-0264;22.12.2025;10016;Göbel, Sandra;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-25-244;6.300,00;1.197,00;7.497,00;05.01.2026;12.01.2026;bezahlt
+RE-2025-0265;22.12.2025;10083;Schwarz, Romy;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-25-221;7.558,00;1.436,02;8.994,02;05.01.2026;;gemahnt
+RE-2025-0266;22.12.2025;10125;Haase, Franziska;Hydr. Abgleich + Pumpentausch, Stauffenbergallee 27b;1.059,00;201,21;1.260,21;05.01.2026;02.01.2026;bezahlt
+RE-2025-0267;23.12.2025;10070;Bäckerei Hoffmann;Wartung vom 10.12.2025;159,00;30,21;189,21;06.01.2026;07.01.2026;bezahlt
+RE-2025-0268;23.12.2025;10070;Bäckerei Hoffmann;Verstopfung Grundleitung lt. Auftrag A-25-236;578,00;109,82;687,82;06.01.2026;31.12.2025;bezahlt
+RE-2025-0269;24.12.2025;10013;Immobilienverwaltung Weißer Hirsch GmbH;Wasserschaden Keller lt. Auftrag A-25-243;601,00;114,19;715,19;23.01.2026;13.01.2026;bezahlt
+RE-2025-0270;30.12.2025;10048;Vogel, Uwe;Abschlagsrechnung 1 Gäste-WC Sanierung, Auftrag A-25-246;6.400,00;1.216,00;7.616,00;13.01.2026;05.01.2026;bezahlt
+RE-2025-0271;31.12.2025;10099;Hotel Elbblick GmbH;Wartung Wärmepumpe lt. Auftrag A-25-248;139,00;26,41;165,41;30.01.2026;12.01.2026;bezahlt
+RE-2026-0001;06.01.2026;10122;Rößler, Dagmar;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-25-214;7.251,00;1.377,69;8.628,69;20.01.2026;22.01.2026;bezahlt
+RE-2026-0002;07.01.2026;10013;Immobilienverwaltung Weißer Hirsch GmbH;Trinkwasseruntersuchung lt. Auftrag A-25-247;472,00;89,68;561,68;06.02.2026;02.02.2026;bezahlt
+RE-2026-0003;07.01.2026;10057;Neumann, Kerstin;Jahreswartung Gastherme, Stauffenbergallee 92a;139,00;26,41;165,41;21.01.2026;14.01.2026;bezahlt
+RE-2026-0004;08.01.2026;10126;Lange, Florian;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-25-231;6.276,00;1.192,44;7.468,44;22.01.2026;20.01.2026;teilbezahlt
+RE-2026-0005;12.01.2026;10128;Braun, Ute;Schlussrechnung Badumbau barrierefrei (abzgl. Abschlag), Auftrag A-25-235;9.563,00;1.816,97;11.379,97;26.01.2026;19.01.2026;bezahlt
+RE-2026-0006;13.01.2026;10019;Physiotherapie am Alaunpark;Wartung Gas-Brennwertkessel lt. Auftrag A-26-005;139,00;26,41;165,41;12.02.2026;02.02.2026;bezahlt
+RE-2026-0007;13.01.2026;10097;Berger, Ramona;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-26-003;6.000,00;1.140,00;7.140,00;27.01.2026;19.01.2026;bezahlt
+RE-2026-0008;14.01.2026;10010;Wagner, Martin;Montage Heizkörper, Cossebauder Straße 58;1.752,00;332,88;2.084,88;28.01.2026;02.02.2026;bezahlt
+RE-2026-0009;15.01.2026;10040;Zahnarztpraxis Dr. Lehmann;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-26-007;5.300,00;1.007,00;6.307,00;29.01.2026;23.01.2026;bezahlt
+RE-2026-0010;15.01.2026;10078;Neumann, Nadine;Abschlagsrechnung 1 Badumbau barrierefrei, Auftrag A-26-011;8.400,00;1.596,00;9.996,00;29.01.2026;;gemahnt
+RE-2026-0011;15.01.2026;10110;Malerbetrieb Thiele GmbH;Wartung Ölheizung, Altenberger Straße 44;189,00;35,91;224,91;29.01.2026;02.02.2026;bezahlt
+RE-2026-0012;16.01.2026;10101;Seniorenresidenz Am Großen Garten gGmbH;Verstopfung Grundleitung, Tolkewitzer Straße 125a;268,00;50,92;318,92;30.01.2026;19.01.2026;bezahlt
+RE-2026-0013;19.01.2026;10070;Bäckerei Hoffmann;Heizung ohne Funktion lt. Auftrag A-26-010;923,00;175,37;1.098,37;02.02.2026;28.01.2026;bezahlt
+RE-2026-0014;20.01.2026;10016;Göbel, Sandra;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-25-244;9.328,00;1.772,32;11.100,32;03.02.2026;06.02.2026;bezahlt
+RE-2026-0015;21.01.2026;10016;Göbel, Sandra;Wartung Wärmepumpe lt. Auftrag A-26-018;139,00;26,41;165,41;04.02.2026;11.02.2026;bezahlt
+RE-2026-0016;21.01.2026;10024;Vogel, Mirko;Heizung ohne Funktion lt. Auftrag A-26-013;1.101,00;209,19;1.310,19;04.02.2026;29.01.2026;bezahlt
+RE-2026-0019;21.01.2026;10103;Kita Sonnenblume;Wartung Stauffenbergallee 22b (A-26-017);139,00;26,41;165,41;04.02.2026;26.01.2026;bezahlt
+RE-2026-0020;22.01.2026;10021;Seidel, Uwe;Wartung Gas-Brennwertkessel lt. Auftrag A-26-021;139,00;26,41;165,41;05.02.2026;09.02.2026;bezahlt
+RE-2026-0021;22.01.2026;10030;Autohaus Pieschen GmbH;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-26-006;6.100,00;1.159,00;7.259,00;05.02.2026;09.02.2026;bezahlt
+RE-2026-0022;22.01.2026;10064;Engel, Grit;Hydraulischer Abgleich, Hechtstraße 35;1.358,00;258,02;1.616,02;05.02.2026;12.02.2026;bezahlt
+RE-2026-0023;22.01.2026;10080;Tierarztpraxis Dr. Fiedler;Wartung vom 14.01.2026;149,00;28,31;177,31;05.02.2026;09.02.2026;bezahlt
+RE-2026-0024;26.01.2026;10066;Petzold, Elke;Heizungsausfall Wochenende lt. Auftrag A-26-009;429,00;81,51;510,51;09.02.2026;06.02.2026;bezahlt
+RE-2026-0025;26.01.2026;10082;Städtische Wohnungsgesellschaft Freital mbH;Wartung Ölheizung lt. Auftrag A-26-019;149,00;28,31;177,31;25.02.2026;02.03.2026;bezahlt
+RE-2026-0026;26.01.2026;10128;Braun, Ute;Wartung vom 16.01.2026;139,00;26,41;165,41;09.02.2026;30.01.2026;bezahlt
+RE-2026-0027;27.01.2026;10035;Café Neustadt UG;Wartung Cossebauder Straße 153b (A-26-024);159,00;30,21;189,21;10.02.2026;03.02.2026;bezahlt
+RE-2026-0028;29.01.2026;10070;Bäckerei Hoffmann;Wartung Ölheizung lt. Auftrag A-26-014;139,00;26,41;165,41;12.02.2026;03.02.2026;bezahlt
+RE-2026-0029;30.01.2026;10027;Hausverwaltung Kröber;Heizungsausfall Wochenende, Stauffenbergallee 98;484,00;91,96;575,96;01.03.2026;02.03.2026;bezahlt
+RE-2026-0030;30.01.2026;10097;Berger, Ramona;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-26-003;8.903,00;1.691,57;10.594,57;13.02.2026;11.02.2026;bezahlt
+RE-2026-0031;30.01.2026;10103;Kita Sonnenblume;Wartung Stauffenbergallee 22b (A-26-020);139,00;26,41;165,41;13.02.2026;04.02.2026;bezahlt
+RE-2026-0032;02.02.2026;10045;Müller Bau GmbH;Spülkasten läuft nach lt. Auftrag A-26-035;374,00;71,06;445,06;04.03.2026;19.03.2026;bezahlt
+RE-2026-0033;02.02.2026;10072;Kindergarten Elbspatzen e.V.;Austausch Thermostatventil, Königsbrücker Straße 33b;578,00;109,82;687,82;16.02.2026;09.02.2026;bezahlt
+RE-2026-0034;03.02.2026;10056;Wohnungsbaugenossenschaft Johannstadt eG;Abschlagsrechnung 1 Strangsanierung Abwasser + TW, Auftrag A-26-033;16.600,00;3.154,00;19.754,00;05.03.2026;23.02.2026;bezahlt
+RE-2026-0035;04.02.2026;10053;Ullrich, Anja;Wartung Gas-Brennwertkessel, Rudolf-Leonhard-Straße 114;189,00;35,91;224,91;18.02.2026;16.02.2026;bezahlt
+RE-2026-0036;04.02.2026;10083;Schwarz, Romy;Jahreswartung Gastherme, Gartenstraße 85;159,00;30,21;189,21;18.02.2026;23.02.2026;bezahlt
+RE-2026-0037;04.02.2026;10135;Bauer, Uwe;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-26-038;5.500,00;1.045,00;6.545,00;18.02.2026;10.02.2026;bezahlt
+RE-2026-0038;05.02.2026;10030;Autohaus Pieschen GmbH;Austausch Warmwasserspeicher, Bergstraße 11;1.530,00;290,70;1.820,70;19.02.2026;23.02.2026;bezahlt
+RE-2026-0039;05.02.2026;10067;Elektro Müller e.K.;Siphon undicht, Pirnaer Landstraße 88;959,00;182,21;1.141,21;19.02.2026;09.02.2026;bezahlt
+RE-2026-0040;05.02.2026;10103;Kita Sonnenblume;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-25-242;5.316,00;1.010,04;6.326,04;19.02.2026;23.02.2026;bezahlt
+RE-2026-0041;09.02.2026;10032;Grafe, Uwe;Wartung Kesselsdorfer Straße 150 (A-26-029);139,00;26,41;165,41;23.02.2026;20.02.2026;bezahlt
+RE-2026-0042;09.02.2026;10075;Engel, Rainer;Armatur tropft lt. Auftrag A-26-026;534,00;101,46;635,46;23.02.2026;20.02.2026;bezahlt
+RE-2026-0043;10.02.2026;10024;Vogel, Mirko;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-26-032;6.300,00;1.197,00;7.497,00;24.02.2026;23.02.2026;bezahlt
+RE-2026-0044;10.02.2026;10050;WEG-Verwaltung Blasewitz GmbH;Trinkwasser vom 05.02.2026;420,00;79,80;499,80;12.03.2026;09.03.2026;bezahlt
+RE-2026-0045;10.02.2026;10065;Wagner, Yvonne;Montage Heizkörper lt. Auftrag A-26-037;532,00;101,08;633,08;24.02.2026;23.02.2026;bezahlt
+RE-2026-0046;11.02.2026;10048;Vogel, Uwe;Schlussrechnung Gäste-WC Sanierung (abzgl. Abschlag), Auftrag A-25-246;9.589,00;1.821,91;11.410,91;25.02.2026;16.02.2026;bezahlt
+RE-2026-0047;13.02.2026;10023;Müller GmbH & Co. KG;Notdienst Großenhainer Straße 101 (A-26-040);259,00;49,21;308,21;27.02.2026;03.03.2026;bezahlt
+RE-2026-0048;13.02.2026;10056;Wohnungsbaugenossenschaft Johannstadt eG;Abschlagsrechnung 1 Strangsanierung Trinkwasser, Auftrag A-26-041;13.700,00;2.603,00;16.303,00;15.03.2026;12.03.2026;bezahlt
+RE-2026-0049;16.02.2026;10078;Neumann, Nadine;Schlussrechnung Badumbau barrierefrei (abzgl. Abschlag), Auftrag A-26-011;12.682,00;2.409,58;15.091,58;02.03.2026;23.02.2026;bezahlt
+RE-2026-0050;16.02.2026;10106;Becker, Ralf;Wartung Görlitzer Straße 156 (A-26-051);189,00;35,91;224,91;02.03.2026;05.03.2026;bezahlt
+RE-2026-0051;17.02.2026;10118;Ludwig, Gabriele;Austausch Warmwasserspeicher, Prießnitzstraße 98;723,00;137,37;860,37;03.03.2026;10.03.2026;bezahlt
+RE-2026-0052;18.02.2026;10027;Hausverwaltung Kröber;Wasserschaden Keller lt. Auftrag A-26-042;283,00;53,77;336,77;20.03.2026;17.03.2026;bezahlt
+RE-2026-0053;19.02.2026;10041;Fitnessstudio ElbeFit GmbH;Trinkwasser Bahnhofstraße 142 (A-26-045);425,00;80,75;505,75;21.03.2026;27.02.2026;bezahlt
+RE-2026-0054;19.02.2026;10045;Müller Bau GmbH;Verstopfung Grundleitung lt. Auftrag A-26-043;217,00;41,23;258,23;21.03.2026;;gemahnt
+RE-2026-0055;19.02.2026;10082;Städtische Wohnungsgesellschaft Freital mbH;Austausch Thermostatventil lt. Auftrag A-26-046;370,00;70,30;440,30;21.03.2026;23.03.2026;bezahlt
+RE-2026-0056;20.02.2026;10002;Restaurant Zum Goldenen Anker GmbH;Wartung Wärmepumpe lt. Auftrag A-26-049;189,00;35,91;224,91;22.03.2026;03.03.2026;bezahlt
+RE-2026-0057;20.02.2026;10133;Frank, Franziska;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-26-053;6.600,00;1.254,00;7.854,00;06.03.2026;25.02.2026;bezahlt
+RE-2026-0058;23.02.2026;10127;Pohl, Susanne;Heizungsausfall Wochenende, Teplitzer Straße 117;318,00;60,42;378,42;09.03.2026;06.03.2026;teilbezahlt
+RE-2026-0059;24.02.2026;10092;Zimmermann, Martin;Spülkasten läuft nach lt. Auftrag A-26-044;1.067,00;202,73;1.269,73;10.03.2026;02.03.2026;bezahlt
+RE-2026-0060;25.02.2026;10029;Seidel, Antje;Montage Heizkörper, Hansastraße 131a;1.149,00;218,31;1.367,31;11.03.2026;;gemahnt
+RE-2026-0061;02.03.2026;10010;Wagner, Martin;Hydr. Abgleich vom 25.02.2026;788,00;149,72;937,72;16.03.2026;06.03.2026;bezahlt
+RE-2026-0062;02.03.2026;10062;Uhlig, Jörg;Armatur tropft lt. Auftrag A-26-057;104,00;19,76;123,76;16.03.2026;11.03.2026;bezahlt
+RE-2026-0063;02.03.2026;10086;Uhlig, Matthias;Verkauf Ersatzteil ab Lager;90,49;17,19;107,68;16.03.2026;18.03.2026;bezahlt
+RE-2026-0064;03.03.2026;10005;Wohnungsgenossenschaft Elbtal eG;Rohrbruch Küche lt. Auftrag A-26-055;386,00;73,34;459,34;02.04.2026;23.03.2026;bezahlt
+RE-2026-0065;03.03.2026;10030;Autohaus Pieschen GmbH;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-26-006;9.078,00;1.724,82;10.802,82;17.03.2026;18.03.2026;bezahlt
+RE-2026-0066;04.03.2026;10027;Hausverwaltung Kröber;Spülung Trinkwasseranlage, Chemnitzer Straße 45;376,00;71,44;447,44;03.04.2026;07.04.2026;bezahlt
+RE-2026-0067;04.03.2026;10040;Zahnarztpraxis Dr. Lehmann;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-26-007;7.945,00;1.509,55;9.454,55;18.03.2026;09.03.2026;teilbezahlt
+RE-2026-0068;04.03.2026;10046;Blumen Kretschmar;Austausch Thermostatventil lt. Auftrag A-26-054;615,00;116,85;731,85;18.03.2026;23.03.2026;bezahlt
+RE-2026-0069;05.03.2026;10131;Müller, Heike;Druckverlust Heizung, Am Hang 3;841,00;159,79;1.000,79;19.03.2026;;gemahnt
+RE-2026-0070;06.03.2026;10082;Städtische Wohnungsgesellschaft Freital mbH;Wartung Ölheizung lt. Auftrag A-26-061;149,00;28,31;177,31;05.04.2026;01.04.2026;bezahlt
+RE-2026-0071;10.03.2026;10024;Vogel, Mirko;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-26-032;9.562,00;1.816,78;11.378,78;24.03.2026;16.03.2026;bezahlt
+RE-2026-0072;10.03.2026;10056;Wohnungsbaugenossenschaft Johannstadt eG;Schlussrechnung Strangsanierung Trinkwasser (abzgl. Abschlag), Auftrag A-26-041;20.492,00;3.893,48;24.385,48;09.04.2026;13.04.2026;bezahlt
+RE-2026-0073;10.03.2026;10119;Hoffmann, Klaus;Wartung Wärmepumpe lt. Auftrag A-26-058;139,00;26,41;165,41;24.03.2026;31.03.2026;bezahlt
+RE-2026-0074;11.03.2026;10023;Müller GmbH & Co. KG;Wartung vom 03.03.2026;139,00;26,41;165,41;25.03.2026;16.03.2026;bezahlt
+RE-2026-0075;11.03.2026;10122;Rößler, Dagmar;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-26-063;5.700,00;1.083,00;6.783,00;25.03.2026;30.03.2026;bezahlt
+RE-2026-0076;12.03.2026;10056;Wohnungsbaugenossenschaft Johannstadt eG;Schlussrechnung Strangsanierung Abwasser + TW (abzgl. Abschlag), Auftrag A-26-033;24.817,00;4.715,23;29.532,23;11.04.2026;30.03.2026;bezahlt
+RE-2026-0077;16.03.2026;10099;Hotel Elbblick GmbH;Trinkwasseruntersuchung, Chemnitzer Straße 133;446,00;84,74;530,74;15.04.2026;25.03.2026;bezahlt
+RE-2026-0078;18.03.2026;10120;Schulz, Michael;Hydr. Abgleich + Pumpentausch lt. Auftrag A-26-062;986,00;187,34;1.173,34;01.04.2026;07.04.2026;bezahlt
+RE-2026-0079;19.03.2026;10056;Wohnungsbaugenossenschaft Johannstadt eG;Trinkwasser vom 16.03.2026;279,00;53,01;332,01;18.04.2026;14.04.2026;bezahlt
+RE-2026-0080;20.03.2026;10027;Hausverwaltung Kröber;Heizungsausfall Wochenende lt. Auftrag A-26-066;366,00;69,54;435,54;19.04.2026;;gemahnt
+RE-2026-0081;20.03.2026;10105;Heinrich, Jana;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-26-070;6.400,00;1.216,00;7.616,00;03.04.2026;30.03.2026;bezahlt
+RE-2026-0082;23.03.2026;10013;Immobilienverwaltung Weißer Hirsch GmbH;Wartung Ölheizung, Louisenstraße 16;139,00;26,41;165,41;22.04.2026;10.04.2026;bezahlt
+RE-2026-0083;23.03.2026;10014;Hofmann, Klaus;Abschlagsrechnung 1 Badumbau barrierefrei, Auftrag A-26-075;4.600,00;874,00;5.474,00;06.04.2026;07.04.2026;bezahlt
+RE-2026-0084;24.03.2026;10070;Bäckerei Hoffmann;Montage Königsbrücker Straße 56 (A-26-068);1.548,00;294,12;1.842,12;07.04.2026;07.04.2026;bezahlt
+RE-2026-0085;26.03.2026;10034;Franke, Dagmar;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-26-077;4.000,00;760,00;4.760,00;09.04.2026;07.04.2026;bezahlt
+RE-2026-0086;26.03.2026;10040;Zahnarztpraxis Dr. Lehmann;Wartung Gas-Brennwertkessel lt. Auftrag A-26-076;139,00;26,41;165,41;09.04.2026;07.04.2026;bezahlt
+RE-2026-0087;26.03.2026;10045;Müller Bau GmbH;Montage Sanitärobjekte Baustelle Radebeul lt. Auftrag A-26-067;4.380,00;832,20;5.212,20;25.04.2026;;storniert
+RE-2026-0088;27.03.2026;10135;Bauer, Uwe;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-26-038;8.167,00;1.551,73;9.718,73;10.04.2026;07.04.2026;bezahlt
+RE-2026-0089;30.03.2026;10107;Ebert, Ute;Wartung Kesselsdorfer Straße 124 (A-26-082);159,00;30,21;189,21;13.04.2026;08.04.2026;bezahlt
+RE-2026-0090;31.03.2026;10045;Müller Bau GmbH;Storno zu RE-2026-0087;-4.380,00;-832,20;-5.212,20;30.04.2026;;Storno
+RE-2026-0091;31.03.2026;10045;Müller Bau GmbH;Montage Sanitärobjekte Baustelle Radebeul (korrigiert), Auftrag A-26-067;4.180,00;794,20;4.974,20;30.04.2026;11.05.2026;bezahlt
+RE-2026-0092;01.04.2026;10130;Thiele, Ines;Reparatur Hamburger Straße 21 (A-26-074);108,00;20,52;128,52;15.04.2026;07.04.2026;bezahlt
+RE-2026-0093;08.04.2026;10027;Hausverwaltung Kröber;Notdienst Nürnberger Straße 73 (A-26-081);493,00;93,67;586,67;08.05.2026;06.05.2026;bezahlt
+RE-2026-0094;08.04.2026;10113;Schwarz, Gerd;Einbau Enthärtungsanlage lt. Auftrag A-26-084;288,00;54,72;342,72;22.04.2026;30.04.2026;teilbezahlt
+RE-2026-0095;08.04.2026;10133;Frank, Franziska;Montage vom 24.03.2026;1.326,00;251,94;1.577,94;22.04.2026;16.04.2026;bezahlt
+RE-2026-0096;09.04.2026;10002;Restaurant Zum Goldenen Anker GmbH;Trinkwasser vom 25.03.2026;265,00;50,35;315,35;09.05.2026;27.04.2026;bezahlt
+RE-2026-0097;09.04.2026;10077;Schwarz, Ralf;Montage Wand-WC lt. Auftrag A-26-083;748,00;142,12;890,12;23.04.2026;21.04.2026;bezahlt
+RE-2026-0098;09.04.2026;10122;Rößler, Dagmar;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-26-063;8.534,00;1.621,46;10.155,46;23.04.2026;20.04.2026;bezahlt
+RE-2026-0099;10.04.2026;10050;WEG-Verwaltung Blasewitz GmbH;Trinkwasser Martin-Luther-Straße 55 (A-26-079);477,00;90,63;567,63;10.05.2026;27.04.2026;bezahlt
+RE-2026-0100;10.04.2026;10133;Frank, Franziska;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-26-053;9.831,00;1.867,89;11.698,89;24.04.2026;04.05.2026;bezahlt
+RE-2026-0101;13.04.2026;10092;Zimmermann, Martin;Druckverlust Heizung, Hechtstraße 151;166,00;31,54;197,54;27.04.2026;27.04.2026;bezahlt
+RE-2026-0103;15.04.2026;10079;Wolf, Hans-Jürgen;Wartung Ölheizung, Bergstraße 180a;189,00;35,91;224,91;29.04.2026;30.04.2026;bezahlt
+RE-2026-0104;16.04.2026;10025;Vogel, Rainer;Wartung Ölheizung lt. Auftrag A-26-087;139,00;26,41;165,41;30.04.2026;07.05.2026;bezahlt
+RE-2026-0105;16.04.2026;10105;Heinrich, Jana;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-26-070;9.531,00;1.810,89;11.341,89;30.04.2026;27.04.2026;bezahlt
+RE-2026-0106;17.04.2026;10115;Böhme, Manuela;Spülkasten läuft nach, Pillnitzer Landstraße 153;450,00;85,50;535,50;01.05.2026;04.05.2026;teilbezahlt
+RE-2026-0107;20.04.2026;10005;Wohnungsgenossenschaft Elbtal eG;Wartung Ölheizung lt. Auftrag A-26-089;189,00;35,91;224,91;20.05.2026;08.05.2026;bezahlt
+RE-2026-0108;20.04.2026;10005;Wohnungsgenossenschaft Elbtal eG;Hydraulischer Abgleich, Wölfnitzer Ring 40;930,00;176,70;1.106,70;20.05.2026;06.05.2026;bezahlt
+RE-2026-0109;22.04.2026;10099;Hotel Elbblick GmbH;Trinkwasser Chemnitzer Straße 133 (A-26-093);477,00;90,63;567,63;22.05.2026;27.04.2026;bezahlt
+RE-2026-0110;23.04.2026;10011;Wagner, Volker;Wartung vom 16.04.2026;159,00;30,21;189,21;07.05.2026;07.05.2026;bezahlt
+RE-2026-0111;24.04.2026;10047;Krause, Olaf;Montage Wand-WC lt. Auftrag A-26-090;751,00;142,69;893,69;08.05.2026;04.05.2026;bezahlt
+RE-2026-0112;28.04.2026;10080;Tierarztpraxis Dr. Fiedler;Montage vom 24.04.2026;1.177,00;223,63;1.400,63;12.05.2026;12.05.2026;bezahlt
+RE-2026-0113;28.04.2026;10122;Rößler, Dagmar;Spülkasten läuft nach lt. Auftrag A-26-099;394,00;74,86;468,86;12.05.2026;19.05.2026;bezahlt
+RE-2026-0114;30.04.2026;10037;Göbel, Anett;Wartung Ölheizung lt. Auftrag A-26-097;139,00;26,41;165,41;14.05.2026;06.05.2026;bezahlt
+RE-2026-0115;30.04.2026;10056;Wohnungsbaugenossenschaft Johannstadt eG;Wartung Wärmepumpe lt. Auftrag A-26-101;139,00;26,41;165,41;30.05.2026;18.05.2026;bezahlt
+RE-2026-0116;04.05.2026;10014;Hofmann, Klaus;Schlussrechnung Badumbau barrierefrei (abzgl. Abschlag), Auftrag A-26-075;6.866,00;1.304,54;8.170,54;18.05.2026;11.05.2026;bezahlt
+RE-2026-0117;06.05.2026;10110;Malerbetrieb Thiele GmbH;Wartung Wärmepumpe lt. Auftrag A-26-104;139,00;26,41;165,41;20.05.2026;15.05.2026;bezahlt
+RE-2026-0118;07.05.2026;10060;Optik Haubold e.K.;Reparatur Prießnitzstraße 30 (A-26-100);360,00;68,40;428,40;21.05.2026;19.05.2026;bezahlt
+RE-2026-0119;11.05.2026;10077;Schwarz, Ralf;Austausch Warmwasserspeicher lt. Auftrag A-26-102;1.284,00;243,96;1.527,96;25.05.2026;21.05.2026;bezahlt
+RE-2026-0120;12.05.2026;10077;Schwarz, Ralf;Siphon undicht, Görlitzer Straße 121;941,00;178,79;1.119,79;26.05.2026;26.05.2026;bezahlt
+RE-2026-0121;12.05.2026;10120;Schulz, Michael;Reparatur Grundstraße 64 (A-26-105);222,00;42,18;264,18;26.05.2026;26.05.2026;bezahlt
+RE-2026-0122;13.05.2026;10019;Physiotherapie am Alaunpark;Wartung Wärmepumpe lt. Auftrag A-26-108;189,00;35,91;224,91;12.06.2026;26.05.2026;bezahlt
+RE-2026-0123;19.05.2026;10034;Franke, Dagmar;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-26-077;5.904,00;1.121,76;7.025,76;02.06.2026;26.05.2026;bezahlt
+RE-2026-0124;19.05.2026;10130;Thiele, Ines;Hydraulischer Abgleich lt. Auftrag A-26-106;874,00;166,06;1.040,06;02.06.2026;27.05.2026;bezahlt
+RE-2026-0125;20.05.2026;10056;Wohnungsbaugenossenschaft Johannstadt eG;Reparatur Hansastraße 23 (A-26-107);562,00;106,78;668,78;19.06.2026;16.06.2026;bezahlt
+RE-2026-0126;20.05.2026;10068;Pension Loschwitz;Reparatur vom 18.05.2026;771,00;146,49;917,49;19.06.2026;27.05.2026;bezahlt
+RE-2026-0127;20.05.2026;10079;Wolf, Hans-Jürgen;Reparatur Bergstraße 180a (A-26-110);133,00;25,27;158,27;03.06.2026;29.05.2026;bezahlt
+RE-2026-0128;26.05.2026;10021;Seidel, Uwe;Abschlagsrechnung 1 Einbau Wärmepumpe Luft/Wasser, Auftrag A-26-113;5.300,00;1.007,00;6.307,00;09.06.2026;15.06.2026;teilbezahlt
+RE-2026-0129;27.05.2026;10040;Zahnarztpraxis Dr. Lehmann;Heizung ohne Funktion lt. Auftrag A-26-112;655,00;124,45;779,45;10.06.2026;15.06.2026;bezahlt
+RE-2026-0130;27.05.2026;10050;WEG-Verwaltung Blasewitz GmbH;Zirkulationspumpe defekt, Martin-Luther-Straße 55;914,00;173,66;1.087,66;26.06.2026;15.06.2026;bezahlt
+RE-2026-0131;27.05.2026;10125;Haase, Franziska;Einbau Enthärtungsanlage lt. Auftrag A-26-120;1.111,00;211,09;1.322,09;10.06.2026;04.06.2026;bezahlt
+RE-2026-0132;28.05.2026;10026;Kanzlei Seidel & Kollegen;Verkauf Ersatzteil ab Lager;96,03;18,25;114,28;11.06.2026;15.06.2026;bezahlt
+RE-2026-0133;28.05.2026;10072;Kindergarten Elbspatzen e.V.;Austausch Thermostatventil lt. Auftrag A-26-115;305,00;57,95;362,95;11.06.2026;04.06.2026;bezahlt
+RE-2026-0134;28.05.2026;10137;Hostel Neustadt GmbH;Wartung vom 20.05.2026;139,00;26,41;165,41;11.06.2026;18.06.2026;bezahlt
+RE-2026-0135;29.05.2026;10067;Elektro Müller e.K.;Wartung Ölheizung, Pirnaer Landstraße 88;189,00;35,91;224,91;12.06.2026;08.06.2026;bezahlt
+RE-2026-0136;01.06.2026;10023;Müller GmbH & Co. KG;Abschlagsrechnung 1 Austausch Gaskessel gegen Brennwert, Auftrag A-26-119;5.000,00;950,00;5.950,00;15.06.2026;12.06.2026;bezahlt
+RE-2026-0137;01.06.2026;10027;Hausverwaltung Kröber;Wartung vom 28.05.2026;189,00;35,91;224,91;01.07.2026;29.06.2026;bezahlt
+RE-2026-0138;01.06.2026;10049;Kretschmar, Kerstin;Wartung Wärmepumpe lt. Auftrag A-26-123;189,00;35,91;224,91;15.06.2026;22.06.2026;bezahlt
+RE-2026-0139;01.06.2026;10114;Seidel, Doreen;Hydraulischer Abgleich lt. Auftrag A-26-111;792,00;150,48;942,48;15.06.2026;15.06.2026;bezahlt
+RE-2026-0140;02.06.2026;10008;Hausverwaltung Schulze & Partner GbR;Wartung Kesselsdorfer Straße 210 (A-26-117);159,00;30,21;189,21;23.06.2026;23.06.2026;bezahlt
+RE-2026-0141;03.06.2026;10012;Heinrich, Steffi;Wartung Hamburger Straße 73a (A-26-128);139,00;26,41;165,41;17.06.2026;17.06.2026;bezahlt
+RE-2026-0142;03.06.2026;10086;Uhlig, Matthias;Armatur tropft, Kesselsdorfer Straße 37;166,00;31,54;197,54;17.06.2026;23.06.2026;bezahlt
+RE-2026-0143;03.06.2026;10095;Fiedler, Simone;Wartung vom 20.05.2026;139,00;26,41;165,41;17.06.2026;22.06.2026;bezahlt
+RE-2026-0144;04.06.2026;10060;Optik Haubold e.K.;Heizung ohne Funktion lt. Auftrag A-26-122;847,00;160,93;1.007,93;18.06.2026;25.06.2026;bezahlt
+RE-2026-0145;08.06.2026;10046;Blumen Kretschmar;Spülkasten läuft nach lt. Auftrag A-26-130;1.152,00;218,88;1.370,88;22.06.2026;24.06.2026;bezahlt
+RE-2026-0146;08.06.2026;10065;Wagner, Yvonne;Austausch Thermostatventil lt. Auftrag A-26-131;503,00;95,57;598,57;22.06.2026;29.06.2026;teilbezahlt
+RE-2026-0147;08.06.2026;10137;Hostel Neustadt GmbH;Wartung Görlitzer Straße 91 (A-26-137);159,00;30,21;189,21;22.06.2026;24.06.2026;bezahlt
+RE-2026-0148;10.06.2026;10056;Wohnungsbaugenossenschaft Johannstadt eG;Wasserschaden Keller, Leipziger Straße 20;190,00;36,10;226,10;10.07.2026;29.06.2026;bezahlt
+RE-2026-0149;10.06.2026;10112;Fiedler, Steffi;Abschlagsrechnung 1 Badumbau barrierefrei, Auftrag A-26-132;4.200,00;798,00;4.998,00;24.06.2026;23.06.2026;bezahlt
+RE-2026-0150;12.06.2026;10002;Restaurant Zum Goldenen Anker GmbH;Wartung Gas-Brennwertkessel lt. Auftrag A-26-133;149,00;28,31;177,31;12.07.2026;29.06.2026;bezahlt
+RE-2026-0151;12.06.2026;10004;Schröder, Sandra;Montage vom 11.06.2026;1.448,00;275,12;1.723,12;26.06.2026;25.06.2026;teilbezahlt
+RE-2026-0152;16.06.2026;10005;Wohnungsgenossenschaft Elbtal eG;Wartung Wärmepumpe lt. Auftrag A-26-139;139,00;26,41;165,41;16.07.2026;13.07.2026;bezahlt
+RE-2026-0153;17.06.2026;10036;Berger, Gerd;Montage vom 05.06.2026;425,00;80,75;505,75;01.07.2026;01.07.2026;bezahlt
+RE-2026-0154;18.06.2026;10008;Hausverwaltung Schulze & Partner GbR;Austausch Thermostatventil lt. Auftrag A-26-142;601,00;114,19;715,19;09.07.2026;10.07.2026;bezahlt
+RE-2026-0155;18.06.2026;10018;Böhme, Steffi;Kein Warmwasser lt. Auftrag A-26-144;1.119,00;212,61;1.331,61;02.07.2026;07.07.2026;bezahlt
+RE-2026-0156;18.06.2026;10035;Café Neustadt UG;Wartung Ölheizung, Cossebauder Straße 153b;139,00;26,41;165,41;02.07.2026;26.06.2026;bezahlt
+RE-2026-0157;22.06.2026;10101;Seniorenresidenz Am Großen Garten gGmbH;Jahreswartung Gastherme, Tolkewitzer Straße 125a;139,00;26,41;165,41;06.07.2026;26.06.2026;bezahlt
+RE-2026-0158;23.06.2026;10005;Wohnungsgenossenschaft Elbtal eG;Notdienst Omsewitzer Ring 2 (A-26-150);283,00;53,77;336,77;23.07.2026;23.07.2026;bezahlt
+RE-2026-0159;23.06.2026;10013;Immobilienverwaltung Weißer Hirsch GmbH;Trinkwasseruntersuchung lt. Auftrag A-26-143;250,00;47,50;297,50;23.07.2026;14.07.2026;bezahlt
+RE-2026-0160;24.06.2026;10008;Hausverwaltung Schulze & Partner GbR;Jahreswartung Gastherme, Tharandter Straße 55;139,00;26,41;165,41;15.07.2026;27.07.2026;bezahlt
+RE-2026-0161;25.06.2026;10064;Engel, Grit;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-26-145;4.700,00;893,00;5.593,00;09.07.2026;13.07.2026;bezahlt
+RE-2026-0162;26.06.2026;10023;Müller GmbH & Co. KG;Schlussrechnung Austausch Gaskessel gegen Brennwert (abzgl. Abschlag), Auftrag A-26-119;7.413,00;1.408,47;8.821,47;10.07.2026;03.07.2026;bezahlt
+RE-2026-0163;26.06.2026;10024;Vogel, Mirko;Reparatur Cossebauder Straße 10 (A-26-152);704,00;133,76;837,76;10.07.2026;06.07.2026;bezahlt
+RE-2026-0164;26.06.2026;10028;Haase, Susanne;Reparatur vom 24.06.2026;109,00;20,71;129,71;10.07.2026;01.07.2026;bezahlt
+RE-2026-0165;30.06.2026;10027;Hausverwaltung Kröber;Trinkwasser vom 23.06.2026;344,00;65,36;409,36;30.07.2026;;gemahnt
+RE-2026-0166;30.06.2026;10055;Fleischerei Geißler GmbH;Montage Wand-WC, Tolkewitzer Straße 174;1.130,00;214,70;1.344,70;30.07.2026;06.07.2026;bezahlt
+RE-2026-0167;30.06.2026;10088;Müller, Heike;Spülkasten läuft nach lt. Auftrag A-26-154;101,00;19,19;120,19;14.07.2026;09.07.2026;bezahlt
+RE-2026-0168;02.07.2026;10127;Pohl, Susanne;Druckverlust Heizung lt. Auftrag A-26-156;111,00;21,09;132,09;16.07.2026;24.07.2026;bezahlt
+RE-2026-0169;03.07.2026;10021;Seidel, Uwe;Schlussrechnung Einbau Wärmepumpe Luft/Wasser (abzgl. Abschlag), Auftrag A-26-113;7.956,00;1.511,64;9.467,64;17.07.2026;10.07.2026;bezahlt
+RE-2026-0170;06.07.2026;10008;Hausverwaltung Schulze & Partner GbR;Wartung Tharandter Straße 55 (A-26-147);149,00;28,31;177,31;27.07.2026;24.07.2026;bezahlt
+RE-2026-0171;06.07.2026;10078;Neumann, Nadine;Notdienst Hechtstraße 176b (A-26-155);402,00;76,38;478,38;20.07.2026;27.07.2026;bezahlt
+RE-2026-0172;08.07.2026;10013;Immobilienverwaltung Weißer Hirsch GmbH;Spülkasten läuft nach lt. Auftrag A-26-159;376,00;71,44;447,44;07.08.2026;06.08.2026;bezahlt
+RE-2026-0173;09.07.2026;10001;Friseursalon Haarmonie;Legionellenprüfung, Altenberger Straße 163;265,00;50,35;315,35;08.08.2026;23.07.2026;bezahlt
+RE-2026-0174;10.07.2026;10107;Ebert, Ute;Abschlagsrechnung 1 Heizungsmodernisierung, Auftrag A-26-165;4.300,00;817,00;5.117,00;24.07.2026;28.07.2026;bezahlt
+RE-2026-0175;13.07.2026;10010;Wagner, Martin;Hydr. Abgleich + Pumpentausch, Cossebauder Straße 58;970,00;184,30;1.154,30;27.07.2026;27.07.2026;bezahlt
+RE-2026-0176;13.07.2026;10061;Schmidt, Peter;Einbau Enthärtungsanlage lt. Auftrag A-26-169;652,00;123,88;775,88;27.07.2026;31.07.2026;bezahlt
+RE-2026-0177;13.07.2026;10105;Heinrich, Jana;Einbau Enthärtungsanlage, Großenhainer Straße 15;1.687,00;320,53;2.007,53;27.07.2026;31.07.2026;bezahlt
+RE-2026-0178;13.07.2026;10126;Lange, Florian;Wartung Wärmepumpe lt. Auftrag A-26-162;139,00;26,41;165,41;27.07.2026;17.07.2026;bezahlt
+RE-2026-0179;14.07.2026;10069;Schröder, Kerstin;Heizung ohne Funktion lt. Auftrag A-26-168;122,00;23,18;145,18;28.07.2026;28.07.2026;bezahlt
+RE-2026-0180;15.07.2026;10090;Meier, Susanne;Wartung Ölheizung, Kesselsdorfer Straße 43a;139,00;26,41;165,41;29.07.2026;31.07.2026;bezahlt
+RE-2026-0181;16.07.2026;10002;Restaurant Zum Goldenen Anker GmbH;Jahreswartung Gastherme, Gamigstraße 52;189,00;35,91;224,91;15.08.2026;03.08.2026;bezahlt
+RE-2026-0182;16.07.2026;10049;Kretschmar, Kerstin;Verkauf Dichtungssatz + Kleinmaterial;20,60;3,91;24,51;30.07.2026;23.07.2026;bezahlt
+RE-2026-0183;16.07.2026;10056;Wohnungsbaugenossenschaft Johannstadt eG;Heizungsausfall Wochenende lt. Auftrag A-26-172;506,00;96,14;602,14;15.08.2026;10.08.2026;bezahlt
+RE-2026-0184;16.07.2026;10067;Elektro Müller e.K.;Austausch Thermostatventil lt. Auftrag A-26-164;146,00;27,74;173,74;30.07.2026;07.08.2026;bezahlt
+RE-2026-0185;21.07.2026;10104;Gaststätte Zur Linde;Wartung Ölheizung lt. Auftrag A-26-174;139,00;26,41;165,41;04.08.2026;10.08.2026;bezahlt
+RE-2026-0186;22.07.2026;10032;Grafe, Uwe;Reparatur Kesselsdorfer Straße 150 (A-26-171);1.060,00;201,40;1.261,40;05.08.2026;11.08.2026;bezahlt
+RE-2026-0187;23.07.2026;10111;Apotheke am Bischofsplatz;Wasserschaden Keller lt. Auftrag A-26-170;369,00;70,11;439,11;22.08.2026;11.08.2026;bezahlt
+RE-2026-0188;23.07.2026;10132;Weinstube Radebeul;Wartung Gas-Brennwertkessel lt. Auftrag A-26-177;139,00;26,41;165,41;06.08.2026;05.08.2026;bezahlt
+RE-2026-0189;24.07.2026;10082;Städtische Wohnungsgesellschaft Freital mbH;Siphon undicht lt. Auftrag A-26-175;1.143,00;217,17;1.360,17;23.08.2026;25.08.2026;teilbezahlt
+RE-2026-0190;24.07.2026;10112;Fiedler, Steffi;Schlussrechnung Badumbau barrierefrei (abzgl. Abschlag), Auftrag A-26-132;6.361,00;1.208,59;7.569,59;07.08.2026;03.08.2026;bezahlt
+RE-2026-0191;30.07.2026;10065;Wagner, Yvonne;Montage Louisenstraße 116a (A-26-180);776,00;147,44;923,44;13.08.2026;12.08.2026;bezahlt
+RE-2026-0192;30.07.2026;10085;Horn, Yvonne;Rohrbruch Küche, Kesselsdorfer Straße 116;587,00;111,53;698,53;13.08.2026;18.08.2026;bezahlt
+RE-2026-0193;30.07.2026;10105;Heinrich, Jana;Wartung vom 29.07.2026;139,00;26,41;165,41;13.08.2026;03.08.2026;bezahlt
+RE-2026-0194;30.07.2026;10121;Druckerei Lindner GmbH;Notdienst Wehlener Straße 135 (A-26-176);587,00;111,53;698,53;29.08.2026;07.08.2026;bezahlt
+RE-2026-0195;03.08.2026;10013;Immobilienverwaltung Weißer Hirsch GmbH;Jahreswartung Gastherme lt. Auftrag A-26-185;139,00;26,41;165,41;02.09.2026;31.08.2026;bezahlt
+RE-2026-0196;04.08.2026;10003;Franke, Mirko;Wartung Ölheizung lt. Auftrag A-26-178;139,00;26,41;165,41;18.08.2026;10.08.2026;bezahlt
+RE-2026-0197;04.08.2026;10055;Fleischerei Geißler GmbH;Wartung Tolkewitzer Straße 174 (A-26-181);149,00;28,31;177,31;03.09.2026;10.08.2026;bezahlt
+RE-2026-0198;04.08.2026;10071;Thiele, Lars;Abschlagsrechnung 1 Badumbau barrierefrei, Auftrag A-26-184;5.000,00;950,00;5.950,00;18.08.2026;24.08.2026;bezahlt
+RE-2026-0199;04.08.2026;10094;Steuerbüro Ullrich;Wartung Ölheizung lt. Auftrag A-26-183;139,00;26,41;165,41;03.09.2026;24.08.2026;bezahlt
+RE-2026-0200;05.08.2026;10099;Hotel Elbblick GmbH;Armatur tropft, Chemnitzer Straße 133;560,00;106,40;666,40;04.09.2026;17.08.2026;bezahlt
+RE-2026-0201;07.08.2026;10055;Fleischerei Geißler GmbH;Wartung Wärmepumpe, Tolkewitzer Straße 174;139,00;26,41;165,41;06.09.2026;28.08.2026;bezahlt
+RE-2026-0202;10.08.2026;10059;Horn, Holger;Kein Warmwasser lt. Auftrag A-26-189;955,00;181,45;1.136,45;24.08.2026;;gemahnt
+RE-2026-0203;10.08.2026;10064;Engel, Grit;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-26-145;7.031,00;1.335,89;8.366,89;24.08.2026;01.09.2026;bezahlt
+RE-2026-0204;10.08.2026;10107;Ebert, Ute;Schlussrechnung Heizungsmodernisierung (abzgl. Abschlag), Auftrag A-26-165;6.534,00;1.241,46;7.775,46;24.08.2026;31.08.2026;bezahlt
+RE-2026-0205;11.08.2026;10117;Sportverein Blau-Weiß Dresden e.V.;Armatur tropft lt. Auftrag A-26-191;913,00;173,47;1.086,47;10.09.2026;19.08.2026;teilbezahlt
+RE-2026-0206;13.08.2026;10053;Ullrich, Anja;Zirkulationspumpe defekt lt. Auftrag A-26-186;658,00;125,02;783,02;27.08.2026;02.09.2026;bezahlt
+RE-2026-0207;13.08.2026;10132;Weinstube Radebeul;Wartung Bahnhofstraße 67b (A-26-193);159,00;30,21;189,21;27.08.2026;17.08.2026;bezahlt
+RE-2026-0208;18.08.2026;10035;Café Neustadt UG;Druckverlust Heizung, Cossebauder Straße 153b;295,00;56,05;351,05;01.09.2026;25.08.2026;bezahlt
+RE-2026-0209;21.08.2026;10082;Städtische Wohnungsgesellschaft Freital mbH;Heizung ohne Funktion lt. Auftrag A-26-201;963,00;182,97;1.145,97;20.09.2026;;gemahnt
+RE-2026-0210;24.08.2026;10023;Müller GmbH & Co. KG;Austausch Warmwasserspeicher Lager lt. Auftrag A-26-200;935,00;177,65;1.112,65;07.09.2026;;gemahnt
+RE-2026-0211;26.08.2026;10068;Pension Loschwitz;Kein Warmwasser, Bautzner Straße 13a;446,00;84,74;530,74;25.09.2026;;offen
+RE-2026-0212;01.09.2026;10071;Thiele, Lars;Schlussrechnung Badumbau barrierefrei (abzgl. Abschlag), Auftrag A-26-184;7.621,00;1.447,99;9.068,99;15.09.2026;;offen
+RE-2026-0213;01.09.2026;10085;Horn, Yvonne;Wartung Gas-Brennwertkessel lt. Auftrag A-26-203;139,00;26,41;165,41;15.09.2026;;offen
+RE-2026-0214;02.09.2026;10099;Hotel Elbblick GmbH;Montage Chemnitzer Straße 133 (A-26-206);552,00;104,88;656,88;02.10.2026;24.09.2026;bezahlt
+RE-2026-0215;07.09.2026;10050;WEG-Verwaltung Blasewitz GmbH;Wartung Martin-Luther-Straße 55 (A-26-210);139,00;26,41;165,41;07.10.2026;01.10.2026;bezahlt
+RE-2026-0216;08.09.2026;10095;Fiedler, Simone;Montage Hamburger Straße 127 (A-26-216);277,00;52,63;329,63;22.09.2026;23.09.2026;bezahlt
+RE-2026-0217;10.09.2026;10045;Müller Bau GmbH;Trinkwasseruntersuchung lt. Auftrag A-26-212;394,00;74,86;468,86;10.10.2026;;offen
+RE-2026-0218;11.09.2026;10005;Wohnungsgenossenschaft Elbtal eG;Wartung Ölheizung, Merianplatz 9;159,00;30,21;189,21;11.10.2026;01.10.2026;bezahlt
+RE-2026-0219;14.09.2026;10131;Müller, Heike;Reparatur Am Hang 3 (A-26-224);286,50;54,44;340,94;28.09.2026;;offen
+RE-2026-0220;16.09.2026;10087;Lorenz, Uwe;Montage Waschtisch, Alaunstraße 155b;319,00;60,61;379,61;30.09.2026;08.10.2026;bezahlt
+RE-2026-0221;17.09.2026;10077;Schwarz, Ralf;Austausch Warmwasserspeicher lt. Auftrag A-26-229;472,00;89,68;561,68;01.10.2026;;offen
+RE-2026-0222;17.09.2026;10104;Gaststätte Zur Linde;Wartung Nürnberger Straße 164 (A-26-221);139,00;26,41;165,41;01.10.2026;30.09.2026;bezahlt
+RE-2026-0223;18.09.2026;10056;Wohnungsbaugenossenschaft Johannstadt eG;Wartung vom 17.09.2026;139,00;26,41;165,41;18.10.2026;;offen
+RE-2026-0224;22.09.2026;10023;Müller GmbH & Co. KG;Druckverlust Heizung lt. Auftrag A-26-215;248,00;47,12;295,12;06.10.2026;12.10.2026;bezahlt
+RE-2026-0225;23.09.2026;10038;Fischer, Susanne;Einbau Enthärtungsanlage lt. Auftrag A-26-217;422,00;80,18;502,18;07.10.2026;29.09.2026;bezahlt
+RE-2026-0226;24.09.2026;10009;Lorenz, Marion;Heizung ohne Funktion lt. Auftrag A-26-225;771,00;146,49;917,49;08.10.2026;07.10.2026;bezahlt
+RE-2026-0227;29.09.2026;10085;Horn, Yvonne;Wartung Ölheizung lt. Auftrag A-26-247;189,00;35,91;224,91;13.10.2026;06.10.2026;bezahlt
+RE-2026-0228;02.10.2026;10022;Thiele, René;Wartung vom 22.09.2026;139,00;26,41;165,41;16.10.2026;;offen
+RE-2026-0229;02.10.2026;10137;Hostel Neustadt GmbH;Montage Görlitzer Straße 91 (A-26-236);492,00;93,48;585,48;16.10.2026;;offen
+RE-2026-0230;06.10.2026;10012;Heinrich, Steffi;Druckverlust Heizung, Hamburger Straße 73a;526,00;99,94;625,94;20.10.2026;;offen
+RE-2026-0231;06.10.2026;10050;WEG-Verwaltung Blasewitz GmbH;Montage Wand-WC lt. Auftrag A-26-240;1.738,00;330,22;2.068,22;05.11.2026;;offen
+RE-2026-0232;07.10.2026;10030;Autohaus Pieschen GmbH;Montage Wand-WC, Bergstraße 11;1.763,00;334,97;2.097,97;21.10.2026;12.10.2026;bezahlt

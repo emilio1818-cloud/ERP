@@ -129,17 +129,47 @@ def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list
                     pass
             keys.append(k)
         cols.append(Col(name=name, prof=prof, values=list(prof.values), keys=keys, origin=(table_id, j)))
+    _full_name(cols, table_id)
     lines = [l if isinstance(l, tuple) else (table_id, l) for l in lines]
     n = len(lines)
     stem = label.split(" › ")[0]
     sheet = label.split(" › ")[1] if " › " in label else ""
-    concept = lexicon.concept_of(stem) or (lexicon.concept_of(sheet) if sheet else None)
+    part = None
+    if lexicon.json_path(stem):
+        stem, part = stem.rsplit(".", 1)  # nested export: "Termine_Export.appointments"
+    if part is not None:
+        concept = lexicon.concept_of(part)
+    else:
+        concept = (lexicon.concept_of(sheet) if sheet else None) or lexicon.concept_of(stem)
     o = Obs(oid=f"T{table_id}", table_id=table_id, label=label, file_concept=concept,
             qualifier=lexicon.qualifier_of(stem), cols=cols, prov=[[l] for l in lines], n=n, source_id=source_id,
             tables=list(tables or [table_id]), sig_label=sig_label)
     o.concept = concept
     o.key = pick_key(o)
     return o
+
+
+_FIRST = {"vorname", "first", "firstname", "given", "rufname"}
+_LAST = {"nachname", "last", "lastname", "surname", "familienname", "family"}
+
+
+def _full_name(cols: list[Col], table_id: int):
+    """Personnel exports split names ('First name', 'Last name'); everyone else writes them in
+    one field. A combined name lets both meet."""
+    first = next((c for c in cols if c.kind == "text" and set(tokens(c.name)) & _FIRST), None)
+    last = next((c for c in cols if c.kind == "text" and set(tokens(c.name)) & _LAST and c is not first), None)
+    if not first or not last or any(fold(c.name) == "name" for c in cols):
+        return
+    vals = []
+    for a, b in zip(first.values, last.values):
+        v = " ".join(str(x).strip() for x in (a, b) if x not in (None, ""))
+        vals.append(v or None)
+    from ..values import profile_column
+    prof = profile_column("Name", vals)
+    prof.role = "name"
+    keys = [norm_name(v) if v else None for v in vals]
+    first.prof.role = last.prof.role = "person_part"
+    cols.insert(cols.index(first), Col(name="Name", prof=prof, values=vals, keys=keys, origin=(table_id, -1)))
 
 
 def pick_key(o: Obs) -> str | None:
@@ -197,17 +227,34 @@ _EN_HEADERS = {
     "beguenstigter zahlungspflichtiger": "Zahlungspartner", "auftraggeber empfaenger": "Zahlungspartner",
     "empfaenger auftraggeber": "Zahlungspartner", "name zahlungsbeteiligter": "Zahlungspartner",
     "kontonummer iban": "IBAN", "iban zahlungsbeteiligter": "IBAN", "waehrung": "Währung",
+    "postal code": "PLZ", "postcode": "PLZ", "street": "Straße", "display name": "Name", "start": "Beginn",
+    "end": "Ende", "resource ids": "Mitarbeiter", "resources": "Mitarbeiter", "short": "Kürzel",
+    "created": "Erstellt am", "updated at": "Geändert am", "reference": "Bezug", "price estimate amount": "Schätzpreis",
+    "amount": "Betrag", "currency": "Währung", "customer": "Kunde", "notes": "Notizen", "title": "Titel",
 }
 
 
 def display_header(name: str) -> str:
+    parts = lexicon.json_path(name)
+    if parts:
+        if len(parts) >= 2:
+            last = " ".join(tokens(parts[-1]))
+            if last in ("id", "nr", "no", "number", "uuid") and len(parts) >= 2:
+                return display_header(parts[-2]) + "-Nr."
+            if last in ("display name", "name") and len(parts) == 2:
+                return display_header(parts[-2])
+            return display_header(parts[-1])
     key = " ".join(tokens(name))
     return _EN_HEADERS.get(key, name)
 
 
 def clean_stem(label: str) -> str:
-    """'Shop_Bestellungen_Export_2025-2026' -> 'Shop Bestellungen'."""
+    """'Shop_Bestellungen_Export_2025-2026' -> 'Shop Bestellungen'; a nested export's array
+    ('Termine_Export.resources') is named by the array."""
     stem = label.split(" › ")[0]
+    if lexicon.json_path(stem):
+        part = stem.rsplit(".", 1)[1]
+        stem = display_header(part) if display_header(part) != part else part[:1].upper() + part[1:]
     out = []
     for t in stem.replace("_", " ").replace("-", " ").split():
         ft = fold(t)

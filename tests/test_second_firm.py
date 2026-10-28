@@ -110,6 +110,18 @@ class SecondFirm(unittest.TestCase):
         self.assertEqual(late["count"], len(UNBILLED))
         self.assertEqual(found, UNBILLED)
 
+    def test_how_well_the_firm_is_known(self):
+        from physarum.coverage import coverage
+        cov = coverage(self.rt)
+        parts = {p["key"]: p["value"] for p in cov["parts"]}
+        self.assertGreaterEqual(parts["rows"], 0.99)          # every row became a thing (the pivot sheet is a report)
+        self.assertGreaterEqual(parts["refs"], 0.95)
+        self.assertTrue(0.5 < cov["score"] < 1)
+        texts = " ".join(g["text"] for g in cov["gaps"])
+        self.assertIn("Artikelpositionen", texts)             # materials missing from the price list
+        self.assertNotIn("Kontobewegungen", texts)            # a bank line's payee need not be a customer
+        self.assertNotIn("(Rechnungen)", " ".join(t["plural"] for t in self.model["types"]))
+
     def test_maintenance_is_due_and_moves_on(self):
         from datetime import date
         from physarum import ops

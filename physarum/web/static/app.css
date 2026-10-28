@@ -179,6 +179,8 @@ table { border-collapse: collapse; width: 100%; }
 .fact.edit dd input, .fact.edit dd select { width: 100%; }
 .timeline { display: flex; align-items: stretch; gap: 0; margin: 8px 0 4px; overflow-x: auto; padding-bottom: 4px; }
 .step { flex: 1 1 0; min-width: 120px; position: relative; padding: 0 10px 0 0; }
+.meter .bar { height: 6px; border-radius: 3px; background: var(--soft); margin: 5px 0 2px; overflow: hidden; }
+.meter .bar span { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
 .step .bar { height: 6px; border-radius: 3px; background: var(--soft); margin: 8px 0 8px; }
 .step.done .bar { background: var(--accent); }
 .step.late .bar { background: var(--bad); }

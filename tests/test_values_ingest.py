@@ -140,5 +140,20 @@ class TestIngest(unittest.TestCase):
         self.assertTrue(d.notes)
 
 
+class PeriodsAndPlaceholders(unittest.TestCase):
+    def test_periods(self):
+        from datetime import date
+        from physarum.values import event_date, parse_date, parse_period
+        self.assertEqual(parse_period("10/2026"), (date(2026, 10, 1), date(2026, 10, 31)))
+        self.assertEqual(parse_period("Okt. 2026"), (date(2026, 10, 1), date(2026, 10, 31)))
+        self.assertEqual(parse_period("KW 44/2026"), (date(2026, 10, 26), date(2026, 11, 1)))
+        self.assertEqual(parse_period("Q4/2026"), (date(2026, 10, 1), date(2026, 12, 31)))
+        self.assertIsNone(parse_period("13/2026"))
+        self.assertEqual(event_date("KW 44", date(2025, 10, 2)), date(2025, 10, 27))   # the year of the case
+        self.assertIsNone(parse_date("01.01.0001"))
+        self.assertIsNone(parse_date("31.12.9999"))
+        self.assertIsNone(parse_date("31.02.2026"))
+
+
 if __name__ == "__main__":
     unittest.main()

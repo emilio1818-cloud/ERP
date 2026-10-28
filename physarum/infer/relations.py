@@ -38,6 +38,7 @@ class RelDraft:
     targets: dict = field(default_factory=dict)   # src group index -> dst group index (ref) or [indices] (mention)
     unresolved: dict = field(default_factory=dict)  # src group index -> raw value
     extra: list = field(default_factory=list)       # further target types for parties: [(TypeDraft, {gi: dgi})]
+    multi: set = field(default_factory=set)         # src groups linked through the first of several numbers
 
 
 class IdentIndex:
@@ -90,6 +91,9 @@ class IdentIndex:
         return None, False
 
 
+_MULTI = re.compile(r"\s*(?:[,;+/&]|\bund\b)\s*")
+
+
 def _vias(d: TypeDraft) -> list[tuple[str, AttrDraft]]:
     out = []
     if d.key is not None:
@@ -133,6 +137,17 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
             k = norm_key(v) if via != "n" else norm_name(v)
             distinct_all.add(k)
             ti, exact = idx[id(d)].lookup(v, via)
+            if ti is None and via == "k" and isinstance(v, str) and _MULTI.search(v):
+                # "RE-2025-0003, RE-2025-0021": a deposit and a final invoice in one cell – link the first.
+                # Only numbers are split: "Schulze & Partner" is one name.
+                parts = [x.strip() for x in _MULTI.split(v) if x.strip()]
+                if len(parts) >= 2 and all(any(ch.isdigit() for ch in x) for x in parts):
+                    for part in parts:
+                        ti = idx[id(d)].by.get("k:" + norm_key(part))
+                        if ti is not None:
+                            exact = True
+                            r.multi.add(gi)  # the others are still read as mentions
+                            break
             if ti is None:
                 r.unresolved[gi] = v
                 continue
@@ -384,7 +399,7 @@ def discover_mentions(types: list[TypeDraft], groups: dict[int, list[Group]], in
                 r0 = by_attr.get((id(t), id(a)))
                 if r0 is None or a.kind not in ("text", "id", "ref"):
                     continue
-                resolved = set(r0.targets) | {gi for _d, hits in r0.extra for gi in hits}
+                resolved = (set(r0.targets) - r0.multi) | {gi for _d, hits in r0.extra for gi in hits}
             elif a.kind != "text" or a.role not in ("notes", None, "category"):
                 continue
             gs = groups[id(t)]

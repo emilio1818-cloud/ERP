@@ -168,7 +168,16 @@ def _mk(y: int, m: int, d: int, hh=None, mm=None, ss=None):
 
 
 def parse_date(v, order: str = "dmy"):
-    """Parse many date notations. Returns date, datetime or None. `order` resolves 01/02/2026."""
+    """Parse many date notations. Returns date, datetime or None. `order` resolves 01/02/2026.
+    Placeholder years (0001, 9999) are no dates."""
+    r = _parse_date(v, order)
+    if r is None:
+        return None
+    y = r.year
+    return r if 1900 <= y <= 2200 else None
+
+
+def _parse_date(v, order: str = "dmy"):
     if isinstance(v, datetime):
         if v.time() == time(0, 0):
             return v.date()
@@ -695,15 +704,20 @@ def to_json_value(x):
     return x
 
 
+def _plausible(d: date | None) -> date | None:
+    """01.01.0001 and 31.12.9999 are placeholders ("none", "open-ended"), not dates to compute with."""
+    return d if d is not None and 1900 <= d.year <= 2200 else None
+
+
 def as_date(x) -> date | None:
     if x is None:
         return None
     if isinstance(x, datetime):
-        return x.date()
+        return _plausible(x.date())
     if isinstance(x, date):
-        return x
+        return _plausible(x)
     try:
-        return date.fromisoformat(str(x)[:10])
+        return _plausible(date.fromisoformat(str(x)[:10]))
     except ValueError:
         return None
 

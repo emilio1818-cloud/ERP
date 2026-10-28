@@ -159,7 +159,10 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     for rt_ in raw_tables:
         d = asof_date((rt_["meta"] or {}).get("title")) or asof_date(rt_["source_name"])
         table_time[rt_["id"]] = d.isoformat() if d else (rt_["added_at"] or "")
+    cov = dict(rows_in=sum(len(t["rows"]) for t in raw_tables),
+               rows_report=sum(len(t["rows"]) for t in raw_tables if (t["meta"] or {}).get("report")))
     raw = merge_versions([t for t in raw_tables if not (t["meta"] or {}).get("report")])
+    cov["rows_versions"] = sum((t.get("versions") or {}).get("dropped", 0) for t in raw)
     del raw_tables
     progress(f"Lese {len(raw)} Tabellen …", 0.05)
     observations: list[Obs] = []
@@ -221,6 +224,16 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         protos = build_protos(t)
         groups[id(t)] = resolve(t, protos, ent_dec, questions, log)
     progress("Dubletten geprüft", 0.5)
+    # the reward: how much of what came in is now part of the firm's picture
+    used = {tuple(tl) for gs in groups.values() for g in gs for tl in g.lines}
+    cov["rows_used"] = len(used)
+    lost = []
+    for t in raw:
+        n = len(t["lines"])
+        u = sum(1 for tl in t["lines"] if tuple(tl) in used)
+        if n > u:
+            lost.append(dict(name=t["name"], source=t["source_name"], rows=n, unused=n - u))
+    cov["lost"] = sorted(lost, key=lambda x: -x["unused"])[:8]
 
     obs_type = {o.oid: t for t in types for o in t.members}
     rel_dec = store.decisions("relation")
@@ -237,6 +250,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     docs = store.documents()
     with store.tx() as c:
         stats = _materialize(store, model, types, groups, rels, mrels, docs, mindex, c, actor, table_time)
+    stats["coverage"] = cov
     progress(f"{stats['records']} Datensätze geschrieben ({stats['new']} neu, {stats['changed']} geändert)", 0.75)
 
     from .behavior import infer_behavior

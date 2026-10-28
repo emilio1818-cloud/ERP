@@ -153,6 +153,23 @@ class Regrowth(unittest.TestCase):
         self.f.feed([("filialen.csv", csv("Name;Straße;Ort;Telefon", rows))])
         self.assertEqual(len(self.f.live()), 31)
 
+    def test_impossible_and_placeholder_dates_keep_pages_working(self):
+        from starlette.testclient import TestClient
+        from physarum.web.app import create_app
+        rows = [(f"A-{500 + i}", f"{(i % 28) + 1:02d}.01.2026", f"{(i % 28) + 1:02d}.02.2026" if i % 4 else "",
+                 f"Kunde {i % 5}", f"{100 + i},00") for i in range(40)]
+        rows += [("A-997", "31.02.2026", "", "Kunde 1", "50,00"),       # a typo
+                 ("A-998", "10.01.2026", "01.01.0001", "Kunde 2", "80,00"),  # "no date" in an old system
+                 ("A-999", "31.12.9999", "", "Kunde 3", "90,00")]           # "open-ended"
+        self.f.feed([("auftraege.csv", csv("Auftragsnr;Datum;Geliefert am;Kunde;Betrag", rows))])
+        c = TestClient(create_app(self.f.dir / "firma"))
+        rt = c.app.state.rt
+        rt.ensure()
+        t = next(t for t in rt.model["types"] if t["name"] == "Auftrag")
+        for path in ["/", "/ablaeufe", f"/t/{t['id']}"] + [f"/r/{r['id']}" for r in rt.records[t["id"]]
+                                                          if r["data"].get(t["key"]) in ("A-997", "A-998", "A-999")]:
+            self.assertEqual(c.get(path).status_code, 200, path)
+
 
 class DemoDecisions(unittest.TestCase):
     """Answers are constraints for all future growth – and must not break it."""

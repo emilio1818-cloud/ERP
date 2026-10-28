@@ -171,7 +171,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 quality.append(dict(type=t, issue=iss))
         summ = store.q1("SELECT summary, created_at FROM models ORDER BY version DESC LIMIT 1")
         summary = loads(summ["summary"]) if summ else {}
-        return page(request, "home.html", dict(work=work[:10], more_work=max(0, len(work) - 10), kpis=ks[:4],
+        from ..coverage import coverage
+        cov = coverage(rt)
+        return page(request, "home.html", dict(work=work[:10], more_work=max(0, len(work) - 10), kpis=ks[:4], cov=cov,
                                                questions=qs, suggestions=sugg, quality=quality, summary=summary,
                                                payments=payments, pay_exact=len(pay_exact),
                                                grown_at=summ["created_at"] if summ else None, greeting=views.greeting(),
@@ -520,7 +522,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         data = rec["data"]
         today = date.today()
         start = as_date(data.get(proc["start"]["attr"]))
-        steps = [dict(label=proc["start"]["label"], date=start, done=bool(start), kind="start")]
+        steps = [dict(label=proc["start"]["label"], date=start, done=bool(start), kind="start", usual=None, due=None,
+                      late=False, via=None, by_status=False)]
         nxt = None
         due_by_step = {d["step"]: d for d in proc["deadlines"] if d.get("step")}
         for st in proc["steps"]:
@@ -1068,7 +1071,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         rt.refresh_network()
         learned = learned_items()
         versions = [dict(v=r["version"], at=r["created_at"], summary=loads(r["summary"]) or {}) for r in store.models()[:20]]
-        return page(request, "organism.html", dict(svg=views.organism_svg(rt), learned=learned, versions=versions))
+        from ..coverage import coverage
+        return page(request, "organism.html", dict(svg=views.organism_svg(rt), learned=learned, versions=versions,
+                                                   cov=coverage(rt)))
 
     def learned_items() -> list[dict]:
         m = rt.model

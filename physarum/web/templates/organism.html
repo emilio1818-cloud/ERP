@@ -4,6 +4,26 @@
 <div class="pagehead"><div><h1>Wie Physarum Ihre Firma sieht</h1>
   <p>Jeder Kreis ist eine Art von Dingen, jede Röhre eine Verbindung. Dicke Röhren tragen viel Fluss: viele Verknüpfungen, viel Geld, viel Nutzung. Wenig genutzte Röhren werden dünner – gelöscht wird nichts.</p></div></div>
 
+{% if cov and cov.parts %}
+<section class="card" id="abdeckung" style="margin-bottom:14px">
+  <div class="row between"><h2>Wie gut Physarum Ihre Firma kennt</h2><span class="kpi" style="padding:0"><span class="value">{{ (cov.score * 100)|round|int }} %</span></span></div>
+  <p class="muted" style="font-size:.86rem; margin-top:0">Das ist die „Nahrung“ des Organismus: Je mehr Ihrer Daten zu verbundenen Dingen und erkannten Abläufen werden, desto vollständiger ist Ihr ERP. Was fehlt, ist kein Fehler Ihrer Firma, sondern das Nächste, womit Sie es füttern können.</p>
+  <div class="grid g2" style="gap:6px 24px">
+    {% for p in cov.parts %}
+    <div class="meter"><div class="row between"><span>{{ p.label }}</span><b>{{ (p.value * 100)|round|int }} %</b></div>
+      <div class="bar"><span style="width:{{ (p.value * 100)|round|int }}%"></span></div>
+      <small class="faint">{{ p.detail }}</small></div>
+    {% endfor %}
+  </div>
+  {% if cov.gaps %}
+  <h3 style="margin:16px 0 6px">Was noch fehlt</h3>
+  <ul class="learned">
+    {% for g in cov.gaps %}<li><a href="{{ g.href }}">{{ g.text }}</a><br><span class="faint" style="font-size:.82rem">{{ g.hint }}</span></li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endif %}
+
 <div class="card">{{ svg }}</div>
 
 <div class="grid g2" style="margin-top:14px; align-items:start">

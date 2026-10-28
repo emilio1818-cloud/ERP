@@ -400,7 +400,13 @@ def _dedupe_names(types: list[TypeDraft]):
         if len(group) < 2:
             continue
         group.sort(key=lambda t: -sum(m.n for m in t.members))
-        for t in group[1:]:
-            stem = clean_stem(t.members[0].label)
+        for i, t in enumerate(group[1:], start=2):
+            label = t.members[0].label
+            stem = clean_stem(label)
+            if fold(stem) in (fold(t.name), fold(t.plural)) or not stem:
+                # "Rechnungen_2024" next to "Rechnungen": the year tells them apart, not the word
+                import re as _re
+                y = _re.search(r"(?:19|20)\d\d", label)
+                stem = y.group(0) if y else f"Liste {i}"
             t.name = f"{t.name} ({stem})"
             t.plural = f"{t.plural} ({stem})"

@@ -69,6 +69,7 @@ class Obs:
     name_hint: tuple[str, str] | None = None  # (singular, plural)
     concept: str | None = None
     source_id: int = 0
+    asof: str | None = None          # how current the data is ("Stand"), for "newest fact wins"
 
     def col(self, name: str) -> Col | None:
         for c in self.cols:

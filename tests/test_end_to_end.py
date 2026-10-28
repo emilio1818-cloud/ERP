@@ -91,6 +91,23 @@ class DemoCompany(unittest.TestCase):
         self.assertLessEqual(len(qs), 5)
         self.assertTrue(any("Feinkost Tidenhub" in q["payload"] for q in qs))
 
+    def test_payments_without_reference_are_proposed_by_amount(self):
+        qs = [self.store.q1("SELECT payload FROM questions WHERE id=?", (r["id"],)) for r in
+              self.store.q("SELECT id FROM questions WHERE kind='payment_match' AND status='open'")]
+        self.assertTrue(qs)
+        self.assertTrue(all("keine Rechnungsnummer" in q["payload"] for q in qs))
+
+    def test_fraud_warning_for_changed_bank_account(self):
+        risks = [g for g in self.rt.work(TODAY) if g["kind"] == "risk"]
+        self.assertEqual(len(risks), 1)
+        self.assertEqual(len(risks[0]["items"]), 1)  # the phishing mail, not the genuine invoice
+        self.assertIn("nie gezahlt", risks[0]["items"][0]["reason"])
+
+    def test_data_freshness(self):
+        k = self.t("Kunde")
+        old = next(m for m in k["members"] if m["source"] == "Kundenliste_alt.xlsx")
+        self.assertIsNotNone(old["asof"])
+
     def test_regrow_is_stable(self):
         before = {r["id"] for rs in self.store.all_records().values() for r in rs}
         s2 = regrow(self.store)

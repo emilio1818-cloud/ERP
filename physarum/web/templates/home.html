@@ -8,6 +8,7 @@
   {%- elif g.kind == 'threshold' -%}Bestand {{ it.value|de }} · mindestens {{ it.min|de }}
   {%- elif g.kind == 'rhythm' -%}seit {{ days_text(it.days) }} nichts <span class="faint">(sonst alle {{ it.usual }} Tage)</span>
   {%- elif g.kind == 'reach' -%}reicht noch ca. {{ it.days }} Tage <span class="faint">({{ it.per_week|de(1) }} pro Woche)</span>
+  {%- elif g.kind == 'risk' -%}{{ it.reason }}
   {%- endif -%}
 {%- endmacro %}
 {% block content %}
@@ -89,6 +90,25 @@
       {{ spark(k.series) }}
     </a>
     {% endfor %}
+
+    {% if payments %}
+    <div class="card">
+      <h2>Zahlungen zuordnen</h2>
+      <p class="muted" style="font-size:.85rem">Geld ist eingegangen, aber im Verwendungszweck steht keine Rechnungsnummer. Der Betrag passt:</p>
+      {% for q in payments %}
+      <div class="question" data-remove>
+        <div class="q" style="font-weight:560">{{ q.text }}</div>
+        <p class="muted" style="font-size:.82rem; margin:.2rem 0">{{ q.detail }}</p>
+        <div class="actions">
+          <button class="small primary" data-post="/fragen/{{ q.id }}" data-body='{"value": "yes"}'>Zuordnen</button>
+          <button class="small ghost" data-post="/fragen/{{ q.id }}" data-body='{"value": "no"}'>Nein</button>
+          {% for rid in q.records %}<a class="btn small ghost" href="/r/{{ rid }}">{{ title(rid) }}</a>{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+      {% if pay_exact > 1 %}<div class="actions" style="margin-top:10px"><button class="small" data-post="/zahlungen/zuordnen">Alle {{ pay_exact }} centgenauen zuordnen</button></div>{% endif %}
+    </div>
+    {% endif %}
 
     {% if questions %}
     <div class="card">

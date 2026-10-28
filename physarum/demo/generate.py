@@ -454,14 +454,30 @@ def write_bank(path: Path, today: date, invoices: list[dict], purchases: list[di
     since = today - timedelta(days=58)
     tx = []
     ibans: dict[str, str] = {}
-    supplier_iban = {s["name"]: make_iban(rng) for s in SUPPLIERS}
-    for inv in invoices:
-        if inv.get("paid") and since <= inv["paid"] <= today:
-            o = inv["order"]
+    supplier_iban = {s["name"]: s["iban"] for s in SUPPLIERS}
+    paid_here = [inv for inv in invoices if inv.get("paid") and since <= inv["paid"] <= today]
+    # some customers pay without naming the invoice (the amount has to tell), one pays two at once
+    no_ref = {inv["no"] for inv in paid_here[2::9]}
+    by_cust: dict[str, list] = {}
+    for inv in paid_here:
+        by_cust.setdefault(inv["order"].customer.no, []).append(inv)
+    combined = next((v[:2] for v in by_cust.values() if len(v) >= 2 and not ({x["no"] for x in v[:2]} & no_ref)), [])
+    for inv in paid_here:
+        o = inv["order"]
+        iban = ibans.setdefault(o.customer.no, make_iban(rng))
+        if inv in combined:
+            if inv is combined[0]:
+                total = _round2(sum(x["gross"] for x in combined))
+                tx.append((max(x["paid"] for x in combined), "GUTSCHR. UEBERWEISUNG",
+                           f"Sammelzahlung {o.customer.name[:20]}", o.customer.name.upper()[:27], iban, total))
+            continue
+        if inv["no"] in no_ref:
+            ref = rng.choice([f"Zahlung {o.customer.name[:22]}", "Danke für die Lieferung", f"Kd {o.customer.no}",
+                              "Kaffee"])
+        else:
             ref = rng.choice([inv["no"], inv["no"], f"Rechnung {inv['no'][3:]}", f"{inv['no']} Danke",
                               inv["no"].replace("-", "", 1), f"Re.Nr. {inv['no']} Kd {o.customer.no}"])
-            tx.append((inv["paid"], "GUTSCHR. UEBERWEISUNG", ref, o.customer.name.upper()[:27],
-                       ibans.setdefault(o.customer.no, make_iban(rng)), inv["gross"]))
+        tx.append((inv["paid"], "GUTSCHR. UEBERWEISUNG", ref, o.customer.name.upper()[:27], iban, inv["gross"]))
     for p in purchases:
         if p.get("paid") and since <= p["paid"] <= today:
             tx.append((p["paid"], "UEBERWEISUNG", f"Rechnung {p['supplier_invoice']} Bestellung {p['no']}",
@@ -491,19 +507,19 @@ def write_bank(path: Path, today: date, invoices: list[dict], purchases: list[di
 
 
 SUPPLIERS = [
-    dict(name="Kaffee Kontor Nord GmbH", short="Kaffee Kontor Nord", contact="Jens Behrmann", phone="040 / 33 44 55 0",
+    dict(iban="DE34200400000123456789", name="Kaffee Kontor Nord GmbH", short="Kaffee Kontor Nord", contact="Jens Behrmann", phone="040 / 33 44 55 0",
          email="einkauf@kaffeekontor-nord.de", supplies="Rohkaffee Brasil, Kolumbien, Peru", terms="30 Tage",
          note="Mindestmenge 10 Sack, Lieferung frei Haus ab 20 Sack"),
-    dict(name="Origin Green Coffee Traders", short="Origin Green Coffee", contact="Maria Okafor", phone="+49 421 556677",
+    dict(iban="DE39290500000077123456", name="Origin Green Coffee Traders", short="Origin Green Coffee", contact="Maria Okafor", phone="+49 421 556677",
          email="orders@origin-green.example", supplies="Rohkaffee Äthiopien, Kenia, Guatemala", terms="14 Tage",
          note="Spezialitäten, Preise in EUR/kg, Qualität top"),
-    dict(name="Elbe Verpackungen GmbH", short="Elbe Verpackungen", contact="Sven Kröger", phone="04101 778899",
+    dict(iban="DE13207500000045678901", name="Elbe Verpackungen GmbH", short="Elbe Verpackungen", contact="Sven Kröger", phone="04101 778899",
          email="service@elbe-verpackungen.example", supplies="Ventilbeutel 250 g / 1 kg, Kartons", terms="30 Tage",
          note=""),
-    dict(name="Barista Technik Hansen", short="Barista Technik Hansen", contact="Kai Hansen", phone="0171 2233445",
+    dict(iban="DE52200505501234098765", name="Barista Technik Hansen", short="Barista Technik Hansen", contact="Kai Hansen", phone="0171 2233445",
          email="kai@barista-hansen.example", supplies="Wartung Siebträger, Mühlen", terms="sofort",
          note="Notfallnummer auch am Wochenende"),
-    dict(name="Bio-Rohkaffee Import Süd", short="Bio-Rohkaffee Süd", contact="Lisa Ammann", phone="089 445566",
+    dict(iban="DE86700500000002345678", name="Bio-Rohkaffee Import Süd", short="Bio-Rohkaffee Süd", contact="Lisa Ammann", phone="089 445566",
          email="info@bio-rohkaffee-sued.example", supplies="Bio-Rohkaffee Peru, Honduras", terms="30 Tage",
          note="Bio-Zertifikat jährlich anfordern!"),
 ]
@@ -632,6 +648,12 @@ def write_mails(folder: Path, today: date, customers: list[Customer], invoices: 
          f"Sehr geehrte Damen und Herren,\n\nIhre Bestellung {p['no']} ({p['bags']} Sack {p['origin']}) "
          f"wurde heute verladen. Voraussichtliche Anlieferung in 5 Werktagen.\n\nMit freundlichen Grüßen\n"
          f"Kaffee Kontor Nord GmbH – Versand", today - timedelta(days=2))
+    mail("neue-bankverbindung.eml", "Kaffee Kontor Nord – Buchhaltung <buchhaltung@kaffeekontor-nord-gmbh.de>",
+         "einkauf@hafenbohne.example", "Wichtig: Neue Bankverbindung ab sofort",
+         f"Sehr geehrte Damen und Herren,\n\naufgrund eines Bankwechsels bitten wir Sie, die offene Rechnung "
+         f"{p['supplier_invoice']} zu Ihrer Bestellung {p['no']} ab sofort auf unser neues Konto zu überweisen:\n"
+         f"IBAN DE33 5001 0517 5408 4126 93\nBIC INGDDEFFXXX\n\nMit freundlichen Grüßen\nKaffee Kontor Nord GmbH",
+         today)
     mail("newsletter.eml", "Röstmagazin <news@roestmagazin.example>", "info@hafenbohne.example",
          "Die Trends der Saison: Fermentation, Anaerobic & Co.",
          "Liebe Röstfreunde,\n\nin dieser Ausgabe: Warum anaerobe Fermentation polarisiert ...\n\nAbmelden: hier klicken",
@@ -651,7 +673,7 @@ def write_supplier_pdf(path: Path, today: date, purchases: list[dict]):
                  f"Rechnungsdatum: {p['received'].strftime('%d.%m.%Y')}", f"Ihre Bestellung: {p['no']}", "",
                  f"{p['bags']} Sack Rohkaffee {p['origin']} à 60 kg = {p['kg']} kg",
                  f"Preis pro kg: {de_money(p['price'])} EUR", f"Gesamtbetrag: {de_money(p['sum'])} EUR",
-                 "", "Zahlbar innerhalb 30 Tagen ohne Abzug.", "IBAN DE44 2004 0000 0123 4567 89 · BIC COBADEFFXXX"]:
+                 "", "Zahlbar innerhalb 30 Tagen ohne Abzug.", "IBAN DE34 2004 0000 0123 4567 89 · BIC COBADEFFXXX"]:
         c.drawString(60, y, line)
         y -= 20
     c.save()

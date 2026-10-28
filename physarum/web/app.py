@@ -90,7 +90,8 @@ def create_app(folder: str | Path) -> Starlette:
     env = templates.env
     env.globals.update(fmt=lambda attr, v, **kw: views.fmt(rt, attr, v, **kw), money=views.money, spark=views.spark,
                        ago=views.ago, days_text=views.days_text, input_value=views.input_value,
-                       title=lambda rid: rt.title(rid), status_class=views.status_class, display=display)
+                       title=lambda rid: rt.title(rid), status_class=views.status_class, display=display,
+                       stale_days=lambda iso: (date.today() - date.fromisoformat(str(iso)[:10])).days if iso else 0)
     env.filters["de"] = lambda x, d=0: views.display(x, "number") if d == 0 else f"{x:,.{d}f}".replace(",", "X").replace(".", ",").replace("X", ".")
     env.filters["json"] = lambda x: json.dumps(x, ensure_ascii=False, default=str)
 
@@ -120,7 +121,10 @@ def create_app(folder: str | Path) -> Starlette:
         pref = {"rechnung": 0, "auftrag": 1, "bestellung": 2, "einkauf": 4}
         ks.sort(key=lambda k: (pref.get(k.get("concept") or "", 3), -(k.get("salience") or 0)))
         open_amount = sum(g["amount"] or 0 for g in work if g["kind"] == "overdue" and g.get("step") == "bezahlt")
-        qs = open_questions(store, 3)
+        allq = open_questions(store)
+        pay_exact = [q for q in allq if q["kind"] == "payment_match" and q.get("exact")]
+        qs = [q for q in allq if q["kind"] != "payment_match"][:3]
+        payments = [q for q in allq if q["kind"] == "payment_match"][:6]
         sugg = suggestions()
         quality = []
         for t in rt.model["types"]:
@@ -131,6 +135,7 @@ def create_app(folder: str | Path) -> Starlette:
         summary = loads(summ["summary"]) if summ else {}
         return page(request, "home.html", dict(work=work[:10], more_work=max(0, len(work) - 10), kpis=ks[:4],
                                                questions=qs, suggestions=sugg, quality=quality, summary=summary,
+                                               payments=payments, pay_exact=len(pay_exact),
                                                grown_at=summ["created_at"] if summ else None, greeting=views.greeting(),
                                                overdue_amount=open_amount, growth_file=_growth_file_exists()))
 
@@ -699,6 +704,20 @@ def create_app(folder: str | Path) -> Starlette:
         return JSONResponse(dict(toast="Regel eingeschaltet. Sie wirkt ab jetzt bei jeder Eingabe." if val == "on" else "Gut, ich schlage das nicht mehr vor.",
                                  reload=False))
 
+    async def accept_payments(request: Request):
+        n = 0
+        regrow_needed = False
+        for q in open_questions(store):
+            if q["kind"] == "payment_match" and q.get("exact"):
+                res = answer_question(store, q["id"], "yes", actor(request))
+                regrow_needed = regrow_needed or res.get("regrow")
+                n += 1
+        if regrow_needed:
+            jid = jobs.start("payments", lambda progress: regrow(store, progress, actor(request)))
+            return JSONResponse(dict(job=jid))
+        rt.bump()
+        return JSONResponse(dict(toast=f"{n} Zahlungen zugeordnet.", reload=True))
+
     async def apply_stale(request: Request):
         tid = request.path_params["tid"]
         n = ops.apply_stale(rt, tid, actor(request))
@@ -954,6 +973,7 @@ def create_app(folder: str | Path) -> Starlette:
         Route("/api/wie-letztes-mal", api_like_last),
         Route("/fragen", questions_page), Route("/fragen/{qid:int}", question_answer, methods=["POST"]),
         Route("/regel", rule_toggle, methods=["POST"]), Route("/abgleich/{tid}", apply_stale, methods=["POST"]),
+        Route("/zahlungen/zuordnen", accept_payments, methods=["POST"]),
         Route("/organismus", organism), Route("/organismus/umbenennen", organism_rename, methods=["POST"]),
         Route("/organismus/feld", organism_attr, methods=["POST"]),
         Route("/organismus/verweis", organism_relation, methods=["POST"]),

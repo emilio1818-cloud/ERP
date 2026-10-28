@@ -384,7 +384,8 @@ def _reach_specs(model, records) -> list[dict]:
 
 # --- runtime: what needs to be done today ---------------------------------------------------------------
 
-def compute_work(model: dict, records: dict, mention_refs: dict, today: date | None = None) -> list[dict]:
+def compute_work(model: dict, records: dict, mention_refs: dict, today: date | None = None,
+                 outrefs: dict | None = None, titles_in: dict | None = None) -> list[dict]:
     from .grow import record_title
 
     today = today or date.today()
@@ -506,6 +507,15 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                count=len(items), amount=total, items=items[:50], action=action,
                                step=st["label"] if st else None,
                                explain=_explain(p, st, kind)))
+    if outrefs is not None:
+        from .reconcile import risk_items
+        risks = risk_items(model, records, outrefs, titles_in or {r: title(r) for r in by_id})
+        if risks:
+            groups.append(dict(id="risk:iban", type="doc", kind="risk", severity=3,
+                               title="Vorsicht: Bankverbindung oder Absender passen nicht zum Lieferanten",
+                               count=len(risks), amount=None, items=risks, action=None,
+                               explain="Vor einer Zahlung telefonisch beim bekannten Ansprechpartner prüfen. "
+                                       "So sieht Rechnungsbetrug typischerweise aus."))
     groups += _threshold_work(model, records, title)
     groups += _rhythm_work(model, records, by_id, title, today)
     groups += _reach_work(model, records, by_id, title, today)

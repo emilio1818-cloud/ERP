@@ -147,10 +147,21 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     for t in raw:
         profs = profile_table(t["columns"], t["rows"], t["meta"])
         o = obs_from_table(t["id"], t["name"], t["columns"], profs, t["lines"], source_id=t["source_id"])
+        from .values import asof_date
+        newest = None
+        for pr in profs:
+            if pr.kind in ("date", "datetime"):
+                ds = [v for v in pr.values if v is not None and hasattr(v, "year")]
+                if ds:
+                    m = max(d.date() if isinstance(d, datetime) else d for d in ds)
+                    newest = m if newest is None or m > newest else newest
+        asof = asof_date(t["meta"].get("title")) or asof_date(t["source_name"])
         table_meta[t["id"]] = dict(source=t["source_name"], name=t["name"], title=t["meta"].get("title"),
-                                   added_at=t["added_at"], tables=t["tables"])
-        parts = normalize(o, log)
-        observations.extend(parts)
+                                   added_at=t["added_at"], tables=t["tables"],
+                                   asof=asof.isoformat() if asof else None,
+                                   newest=newest.isoformat() if newest else None)
+        o.asof = (asof or newest).isoformat() if (asof or newest) else None
+        observations.extend(normalize(o, log))
     progress(f"{len(observations)} Beobachtungen nach dem Herauslösen eingebetteter Dinge", 0.25)
 
     dec_types = {}
@@ -203,9 +214,18 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     grow_network(model, store)
     progress("Formeln, Abläufe und Rückgrat gelernt", 0.9)
 
+    from .reconcile import find_matches
+    mention_map = defaultdict(lambda: defaultdict(list))
+    for r in store.q("SELECT from_id, attr, to_id FROM refs WHERE kind='mention' AND attr!='doc'"):
+        mention_map[r["attr"]][r["to_id"]].append(r["from_id"])
+    specs = {t["id"]: t for t in model["types"]}
+    titles = {r["id"]: record_title(specs[t], r["data"], r["id"]) for t, rs in records.items() if t in specs for r in rs}
+    matches = find_matches(model, records, mention_map, titles)
+    progress(f"{len(matches)} Zahlungen ohne Rechnungsnummer über den Betrag zugeordnet (zur Bestätigung)", 0.92)
+
     from .questions import collect_questions
     with store.tx() as c:
-        nq = collect_questions(store, model, asks, questions, c)
+        nq = collect_questions(store, model, asks, questions, c, matches=matches, titles=titles)
         prev = store.model()
         summary = _growth_summary(prev, model, stats, log, time.time() - t0)
         model["log"] = log[-400:]
@@ -304,7 +324,8 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
             meta = table_meta.get(m.table_id, {})
             members.append(dict(label=m.label, sig=obs_sig(m), rows=m.n, extracted=m.extracted_from is not None,
                                 determinant=m.determinant, source=meta.get("source"), title=meta.get("title"),
-                                tables=meta.get("tables", [m.table_id])))
+                                tables=meta.get("tables", [m.table_id]), asof=meta.get("asof"),
+                                newest=meta.get("newest")))
         tmodel.append(dict(id=t.tid, name=t.name, plural=t.plural, concept=t.concept, kind=t.kind,
                            key=t.key.aid if t.key else None, title=t.title.aid if t.title else None,
                            attrs=attrs, members=members, count=len(gs), merge_log=t.merge_log))
@@ -483,6 +504,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
                 dst = rid_of.get((id(r.dst), dgi))
                 if src and dst:
                     batch.append((src, r.attr.aid, dst, "mention", "Nummer im Text"))
+    batch += _accepted_matches(store, model, c)
     for rid, d in doc_rids:
         found = mindex.scan(f"{d['title'] or ''}\n{d['body'] or ''}", names=True)
         found.update(mindex.scan_email(d["sender"] or ""))
@@ -493,6 +515,38 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     c.executemany("INSERT OR IGNORE INTO refs(from_id,attr,to_id,kind,how) VALUES(?,?,?,?,?)", batch)
     _reindex(c, model)
     return stats
+
+
+def match_attr(model: dict, bank_tid: str, inv_tid: str) -> str:
+    """The attribute under which a bank transfer links to an invoice: the free-text relation
+    if references were found in the purpose field, otherwise a dedicated link."""
+    rel = next((r for r in model["relations"] if r["kind"] == "mention" and r["src"] == bank_tid and r["dst"] == inv_tid), None)
+    return rel["attr"] if rel else "match"
+
+
+def _accepted_matches(store: Store, model: dict, c) -> list[tuple]:
+    out = []
+    for subj, val in store.decisions("payment_match").items():
+        if val != "yes":
+            continue
+        try:
+            btid, bident, itid, iidents = subj.split("|", 3)
+        except ValueError:
+            continue
+        brow = c.execute("SELECT record_id FROM idents WHERE type=? AND ident=?", (btid, bident)).fetchone()
+        if not brow:
+            continue
+        attr = match_attr(model, btid, itid)
+        for iident in iidents.split(","):
+            irow = c.execute("SELECT record_id FROM idents WHERE type=? AND ident=?", (itid, iident)).fetchone()
+            if irow:
+                out.append((brow["record_id"], attr, irow["record_id"], "mention", "Zuordnung über den Betrag (bestätigt)"))
+        if attr == "match" and not any(r["id"] == f"m_{btid}_match_{itid}" for r in model["relations"]):
+            model["relations"].append(dict(id=f"m_{btid}_match_{itid}", src=btid, attr="match", dst=itid, targets=[itid],
+                                           kind="mention", via="amount", inclusion=0, coverage=0, structural=False,
+                                           evidence="Zahlungen über den Betrag zugeordnet (bestätigt)", fuzzy=0,
+                                           unresolved=0))
+    return out
 
 
 def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats):

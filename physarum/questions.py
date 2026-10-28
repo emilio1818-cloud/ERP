@@ -23,9 +23,27 @@ def _rec_brief(t, g, limit=4) -> list[list[str]]:
     return out
 
 
-def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict], c) -> int:
+def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict], c, matches: list | None = None,
+                      titles: dict | None = None) -> int:
     ts = now_iso()
     found = {}
+    titles = titles or {}
+    from .values import display
+    for m in matches or []:
+        bid = _stable_ident(c, m["bank_type"], m["bank"])
+        iids = [_stable_ident(c, m["invoice_type"], i) for i in m["invoices"]]
+        if not bid or not all(iids):
+            continue
+        subj_dec = f"{m['bank_type']}|{bid}|{m['invoice_type']}|{','.join(iids)}"
+        inv_txt = " und ".join(titles.get(i, f"#{i}") for i in m["invoices"])
+        found[f"payment_match|{subj_dec}"] = dict(
+            kind="payment_match", subject=f"payment_match|{subj_dec}", impact=8 + m["amount"] / 200,
+            payload=dict(text=f"{display(m['amount'], 'money')} von {m['payer'] or 'unbekannt'} am {display(m['when'], 'date')} "
+                              f"– gehört das zu {inv_txt}?",
+                         detail=f"Im Verwendungszweck steht keine Rechnungsnummer. {m['how']}.",
+                         records=[m["bank"]] + m["invoices"], exact=m["exact"],
+                         decision=dict(kind="payment_match", subject=subj_dec),
+                         options=[["yes", "Ja, zuordnen"], ["no", "Nein"]]))
     tname = {t["id"]: t for t in model["types"]}
     for a in asks:
         if a.get("kind") == "relation":
@@ -100,6 +118,15 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
     return sum(1 for _ in c.execute("SELECT 1 FROM questions WHERE status='open'").fetchall())
 
 
+def _stable_ident(c, tid: str, rid: int) -> str | None:
+    rows = [r["ident"] for r in c.execute("SELECT ident FROM idents WHERE type=? AND record_id=?", (tid, rid)).fetchall()]
+    for prefix in ("k:", "h:", "e:", "r:", "u:", "n:"):
+        for i in sorted(rows):
+            if i.startswith(prefix):
+                return i
+    return None
+
+
 def open_questions(store: Store, limit: int | None = None) -> list[dict]:
     rows = store.q("SELECT * FROM questions WHERE status='open' AND (snooze_until IS NULL OR snooze_until < ?) "
                    "ORDER BY impact DESC, id", (now_iso(),))
@@ -132,6 +159,16 @@ def answer(store: Store, qid: int, value: str, actor: str | None = None) -> dict
         elif kind == "relation":
             store.decide("relation", dec["subject"], value, actor, c=c)
             result["regrow"] = True
+        elif kind == "payment_match":
+            store.decide("payment_match", dec["subject"], value, actor, c=c)
+            if value == "yes":
+                from .grow import _accepted_matches
+                m = store.model()
+                rows = _accepted_matches(store, m, c)
+                c.executemany("INSERT OR IGNORE INTO refs(from_id,attr,to_id,kind,how) VALUES(?,?,?,?,?)", rows)
+                if any(r[1] == "match" for r in rows):
+                    result["regrow"] = True  # a new kind of link: the processes must learn it
+                store.kv_set("data_version", (store.kv_get("data_version", 0) or 0) + 1, c)
         elif kind == "same_record":
             store.decide("same_record", dec["subject"], value, actor, c=c)
             if value == "same":

@@ -26,6 +26,7 @@ class Runtime:
         self.titles: dict[int, str] = {}
         self.mentions: dict = {}
         self.backrefs: dict[int, list] = {}
+        self.outrefs: dict[int, list] = {}
         self._work = None
         self._work_key = None
         self._net_at = 0.0
@@ -63,10 +64,12 @@ class Runtime:
                            if r["type"] in specs}
             self.mentions = defaultdict(lambda: defaultdict(list))
             self.backrefs = defaultdict(list)
+            self.outrefs = defaultdict(list)
             for row in self.store.q("SELECT from_id, attr, to_id, kind, how FROM refs"):
                 if row["kind"] == "mention" and row["attr"] != "doc":
                     self.mentions[row["attr"]][row["to_id"]].append(row["from_id"])
                 self.backrefs[row["to_id"]].append((row["from_id"], row["attr"], row["kind"], row["how"]))
+                self.outrefs[row["from_id"]].append((row["to_id"], row["attr"], row["kind"], row["how"]))
             self._mv, self._dv = mv, dv
             self._work = None
 
@@ -95,7 +98,7 @@ class Runtime:
             return self._work
         if not self.model:
             return []
-        self._work = compute_work(self.model, self.records, self.mentions, today)
+        self._work = compute_work(self.model, self.records, self.mentions, today, self.outrefs, self.titles)
         self._work_key = key
         return self._work
 

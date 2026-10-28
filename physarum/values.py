@@ -654,3 +654,36 @@ def days_between(a, b) -> int | None:
 def add_days(d, n: int):
     dd = as_date(d)
     return None if dd is None else dd + timedelta(days=int(n))
+
+
+_ASOF_PATTERNS = [
+    re.compile(r"(?:stand|stichtag|per|vom|zum|as of)\W{0,3}(\d{1,2}\.\d{1,2}\.\d{2,4})", re.I),
+    re.compile(r"\b(\d{1,2}\.\d{1,2}\.\d{4})\b"),
+    re.compile(r"\b(\d{4}-\d{2}-\d{2})\b"),
+]
+_KW = re.compile(r"\bKW\s*(\d{1,2})\s*[/.-]?\s*(\d{4})", re.I)
+_MONTH_YEAR = re.compile(r"\b(januar|februar|m(?:ä|ae)rz|april|mai|juni|juli|august|september|oktober|november|dezember)\s+(\d{4})", re.I)
+
+
+def asof_date(text: str | None) -> date | None:
+    """'Kundenliste Stand: 15.01.2025', 'Lagerbestand KW 44/2026', 'Preise Oktober 2026' -> a date."""
+    if not text:
+        return None
+    for rx in _ASOF_PATTERNS:
+        m = rx.search(text)
+        if m:
+            d = parse_date(m.group(1))
+            if d:
+                return d.date() if isinstance(d, datetime) else d
+    m = _KW.search(text)
+    if m:
+        try:
+            return date.fromisocalendar(int(m.group(2)), int(m.group(1)), 1)
+        except ValueError:
+            pass
+    m = _MONTH_YEAR.search(text)
+    if m:
+        mo = _MONTHS.get(fold(m.group(1))[:9]) or _MONTHS.get(fold(m.group(1))[:3])
+        if mo:
+            return date(int(m.group(2)), mo, 1)
+    return None

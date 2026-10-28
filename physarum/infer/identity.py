@@ -73,7 +73,7 @@ def build_protos(t: TypeDraft) -> list[Proto]:
             for mo, c in a.cols:
                 if mo is m:
                     colmap[c.name] = a
-        prio = (m.extracted_from is None, m.source_id)
+        prio = (m.extracted_from is None, m.asof or "", m.source_id)  # master lists first, then the most recent
         for i in range(m.n):
             vals, keys = {}, {}
             for c in m.cols:

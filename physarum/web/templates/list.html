@@ -5,7 +5,10 @@
   <div>
     <h1>{{ spec.plural }}</h1>
     <p>{{ total|de }} {{ 'Eintrag' if total == 1 else 'Einträge' }}{% if state.q or state.filters %} gefunden{% endif %} ·
-      aus {% for m in spec.members[:3] %}{{ m.source or m.label }}{{ ', ' if not loop.last }}{% endfor %}{% if spec.members|length > 3 %} u. a.{% endif %}</p>
+      aus {% for m in spec.members[:3] %}{{ m.source or m.label }}{% if m.asof %} <span class="pill {{ 'warn' if stale_days(m.asof) > 180 else '' }}" title="Stand laut Datei">Stand {{ display(m.asof, 'date') }}</span>{% endif %}{{ ', ' if not loop.last }}{% endfor %}{% if spec.members|length > 3 %} u. a.{% endif %}</p>
+    {% for m in spec.members if m.asof and stale_days(m.asof) > 180 and not m.extracted %}
+      <p class="notice warn" style="margin-top:8px">„{{ m.source }}“ ist vom {{ display(m.asof, 'date') }} – über {{ (stale_days(m.asof) / 30)|round|int }} Monate alt. Neuere Angaben aus anderen Quellen haben Vorrang; eine aktuelle Fassung einzuwerfen lohnt sich.</p>
+    {% endfor %}
   </div>
   <div class="row noprint">
     <a class="btn ghost" href="/export/{{ spec.id }}.xlsx" title="Als Excel exportieren">Excel</a>

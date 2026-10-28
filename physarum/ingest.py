@@ -26,6 +26,9 @@ from .values import is_empty, parse_date, parse_number
 
 MAX_ZIP_TOTAL = 300 * 1024 * 1024
 MAX_ZIP_MEMBERS = 3000
+MAX_ZIP_RATIO = 150          # a member that expands more than this is a bomb, not an export
+MAX_ROWS = 400_000           # per table: beyond that, a file is a database dump, not a list
+csv.field_size_limit(16 * 1024 * 1024)
 
 
 @dataclass
@@ -63,6 +66,17 @@ IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".tif", ".tiff", ".bmp", ".heic", 
 
 
 def decode_text(data: bytes) -> tuple[str, str]:
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        try:
+            return data.decode("utf-16"), "utf-16"
+        except UnicodeDecodeError:
+            pass
+    head = data[:4000]
+    if len(head) >= 20 and head[1::2].count(0) > 0.4 * len(head[1::2]) and head[0::2].count(0) < 0.05 * len(head[0::2]):
+        try:
+            return data.decode("utf-16-le"), "utf-16-le"  # Windows exports without a BOM
+        except UnicodeDecodeError:
+            pass
     for enc in ("utf-8-sig", "cp1252", "latin-1"):
         try:
             return data.decode(enc), enc
@@ -334,6 +348,9 @@ def _nonempty(row) -> int:
 
 
 def detect_tables(grid: list[list], name: str, meta: dict) -> list[RawTable]:
+    if len(grid) > MAX_ROWS:
+        meta = dict(meta, truncated=len(grid))
+        grid = grid[:MAX_ROWS]
     rows = _clean_grid(grid)
     if not rows or not rows[0]:
         return []
@@ -459,9 +476,11 @@ def _block_to_table(block, name, meta, pending_title) -> RawTable | None:
             continue
         if not h:
             h = f"Spalte {j + 1}"
+        base = h
+        while h in seen:  # "Datum", "Datum", "Datum (2)" -> three different names
+            seen[base] += 1
+            h = f"{base} ({seen[base] + 1})"
         seen[h] += 1
-        if seen[h] > 1:
-            h = f"{h} ({seen[h]})"
         names.append(h)
         keep.append(j)
     if len(keep) < 1:
@@ -670,6 +689,11 @@ def _read_zip(data: bytes, d: Digest):
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         for info in z.infolist()[:MAX_ZIP_MEMBERS]:
             if info.is_dir() or "__MACOSX" in info.filename or PurePath(info.filename).name.startswith("."):
+                continue
+            if info.compress_size and info.file_size > 20 * 1024 * 1024 and \
+                    info.file_size / max(info.compress_size, 1) > MAX_ZIP_RATIO:
+                d.notes.append(f"„{info.filename}“ entpackt sich auf das {info.file_size // max(info.compress_size, 1)}-Fache "
+                               "– übersprungen (sieht nicht nach einem Export aus).")
                 continue
             total += info.file_size
             if total > MAX_ZIP_TOTAL:

@@ -134,6 +134,8 @@ class Store:
         self.path = self.folder / "physarum.db"
         self._local = threading.local()
         self.write_lock = threading.RLock()
+        self._events: list[tuple] = []
+        self._ev_lock = threading.Lock()
         with self.write_lock:
             self.conn().executescript(SCHEMA)
 
@@ -356,6 +358,7 @@ class Store:
                    (subject, v, now))
 
     def flux(self, prefix: str = "", tau_days: float = 21.0) -> dict[str, float]:
+        self.flush_events()
         now = time.time()
         out = {}
         for r in self.q("SELECT subject, value, ts FROM flux WHERE subject LIKE ?", (prefix + "%",)):
@@ -363,15 +366,39 @@ class Store:
         return out
 
     def event(self, kind: str, subject: str | None = None, detail=None):
+        """Usage is noted in memory and written later: looking at a page never waits for a growth
+        that holds the write lock."""
+        with self._ev_lock:
+            self._events.append((now_iso(), kind, subject, dumps(detail) if detail is not None else None))
+            due = len(self._events) >= 50
+        if due:
+            self.flush_events()
+
+    def flush_events(self, wait: bool = False):
+        if not self.write_lock.acquire(blocking=wait):
+            return  # a growth is writing: try again later
         try:
-            with self.tx() as c:
-                c.execute("INSERT INTO events(ts,kind,subject,detail) VALUES(?,?,?,?)",
-                          (now_iso(), kind, subject, dumps(detail) if detail is not None else None))
-                if subject:
-                    for s in subject.split(","):
-                        self.flux_add(s, 1.0, c=c)
-        except sqlite3.OperationalError:
-            pass  # usage tracking must never break the app
+            with self._ev_lock:
+                evs, self._events = self._events, []
+            if not evs:
+                return
+            try:
+                c = self.conn()
+                c.execute("BEGIN IMMEDIATE")
+                try:
+                    c.executemany("INSERT INTO events(ts,kind,subject,detail) VALUES(?,?,?,?)", evs)
+                    for _ts, _k, subject, _d in evs:
+                        for sub in (subject or "").split(","):
+                            if sub:
+                                self.flux_add(sub, 1.0, c=c)
+                    c.execute("COMMIT")
+                except BaseException:
+                    c.execute("ROLLBACK")
+                    raise
+            except sqlite3.OperationalError:
+                pass  # usage tracking must never break the app
+        finally:
+            self.write_lock.release()
 
 
 def _safe(name: str) -> str:

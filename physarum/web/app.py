@@ -19,6 +19,8 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import (FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse,
                                  Response, StreamingResponse)
+from starlette.concurrency import run_in_threadpool
+from starlette.middleware import Middleware
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
@@ -33,6 +35,7 @@ from ..store import Store, dumps, loads, now_iso
 from ..text import fold, norm_key, norm_name
 from ..values import as_date, display
 from . import views
+from .guard import Guard
 
 HERE = Path(__file__).parent
 
@@ -82,7 +85,17 @@ class Jobs:
                               (dumps(lines), now_iso(), dumps(dict(error=str(e))), jid))
 
 
-def create_app(folder: str | Path) -> Starlette:
+def formed(fn):
+    """A writing handler gets its form, then runs in a worker thread like every other page:
+    the server stays responsive while one request computes."""
+    async def endpoint(request: Request):
+        form = await request.form()
+        return await run_in_threadpool(fn, request, form)
+    endpoint.__name__ = fn.__name__
+    return endpoint
+
+
+def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool = False) -> Starlette:
     store = Store(folder)
     rt = Runtime(store)
     jobs = Jobs(store, rt)
@@ -111,7 +124,7 @@ def create_app(folder: str | Path) -> Starlette:
         return request.headers.get("x-requested-with") == "fetch"
 
     # --- home -----------------------------------------------------------------------------------
-    async def home(request: Request):
+    def home(request: Request):
         rt.ensure()
         if not rt.model:
             return page(request, "empty.html", {})
@@ -188,7 +201,7 @@ def create_app(folder: str | Path) -> Starlette:
             regrow(store, progress, who)
         return JSONResponse(dict(job=jobs.start("upload", run)))
 
-    async def demo(request: Request):
+    def demo(request: Request):
         from ..demo.generate import generate
 
         def run(progress):
@@ -205,7 +218,7 @@ def create_app(folder: str | Path) -> Starlette:
             regrow(store, progress, "Physarum")
         return JSONResponse(dict(job=jobs.start("demo", run)))
 
-    async def demo_growth(request: Request):
+    def demo_growth(request: Request):
         def run(progress):
             folder = store.folder / "beispiel" / "spaeter"
             files = [(p.name, p.read_bytes()) for p in sorted(folder.glob("*")) if p.is_file()]
@@ -215,11 +228,11 @@ def create_app(folder: str | Path) -> Starlette:
             store.kv_set("growth_demo_done", True)
         return JSONResponse(dict(job=jobs.start("growth", run)))
 
-    async def grow_page(request: Request):
+    def grow_page(request: Request):
         jid = int(request.path_params["jid"])
         return page(request, "grow.html", dict(job=jid))
 
-    async def job_status(request: Request):
+    def job_status(request: Request):
         r = store.q1("SELECT * FROM jobs WHERE id=?", (int(request.path_params["jid"]),))
         if not r:
             return JSONResponse(dict(status="unknown"), 404)
@@ -283,7 +296,7 @@ def create_app(folder: str | Path) -> Starlette:
         # titles of referenced records count too ("Hafenblick" finds the invoices of that customer)
         return ids
 
-    async def list_view(request: Request):
+    def list_view(request: Request):
         rt.ensure()
         tid = request.path_params["tid"]
         spec = rt.spec(tid)
@@ -311,7 +324,7 @@ def create_app(folder: str | Path) -> Starlette:
         return None
 
     # --- records ------------------------------------------------------------------------------------------
-    async def record_view(request: Request):
+    def record_view(request: Request):
         rt.ensure()
         rt.work()  # fills pending payment proposals
         rid = int(request.path_params["rid"])
@@ -462,9 +475,8 @@ def create_app(folder: str | Path) -> Starlette:
         negative = status and str(data.get(status["attr"])) in (status.get("negative") or [])
         return dict(steps=steps, next=nxt, negative=negative)
 
-    async def record_update(request: Request):
+    def record_update(request: Request, form):
         rid = int(request.path_params["rid"])
-        form = await request.form()
         raw = {k[2:]: v for k, v in form.items() if k.startswith("a_")}
         try:
             ops.update(rt, rid, raw, actor(request))
@@ -477,9 +489,8 @@ def create_app(folder: str | Path) -> Starlette:
             return page(request, "record.html", ctx, 400)
         return RedirectResponse(f"/r/{rid}?gespeichert=1", 303)
 
-    async def record_step(request: Request):
+    def record_step(request: Request, form):
         rid = int(request.path_params["rid"])
-        form = await request.form()
         try:
             changed = ops.set_step(rt, rid, form.get("attr"), form.get("date"), actor(request))
         except ops.OpError as e:
@@ -488,22 +499,20 @@ def create_app(folder: str | Path) -> Starlette:
         names = [rt.attr(rt.by_id[rid]["type"], a)["name"] for a in changed if rid in rt.by_id]
         return JSONResponse(dict(reload=True, toast="Erledigt: " + ", ".join(names) if names else "Gespeichert"))
 
-    async def record_note(request: Request):
+    def record_note(request: Request, form):
         rid = int(request.path_params["rid"])
-        form = await request.form()
         ops.add_note(rt, rid, form.get("text"), actor(request))
         return RedirectResponse(f"/r/{rid}#notizen", 303)
 
-    async def record_storno(request: Request):
+    def record_storno(request: Request, form):
         rid = int(request.path_params["rid"])
-        form = await request.form()
         try:
             ops.storno(rt, rid, form.get("reason") or "", actor(request))
         except ops.OpError as e:
             return JSONResponse(dict(error=str(e)))
         return JSONResponse(dict(reload=True, toast="Storniert. Der Vorgang bleibt im Protokoll erhalten."))
 
-    async def record_delete(request: Request):
+    def record_delete(request: Request):
         rid = int(request.path_params["rid"])
         rec = store.record(rid)
         try:
@@ -513,7 +522,7 @@ def create_app(folder: str | Path) -> Starlette:
         return JSONResponse(dict(toast="Gelöscht (bleibt im Protokoll nachvollziehbar).", reload=False,
                                  next=f"/t/{rec['type']}"))
 
-    async def record_print(request: Request):
+    def record_print(request: Request):
         rt.ensure()
         rid = int(request.path_params["rid"])
         rec = store.record(rid)
@@ -538,7 +547,7 @@ def create_app(folder: str | Path) -> Starlette:
                         cands[head] += 1
         return cands.most_common(1)[0][0] if cands else "Ihre Firma"
 
-    async def record_reminder(request: Request):
+    def record_reminder(request: Request):
         """A payment reminder letter for an overdue invoice; creating it is logged and sets the status."""
         rt.ensure()
         rid = int(request.path_params["rid"])
@@ -579,7 +588,7 @@ def create_app(folder: str | Path) -> Starlette:
                                                                          address=addr, step=nxt, today=views.today_text()))
 
     # --- forms -------------------------------------------------------------------------------------------
-    async def new_form(request: Request):
+    def new_form(request: Request):
         rt.ensure()
         tid = request.path_params["tid"]
         spec = rt.spec(tid)
@@ -619,11 +628,10 @@ def create_app(folder: str | Path) -> Starlette:
                 out[a["id"]] = a["enum"]
         return out
 
-    async def new_submit(request: Request):
+    def new_submit(request: Request, form):
         rt.ensure()
         tid = request.path_params["tid"]
         spec = rt.spec(tid)
-        form = await request.form()
         raw = {k[2:]: v for k, v in form.items() if k.startswith("a_")}
         lines = defaultdict(dict)
         for k, v in form.items():
@@ -640,7 +648,7 @@ def create_app(folder: str | Path) -> Starlette:
         return RedirectResponse(f"/r/{rid}?neu=1", 303)
 
     # --- api for forms --------------------------------------------------------------------------------------
-    async def api_search(request: Request):
+    def api_search(request: Request):
         rt.ensure()
         types = [t for t in (request.query_params.get("typen") or "").split(",") if t]
         q = (request.query_params.get("q") or "").strip()
@@ -664,7 +672,7 @@ def create_app(folder: str | Path) -> Starlette:
             out.append(dict(id=r["id"], title=rt.title(r["id"]), sub=" · ".join(sub + [spec["name"]])))
         return JSONResponse(out)
 
-    async def api_record(request: Request):
+    def api_record(request: Request):
         rt.ensure()
         rid = int(request.path_params["rid"])
         r = rt.by_id.get(rid)
@@ -679,7 +687,7 @@ def create_app(folder: str | Path) -> Starlette:
                     prices[lp["attr"]] = v * lp.get("k", 1)
         return JSONResponse(dict(data=r["data"], prices=prices, title=rt.title(rid)))
 
-    async def api_like_last(request: Request):
+    def api_like_last(request: Request):
         rt.ensure()
         tid = request.query_params.get("typ")
         party = int(request.query_params.get("partei") or 0)
@@ -711,7 +719,7 @@ def create_app(folder: str | Path) -> Starlette:
         return JSONResponse(dict(lines=[]))
 
     # --- search ------------------------------------------------------------------------------------------------
-    async def search_page(request: Request):
+    def search_page(request: Request):
         rt.ensure()
         q = (request.query_params.get("q") or "").strip()
         groups = []
@@ -730,16 +738,15 @@ def create_app(folder: str | Path) -> Starlette:
         return page(request, "search.html", dict(q=q, groups=groups))
 
     # --- questions -----------------------------------------------------------------------------------------------
-    async def questions_page(request: Request):
+    def questions_page(request: Request):
         rt.ensure()
         qs = open_questions(store)
         answered = store.q("SELECT * FROM questions WHERE status='answered' ORDER BY answered_at DESC LIMIT 30")
         return page(request, "questions.html", dict(questions=qs, answered=[dict(r, payload=loads(r["payload"]),
                                                                                   answer=loads(r["answer"])) for r in answered]))
 
-    async def question_answer(request: Request):
+    def question_answer(request: Request, form):
         qid = int(request.path_params["qid"])
-        form = await request.form()
         value = form.get("value")
         res = answer_question(store, qid, value, actor(request))
         if res.get("regrow"):
@@ -751,8 +758,7 @@ def create_app(folder: str | Path) -> Starlette:
             msg = "Zusammengeführt. Der Verlauf beider Datensätze bleibt erhalten."
         return JSONResponse(dict(toast=msg))
 
-    async def rule_toggle(request: Request):
-        form = await request.form()
+    def rule_toggle(request: Request, form):
         key = form.get("key")
         val = form.get("value")
         with store.tx() as c:
@@ -760,7 +766,7 @@ def create_app(folder: str | Path) -> Starlette:
         return JSONResponse(dict(toast="Regel eingeschaltet. Sie wirkt ab jetzt bei jeder Eingabe." if val == "on" else "Gut, ich schlage das nicht mehr vor.",
                                  reload=False))
 
-    async def accept_payments(request: Request):
+    def accept_payments(request: Request):
         n = 0
         regrow_needed = False
         for q in open_questions(store):
@@ -774,13 +780,13 @@ def create_app(folder: str | Path) -> Starlette:
         rt.bump()
         return JSONResponse(dict(toast=f"{n} Zahlungen zugeordnet.", reload=True))
 
-    async def apply_stale(request: Request):
+    def apply_stale(request: Request):
         tid = request.path_params["tid"]
         n = ops.apply_stale(rt, tid, actor(request))
         return JSONResponse(dict(toast=f"{n} Datensätze abgeglichen.", reload=True))
 
     # --- organism -------------------------------------------------------------------------------------------
-    async def organism(request: Request):
+    def organism(request: Request):
         rt.ensure()
         if not rt.model:
             return RedirectResponse("/", 302)
@@ -827,8 +833,7 @@ def create_app(folder: str | Path) -> Starlette:
             out.append(dict(kind="Ablauf", text=f"{p['name']}: {chain}", why=f"aus {p['n']} Fällen"))
         return out
 
-    async def organism_rename(request: Request):
-        form = await request.form()
+    def organism_rename(request: Request, form):
         tid = form.get("type")
         name, plural = (form.get("name") or "").strip(), (form.get("plural") or "").strip()
         if not name:
@@ -843,8 +848,7 @@ def create_app(folder: str | Path) -> Starlette:
             rt.bump(c)
         return RedirectResponse(f"/t/{tid}", 303)
 
-    async def organism_attr(request: Request):
-        form = await request.form()
+    def organism_attr(request: Request, form):
         tid, aid = form.get("type"), form.get("attr")
         action = form.get("action")
         with store.tx() as c:
@@ -865,15 +869,14 @@ def create_app(folder: str | Path) -> Starlette:
             rt.bump(c)
         return RedirectResponse(request.headers.get("referer") or f"/t/{tid}", 303)
 
-    async def organism_relation(request: Request):
-        form = await request.form()
+    def organism_relation(request: Request, form):
         key = form.get("key")
         with store.tx() as c:
             store.decide("relation", key, "no", actor(request), c=c)
         jid = jobs.start("relation", lambda progress: regrow(store, progress, actor(request)), next_url="/organismus")
         return JSONResponse(dict(job=jid))
 
-    async def processes_page(request: Request):
+    def processes_page(request: Request):
         rt.ensure()
         work = rt.work()
         items = []
@@ -888,7 +891,7 @@ def create_app(folder: str | Path) -> Starlette:
         return page(request, "processes.html", dict(items=items))
 
     # --- sources -----------------------------------------------------------------------------------------------
-    async def sources_page(request: Request):
+    def sources_page(request: Request):
         rt.ensure()
         srcs = store.sources(active_only=False)
         became = defaultdict(list)
@@ -920,7 +923,7 @@ def create_app(folder: str | Path) -> Starlette:
                     out += 1
         return out
 
-    async def source_remove(request: Request):
+    def source_remove(request: Request):
         sid = int(request.path_params["sid"])
         blocked = locked_in_sources(store.descendants(sid))
         if blocked:
@@ -931,14 +934,14 @@ def create_app(folder: str | Path) -> Starlette:
         jid = jobs.start("remove", lambda progress: regrow(store, progress, actor(request)), next_url="/quellen")
         return JSONResponse(dict(job=jid))
 
-    async def source_restore(request: Request):
+    def source_restore(request: Request):
         sid = int(request.path_params["sid"])
         with store.tx() as c:
             store.set_active(sid, True, c)
         jid = jobs.start("restore", lambda progress: regrow(store, progress, actor(request)), next_url="/quellen")
         return JSONResponse(dict(job=jid))
 
-    async def source_file(request: Request):
+    def source_file(request: Request):
         sid = int(request.path_params["sid"])
         s = store.q1("SELECT * FROM sources WHERE id=?", (sid,))
         p = store.source_path(sid, s["name"])
@@ -959,7 +962,7 @@ def create_app(folder: str | Path) -> Starlette:
             rows.append(row)
         return head, rows
 
-    async def export_csv(request: Request):
+    def export_csv(request: Request):
         rt.ensure()
         spec = rt.spec(request.path_params["tid"])
         head, rows = export_rows(spec)
@@ -971,7 +974,7 @@ def create_app(folder: str | Path) -> Starlette:
         return Response(("﻿" + buf.getvalue()).encode("utf-8"), media_type="text/csv",
                         headers={"Content-Disposition": f'attachment; filename="{spec["plural"]}.csv"'})
 
-    async def export_xlsx(request: Request):
+    def export_xlsx(request: Request):
         import openpyxl
 
         rt.ensure()
@@ -995,7 +998,7 @@ def create_app(folder: str | Path) -> Starlette:
         return Response(buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f'attachment; filename="{spec["plural"]}.xlsx"'})
 
-    async def export_backup(request: Request):
+    def export_backup(request: Request):
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
             tmp = Path(tempfile.mkdtemp())
@@ -1012,7 +1015,7 @@ def create_app(folder: str | Path) -> Starlette:
         return Response(buf.getvalue(), media_type="application/zip",
                         headers={"Content-Disposition": f'attachment; filename="physarum-sicherung-{date.today().isoformat()}.zip"'})
 
-    async def procedure_doc(request: Request):
+    def procedure_doc(request: Request):
         rt.ensure()
         decisions = store.q("SELECT * FROM decisions ORDER BY ts")
         srcs = store.sources(active_only=False)
@@ -1022,15 +1025,14 @@ def create_app(folder: str | Path) -> Starlette:
         return page(request, "procedure.html", dict(decisions=decisions, srcs=srcs, versions=versions, nchanges=nchanges,
                                                     by_kind=by_kind, learned=learned_items() if rt.model else []))
 
-    async def set_name(request: Request):
-        form = await request.form()
+    def set_name(request: Request, form):
         resp = RedirectResponse(request.headers.get("referer") or "/", 303)
         name = (form.get("name") or "").strip()[:40]
         if name:
             resp.set_cookie("physarum_name", name, max_age=3600 * 24 * 365, samesite="lax")
         return resp
 
-    async def health(request: Request):
+    def health(request: Request):
         return PlainTextResponse("ok")
 
     routes = [
@@ -1038,32 +1040,32 @@ def create_app(folder: str | Path) -> Starlette:
         Route("/einwerfen", upload, methods=["POST"]), Route("/beispiel", demo, methods=["POST"]),
         Route("/beispiel/wachstum", demo_growth, methods=["POST"]),
         Route("/wachsen/{jid:int}", grow_page), Route("/api/job/{jid:int}", job_status),
-        Route("/t/{tid}", list_view), Route("/t/{tid}/neu", new_form), Route("/t/{tid}/neu", new_submit, methods=["POST"]),
-        Route("/r/{rid:int}", record_view), Route("/r/{rid:int}", record_update, methods=["POST"]),
-        Route("/r/{rid:int}/schritt", record_step, methods=["POST"]),
-        Route("/r/{rid:int}/notiz", record_note, methods=["POST"]),
-        Route("/r/{rid:int}/storno", record_storno, methods=["POST"]),
+        Route("/t/{tid}", list_view), Route("/t/{tid}/neu", new_form), Route("/t/{tid}/neu", formed(new_submit), methods=["POST"]),
+        Route("/r/{rid:int}", record_view), Route("/r/{rid:int}", formed(record_update), methods=["POST"]),
+        Route("/r/{rid:int}/schritt", formed(record_step), methods=["POST"]),
+        Route("/r/{rid:int}/notiz", formed(record_note), methods=["POST"]),
+        Route("/r/{rid:int}/storno", formed(record_storno), methods=["POST"]),
         Route("/r/{rid:int}/loeschen", record_delete, methods=["POST"]),
         Route("/r/{rid:int}/druck", record_print),
         Route("/r/{rid:int}/erinnerung", record_reminder, methods=["GET", "POST"]),
         Route("/suche", search_page), Route("/api/suche", api_search), Route("/api/datensatz/{rid:int}", api_record),
         Route("/api/wie-letztes-mal", api_like_last),
-        Route("/fragen", questions_page), Route("/fragen/{qid:int}", question_answer, methods=["POST"]),
-        Route("/regel", rule_toggle, methods=["POST"]), Route("/abgleich/{tid}", apply_stale, methods=["POST"]),
+        Route("/fragen", questions_page), Route("/fragen/{qid:int}", formed(question_answer), methods=["POST"]),
+        Route("/regel", formed(rule_toggle), methods=["POST"]), Route("/abgleich/{tid}", apply_stale, methods=["POST"]),
         Route("/zahlungen/zuordnen", accept_payments, methods=["POST"]),
-        Route("/organismus", organism), Route("/organismus/umbenennen", organism_rename, methods=["POST"]),
-        Route("/organismus/feld", organism_attr, methods=["POST"]),
-        Route("/organismus/verweis", organism_relation, methods=["POST"]),
+        Route("/organismus", organism), Route("/organismus/umbenennen", formed(organism_rename), methods=["POST"]),
+        Route("/organismus/feld", formed(organism_attr), methods=["POST"]),
+        Route("/organismus/verweis", formed(organism_relation), methods=["POST"]),
         Route("/ablaeufe", processes_page),
         Route("/quellen", sources_page), Route("/quellen/{sid:int}/entfernen", source_remove, methods=["POST"]),
         Route("/quellen/{sid:int}/zurueck", source_restore, methods=["POST"]),
         Route("/quellen/{sid:int}/datei", source_file),
         Route("/export/{tid}.csv", export_csv), Route("/export/{tid}.xlsx", export_xlsx),
         Route("/sicherung.zip", export_backup), Route("/verfahrensdoku", procedure_doc),
-        Route("/ich", set_name, methods=["POST"]),
+        Route("/ich", formed(set_name), methods=["POST"]),
         Mount("/static", StaticFiles(directory=str(HERE / "static")), name="static"),
     ]
-    app = Starlette(routes=routes)
+    app = Starlette(routes=routes, middleware=[Middleware(Guard, allowed=hosts, any_ip=any_ip)])
     app.state.store = store
     app.state.rt = rt
     app.state.jobs = jobs

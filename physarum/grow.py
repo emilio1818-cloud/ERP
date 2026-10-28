@@ -44,6 +44,8 @@ class Progress:
 
 # --- ingestion -----------------------------------------------------------------------------------
 
+MAX_INGEST_BYTES = 600 * 1024 * 1024
+
 def ingest(store: Store, files: list[tuple[str, bytes]], actor: str | None = None,
            progress: Progress | None = None) -> list[dict]:
     """Store originals and digest them into the substrate. Nested files (zip members, e-mail
@@ -51,9 +53,15 @@ def ingest(store: Store, files: list[tuple[str, bytes]], actor: str | None = Non
     out = []
     queue = [(name, data, None) for name, data in files]
     guard = 0
+    budget = MAX_INGEST_BYTES  # everything unpacked from one drop together (zip in zip in zip)
     while queue and guard < 5000:
         guard += 1
         name, data, parent = queue.pop(0)
+        if parent is not None:
+            budget -= len(data)
+            if budget < 0:
+                out.append(dict(id=None, name=name, new=False, notes=["Zu viel entpackter Inhalt – übersprungen."]))
+                continue
         known = store.find_source(data, parent)
         if known is not None:
             if not known["active"]:

@@ -177,11 +177,14 @@ def prefill(rt, spec: dict, today: date | None = None) -> dict:
 # --- locks ----------------------------------------------------------------------------------------
 
 def lock_state(rt, spec: dict, rec: dict) -> dict | None:
-    """Issued documents are locked (GoBD): only payments, status, notes and storno remain possible."""
+    """Issued documents are locked (GoBD): only payments, notes and storno remain possible. A
+    draft made here is not issued yet and stays free."""
+    from .billing import is_draft
+
     if spec.get("concept") not in LOCKED_CONCEPTS:
         return None
     key = spec.get("key")
-    if not key or rec["data"].get(key) is None:
+    if is_draft(rec) or not key or rec["data"].get(key) is None:
         return None
     proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
     editable = set()
@@ -190,15 +193,29 @@ def lock_state(rt, spec: dict, rec: dict) -> dict | None:
             for s in [st] + st.get("also", []):
                 if s["source"] == "own":
                     editable.add(s["attr"])
-        if proc.get("status"):
-            editable.add(proc["status"]["attr"])
-            for x in proc["status"].get("negative_other", []):
-                editable.add(x["attr"])
     for a in spec["attrs"]:
         if a.get("role") in ("notes",):
             editable.add(a["id"])
-    return dict(editable=editable, reason="Ausgestellte Rechnung: Beträge, Daten, Kunde und Nummer sind festgeschrieben. "
-                                         "Korrektur nur per Storno.")
+    meta = rec.get("meta") or {}
+    cancelled = bool(meta.get("storno_by") or meta.get("storno_of"))
+    return dict(editable=set() if cancelled else editable, cancelled=cancelled,
+                reason="Ausgestellte Rechnung: Beträge, Daten, Kunde, Nummer und Status sind festgeschrieben. "
+                       "Korrektur nur per Storno; Zahlungen und Notizen bleiben möglich.")
+
+
+def _parent_lock(rt, spec: dict, rec: dict) -> dict | None:
+    """Lines of an issued invoice are as fixed as the invoice."""
+    if spec.get("kind") != "line":
+        return None
+    for a in spec["attrs"]:
+        if a["kind"] == "ref":
+            parent = rt.by_id.get(rec["data"].get(a["id"]))
+            if parent:
+                pspec = rt.spec(parent["type"])
+                full = rt.store.record(parent["id"])
+                if pspec and full and lock_state(rt, pspec, full):
+                    return dict(editable=set(), reason="Position einer ausgestellten Rechnung: festgeschrieben.")
+    return None
 
 
 # --- writes -----------------------------------------------------------------------------------------
@@ -237,8 +254,17 @@ def create(rt, tid: str, raw: dict, actor: str, lines: list[dict] | None = None,
                 given.add(a["id"])
     if errors:
         raise OpError("; ".join(errors))
+    from .billing import derive, is_invoice
+    copies, _why = derive(rt, spec, data)
+    for aid, v in copies.items():
+        if aid not in given and v is not None:
+            data[aid] = v
+            given.add(aid)  # taken over from the order (VAT by the articles' rates) beats a learned formula
+    draft = is_invoice(spec)
     key = spec.get("key")
-    if key and data.get(key) is None:
+    if draft:
+        data.pop(key, None)  # the number comes when the invoice is issued
+    elif key and data.get(key) is None:
         n = next_number(rt, spec)
         if n:
             data[key] = n
@@ -251,6 +277,8 @@ def create(rt, tid: str, raw: dict, actor: str, lines: list[dict] | None = None,
     ts = now_iso()
     with rt.store.tx() as c:
         meta = dict(w={aid: ["user", ts] for aid in data}, computed=computed)
+        if draft:
+            meta["draft"] = True
         cur = c.execute("INSERT INTO records(type,data,meta,origin,created_at,updated_at) VALUES(?,?,?,?,?,?)",
                         (tid, dumps(data), dumps(meta), "user", ts, ts))
         rid = cur.lastrowid
@@ -280,6 +308,9 @@ def create(rt, tid: str, raw: dict, actor: str, lines: list[dict] | None = None,
                 if not ldata:
                     continue
                 ldata[parent_ref] = rid
+                for aid, v in derive(rt, lspec, ldata)[0].items():
+                    if aid not in lgiven and v is not None:
+                        ldata[aid] = v  # the unit price comes from the article, as it always did
                 apply_formulas(rt, lspec, ldata, lgiven)
                 ldata = _clean(lspec, ldata)
                 cur = c.execute("INSERT INTO records(type,data,meta,origin,created_at,updated_at) VALUES(?,?,?,?,?,?)",
@@ -296,14 +327,18 @@ def create(rt, tid: str, raw: dict, actor: str, lines: list[dict] | None = None,
     return rid
 
 
-def update(rt, rid: int, raw: dict, actor: str, note: str | None = None, kind: str = "edit") -> list[str]:
-    """Apply edits. Returns names of changed attributes."""
+def update(rt, rid: int, raw: dict, actor: str, note: str | None = None, kind: str = "edit",
+           allow: set | None = None) -> list[str]:
+    """Apply edits. Returns names of changed attributes. `allow`: attributes an action (paid,
+    reminded) may set on a locked document."""
     rt.ensure()
     rec = rt.store.record(rid)
     if not rec or rec["deleted"]:
         raise OpError("Datensatz nicht gefunden")
     spec = rt.spec(rec["type"])
-    lock = lock_state(rt, spec, rec)
+    lock = lock_state(rt, spec, rec) or _parent_lock(rt, spec, rec)
+    if lock and allow:
+        lock = dict(lock, editable=set(lock["editable"]) | set(allow))
     data = dict(rec["data"])
     given, errors, changed = set(), [], []
     for a in spec["attrs"]:
@@ -379,7 +414,22 @@ def _automations(rt, spec, before: dict, data: dict, given: set) -> list[tuple[s
 
 
 def set_step(rt, rid: int, attr: str, when: str | None, actor: str) -> list[str]:
-    return update(rt, rid, {attr: when or date.today().isoformat()}, actor, note="Schritt erledigt")
+    rt.ensure()
+    rec = rt.by_id.get(rid)
+    raw = {attr: when or date.today().isoformat()}
+    allow = {attr}
+    if rec:
+        proc = next((p for p in rt.model.get("processes", []) if p["type"] == rec["type"]), None)
+        st = (proc or {}).get("status")
+        if proc and st:
+            stage = next((i for i, s in enumerate(proc["steps"], start=1)
+                          if any(x["source"] == "own" and x["attr"] == attr for x in [s] + s.get("also", []))), None)
+            vals = [v for v, k in (st.get("map") or {}).items() if k == stage]
+            cur = str(rec["data"].get(st["attr"]))
+            if stage and len(vals) == 1 and cur not in (st.get("negative") or []) and (st["map"].get(cur, 0) or 0) < stage:
+                raw[st["attr"]] = vals[0]  # "paid" also means status "bezahlt"
+                allow.add(st["attr"])
+    return update(rt, rid, raw, actor, note="Schritt erledigt", allow=allow)
 
 
 def add_note(rt, rid: int, text: str, actor: str):
@@ -393,15 +443,27 @@ def add_note(rt, rid: int, text: str, actor: str):
         rt.bump(c)
 
 
-def storno(rt, rid: int, reason: str, actor: str):
+def storno(rt, rid: int, reason: str, actor: str) -> int | None:
+    """Cancel. An issued invoice is cancelled by a cancellation invoice of its own (returns its
+    id); a draft is simply discarded; anything else gets its negative status."""
+    from .billing import BillingError, cancel, is_draft, is_invoice
+
     rt.ensure()
     rec = rt.store.record(rid)
     spec = rt.spec(rec["type"])
+    if not reason or not reason.strip():
+        raise OpError("Bitte einen Grund für das Storno angeben")
+    if is_invoice(spec) and is_draft(rec):
+        delete(rt, rid, actor, reason=f"Entwurf verworfen: {reason}")
+        return None
+    if is_invoice(spec) and lock_state(rt, spec, rec):
+        try:
+            return cancel(rt, rid, reason, actor)
+        except BillingError as e:
+            raise OpError(str(e)) from e
     proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
     st = (proc or {}).get("status")
     value = next(iter(st["negative"]), None) if st and st.get("negative") else None
-    if not reason or not reason.strip():
-        raise OpError("Bitte einen Grund für das Storno angeben")
     ts = now_iso()
     with rt.store.tx() as c:
         data = dict(rec["data"])
@@ -410,18 +472,21 @@ def storno(rt, rid: int, reason: str, actor: str):
             data[st["attr"]] = value
             c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
                       (rid, ts, actor, "storno", st["attr"], dumps(old), dumps(value), reason))
-        else:
-            meta = rec["meta"] or {}
-            meta["storno"] = dict(ts=ts, actor=actor, reason=reason)
-            c.execute("UPDATE records SET meta=? WHERE id=?", (dumps(meta), rid))
+        meta = rec["meta"] or {}
+        meta["storno"] = dict(ts=ts, actor=actor, reason=reason)
+        c.execute("UPDATE records SET meta=? WHERE id=?", (dumps(meta), rid))
+        if not (value and st):
             c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
                       (rid, ts, actor, "storno", reason))
         c.execute("UPDATE records SET data=?, updated_at=? WHERE id=?", (dumps(data), ts, rid))
         c.execute("INSERT INTO notes(record_id,ts,actor,text) VALUES(?,?,?,?)", (rid, ts, actor, f"Storniert: {reason}"))
         rt.bump(c)
+    return None
 
 
-def delete(rt, rid: int, actor: str):
+def delete(rt, rid: int, actor: str, reason: str | None = None):
+    """Delete what was made here; hide (with a reason) what came from a file – it does not come
+    back with the next growth, and it can be shown again."""
     rt.ensure()
     rec = rt.store.record(rid)
     spec = rt.spec(rec["type"])
@@ -430,12 +495,40 @@ def delete(rt, rid: int, actor: str):
     users = [b for b in rt.backrefs.get(rid, []) if b[2] == "ref" and b[0] in rt.by_id]
     if users:
         raise OpError(f"Wird von {len(users)} anderen Datensätzen verwendet und kann deshalb nicht gelöscht werden.")
+    imported = rec.get("origin") == "import" or bool(rt.store.q1(
+        "SELECT 1 AS x FROM changes WHERE record_id=? AND kind='import' LIMIT 1", (rid,)))
+    if imported and not (reason or "").strip():
+        raise OpError("Dieser Datensatz stammt aus einer Datei. Er wird nicht gelöscht, sondern ausgeblendet – "
+                      "bitte einen Grund angeben.")
     ts = now_iso()
     with rt.store.tx() as c:
         c.execute("UPDATE records SET deleted=1, updated_at=? WHERE id=?", (ts, rid))
-        c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)", (rid, ts, actor, "delete", "gelöscht"))
+        if imported:
+            idents = [r["ident"] for r in c.execute("SELECT ident FROM idents WHERE record_id=?", (rid,)).fetchall()]
+            for i in idents:
+                rt.store.decide("hidden_record", f"{rec['type']}|{i}", reason.strip(), actor, c=c)
+            c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
+                      (rid, ts, actor, "hide", f"ausgeblendet: {reason.strip()}"))
+        else:
+            c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
+                      (rid, ts, actor, "delete", reason or "gelöscht"))
         c.execute("DELETE FROM search WHERE record_id=?", (rid,))
         c.execute("DELETE FROM refs WHERE from_id=?", (rid,))
+        rt.bump(c)
+
+
+def unhide(rt, rid: int, actor: str):
+    rec = rt.store.record(rid)
+    if not rec:
+        raise OpError("Datensatz nicht gefunden")
+    ts = now_iso()
+    with rt.store.tx() as c:
+        idents = [r["ident"] for r in c.execute("SELECT ident FROM idents WHERE record_id=?", (rid,)).fetchall()]
+        c.executemany("DELETE FROM decisions WHERE kind='hidden_record' AND subject=?",
+                      [(f"{rec['type']}|{i}",) for i in idents])
+        c.execute("UPDATE records SET deleted=0, updated_at=? WHERE id=?", (ts, rid))
+        c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
+                  (rid, ts, actor, "unhide", "wieder eingeblendet"))
         rt.bump(c)
 
 

@@ -407,6 +407,17 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         return titles[rid]
 
     by_id = {r["id"]: r for rs in records.values() for r in rs}
+    negative_of = {p["type"]: ((p.get("status") or {}).get("attr"), set((p.get("status") or {}).get("negative") or []))
+                   for p in model.get("processes", [])}
+
+    def void(c):
+        """A cancelled invoice (or the cancellation itself) does not bill the order."""
+        meta = c.get("meta") or {}
+        if meta.get("storno_of") or meta.get("storno_by"):
+            return True
+        attr, neg = negative_of.get(c["type"], (None, set()))
+        return bool(attr and str(c["data"].get(attr)) in neg)
+
     groups = []
     for p in model.get("processes", []):
         spec = specs[p["type"]]
@@ -435,7 +446,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 else:
                     for c in records.get(src["type"], []):
                         t = c["data"].get(src["rel_attr"])
-                        if t in rid_set:
+                        if t in rid_set and not void(c):
                             v = as_date(c["data"].get(src["attr"]))
                             if v:
                                 d[t] = min(v, d.get(t, v))

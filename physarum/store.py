@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, ts TEXT NOT NULL, kind
 CREATE TABLE IF NOT EXISTS jobs(id INTEGER PRIMARY KEY, kind TEXT, status TEXT, progress REAL,
   log TEXT, started_at TEXT, finished_at TEXT, result TEXT);
 CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS numbers(type TEXT NOT NULL, number TEXT NOT NULL, record_id INTEGER, ts TEXT NOT NULL,
+  PRIMARY KEY(type, number));
 CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(body, record_id UNINDEXED, type UNINDEXED,
   tokenize='unicode61 remove_diacritics 2');
 """

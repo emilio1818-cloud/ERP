@@ -160,16 +160,27 @@ class EditingRules(unittest.TestCase):
 
     def test_invoice_is_locked_but_payable(self):
         inv = self.spec("Rechnung")
-        rec = next(r for r in self.rt.records[inv["id"]] if not r["data"].get(self.attr(inv, "Bezahlt am")["id"]))
+        status = self.attr(inv, "Status")["id"]
+        rec = next(r for r in self.rt.records[inv["id"]] if not r["data"].get(self.attr(inv, "Bezahlt am")["id"])
+                   and r["data"].get(status) != "storniert")
         with self.assertRaises(ops.OpError):
             ops.update(self.rt, rec["id"], {self.attr(inv, "Netto")["id"]: "1,00"}, "Test")
+        with self.assertRaises(ops.OpError):  # the status follows actions, it is not typed in
+            ops.update(self.rt, rec["id"], {status: "erledigt"}, "Test")
         changed = ops.set_step(self.rt, rec["id"], self.attr(inv, "Bezahlt am")["id"], None, "Test")
         self.assertIn(self.attr(inv, "Bezahlt am")["id"], changed)
+        self.assertIn(status, changed)  # marked paid: the status says so too
         with self.assertRaises(ops.OpError):
             ops.delete(self.rt, rec["id"], "Test")
-        ops.storno(self.rt, rec["id"], "falscher Kunde", "Test")
+        nid = ops.storno(self.rt, rec["id"], "falscher Kunde", "Test")
         self.rt.ensure()
-        self.assertEqual(self.rt.by_id[rec["id"]]["data"][self.attr(inv, "Status")["id"]], "storniert")
+        self.assertEqual(self.rt.by_id[rec["id"]]["data"][status], "storniert")
+        doc = self.rt.by_id[nid]["data"]  # the cancellation is a document of its own
+        netto = self.attr(inv, "Netto")["id"]
+        self.assertEqual(doc[netto], -rec["data"][netto])
+        self.assertNotEqual(doc[inv["key"]], rec["data"][inv["key"]])
+        with self.assertRaises(ops.OpError):
+            ops.storno(self.rt, rec["id"], "nochmal", "Test")
 
     def test_create_order_with_lines_uses_numbering_and_formulas(self):
         order = self.spec("Auftrag")

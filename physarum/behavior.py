@@ -271,7 +271,7 @@ def find_date_offsets(spec: dict, recs: list[dict], model: dict, records: dict) 
     return out
 
 
-_NUMBERING = re.compile(r"^(?P<pre>\D*?)(?P<year>(?:19|20)\d\d)?(?P<sep>[-/_.]?)(?P<num>\d+)$")
+_NUMBERING = re.compile(r"^(?P<pre>\D*?)(?P<year>(?:19|20)\d\d|\d\d(?=[-/_.]\d))?(?P<sep>[-/_.]?)(?P<num>\d+)$")
 
 
 def find_numbering(spec: dict, recs: list[dict], today: date | None = None) -> dict | None:
@@ -288,7 +288,7 @@ def find_numbering(spec: dict, recs: list[dict], today: date | None = None) -> d
         m = _NUMBERING.match(v.strip())
         if not m:
             continue
-        sch = (m.group("pre"), bool(m.group("year")), m.group("sep"), len(m.group("num")))
+        sch = (m.group("pre"), len(m.group("year") or ""), m.group("sep"), len(m.group("num")))
         schemes[sch] += 1
         parsed.append((sch, m.group("year"), int(m.group("num")), v))
     if not schemes:
@@ -301,7 +301,7 @@ def find_numbering(spec: dict, recs: list[dict], today: date | None = None) -> d
     for s, y, n, v in parsed:
         if s == sch:
             nums_by_year[y].append(n)
-    year = str(today.year) if has_year else None
+    year = (str(today.year) if has_year == 4 else str(today.year)[2:]) if has_year else None
     cur = nums_by_year.get(year, []) if has_year else nums_by_year.get(None, [])
     nxt = (max(cur) + 1) if cur else 1
     example = f"{pre}{year}{sep}{str(nxt).zfill(width)}" if has_year else f"{pre}{sep}{str(nxt).zfill(width)}"
@@ -436,6 +436,23 @@ def find_lookups(model: dict, records: dict) -> list[dict]:
                                         k=k, share=round(ok / len(pairs), 3), n=len(pairs),
                                         text=f"{t['plural']}: {x['name']} meist = {dst['name']} › {y['name']}"
                                              + (f" × {_fmt_k(k)}" if k != 1 else "")))
+                        break
+            # the same party as the document it refers to (an invoice goes to the order's customer)
+            if dst["kind"] != "transaction":
+                continue
+            for x in [a for a in t["attrs"] if a["kind"] == "ref" and a is not ref]:
+                for y in [a for a in dst["attrs"] if a["kind"] == "ref" and a.get("ref") == x.get("ref")]:
+                    n = ok = 0
+                    for r in recs:
+                        tr = by_id.get(r["data"].get(ref["id"]))
+                        xv, yv = r["data"].get(x["id"]), tr["data"].get(y["id"]) if tr else None
+                        if isinstance(xv, int) and isinstance(yv, int):
+                            n += 1
+                            ok += xv == yv
+                    if n >= 5 and ok / n >= 0.9:
+                        out.append(dict(type=t["id"], attr=x["id"], ref=ref["id"], src_type=dst["id"], src_attr=y["id"],
+                                        kind="copy", share=round(ok / n, 3), n=n,
+                                        text=f"{t['plural']}: {x['name']} = {dst['name']} › {y['name']}"))
                         break
     return out
 

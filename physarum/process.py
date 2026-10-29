@@ -1037,6 +1037,15 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 if x["rid"] in twice:
                     x["reason"] = "; ".join(filter(None, [x.get("reason"), "zweimal eingegangen ("
                                                           + ", ".join(twice[x["rid"]]) + ") – nur einmal bezahlen"]))
+        from .reconcile import unexplained_receipts
+        got = unexplained_receipts(model, records, ledger or {}, tmap, today,
+                                   pending={x.get("bank") for x in (pending_payments or {}).values()})
+        if got:
+            groups.append(dict(id="bank:unexplained", type=got and by_id[got[0]["rid"]]["type"], kind="receipt",
+                               severity=2, title="Geld erhalten – wofür?", count=len(got),
+                               amount=round(sum(x["money"] for x in got), 2), items=got[:30], action=None,
+                               explain="Eingänge der letzten zwei Monate, die keine Rechnung bezahlen. Eine Anzahlung "
+                                       "braucht ihre Anzahlungsrechnung, eine Gutschrift gehört zum Lieferanten."))
         risky = {x["rid"] for x in risks}
         for g in groups:
             held = [x for x in g["items"] if x["rid"] in risky] if g["kind"] == "payable" else []

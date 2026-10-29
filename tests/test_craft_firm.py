@@ -797,6 +797,35 @@ class CraftFirm(unittest.TestCase):
         self.assertEqual(len(twin), 1)                                             # the one the owner must decide
         self.assertIn("gleiche Straße", twin[0]["detail"])                         # "Str." is "Straße"
 
+    def test_money_that_pays_no_invoice_is_asked_about(self):
+        today = date(2026, 10, 29)
+        rows = _book(24, start=date(2026, 6, 1))
+        bank = [[r[1], r[2], "DE02120300000000202051", f"Rechnung {r[0]}", r[8]] for r in rows]
+        offers = csv("Angebots-Nr.;Datum;Kunde;Betreff;Netto;Status;Auftrag",
+                     [[f"AN-26-{i:03d}", f"0{(i % 8) + 1}.08.2026", f"Kunde {i % 5}", "Bad", "8000", "beauftragt",
+                       f"A26-{i:03d}"] for i in range(40, 52)])
+        jobs = csv("Auftr.-Nr.;Datum;Kunde;Leistung;Wert;Angebot",
+                   [[f"A26-{i:03d}", f"1{(i % 8) + 1}.08.2026", f"Kunde {i % 5}", "Bad", "8000", f"AN-26-{i:03d}"]
+                    for i in range(40, 52)])
+        supplier = _supplier_invoice("4471120", date(2026, 9, 1), 1000.0, "DE89370400440532013000")
+        bank += [["30.09.2026", "KITA SONNENSCHEIN E.V.", "DE42440100464793027145",
+                  "Anzahlung lt. Auftragsbestaetigung Angebot AN-26-045", "3000,00"],
+                 ["15.10.2026", "GROSSHANDEL NORD", "DE89370400440532013000", "Gutschrift 4471199 Retoure", "214,20"],
+                 ["20.10.2026", "Muster Haustechnik GmbH", "DE75512108001245126199", "Umbuchung Tagesgeld", "5000,00"],
+                 ["11.09.2026", "GROSSHANDEL NORD", "DE89370400440532013000", "RG 4471120 KD 55120", "-1190,00"]]
+        customers = csv("Kd.-Nr.;Name;Ort", [[f"K{i}", f"Kunde {i}", "Bielefeld"] for i in range(5)])
+        self.f.feed([("Kunden.csv", customers), ("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD, rows)),
+                     ("Angebote.csv", offers), ("Auftraege.csv", jobs),
+                     ("Umsaetze.csv", csv("Buchungstag;Auftraggeber/Empfänger;IBAN;Verwendungszweck;Betrag", bank)),
+                     ("Eingangsrechnungen/RE_4471120.pdf", supplier)])
+        rt = self.f.rt()
+        g = next(g for g in rt.work(today) if g["kind"] == "receipt")
+        got = {x["money"]: x for x in g["items"]}
+        self.assertEqual(set(got), {3000.0, 214.2})                     # not the paid invoices, not the own transfer
+        self.assertIn("Anzahlung zu AN-26-045 (Auftrag A26-045)", got[3000.0]["reason"])
+        self.assertEqual(got[3000.0]["act"]["label"], "+ Anzahlungsrechnung")
+        self.assertIn("Grosshandel Nord GmbH (Lieferant)", got[214.2]["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()

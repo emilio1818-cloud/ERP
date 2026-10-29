@@ -523,5 +523,80 @@ def received_twice(model: dict, records: dict, outrefs: dict) -> dict[int, list[
     return {rid: sorted(fs) for rid, per in files.items() for fs in per.values() if len(set(fs)) >= 2}
 
 
+_KEYLIKE = re.compile(r"\b[A-Z]{1,4}-?\d{2,4}-\d{2,5}\b|\b[A-Z]{1,3}\d{2}-\d{3,4}\b")
+_OWN_MOVES = ("umbuchung", "uebertrag", "kontouebertrag", "eigene", "sparbuch", "tagesgeld")
+
+
+def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict, today: date,
+                         pending: set | None = None, days: int = 60) -> list[dict]:
+    """Money that came in and pays no invoice: an advance on an order nobody invoiced yet, a supplier's
+    credit for a return, or something to ask about. The last two months."""
+    specs = {t["id"]: t for t in model["types"]}
+    by_id = {r["id"]: r for rs in records.values() for r in rs}
+    used = {p.get("rid") for e in (ledger or {}).values() for p in e.get("payments", [])}
+    keyed: dict[str, int] = {}
+    for t in model["types"]:
+        if (t.get("concept") or "") in ("angebot", "auftrag", "vertrag", "projekt") and t.get("key"):
+            for r in records.get(t["id"], []):
+                k = r["data"].get(t["key"])
+                if isinstance(k, str) and len(k) >= 5:
+                    keyed[k.upper()] = r["id"]
+    suppliers = {}  # the IBAN or the name of a supplier whose invoices we pay
+    for t, party, iban, _d in _incoming(model):
+        for r in records.get(t["id"], []):
+            name = r["data"].get(party["id"])
+            name = titles.get(name) if isinstance(name, int) else name
+            if iban and r["data"].get(iban["id"]):
+                suppliers[re.sub(r"\s+", "", str(r["data"][iban["id"]])).upper()] = name
+            if isinstance(name, str):
+                suppliers[norm_name(name)] = name
+    inv = next((t for t in model["types"] if t.get("concept") == "rechnung" and not t.get("incoming")), None)
+    out = []
+    for b in bank_specs(model):
+        for r in records.get(b["spec"]["id"], []):
+            v = r["data"].get(b["money"]["id"])
+            when = as_date(r["data"].get(b["date"]["id"]))
+            if not isinstance(v, (int, float)) or isinstance(v, bool) or v <= 0.005 or not when \
+                    or (today - when).days > days or when > today or r["id"] in used or r["id"] in (pending or ()):
+                continue
+            text = str(r["data"].get(b["text"]["id"]) or "") if b["text"] else ""
+            who = r["data"].get(b["name"]["id"]) if b["name"] else None
+            if any(w in fold(text) for w in _OWN_MOVES):
+                continue  # money moved between the firm's own accounts
+            iv = re.sub(r"\s+", "", str(r["data"].get(b["iban"]["id"]) or "")).upper() if b["iban"] else ""
+            supplier = suppliers.get(iv) or suppliers.get(norm_name(who)) if (iv or who) else None
+            item = dict(rid=r["id"], title=titles.get(r["id"]) or f"{when.strftime('%d.%m.%Y')} · {v:.2f} €",
+                        party=str(who) if who else None, days=(today - when).days, money=round(float(v), 2), act=None)
+            named = [keyed[m.group(0).upper()] for m in _KEYLIKE.finditer(text) if m.group(0).upper() in keyed]
+            if supplier:
+                item["reason"] = f"von {supplier} (Lieferant) – eine Gutschrift oder Erstattung, keine Kundenzahlung"
+            elif named:
+                case = by_id[named[0]]
+                order = case
+                if (specs[case["type"]].get("concept") or "") == "angebot":
+                    # the offer the customer accepted: its order is what the advance is for
+                    order = next((by_id[x] for x in case["data"].values() if isinstance(x, int) and x in by_id
+                                  and (specs[by_id[x]["type"]].get("concept") or "") == "auftrag"), None) or \
+                        next((o for t in model["types"] if t.get("concept") == "auftrag" for o in records.get(t["id"], [])
+                              if case["id"] in o["data"].values()), case)
+                what = titles.get(case["id"]) + (f" (Auftrag {titles.get(order['id'])})" if order is not case else "")
+                item["reason"] = f"Anzahlung zu {what} – dazu gibt es noch keine Rechnung"
+                refs = [a for a in (inv or {}).get("attrs", []) if a["kind"] == "ref" and not a.get("hidden")]
+                ref = next((a["id"] for a in refs if a.get("ref") == order["type"]), None)
+                if ref:
+                    item["act"] = dict(href=f"/t/{inv['id']}/neu?a_{ref}={order['id']}", label="+ Anzahlungsrechnung")
+                else:  # the invoice book names no orders: an invoice for the customer of that order
+                    who_ref = next(((a["id"], v) for a in refs for v in order["data"].values()
+                                    if isinstance(v, int) and v in by_id and by_id[v]["type"] == a.get("ref")), None)
+                    if who_ref:
+                        item["act"] = dict(href=f"/t/{inv['id']}/neu?a_{who_ref[0]}={who_ref[1]}",
+                                           label="+ Anzahlungsrechnung")
+            else:
+                item["reason"] = "keiner Rechnung zugeordnet – wofür war das?"
+            out.append(item)
+    out.sort(key=lambda x: -x["money"])
+    return out
+
+
 def _fmt_iban(s: str) -> str:
     return " ".join(s[i:i + 4] for i in range(0, len(s), 4))

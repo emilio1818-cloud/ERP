@@ -11,7 +11,7 @@
   {%- elif g.kind == 'threshold' -%}Bestand {{ it.value|de }} · mindestens {{ it.min|de }}
   {%- elif g.kind == 'rhythm' -%}seit {{ days_text(it.days) }} nichts <span class="faint">(sonst alle {{ it.usual }} Tage)</span>
   {%- elif g.kind == 'reach' -%}reicht noch ca. {{ it.days }} Tage <span class="faint">({{ it.per_week|de(1) }} pro Woche)</span>
-  {%- elif g.kind in ('risk', 'payment', 'integrity', 'draft', 'budget', 'mail', 'mailpay') -%}{{ it.reason }}
+  {%- elif g.kind in ('risk', 'payment', 'integrity', 'draft', 'budget', 'mail', 'mailpay', 'receipt') -%}{{ it.reason }}
   {%- endif -%}
 {%- endmacro %}
 {% block content %}
@@ -76,6 +76,8 @@
               <a class="btn small" href="/t/{{ g.action.type }}/neu?a_{{ g.action.attr }}={{ it.rid }}">+ {{ g.action.label }}</a>
             {% elif g.kind == 'draft' %}
               <a class="btn small" href="/r/{{ it.rid }}">Prüfen und ausstellen</a>
+            {% elif g.kind == 'receipt' %}
+              {% if it.act %}<a class="btn small" href="{{ it.act.href }}">{{ it.act.label }}</a>{% endif %}
             {% elif g.kind == 'mail' %}
               {% if it.act %}<a class="btn small" href="{{ it.act.href }}">{{ it.act.label }}</a>{% endif %}
               <button class="small ghost" data-post="/post/{{ it.rid }}/erledigt" title="Diese Mail ist beantwortet oder erledigt">✓ Erledigt</button>

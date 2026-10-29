@@ -36,9 +36,43 @@ def _cell(v) -> str:
 
 
 def _rank(t: dict) -> tuple:
-    """How current a version is: its own 'Stand', then when it arrived."""
+    """How current a version is: its own 'Stand', else the latest date it contains (an export made later
+    knows later invoices), then when it arrived – an old file dropped in today does not become new."""
     d = asof_date((t.get("meta") or {}).get("title")) or asof_date(t.get("source_name")) or asof_date(t.get("name"))
-    return (d.isoformat() if d else "", t.get("added_at") or "", t.get("source_id") or 0, t["id"])
+    return (d.isoformat() if d else _latest(t), t.get("added_at") or "", t.get("source_id") or 0, t["id"])
+
+
+def _latest(t: dict) -> str:
+    """The latest date in a table's cells (not in the future), cached on the table."""
+    if "_latest" in t:
+        return t["_latest"]
+    best = ""
+    today = date.today().isoformat()
+    for r in t["rows"][:5000]:
+        for v in r:
+            if isinstance(v, datetime):
+                v = v.date()
+            if isinstance(v, date):
+                x = v.isoformat()
+            elif isinstance(v, str) and 8 <= len(v) <= 10 and _DATE_LIKE.match(v):
+                x = _iso(v)
+            else:
+                continue
+            if x and best < x <= today:
+                best = x
+    t["_latest"] = best
+    return best
+
+
+_DATE_LIKE = re.compile(r"^(\d{1,2}\.\d{1,2}\.\d{4}|\d{4}-\d{2}-\d{2})$")  # unambiguous only: not 09/01/2026
+
+
+def _iso(v: str) -> str:
+    from ..values import parse_date
+    d = parse_date(v)
+    if isinstance(d, datetime):
+        d = d.date()
+    return d.isoformat() if isinstance(d, date) else ""
 
 
 def _unique(ts: list[dict], cols: list[int], volatile: set[int] | None = None, sig_of=None) -> bool:

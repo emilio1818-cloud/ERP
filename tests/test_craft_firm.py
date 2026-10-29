@@ -53,6 +53,24 @@ class CraftFirm(unittest.TestCase):
         self.assertEqual(e["state"], "bezahlt")
         self.assertAlmostEqual(e["open"], 0.0, places=2)
 
+    def test_an_older_export_dropped_in_later_does_not_overwrite_the_newer(self):
+        import time
+        rows = _book(20)
+        new = [list(r) for r in rows]
+        new[4][3] = "Arbeiten 4 (berichtigt)"
+        new.append(["RE-2026-0021", "20.10.2026", "Kunde 1", "Wartung", "300,00", "57,00", "357,00", "", "357,00",
+                    "03.11.2026"])
+        self.f.feed([("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD, new))])
+        time.sleep(1)
+        self.f.feed([("Rechnungsausgangsbuch_alt.csv", csv(BOOK_HEAD, rows))])  # last month's export, found today
+        rt = self.f.rt()
+        inv = _type(rt, "Rechnung")
+        subj = next(a["id"] for a in inv["attrs"] if a["name"] == "Betreff")
+        by_no = {r["data"][inv["key"]]: r for r in rt.records[inv["id"]]}
+        self.assertEqual(by_no["RE-2026-0005"]["data"][subj], "Arbeiten 4 (berichtigt)")
+        self.assertIn("RE-2026-0021", by_no)
+        self.assertFalse((by_no["RE-2026-0021"].get("meta") or {}).get("vanished"))
+
     def test_vat_is_a_legal_rate_of_the_net_amount(self):
         rows = _book()
         rows.append(["SR-2026-001", "20.05.2026", "Kunde 1", "Schlussrechnung", "10000,00", "1900,00", "11900,00",

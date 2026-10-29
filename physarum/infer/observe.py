@@ -214,7 +214,25 @@ def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list
             tables=list(tables or [table_id]), sig_label=sig_label)
     o.concept = concept
     o.key = pick_key(o)
+    if concept is None and says_nothing(label):
+        # the file name is silent ("export (5).csv"): the rows say what they are – by their number
+        # ("Rechnungsnr"), or as a statement
+        kc = telling_key(o)
+        o.concept = o.file_concept = (lexicon.header_concept(kc.name) if kc else None) or \
+            ("kontobewegung" if _bank_like(cols) else None)
     return o
+
+
+SILENT_HEADERS = {"name", "id", "nr", "no", "nummer", "number", "code", "key", "schluessel"}
+
+
+def telling_key(o: "Obs") -> "Col | None":
+    """The key column where its heading names the rows ("Rechnungsnr", "Beleg-Nr" – not "Name", "ID" or an IBAN)."""
+    c = o.col(o.key) if o.key else None
+    if c is None or c.kind != "id" or " ".join(tokens(c.name)) in SILENT_HEADERS:
+        return None
+    word = re.sub(r"(?i)[\s.\-_]*(nr|no|nummer|number|id)\.?$", "", display_header(c.name)).strip()
+    return c if len(word) >= 4 and not word.isupper() else None
 
 
 _FIRST = {"vorname", "first", "firstname", "given", "rufname"}
@@ -398,6 +416,22 @@ def _calm(name: str) -> str:
            for w in words]
     out[0] = out[0][:1].upper() + out[0][1:]
     return " ".join(out)
+
+
+def says_nothing(label: str) -> bool:
+    """"export (5)", "Tabelle1", "Download_2026-11-25": a name that tells nothing about what the rows are."""
+    stem = label.split(" › ")[0]
+    return not any(any(ch.isalpha() for ch in t) and fold(t) not in lexicon.CONTAINER_WORDS
+                   for t in stem.replace("_", " ").replace("-", " ").split())
+
+
+def _bank_like(cols: list) -> bool:
+    """A statement by its columns: an IBAN or a purpose, an amount, a booking day."""
+    money = any(c.kind == "money" for c in cols)
+    day = any(c.kind in ("date", "datetime") for c in cols)
+    said = any(c.kind == "iban" for c in cols) or \
+        any(set(tokens(c.name)) & {"verwendungszweck", "zweck", "buchungstext", "purpose"} for c in cols)
+    return money and day and said
 
 
 def clean_stem(label: str) -> str:

@@ -161,6 +161,9 @@ class OtherHeadings(unittest.TestCase):
                                                         for r in rt.records.get(t["id"], [])))
         proc = next(p for p in rt.model["processes"] if p["type"] == spec["id"])
         self.assertIn("bezahlt", [s["label"] for s in proc["steps"]])
+        # whatever the files are called: an invoice list and a bank statement, with everything that goes with them
+        self.assertEqual((spec["plural"], spec.get("concept")), ("Rechnungen", "rechnung"))
+        self.assertIn("Kontobewegungen", [t["plural"] for t in rt.model["types"]])
         return {r["data"][spec["key"]][-3:]: rt.ledger[r["id"]]["state"] for r in rt.records[spec["id"]]}
 
     def test_same_money_under_other_names(self):

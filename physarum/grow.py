@@ -275,6 +275,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     model["errors"] = []
     _learn(model, "Formeln und Regeln", lambda: infer_behavior(model, records))
     _learn(model, "Abläufe", lambda: infer_processes(model, records, store))
+    _learn(model, "Namen nach dem Geld", lambda: _named_by_money(model, renames))
     _learn(model, "Netzwerk", lambda: grow_network(model, store))
     progress("Formeln, Abläufe und Rückgrat gelernt", 0.9)
 
@@ -314,6 +315,30 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         store.kv_set("dirty", False, c)
     progress(f"Fertig in {time.time() - t0:.1f} s. {nq} offene Fragen.", 1.0)
     return summary
+
+
+def _named_by_money(model: dict, renamed: dict):
+    """A list from a file whose name says nothing ("export (5).csv") is called what the money makes of it: the
+    bank pays it by a deadline, or another list is billed by it – an invoice (with all that goes with one:
+    numbers, print, e-invoice, the tax advisor's export)."""
+    from .payments import invoice_specs
+    billed = {st["type"] for p in model.get("processes", []) for st in p["steps"]
+              if st["source"] == "child" and fold(st["label"]) == "berechnet"}
+    for ip in invoice_specs(model):
+        t = ip["spec"]
+        if not t.get("silent") or t.get("concept") or t["id"] in renamed:
+            continue
+        if not (ip["p"].get("deadlines") or t["id"] in billed):
+            continue  # a shop order paid at once is no invoice
+        t["concept"] = "rechnung"
+        t["name"], t["plural"] = ("Eingangsrechnung", "Eingangsrechnungen") if ip["outgoing"] else ("Rechnung", "Rechnungen")
+    # a name that only needed telling apart from the one renamed: plain again ("Belege (5)" -> "Belege")
+    taken = {fold(t["name"]) for t in model["types"]}
+    for t in model["types"]:
+        plain = t.pop("plain", None)
+        if plain and t["id"] not in renamed and fold(plain[0]) not in taken:
+            taken.add(fold(plain[0]))
+            t["name"], t["plural"] = plain
 
 
 def _learn(model: dict, what: str, fn):
@@ -426,7 +451,7 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
         tmodel.append(dict(id=t.tid, name=t.name, plural=t.plural, concept=t.concept, kind=t.kind,
                            key=t.key.aid if t.key else None, title=t.title.aid if t.title else None,
                            attrs=attrs, members=members, count=len(gs), merge_log=t.merge_log,
-                           former=list(getattr(t, "prev_tids", []))))
+                           former=list(getattr(t, "prev_tids", [])), silent=t.silent, plain=t.plain))
     by_tid = {t["id"]: t for t in tmodel}
     rmodel = []
     for i, r in enumerate(rels):

@@ -42,14 +42,16 @@ def summary(results: list[dict]) -> dict:
                 bucket = money if k == "open" else tasks
                 bucket[0] += sc["tp"]
                 bucket[1] += sc["tp"] + sc["fp"] + sc["fn"]
-    inv = []
+    inv, lists = [], []
     for r in results:
         if r.get("variant", "S0") != "S0" and not r.get("error") and r["firm"] in base:
             b, v = base[r["firm"]]["deliveries"][-1], r["deliveries"][-1]
             inv.append((_jaccard(b["open"], v["open"]) + _jaccard(b["overdue"], v["overdue"])) / 2)
+            lists.append(_jaccard(b.get("lists", []), v.get("lists", [])))
     return dict(money=round(money[0] / money[1], 3) if money[1] else None,
                 heute=round(tasks[0] / tasks[1], 3) if tasks[1] else None,
                 names=round(sum(inv) / len(inv), 3) if inv else None,
+                lists=round(sum(lists) / len(lists), 3) if lists else None,
                 schema_questions=sum(r["deliveries"][-1]["schema_questions"] for r in base.values()),
                 errors=sum(1 for r in results if r.get("error")), **code_size(HERE.parent))
 
@@ -86,6 +88,7 @@ def main(argv: list[str]) -> int:
     print()
     baseline = json.loads((HERE / "baseline.json").read_text()) if (HERE / "baseline.json").exists() else None
     names = dict(money="Geld richtig", heute="Heute-Aufgaben richtig", names="gleich bei anderen Namen",
+                 lists="Listen gleich benannt",
                  schema_questions="Fragen zum Datenmodell", errors="Abstürze", lines="Zeilen Code",
                  word_rules="Wort-Regeln", regexes="reguläre Ausdrücke")
     for k, label in names.items():

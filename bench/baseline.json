@@ -3,11 +3,12 @@
   "money": 0.837,
   "heute": 0.951,
   "names": 1.0,
+  "lists": 0.531,
   "schema_questions": 0,
   "errors": 0,
-  "lines": 18561,
-  "word_rules": 736,
-  "regexes": 162
+  "lines": 18639,
+  "word_rules": 740,
+  "regexes": 164
  },
  "results": [
   {
@@ -16,6 +17,22 @@
    "deliveries": [
     {
      "types": 14,
+     "lists": [
+      "Artikel",
+      "Auftragspositionen",
+      "Aufträge",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Einkäufe",
+      "Kontobewegungen",
+      "Kunden",
+      "Lieferanten",
+      "Mitarbeiter",
+      "Rechnungen",
+      "Shop-Bestellpositionen",
+      "Shop-Bestellungen"
+     ],
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 11,
@@ -63,7 +80,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.9,
+     "seconds": 2.5,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -75,6 +92,23 @@
    "deliveries": [
     {
      "types": 15,
+     "lists": [
+      "Artikel",
+      "Artikel (Materialverbrauch)",
+      "Artikel (Preisliste Grosshandel)",
+      "Artikelpositionen",
+      "Aufträge",
+      "Dokumente",
+      "Kontobewegungen",
+      "Kunden",
+      "Lieferanten",
+      "Mitarbeiter",
+      "Rechnungen",
+      "Rechnungen (2024)",
+      "Stundenzettel",
+      "Termine",
+      "Wartungsverträge"
+     ],
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 8,
@@ -188,7 +222,7 @@
        "fn": 0
       }
      },
-     "seconds": 9.1,
+     "seconds": 9.6,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -200,6 +234,22 @@
    "deliveries": [
     {
      "types": 14,
+     "lists": [
+      "Angebote",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Kontakte",
+      "Kontobewegungen",
+      "Kunden",
+      "Lieferanten",
+      "Mitarbeiter",
+      "Projekte",
+      "Rechnungen",
+      "Stundenzettel",
+      "Tickets",
+      "Zeiteinträge",
+      "Zeiteinträge (Tickets)"
+     ],
      "questions": 4,
      "schema_questions": 0,
      "heute_groups": 6,
@@ -275,12 +325,30 @@
        "fn": 0
       }
      },
-     "seconds": 34.0,
+     "seconds": 32.6,
      "delivery": 1,
      "today": "2026-09-15"
     },
     {
      "types": 16,
+     "lists": [
+      "Abwesenheiten",
+      "Angebote",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Kontakte",
+      "Kontobewegungen",
+      "Kunden",
+      "Lieferanten",
+      "Mitarbeiter",
+      "Projekte",
+      "Rechnungen",
+      "Stundenzettel",
+      "Tickets",
+      "Verkaufschancen",
+      "Zeiteinträge",
+      "Zeiteinträge (Tickets)"
+     ],
      "questions": 2,
      "schema_questions": 0,
      "heute_groups": 5,
@@ -342,7 +410,7 @@
        "fn": 1
       }
      },
-     "seconds": 37.1,
+     "seconds": 35.8,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -354,6 +422,24 @@
    "deliveries": [
     {
      "types": 16,
+     "lists": [
+      "Angebote",
+      "Artikel",
+      "Aufmaßpositionen",
+      "Aufträge",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Fahrzeuge",
+      "Kontobewegungen",
+      "Kunden",
+      "Mitarbeiter",
+      "Rechnungen",
+      "Stundenzettel",
+      "Wartungsverträge",
+      "Wartungsverträge (Liste 2)",
+      "Werkzeug + Geräte"
+     ],
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 11,
@@ -409,12 +495,29 @@
        "fn": 0
       }
      },
-     "seconds": 2.4,
+     "seconds": 3.3,
      "delivery": 1,
      "today": "2026-09-16"
     },
     {
      "types": 15,
+     "lists": [
+      "Angebote",
+      "Artikel",
+      "Aufmaßpositionen",
+      "Aufträge",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Fahrzeuge",
+      "Kontobewegungen",
+      "Kunden",
+      "Mitarbeiter",
+      "Rechnungen",
+      "Stundenzettel",
+      "Wartungsverträge",
+      "Werkzeug + Geräte"
+     ],
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 14,
@@ -477,7 +580,7 @@
        "fn": 0
       }
      },
-     "seconds": 4.3,
+     "seconds": 4.2,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -489,6 +592,16 @@
    "deliveries": [
     {
      "types": 8,
+     "lists": [
+      "Beitragsrechnungen",
+      "Dokumente",
+      "Girokonten",
+      "Honorarabrechnungen",
+      "Lehrkraeften",
+      "Mietinstrumenten",
+      "Schuelerverzeichnis",
+      "Unterrichtsverträge"
+     ],
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 5,
@@ -548,7 +661,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.2,
+     "seconds": 1.1,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -560,6 +673,13 @@
    "deliveries": [
     {
      "types": 5,
+     "lists": [
+      "Aufträge",
+      "Dokumente",
+      "Girokonten",
+      "Kunden",
+      "Rechnungen"
+     ],
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 7,
@@ -613,7 +733,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.2,
+     "seconds": 0.3,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -625,6 +745,25 @@
    "deliveries": [
     {
      "types": 17,
+     "lists": [
+      "Artikel",
+      "Auftragspositionen",
+      "Auftragspositionen (settlement)",
+      "Aufträge",
+      "Aufträge (settlement)",
+      "Dokumente",
+      "Download",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Kontakte",
+      "Kontobewegungen",
+      "Kunden",
+      "Lagerbestände",
+      "Lieferscheine",
+      "Namen",
+      "Rechnungen",
+      "Zahlungen"
+     ],
      "questions": 259,
      "schema_questions": 0,
      "heute_groups": 7,
@@ -692,12 +831,31 @@
        "fn": 0
       }
      },
-     "seconds": 29.8,
+     "seconds": 28.7,
      "delivery": 1,
      "today": "2026-10-29"
     },
     {
      "types": 17,
+     "lists": [
+      "Artikel",
+      "Auftragspositionen",
+      "Auftragspositionen (settlement)",
+      "Aufträge",
+      "Aufträge (settlement)",
+      "Dokumente",
+      "Download",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Kontakte",
+      "Kontobewegungen",
+      "Kunden",
+      "Lagerbestände",
+      "Lieferanten",
+      "Lieferscheine",
+      "Rechnungen",
+      "Zahlungen"
+     ],
      "questions": 244,
      "schema_questions": 0,
      "heute_groups": 7,
@@ -767,7 +925,7 @@
        "fn": 0
       }
      },
-     "seconds": 37.9,
+     "seconds": 37.3,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -779,11 +937,178 @@
    "deliveries": [
     {
      "types": 15,
+     "lists": [
+      "Artikel",
+      "Auftragspositionen",
+      "Aufträge",
+      "Belege",
+      "Belegpositionen",
+      "Bestellungen",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Export (11)",
+      "Export (8)",
+      "Kontobewegungen",
+      "Kunden",
+      "Kunden ((5))",
+      "Rechnungen"
+     ],
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 11,
-     "heute_items": 19,
-     "coverage": 0.866,
+     "heute_items": 18,
+     "coverage": 0.9,
+     "open": {
+      "RE-2026-0173": 492.2,
+      "RE-2026-0178": 640.93,
+      "RE-2026-0182": 187.68,
+      "RE-2026-0184": 561.22,
+      "RE-2026-0185": 461.28,
+      "RE-2026-0186": 951.55,
+      "RE-2026-0187": 711.02,
+      "RE-2026-0188": 258.19
+     },
+     "overdue": [
+      "RE-2026-0173"
+     ],
+     "unbilled": [
+      "A-2026-0155",
+      "A-2026-0177",
+      "A-2026-0179",
+      "A-2026-0181",
+      "A-2026-0184"
+     ],
+     "over_budget": [],
+     "receipts": [],
+     "eur_open": 4264.07,
+     "score": {
+      "open": {
+       "tp": 8,
+       "fp": 0,
+       "fn": 0,
+       "amount_ok": 8,
+       "eur_truth": 4264.07
+      },
+      "overdue": {
+       "tp": 1,
+       "fp": 0,
+       "fn": 0
+      },
+      "unbilled": {
+       "tp": 4,
+       "fp": 1,
+       "fn": 0
+      }
+     },
+     "seconds": 2.2,
+     "delivery": 1,
+     "today": "2026-10-29"
+    }
+   ]
+  },
+  {
+   "firm": "demo",
+   "variant": "S2",
+   "deliveries": [
+    {
+     "types": 14,
+     "lists": [
+      "Artikel",
+      "Auftragspositionen",
+      "Aufträge",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Einkäufe",
+      "Kontobewegungen",
+      "Kunden",
+      "Lieferanten",
+      "Mitarbeiter",
+      "Rechnungen",
+      "Shop-Bestellpositionen",
+      "Shop-Bestellungen"
+     ],
+     "questions": 1,
+     "schema_questions": 0,
+     "heute_groups": 9,
+     "heute_items": 13,
+     "coverage": 0.9,
+     "open": {
+      "RE-2026-0173": 492.2,
+      "RE-2026-0178": 640.93,
+      "RE-2026-0182": 187.68,
+      "RE-2026-0184": 561.22,
+      "RE-2026-0185": 461.28,
+      "RE-2026-0186": 951.55,
+      "RE-2026-0187": 711.02,
+      "RE-2026-0188": 258.19
+     },
+     "overdue": [
+      "RE-2026-0173"
+     ],
+     "unbilled": [
+      "A-2026-0155",
+      "A-2026-0177",
+      "A-2026-0179",
+      "A-2026-0181",
+      "A-2026-0184"
+     ],
+     "over_budget": [],
+     "receipts": [],
+     "eur_open": 4264.07,
+     "score": {
+      "open": {
+       "tp": 8,
+       "fp": 0,
+       "fn": 0,
+       "amount_ok": 8,
+       "eur_truth": 4264.07
+      },
+      "overdue": {
+       "tp": 1,
+       "fp": 0,
+       "fn": 0
+      },
+      "unbilled": {
+       "tp": 4,
+       "fp": 1,
+       "fn": 0
+      }
+     },
+     "seconds": 2.7,
+     "delivery": 1,
+     "today": "2026-10-29"
+    }
+   ]
+  },
+  {
+   "firm": "demo",
+   "variant": "S3",
+   "deliveries": [
+    {
+     "types": 14,
+     "lists": [
+      "Artikel",
+      "Belege",
+      "Belegpositionen",
+      "Bestellungen",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Export (11)",
+      "Export (8)",
+      "Kontobewegungen",
+      "Kunden",
+      "Rechnungen",
+      "Vorgangpositionen",
+      "Vorgänge"
+     ],
+     "questions": 1,
+     "schema_questions": 0,
+     "heute_groups": 9,
+     "heute_items": 13,
+     "coverage": 0.9,
      "open": {
       "RE-2026-0173": 492.2,
       "RE-2026-0178": 640.93,
@@ -833,200 +1158,21 @@
    ]
   },
   {
-   "firm": "demo",
-   "variant": "S2",
-   "deliveries": [
-    {
-     "types": 14,
-     "questions": 1,
-     "schema_questions": 0,
-     "heute_groups": 9,
-     "heute_items": 13,
-     "coverage": 0.9,
-     "open": {
-      "RE-2026-0173": 492.2,
-      "RE-2026-0178": 640.93,
-      "RE-2026-0182": 187.68,
-      "RE-2026-0184": 561.22,
-      "RE-2026-0185": 461.28,
-      "RE-2026-0186": 951.55,
-      "RE-2026-0187": 711.02,
-      "RE-2026-0188": 258.19
-     },
-     "overdue": [
-      "RE-2026-0173"
-     ],
-     "unbilled": [
-      "A-2026-0155",
-      "A-2026-0177",
-      "A-2026-0179",
-      "A-2026-0181",
-      "A-2026-0184"
-     ],
-     "over_budget": [],
-     "receipts": [],
-     "eur_open": 4264.07,
-     "score": {
-      "open": {
-       "tp": 8,
-       "fp": 0,
-       "fn": 0,
-       "amount_ok": 8,
-       "eur_truth": 4264.07
-      },
-      "overdue": {
-       "tp": 1,
-       "fp": 0,
-       "fn": 0
-      },
-      "unbilled": {
-       "tp": 4,
-       "fp": 1,
-       "fn": 0
-      }
-     },
-     "seconds": 2.9,
-     "delivery": 1,
-     "today": "2026-10-29"
-    }
-   ]
-  },
-  {
-   "firm": "demo",
-   "variant": "S3",
-   "deliveries": [
-    {
-     "types": 15,
-     "questions": 1,
-     "schema_questions": 0,
-     "heute_groups": 9,
-     "heute_items": 14,
-     "coverage": 0.866,
-     "open": {
-      "RE-2026-0173": 492.2,
-      "RE-2026-0178": 640.93,
-      "RE-2026-0182": 187.68,
-      "RE-2026-0184": 561.22,
-      "RE-2026-0185": 461.28,
-      "RE-2026-0186": 951.55,
-      "RE-2026-0187": 711.02,
-      "RE-2026-0188": 258.19
-     },
-     "overdue": [
-      "RE-2026-0173"
-     ],
-     "unbilled": [
-      "A-2026-0155",
-      "A-2026-0177",
-      "A-2026-0179",
-      "A-2026-0181",
-      "A-2026-0184"
-     ],
-     "over_budget": [],
-     "receipts": [],
-     "eur_open": 4264.07,
-     "score": {
-      "open": {
-       "tp": 8,
-       "fp": 0,
-       "fn": 0,
-       "amount_ok": 8,
-       "eur_truth": 4264.07
-      },
-      "overdue": {
-       "tp": 1,
-       "fp": 0,
-       "fn": 0
-      },
-      "unbilled": {
-       "tp": 4,
-       "fp": 1,
-       "fn": 0
-      }
-     },
-     "seconds": 3.0,
-     "delivery": 1,
-     "today": "2026-10-29"
-    }
-   ]
-  },
-  {
    "firm": "musikschule",
    "variant": "S1",
    "deliveries": [
     {
      "types": 8,
-     "questions": 0,
-     "schema_questions": 0,
-     "heute_groups": 5,
-     "heute_items": 28,
-     "coverage": 0.802,
-     "open": {
-      "BR-2026-0276": 95.0,
-      "BR-2026-0550": 68.0,
-      "BR-2026-0562": 68.0,
-      "BR-2026-0605": 68.0,
-      "BR-2026-0610": 95.0,
-      "BR-2026-0612": 95.0,
-      "BR-2026-0620": 95.0,
-      "BR-2026-0621": 35.0,
-      "BR-2026-0628": 35.0,
-      "BR-2026-0637": 42.0
-     },
-     "overdue": [
-      "BR-2026-0276",
-      "BR-2026-0550",
-      "BR-2026-0562",
-      "BR-2026-0605",
-      "BR-2026-0610",
-      "BR-2026-0612",
-      "BR-2026-0620",
-      "BR-2026-0621",
-      "BR-2026-0628",
-      "BR-2026-0637"
+     "lists": [
+      "Dokumente",
+      "Export (2)",
+      "Export (3)",
+      "Export (9)",
+      "Kontobewegungen",
+      "Rechnungen",
+      "Schüler",
+      "Verträge"
      ],
-     "unbilled": [],
-     "over_budget": [],
-     "receipts": [
-      42.0,
-      42.0,
-      42.0,
-      68.0,
-      68.0,
-      95.0,
-      95.0,
-      95.0,
-      95.0,
-      3341.0,
-      3341.0
-     ],
-     "eur_open": 696.0,
-     "score": {
-      "open": {
-       "tp": 10,
-       "fp": 0,
-       "fn": 0,
-       "amount_ok": 0,
-       "eur_truth": 696.0
-      },
-      "overdue": {
-       "tp": 10,
-       "fp": 0,
-       "fn": 0
-      }
-     },
-     "seconds": 1.2,
-     "delivery": 1,
-     "today": "2026-10-29"
-    }
-   ]
-  },
-  {
-   "firm": "musikschule",
-   "variant": "S2",
-   "deliveries": [
-    {
-     "types": 8,
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 5,
@@ -1086,7 +1232,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.0,
+     "seconds": 0.9,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1094,15 +1240,25 @@
   },
   {
    "firm": "musikschule",
-   "variant": "S3",
+   "variant": "S2",
    "deliveries": [
     {
      "types": 8,
+     "lists": [
+      "Beitragsrechnungen",
+      "Dokumente",
+      "Girokonten",
+      "Honorarabrechnungen",
+      "Lehrkraeften",
+      "Mietinstrumenten",
+      "Schuelerverzeichnis",
+      "Unterrichtsverträge"
+     ],
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 5,
      "heute_items": 28,
-     "coverage": 0.802,
+     "coverage": 0.839,
      "open": {
       "BR-2026-0276": 95.0,
       "BR-2026-0550": 68.0,
@@ -1157,7 +1313,88 @@
        "fn": 0
       }
      },
-     "seconds": 1.2,
+     "seconds": 1.3,
+     "delivery": 1,
+     "today": "2026-10-29"
+    }
+   ]
+  },
+  {
+   "firm": "musikschule",
+   "variant": "S3",
+   "deliveries": [
+    {
+     "types": 8,
+     "lists": [
+      "Dokumente",
+      "Export (2)",
+      "Export (3)",
+      "Export (9)",
+      "Kontobewegungen",
+      "Rechnungen",
+      "Schüler",
+      "Verträge"
+     ],
+     "questions": 0,
+     "schema_questions": 0,
+     "heute_groups": 5,
+     "heute_items": 28,
+     "coverage": 0.839,
+     "open": {
+      "BR-2026-0276": 95.0,
+      "BR-2026-0550": 68.0,
+      "BR-2026-0562": 68.0,
+      "BR-2026-0605": 68.0,
+      "BR-2026-0610": 95.0,
+      "BR-2026-0612": 95.0,
+      "BR-2026-0620": 95.0,
+      "BR-2026-0621": 35.0,
+      "BR-2026-0628": 35.0,
+      "BR-2026-0637": 42.0
+     },
+     "overdue": [
+      "BR-2026-0276",
+      "BR-2026-0550",
+      "BR-2026-0562",
+      "BR-2026-0605",
+      "BR-2026-0610",
+      "BR-2026-0612",
+      "BR-2026-0620",
+      "BR-2026-0621",
+      "BR-2026-0628",
+      "BR-2026-0637"
+     ],
+     "unbilled": [],
+     "over_budget": [],
+     "receipts": [
+      42.0,
+      42.0,
+      42.0,
+      68.0,
+      68.0,
+      95.0,
+      95.0,
+      95.0,
+      95.0,
+      3341.0,
+      3341.0
+     ],
+     "eur_open": 696.0,
+     "score": {
+      "open": {
+       "tp": 10,
+       "fp": 0,
+       "fn": 0,
+       "amount_ok": 0,
+       "eur_truth": 696.0
+      },
+      "overdue": {
+       "tp": 10,
+       "fp": 0,
+       "fn": 0
+      }
+     },
+     "seconds": 0.9,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1169,71 +1406,13 @@
    "deliveries": [
     {
      "types": 5,
-     "questions": 0,
-     "schema_questions": 0,
-     "heute_groups": 7,
-     "heute_items": 13,
-     "coverage": 0.908,
-     "open": {
-      "RE-2026-100": 1570.0,
-      "RE-2026-103": 1737.4,
-      "RE-2026-106": 4284.0,
-      "RE-2026-107": 1071.0,
-      "RE-2026-108": 535.5,
-      "RE-2026-109": 2856.0,
-      "RE-2026-110": 3689.0,
-      "RE-2026-111": 690.2,
-      "RE-2026-112": 2558.5
-     },
-     "overdue": [
-      "RE-2026-100",
-      "RE-2026-103",
-      "RE-2026-106",
-      "RE-2026-107",
-      "RE-2026-108"
+     "lists": [
+      "Aufträge",
+      "Dokumente",
+      "Export (2)",
+      "Kontobewegungen",
+      "Rechnungen"
      ],
-     "unbilled": [
-      "A-2026-030",
-      "A-2026-034"
-     ],
-     "over_budget": [],
-     "receipts": [
-      535.5,
-      1737.4,
-      3000.0
-     ],
-     "eur_open": 18991.6,
-     "score": {
-      "open": {
-       "tp": 7,
-       "fp": 2,
-       "fn": 0,
-       "amount_ok": 7,
-       "eur_truth": 16718.7
-      },
-      "overdue": {
-       "tp": 3,
-       "fp": 2,
-       "fn": 0
-      },
-      "unbilled": {
-       "tp": 2,
-       "fp": 0,
-       "fn": 0
-      }
-     },
-     "seconds": 0.3,
-     "delivery": 1,
-     "today": "2026-10-29"
-    }
-   ]
-  },
-  {
-   "firm": "maler",
-   "variant": "S2",
-   "deliveries": [
-    {
-     "types": 5,
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 7,
@@ -1287,7 +1466,79 @@
        "fn": 0
       }
      },
-     "seconds": 0.4,
+     "seconds": 0.2,
+     "delivery": 1,
+     "today": "2026-10-29"
+    }
+   ]
+  },
+  {
+   "firm": "maler",
+   "variant": "S2",
+   "deliveries": [
+    {
+     "types": 5,
+     "lists": [
+      "Aufträge",
+      "Dokumente",
+      "Girokonten",
+      "Kunden",
+      "Rechnungen"
+     ],
+     "questions": 0,
+     "schema_questions": 0,
+     "heute_groups": 7,
+     "heute_items": 13,
+     "coverage": 0.982,
+     "open": {
+      "RE-2026-100": 1570.0,
+      "RE-2026-103": 1737.4,
+      "RE-2026-106": 4284.0,
+      "RE-2026-107": 1071.0,
+      "RE-2026-108": 535.5,
+      "RE-2026-109": 2856.0,
+      "RE-2026-110": 3689.0,
+      "RE-2026-111": 690.2,
+      "RE-2026-112": 2558.5
+     },
+     "overdue": [
+      "RE-2026-100",
+      "RE-2026-103",
+      "RE-2026-106",
+      "RE-2026-107",
+      "RE-2026-108"
+     ],
+     "unbilled": [
+      "A-2026-030",
+      "A-2026-034"
+     ],
+     "over_budget": [],
+     "receipts": [
+      535.5,
+      1737.4,
+      3000.0
+     ],
+     "eur_open": 18991.6,
+     "score": {
+      "open": {
+       "tp": 7,
+       "fp": 2,
+       "fn": 0,
+       "amount_ok": 7,
+       "eur_truth": 16718.7
+      },
+      "overdue": {
+       "tp": 3,
+       "fp": 2,
+       "fn": 0
+      },
+      "unbilled": {
+       "tp": 2,
+       "fp": 0,
+       "fn": 0
+      }
+     },
+     "seconds": 0.2,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1299,11 +1550,18 @@
    "deliveries": [
     {
      "types": 5,
+     "lists": [
+      "Dokumente",
+      "Kontobewegungen",
+      "Kunden",
+      "Rechnungen",
+      "Vorgänge"
+     ],
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 7,
      "heute_items": 13,
-     "coverage": 0.908,
+     "coverage": 0.982,
      "open": {
       "RE-2026-100": 1570.0,
       "RE-2026-103": 1737.4,

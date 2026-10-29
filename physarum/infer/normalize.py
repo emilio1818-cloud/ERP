@@ -16,9 +16,9 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 from .. import lexicon
-from ..text import name_similarity, singular_de, slug
+from ..text import name_similarity, singular_de, slug, tokens
 from ..values import Profile
-from .observe import ENTITY_ROLES, NEVER_DETERMINANT, Col, Obs, display_header, pick_key
+from .observe import ENTITY_ROLES, NEVER_DETERMINANT, SILENT_HEADERS, Col, Obs, display_header, pick_key
 
 TYPE_COST = 64.0   # bits; small on purpose: a visible header/line structure is worth a concept
 CONSISTENCY = 0.93
@@ -304,6 +304,8 @@ def extract(o: Obs, e: dict) -> tuple[Obs, Obs]:
         parent.links = []
         if concept:
             sg, pl, stem = lexicon.concept_names(concept)
+        elif " ".join(tokens(x.name)) in SILENT_HEADERS:
+            sg, pl, stem = "Beleg", "Belege", "Beleg"  # Shopify calls the order number "Name"
         else:
             sg = singular_de(display_header(x.name))
             pl, stem = None, sg

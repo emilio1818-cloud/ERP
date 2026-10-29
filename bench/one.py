@@ -43,7 +43,7 @@ def measure(rt: Runtime, truth: dict, today) -> dict:
     over_budget = {str(x["title"]) for g in work if g["kind"] == "budget" for x in g["items"]}
     receipts = sorted(round(x["money"], 2) for g in work if g["kind"] == "receipt" for x in g["items"] if x.get("money"))
     qs = rt.store.q("SELECT kind FROM questions WHERE status='open'")
-    out = dict(types=len(rt.model["types"]), questions=len(qs), schema_questions=sum(1 for q in qs if q["kind"] in SCHEMA),
+    out = dict(types=len(rt.model["types"]), lists=sorted(t["plural"] for t in rt.model["types"]), questions=len(qs), schema_questions=sum(1 for q in qs if q["kind"] in SCHEMA),
                heute_groups=len(work), heute_items=sum(g["count"] for g in work if g.get("severity", 2) >= 2),
                coverage=round(coverage(rt).get("score", 0), 3), open=open_, overdue=sorted(overdue),
                unbilled=sorted(unbilled), over_budget=sorted(over_budget), receipts=receipts,

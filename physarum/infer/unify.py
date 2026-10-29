@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from .. import lexicon
 from ..text import fold, jaro_winkler, singular_de, slug, tokens
-from .observe import Col, Obs, clean_stem, display_header
+from .observe import Col, Obs, clean_stem, display_header, says_nothing, telling_key
 
 KIND_GROUP = {"text": "text", "id": "text", "phone": "phone", "email": "email", "url": "url", "zip": "zip",
               "iban": "iban", "number": "num", "money": "num", "percent": "pct", "duration": "num", "date": "date",
@@ -46,6 +46,8 @@ class TypeDraft:
     title: AttrDraft | None = None
     tid: str | None = None
     merge_log: list = field(default_factory=list)
+    silent: bool = False  # named from its columns: the file's name said nothing
+    plain: tuple | None = None  # its name before it had to be told apart from another list's
 
     def attr_of(self, o: Obs, col_name: str) -> AttrDraft | None:
         for a in self.attrs:
@@ -403,6 +405,12 @@ def _finish(t: TypeDraft):
         t.name, t.plural = sg, pl
     else:
         stem = clean_stem(lead.label)
+        told = telling_key(lead) if says_nothing(lead.label) else None
+        if says_nothing(lead.label):
+            t.silent = True
+            # "export (5).csv" with a column "Beleg-Nr": a list of "Belege"; without one, the file's own name
+            stem = re.sub(r"(?i)[\s.\-_]*(nr|no|nummer|number|id)\.?$", "", display_header(told.name)).strip() \
+                if told else lead.label.split(" › ")[0]
         sheet = lead.label.split(" › ", 1)[1].strip() if " › " in lead.label else ""
         if sheet and not re.match(r"^(tabelle|sheet|blatt|table|liste)\s*\d*$", fold(sheet)) and \
                 len(sheet) <= 40 and not any(ch.isdigit() for ch in sheet):
@@ -419,7 +427,7 @@ def _finish(t: TypeDraft):
             if fold(stem) != fold(sg):
                 t.name, t.plural = sg, stem[:1].upper() + stem[1:]
             else:
-                t.name, t.plural = sg, plural_de(sg) if plural_is_known(sg) else sg
+                t.name, t.plural = sg, plural_de(sg) if plural_is_known(sg) or told else sg
     from ..text import plural_de
     if not t.plural:
         t.plural = plural_de(t.name)
@@ -521,6 +529,7 @@ def _dedupe_names(types: list[TypeDraft]):
         group.sort(key=lambda t: (all(m.extracted_from for m in t.members), depth(t), -sum(m.n for m in t.members),
                                   min(fold(m.sig_label or m.label) for m in t.members)))
         for i, t in enumerate(group[1:], start=2):
+            t.plain = (t.name, t.plural)
             label = t.members[0].sig_label or t.members[0].label
             parts = _nested_parts(label)
             parent = lexicon.concept_of(parts[-2]) if len(parts) >= 2 else None

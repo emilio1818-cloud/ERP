@@ -204,6 +204,10 @@ def plural_is_known(singular: str) -> bool:
                                       "chen", "lein", "in", "ln", "rn"))
 
 
+_UMLAUT_PLURALS = [("gang", "gänge"), ("trag", "träge"), ("schlag", "schläge"), ("satz", "sätze"), ("platz", "plätze"),
+                   ("stand", "stände"), ("kauf", "käufe"), ("lauf", "läufe"), ("raum", "räume"), ("zug", "züge")]
+
+
 def plural_de(singular: str) -> str:
     key = fold(singular)
     if key in _PLURAL_EXCEPTIONS:
@@ -214,6 +218,10 @@ def plural_de(singular: str) -> str:
             if stem:
                 return stem + _PLURAL_EXCEPTIONS[suffix].lower()
     low = singular.lower()
+    for end, plural in _UMLAUT_PLURALS:
+        if low.endswith(end):  # "Vorgang" -> "Vorgänge", "Umsatz" -> "Umsätze", "Zug" -> "Züge"
+            out = singular[:len(singular) - len(end)] + plural
+            return out[:1].upper() + out[1:] if singular[:1].isupper() else out
     if low.endswith(("ung", "heit", "keit", "schaft", "ion", "ität", "tät")):
         return singular + "en"
     if low.endswith("e"):

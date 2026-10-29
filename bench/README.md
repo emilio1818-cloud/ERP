@@ -23,7 +23,8 @@ python bench/run.py --save       # das Ergebnis wird die neue Basis (bench/basel
 
 Gemessen wird je Lieferung: offene Posten (richtig/zu viel/fehlend, Euro), überfällige Rechnungen,
 fertige Aufträge ohne Rechnung, Festpreis-Projekte deutlich über Budget, Geld ohne Rechnung, Einträge auf
-Heute, Fragen (davon zum Datenmodell).
+Heute, Fragen (davon zum Datenmodell). Unter S1–S3 zudem: dieselben offenen Posten wie im Original, und
+heißen die Listen gleich?
 Dazu, was der Code kostet: Zeilen, Wort-Regeln, reguläre Ausdrücke.
 
 Die Regel: Ein Fund wird nur behoben, wenn die Lösung auf mindestens zwei Firmen greift und keine

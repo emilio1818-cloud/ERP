@@ -337,7 +337,13 @@ def _finish(t: TypeDraft):
     else:
         stem = clean_stem(lead.label)
         sg = singular_de(stem[:1].upper() + stem[1:])
-        t.name, t.plural = sg, stem[:1].upper() + stem[1:] if fold(stem) != fold(sg) else ""
+        # a file name that cannot be made singular and has no regular plural ("Steinbach", "LIESMICH")
+        # is not given an invented ending
+        from ..text import plural_de, plural_is_known
+        if fold(stem) != fold(sg):
+            t.name, t.plural = sg, stem[:1].upper() + stem[1:]
+        else:
+            t.name, t.plural = sg, plural_de(sg) if plural_is_known(sg) else sg
     from ..text import plural_de
     if not t.plural:
         t.plural = plural_de(t.name)

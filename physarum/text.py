@@ -185,6 +185,16 @@ def _match_case(template: str, word: str) -> str:
     return word if template[:1].isupper() else word.lower()
 
 
+def plural_is_known(singular: str) -> bool:
+    """German endings whose plural is regular (Rechnung -> Rechnungen); for "Steinbach" or "LIESMICH"
+    an appended "e" would only be a guess."""
+    key = fold(singular)
+    if key in _PLURAL_EXCEPTIONS or any(len(sf) >= 5 and key.endswith(sf) for sf in _PLURAL_EXCEPTIONS):
+        return True
+    return singular.lower().endswith(("ung", "heit", "keit", "schaft", "ion", "ität", "tät", "e", "er", "el", "en",
+                                      "chen", "lein", "in", "ln", "rn"))
+
+
 def plural_de(singular: str) -> str:
     key = fold(singular)
     if key in _PLURAL_EXCEPTIONS:
@@ -199,7 +209,7 @@ def plural_de(singular: str) -> str:
         return singular + "en"
     if low.endswith("e"):
         return singular + "n"
-    if low.endswith(("er", "el", "en", "chen", "lein")):
+    if low.endswith(("er", "el", "en", "chen", "lein", "ln", "rn")):
         return singular
     if low.endswith("in"):
         return singular + "nen"

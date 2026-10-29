@@ -14,7 +14,7 @@ pip install -e ".[dokumente]"  # optional: PDF, Word, HTML (pdfplumber, python-d
 python -m physarum firma    # Ordner "firma" = Datenbank + Originaldateien
 ```
 
-Dann `http://127.0.0.1:8000` öffnen und Dateien in das Fenster ziehen – oder **„Beispiel-Firma einwerfen“** klicken: eine erfundene Kaffeerösterei mit 16 typisch unordentlichen Dateien. Nach dem ersten Wachstum lässt sich mit „Nachträglich einwerfen“ ausprobieren, wie eine neue Liste (Wartungsverträge) organisch eingebaut wird.
+Dann `http://127.0.0.1:8000` öffnen und Dateien in das Fenster ziehen – oder **„Beispiel-Firma einwerfen“** klicken: eine erfundene Kaffeerösterei mit 21 typisch unordentlichen Dateien (Listen, Exporte, Kontoauszug, Mails, eine PDF-Rechnung und E-Rechnungen). Nach dem ersten Wachstum lässt sich mit „Nachträglich einwerfen“ ausprobieren, wie eine neue Liste (Wartungsverträge) organisch eingebaut wird.
 
 Ohne Browser einwerfen und wachsen lassen: `python -m physarum firma --einwerfen ~/Exporte`. `python -m physarum firma --beispiel` erzeugt die Beispiel-Firma, lässt sie wachsen und startet dann den Server.
 
@@ -29,7 +29,7 @@ Ohne Browser einwerfen und wachsen lassen: `python -m physarum firma --einwerfen
 | Dubletten | Sicher Gleiches zusammenführen, Unsicheres fragen | „Feinkost Tidenhub“ (K-1005) und „Feinkost Tidenhub GmbH“ (K-1099): gleiche Adresse und Telefonnummer, aber verschiedene Kundennummern → Frage |
 | Verbinden | Verweise über Werte finden, auch im Freitext | Der Kontoauszug „bezahlt“ Rechnungen, weil ihre Nummer im Verwendungszweck steht |
 | Verhalten lernen | Formeln, Vorgaben, Nummernkreise, Mindestbestände | *Brutto = Netto + MwSt*, *MwSt = Netto × 0,07*, *kg = Säcke × 60*, nächste Nummer *RE-2026-0189* |
-| Abläufe ablesen | Jede Datumsspalte ist ein Meilenstein; Abweichung vom Üblichen ist Arbeit | Aufträge: *Datum → geliefert (Ø 3 Tage) → berechnet (Ø 1 Tag)*; 4 Aufträge warten auffällig lange auf ihre Rechnung |
+| Abläufe ablesen | Jede Datumsspalte ist ein Meilenstein; Abweichung vom Üblichen ist Arbeit; über Dateien hinweg verkettet bis zum Geld | Aufträge: *Datum → geliefert (Ø 3 Tage) → berechnet (Ø 1 Tag) → bezahlt (Ø 13 Tage)*: üblich 18 Tage, bis das Geld da ist; am längsten dauert das Warten auf die Zahlung |
 
 Das Ergebnis ist die Seite **Heute**:
 
@@ -79,7 +79,7 @@ physarum/
   ops.py           Schreiben mit Regeln (Festschreibung, Storno, Zahlungen, Protokoll)
   store.py         SQLite: Substrat, Modellversionen, Datensätze, Protokoll, Suche (FTS5)
   web/             Starlette + Jinja2, serverseitig gerendert, wenig Vanilla-JS
-  demo/generate.py Beispiel-Firma (16 unordentliche Dateien)
+  demo/generate.py Beispiel-Firma (21 unordentliche Dateien)
 tests/             unittest: Werte, Einlesen, Inferenz, Physarum, Ende-zu-Ende, Webseiten
 e2e/screens.cjs    Playwright-Rundgang mit Screenshots
 ```

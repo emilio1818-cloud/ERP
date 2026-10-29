@@ -8,6 +8,7 @@ from datetime import date, datetime
 
 from markupsafe import Markup, escape
 
+from ..text import fold
 from ..values import as_date, display
 
 MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
@@ -334,7 +335,8 @@ def organism_svg(rt, w: int = 900, h: int = 520, highlight: str | None = None) -
     return Markup("".join(parts))
 
 
-def process_svg(rt, p: dict, open_counts: dict, w: int = 860) -> Markup:
+def process_svg(rt, p: dict, open_counts: dict, w: int = 860, slow: int | None = None) -> Markup:
+    """The course of a process as a tube from stop to stop; `slow` marks the segment that takes longest."""
     steps = p["steps"]
     n = len(steps) + 1
     h = 150
@@ -345,7 +347,8 @@ def process_svg(rt, p: dict, open_counts: dict, w: int = 860) -> Markup:
     shares = [1.0] + [s.get("share", 0) for s in steps]
     for i in range(1, n):
         width = 2 + 16 * shares[i]
-        parts.append(f'<path class="tube" d="M{xs[i - 1]:.0f},{y} L{xs[i]:.0f},{y}" stroke-width="{width:.1f}"/>')
+        cls = "tube slow" if slow is not None and i - 1 == slow else "tube"
+        parts.append(f'<path class="{cls}" d="M{xs[i - 1]:.0f},{y} L{xs[i]:.0f},{y}" stroke-width="{width:.1f}"/>')
         st = steps[i - 1]
         md = st.get("median_days")
         if md is not None:
@@ -399,3 +402,32 @@ def at_a_glance(rt, open_items: dict | None, n_files: int) -> str:
     elif open_items:
         out += f" Offen sind {display(open_items['n'] + open_items.get('partial', 0), 'number')} Rechnungen über {money(open_items['amount'])}."
     return out
+
+
+def chain_view(c: dict) -> dict:
+    """A value chain for the page: its tube, how long it usually takes and where the time goes."""
+    nodes, segs = c["nodes"], c["segments"]
+    pseudo = dict(name=c["title"], start=dict(label=nodes[0]),
+                  steps=[dict(id=f"{c['id']}_{k}", label=nodes[k], median_days=sg["median"], share=sg["share"])
+                         for k, sg in enumerate(segs, start=1)])
+    t = c["total"]
+    n = f"{t['n']:,}".replace(",", ".")
+    lines = [f"Üblich {_days(t['median'])} von „{nodes[0]}“ bis „{nodes[-1]}“ (bei 80 % höchstens {_days(t['p80'])}), "
+             f"aus {n} abgeschlossenen Fällen."]
+    k = c.get("slowest")
+    if k is not None and t["median"]:
+        sg = segs[k]
+        part = sg["median"] / t["median"]
+        how = "fast die ganze Zeit" if part >= 0.85 else "gut zwei Drittel der Zeit" if part >= 0.6 else \
+            "die Hälfte der Zeit" if part >= 0.45 else "gut ein Drittel der Zeit" if part >= 0.3 else None
+        lines.append(f"Am längsten dauert „{sg['frm']} → {sg['to']}“: üblich {_days(sg['median'])}"
+                     + (f" – {how}." if how else "."))
+        if fold(sg["to"]) == "berechnet":
+            lines.append(f"Rechnungen gleich nach „{sg['frm']}“ zu schreiben brächte das Geld früher.")
+    return dict(c=c, svg=process_svg(None, pseudo, {}, slow=k), lines=lines)
+
+
+def _days(x) -> str:
+    v = round(float(x or 0), 1)
+    v = int(v) if v == int(v) else v
+    return f"{str(v).replace('.', ',')} {'Tag' if v == 1 else 'Tage'}"

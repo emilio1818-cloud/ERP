@@ -110,6 +110,7 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - **MDL als einziges Entscheidungsprinzip für die ERP-Struktur.** Ob etwas ein eigener Typ, ein Verweis, eine Formel oder eine Auswahlliste wird, entscheidet die Frage, ob es die Beschreibung der Firma kürzer macht.
 - **Prozesse und Aufgaben aus Momentaufnahmen.** Process Mining braucht normalerweise Event-Logs, die Kleinbetriebe nicht haben. Physarum liest den Prozess aus der Ordnung der Datumsspalten über Tabellen hinweg ab (Auftrag → Lieferung → Rechnung → Zahlung).
 - **Abweichung vom Üblichen ist Arbeit.** Die Aufgabenliste wird nicht programmiert, sie entsteht aus den gelernten Durchlaufzeiten.
+- **Bis das Geld da ist.** Die Abläufe einzelner Listen werden verkettet, wo der Schritt der einen ein Datensatz der anderen ist (der Auftrag ist „berechnet“, sobald seine Rechnung existiert, die dann „bezahlt“ wird). So entsteht ohne Konfiguration die Kette vom Auftrag bis zum Geld mit ihrer üblichen Dauer und dem Abschnitt, in dem am längsten gewartet wird.
 - **Physarum-Dynamik auf dem Datenmodell.** Das Tero-Modell (Kirchhoff-Fluss plus Leitfähigkeitsanpassung) läuft auf dem Graphen der Datentypen, Nutzungsfluss kommt hinzu. Das Ergebnis ist ein selbstorganisiertes „Rückgrat“, das Navigation, Spalten und Reihenfolgen bestimmt.
 - **Der Kontoauszug schließt Rechnungen von selbst.** Verweise werden auch in Freitext gefunden, etwa „RE-2026-0412“ im Verwendungszweck.
 - **Formeln werden entdeckt, nicht programmiert.**

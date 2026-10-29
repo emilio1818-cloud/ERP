@@ -742,6 +742,177 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
                          "zu denen noch nichts geschehen ist. Was erledigt ist, lässt sich abhaken.")]
 
 
+def step_dates_of(p: dict, spec: dict, records: dict, by_id: dict, mention_refs: dict, ledger: dict | None,
+                  today: date, void, draft_of: dict | None = None, cancelled=None) -> dict[str, dict[int, date]]:
+    """{step id: {case rid: day}} – when each case of process `p` reached each of its steps: by its own date
+    columns, by the records that point to it (the invoice of an order) or name it, by a status word, and
+    for "bezahlt" by the money. `void` tells a cancelled child; `draft_of` and `cancelled` collect drafts and
+    cancellations on the way."""
+    recs = [r for r in records.get(p["type"], []) if not is_draft(r)]
+    rid_set = {r["id"] for r in recs}
+    sattr_p = (p.get("status") or {}).get("attr") or next(
+        (a["id"] for a in spec["attrs"] if a.get("role") == "status" and not a.get("hidden")), None)
+
+    def start_of(rid):
+        return as_date(by_id[rid]["data"].get(p["start"]["attr"])) or today
+
+    step_dates = {}
+    for st in p["steps"]:
+        d = {}
+        for src in [st] + st.get("also", []):
+            if src["source"] == "own":
+                for r in recs:
+                    v = event_date(r["data"].get(src["attr"]), as_date(r["data"].get(p["start"]["attr"])))
+                    if v:
+                        d[r["id"]] = min(v, d.get(r["id"], v))
+            elif src["rel_kind"] == "own_ref":
+                for r in recs:
+                    c = by_id.get(r["data"].get(src["rel_attr"]))
+                    if c and c["type"] == src["type"] and void(c):
+                        if cancelled:
+                            cancelled(st["id"], r["id"], c, src["attr"])
+                    elif c and c["type"] == src["type"] and not is_draft(c):
+                        v = as_date(c["data"].get(src["attr"]))
+                        if v:
+                            d[r["id"]] = min(v, d.get(r["id"], v))
+            elif src["rel_kind"] == "mention":
+                for dst, srcs in mention_refs.get(src["rel_attr"], {}).items():
+                    if dst in rid_set:
+                        ds = [as_date(by_id[s]["data"].get(src["attr"])) for s in srcs if s in by_id]
+                        ds = [x for x in ds if x]
+                        if ds:
+                            d[dst] = min(ds + ([d[dst]] if dst in d else []))
+            else:
+                for c in records.get(src["type"], []):
+                    t = c["data"].get(src["rel_attr"])
+                    if t in rid_set and is_draft(c):
+                        if draft_of is not None:
+                            draft_of[t] = c["id"]  # drafted, not yet issued
+                        continue
+                    if t in rid_set and void(c):
+                        if cancelled:
+                            cancelled(st["id"], t, c, src["attr"])
+                    elif t in rid_set:
+                        v = as_date(c["data"].get(src["attr"]))
+                        if v:
+                            d[t] = min(v, d.get(t, v))
+        if sattr_p and fold(st["label"]) != "bezahlt":
+            # "abgerechnet" in the order book: invoiced, even where no invoice names the order
+            for r in recs:
+                if r["id"] not in d and lexicon.status_reaches(st["label"], r["data"].get(sattr_p)):
+                    d[r["id"]] = start_of(r["id"])
+        if ledger is not None and fold(st["label"]) == "bezahlt" and any(rid in ledger for rid in rid_set):
+            # paid is what the money says, not what a purpose names
+            d = {rid: e["paid_date"] or start_of(rid) for rid, e in ledger.items()
+                 if rid in rid_set and e["state"] in ("bezahlt", "überzahlt", "verrechnet")}
+        step_dates[st["id"]] = d
+    return step_dates
+
+
+def value_chains(model: dict, records: dict, mention_refs: dict, ledger: dict | None = None,
+                 today: date | None = None) -> list[dict]:
+    """From the first step of a business case to the money ("bis das Geld da ist"). Processes are chained
+    where a step of one is the record of another: an offer is "beauftragt" by its order, the order
+    "berechnet" by its invoice, which is then "bezahlt". Per segment: the usual days and how many cases got
+    there; for the whole chain: the usual days from start to end, and the segment that takes longest."""
+    today = today or date.today()
+    specs = {t["id"]: t for t in model["types"]}
+    procs = {p["type"]: p for p in model.get("processes", []) if p["type"] in specs}
+    by_id = {r["id"]: r for rs in records.values() for r in rs}
+    negative_of = {p["type"]: ((p.get("status") or {}).get("attr"), set((p.get("status") or {}).get("negative") or []))
+                   for p in procs.values()}
+
+    def void(c):
+        meta = c.get("meta") or {}
+        attr, neg = negative_of.get(c["type"], (None, set()))
+        return bool(meta.get("storno_of") or meta.get("storno_by") or (attr and str(c["data"].get(attr)) in neg))
+
+    cache = {}
+
+    def dates_of(p):
+        if p["type"] not in cache:
+            cache[p["type"]] = step_dates_of(p, specs[p["type"]], records, by_id, mention_refs, ledger, today, void)
+        return cache[p["type"]]
+
+    def link(p):
+        """The step at which the case goes on in a record of its own – the firm's invoice first; a supplier's
+        invoice for a project is a cost, not the way to the money."""
+        cands = [st for st in p["steps"] if st["source"] == "child" and st.get("rel_kind") in ("ref", "own_ref")
+                 and st.get("type") in procs and st["type"] != p["type"] and not specs[st["type"]].get("incoming")]
+        return min(cands, key=lambda st: (specs[st["type"]].get("concept") != "rechnung", -(st.get("share") or 0)),
+                   default=None)
+
+    def regular(st, lnk):
+        return st is lnk or (st.get("share") or 1) >= 0.5  # time sheets for a tenth of the jobs are no milestone
+
+    def children(st, rids):
+        """The records the step's child type holds for these cases (the invoices of these orders)."""
+        out = set()
+        if st["rel_kind"] == "own_ref":
+            for rid in rids:
+                c = by_id.get(by_id[rid]["data"].get(st["rel_attr"]))
+                if c and c["type"] == st["type"] and not void(c) and not is_draft(c):
+                    out.add(c["id"])
+        else:
+            for c in records.get(st["type"], []):
+                if c["data"].get(st["rel_attr"]) in rids and not void(c) and not is_draft(c):
+                    out.add(c["id"])
+        return out
+
+    chains = []
+    for root in procs.values():
+        hops, cur, seen = [], root, {root["type"]}
+        while True:
+            st = link(cur)
+            upto = cur["steps"][:cur["steps"].index(st) + 1] if st else cur["steps"]
+            hops.append((cur, [x for x in upto if regular(x, st)], st))
+            if not st or st["type"] in seen:
+                break
+            seen.add(st["type"])
+            cur = procs[st["type"]]
+        if len(hops) < 2 or not hops[-1][1] or fold(hops[-1][1][-1]["label"]) != "bezahlt":
+            continue  # the case does not go on in another record, or does not end in money
+        nodes = [specs[root["type"]]["name"]] + [s["label"] for _, upto, _ in hops for s in upto]
+        paths = []
+        for r in records.get(root["type"], []):
+            start = as_date(r["data"].get(root["start"]["attr"]))
+            if not start or is_draft(r) or void(r):
+                continue
+            path, rids = [start], {r["id"]}
+            for p, upto, st in hops:
+                d = dates_of(p)
+                for s in upto:
+                    got = [d.get(s["id"], {}).get(x) for x in rids] if rids else [None]
+                    # the order is invoiced with its first invoice, paid when the last one is paid
+                    if s is st:
+                        path.append(min([g for g in got if g], default=None))
+                    else:
+                        path.append(max(got) if got and all(got) else None)
+                if st:
+                    rids = children(st, rids)
+            paths.append(path)
+        if len(paths) < 5:
+            continue
+        segments = []
+        for k in range(1, len(nodes)):
+            days = [(x[k] - x[k - 1]).days for x in paths if x[k] and x[k - 1] and (x[k] - x[k - 1]).days >= -1]
+            days = [max(0, v) for v in days]
+            segments.append(dict(frm=nodes[k - 1], to=nodes[k], n=len(days), share=round(len(days) / len(paths), 3),
+                                 median=statistics.median(days) if days else None,
+                                 p80=_pct(days, 0.8) if days else None))
+        whole = [(x[-1] - x[0]).days for x in paths if x[-1] and x[0] and x[-1] >= x[0]]
+        if len(whole) < 5:
+            continue
+        timed = [k for k, sg in enumerate(segments) if sg["median"] is not None and sg["n"] >= 5]
+        slow = max(timed, key=lambda k: segments[k]["median"]) if timed else None
+        chains.append(dict(id=f"v_{root['type']}", type=root["type"], nodes=nodes, segments=segments, n=len(paths),
+                           title=f"{specs[root['type']]['plural']} – bis das Geld da ist",
+                           total=dict(median=statistics.median(whole), p80=_pct(whole, 0.8), n=len(whole)),
+                           slowest=slow))
+    chains.sort(key=lambda c: (-len(c["nodes"]), -c["n"]))
+    return chains[:3]
+
+
 def compute_work(model: dict, records: dict, mention_refs: dict, today: date | None = None,
                  outrefs: dict | None = None, titles_in: dict | None = None,
                  pending_payments: dict | None = None, ledger: dict | None = None,
@@ -779,9 +950,6 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         drafts += [(r, p) for r in records.get(p["type"], []) if is_draft(r)]
         recs = [r for r in records.get(p["type"], []) if not is_draft(r)]
         rid_set = {r["id"] for r in recs}
-        step_dates = {}
-        sattr_p = (p.get("status") or {}).get("attr") or next(
-            (a["id"] for a in spec["attrs"] if a.get("role") == "status" and not a.get("hidden")), None)
 
         def start_of(rid, _p=p):
             return as_date(by_id[rid]["data"].get(_p["start"]["attr"])) or today
@@ -795,52 +963,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             if v >= voided.setdefault(sid, {}).get(rid, (date.min, None))[0]:
                 voided[sid][rid] = (v, c["id"])
 
-        for st in p["steps"]:
-            d = {}
-            for src in [st] + st.get("also", []):
-                if src["source"] == "own":
-                    for r in recs:
-                        v = event_date(r["data"].get(src["attr"]), as_date(r["data"].get(p["start"]["attr"])))
-                        if v:
-                            d[r["id"]] = min(v, d.get(r["id"], v))
-                elif src["rel_kind"] == "own_ref":
-                    for r in recs:
-                        c = by_id.get(r["data"].get(src["rel_attr"]))
-                        if c and c["type"] == src["type"] and void(c):
-                            cancelled(st["id"], r["id"], c, src["attr"])
-                        elif c and c["type"] == src["type"] and not is_draft(c):
-                            v = as_date(c["data"].get(src["attr"]))
-                            if v:
-                                d[r["id"]] = min(v, d.get(r["id"], v))
-                elif src["rel_kind"] == "mention":
-                    for dst, srcs in mention_refs.get(src["rel_attr"], {}).items():
-                        if dst in rid_set:
-                            ds = [as_date(by_id[s]["data"].get(src["attr"])) for s in srcs if s in by_id]
-                            ds = [x for x in ds if x]
-                            if ds:
-                                d[dst] = min(ds + ([d[dst]] if dst in d else []))
-                else:
-                    for c in records.get(src["type"], []):
-                        t = c["data"].get(src["rel_attr"])
-                        if t in rid_set and is_draft(c):
-                            draft_of[t] = c["id"]  # drafted, not yet issued
-                            continue
-                        if t in rid_set and void(c):
-                            cancelled(st["id"], t, c, src["attr"])
-                        elif t in rid_set:
-                            v = as_date(c["data"].get(src["attr"]))
-                            if v:
-                                d[t] = min(v, d.get(t, v))
-            if sattr_p and fold(st["label"]) != "bezahlt":
-                # "abgerechnet" in the order book: invoiced, even where no invoice names the order
-                for r in recs:
-                    if r["id"] not in d and lexicon.status_reaches(st["label"], r["data"].get(sattr_p)):
-                        d[r["id"]] = start_of(r["id"])
-            if ledger is not None and fold(st["label"]) == "bezahlt" and any(rid in ledger for rid in rid_set):
-                # paid is what the money says, not what a purpose names
-                d = {rid: e["paid_date"] or start_of(rid) for rid, e in ledger.items()
-                     if rid in rid_set and e["state"] in ("bezahlt", "überzahlt", "verrechnet")}
-            step_dates[st["id"]] = d
+        step_dates = step_dates_of(p, spec, records, by_id, mention_refs, ledger, today, void, draft_of, cancelled)
         negative = set((p.get("status") or {}).get("negative") or [])
         sattr = (p.get("status") or {}).get("attr")
         other_neg = [(x["attr"], set(x["values"])) for x in (p.get("status") or {}).get("negative_other", [])]

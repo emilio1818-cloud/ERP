@@ -144,6 +144,19 @@ class DemoCompany(unittest.TestCase):
                for x in g["items"]]
         self.assertTrue(all(d >= bank_from for d in due))
 
+    def test_from_order_to_money(self):
+        """The order's course goes on in its invoice: one chain from the order to the money, with the
+        segment that takes longest – here waiting for the customer to pay."""
+        from physarum.process import value_chains
+        chains = value_chains(self.rt.model, self.rt.records, self.rt.mentions, self.rt.ledger, TODAY)
+        c = next(c for c in chains if c["type"] == self.t("Auftrag")["id"])
+        self.assertEqual(c["nodes"], ["Auftrag", "geliefert", "berechnet", "bezahlt"])
+        self.assertEqual(c["title"], "Aufträge – bis das Geld da ist")
+        self.assertTrue(5 <= c["total"]["median"] <= 40)
+        self.assertEqual(c["slowest"], 2)                           # "berechnet → bezahlt"
+        self.assertGreaterEqual(c["segments"][0]["share"], 0.9)
+        self.assertFalse([c for c in chains if self.rt.spec(c["type"]).get("incoming")])  # paying suppliers is no income
+
     def test_questions_are_few_and_meaningful(self):
         qs = self.store.q("SELECT kind, payload FROM questions WHERE status='open'")
         self.assertLessEqual(len(qs), 5)
@@ -328,6 +341,7 @@ class WebPages(unittest.TestCase):
         m = self.app.state.store.model()
         for path in ["/", "/organismus", "/ablaeufe", "/quellen", "/fragen", "/suche?q=hafen", "/verfahrensdoku"]:
             self.assertEqual(self.c.get(path).status_code, 200, path)
+        self.assertIn("Aufträge – bis das Geld da ist", self.c.get("/ablaeufe").text)
         for t in m["types"]:
             self.assertEqual(self.c.get(f"/t/{t['id']}").status_code, 200, t["name"])
             recs = self.app.state.store.records_of(t["id"])

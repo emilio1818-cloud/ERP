@@ -1537,8 +1537,13 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             for th in t.get("thresholds") or []:
                 out.append(dict(kind="Regel", text=f"{t['plural']}: {th['text']}", why="aus den Spaltennamen erkannt"))
         for p in m.get("processes", []):
+            dls = [d["name"] for d in p.get("deadlines", []) if not d.get("step") and d.get("name")]
+            if not p["steps"] and not dls:
+                continue  # a date alone is no course
             chain = " → ".join([p["start"]["label"]] + [f"{s['label']} (Ø {s['median_days']:.0f} T.)" if s.get("median_days") is not None
                                                         else s["label"] for s in p["steps"]])
+            if dls:
+                chain += " · Frist: " + ", ".join(dict.fromkeys(dls))
             out.append(dict(kind="Ablauf", text=f"{p['name']}: {chain}", why=f"aus {p['n']} Fällen"))
         return out
 
@@ -1597,7 +1602,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     if st:
                         open_counts[st["id"]] += g["count"]
             items.append(dict(p=p, svg=views.process_svg(rt, p, open_counts), spec=rt.spec(p["type"])))
-        return page(request, "processes.html", dict(items=items))
+        from ..process import value_chains
+        chains = [views.chain_view(c) for c in value_chains(rt.model, rt.records, rt.mentions, rt.ledger)]
+        return page(request, "processes.html", dict(items=items, chains=chains))
 
     # --- sources -----------------------------------------------------------------------------------------------
     def sources_page(request: Request):

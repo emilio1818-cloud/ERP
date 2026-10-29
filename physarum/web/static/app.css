@@ -223,6 +223,7 @@ table { border-collapse: collapse; width: 100%; }
 @media (prefers-reduced-motion: reduce) { .organism .flow { animation: none; } }
 .procmap { width: 100%; height: auto; }
 .procmap .tube { fill: none; stroke: var(--accent); stroke-linecap: round; }
+.procmap .tube.slow { stroke: var(--warn); }
 .procmap text { font: 13px var(--font); fill: var(--ink); }
 .procmap text.small { font-size: 11px; fill: var(--muted); }
 .procmap .stop { fill: var(--panel); stroke: var(--accent-strong); stroke-width: 2; }

@@ -3,7 +3,14 @@
 {% block content %}
 <div class="pagehead"><div><h1>Abläufe</h1>
   <p>Aus den Datumsspalten Ihrer Daten abgelesen – auch über Dateien hinweg (ein Auftrag gilt als „berechnet“, sobald eine Rechnung auf ihn verweist; eine Rechnung als „bezahlt“, sobald der Kontoauszug sie nennt). Die Röhrendicke zeigt, wie viele Fälle den Schritt erreichen.</p></div></div>
-{% for it in items %}
+{% for ch in chains %}
+<section class="card" id="{{ ch.c.id }}">
+  <div class="row between"><h2>{{ ch.c.title }}</h2><span class="muted">{{ ch.c.n|de }} Fälle</span></div>
+  {{ ch.svg }}
+  <ul class="learned" style="font-size:.88rem">{% for l in ch.lines %}<li>{{ l }}</li>{% endfor %}</ul>
+</section>
+{% endfor %}
+{% for it in items if it.p.steps or it.p.deadlines %}
 <section class="card">
   <div class="row between"><h2><a href="/t/{{ it.p.type }}">{{ it.p.name }}</a></h2><span class="muted">{{ it.p.n|de }} Fälle</span></div>
   {{ it.svg }}
@@ -12,8 +19,8 @@
       <li><b>{{ s.label }}</b>: üblich nach {{ '%.0f'|format(s.median_days or 0) }} Tagen, bei 80 % nach höchstens {{ '%.0f'|format(s.p80_days or 0) }} · erreicht in {{ (s.share * 100)|round|int }} %
         <span class="faint">({{ 'eigene Spalte „' ~ s.name ~ '“' if s.source == 'own' else 'über ' ~ s.name }}{% for a in s.also %}, auch über {{ a.name }}{% endfor %})</span></li>
     {% endfor %}
-    {% for d in it.p.deadlines if d.step %}<li>Frist: „{{ d.name }}“ gilt für „{{ (it.p.steps|selectattr('id','equalto',d.step)|first).label }}“</li>{% endfor %}
-    {% if it.p.status %}<li>Status „{{ it.p.status.name }}“ folgt dem Ablauf: {% for v, st in it.p.status.map.items() %}{{ v }} → {{ 'Start' if st == 0 else it.p.steps[st - 1].label }}{{ ', ' if not loop.last }}{% endfor %}{% if it.p.status.negative %}; beendet bei {{ it.p.status.negative|join(', ') }}{% endif %}</li>{% endif %}
+    {% for d in it.p.deadlines %}<li>Frist: „{{ d.name }}“{% if d.step %} gilt für „{{ (it.p.steps|selectattr('id','equalto',d.step)|first).label }}“{% endif %}</li>{% endfor %}
+    {% if it.p.status %}<li>Status „{{ it.p.status.name }}“ folgt dem Ablauf: {% for v, st in it.p.status.map.items() %}„{{ show_value(v) }}“ = {{ 'noch am Anfang' if st == 0 else it.p.steps[st - 1].label }}{{ ', ' if not loop.last }}{% endfor %}{% if it.p.status.negative %}; beendet bei {% for v in it.p.status.negative %}„{{ show_value(v) }}“{{ ', ' if not loop.last }}{% endfor %}{% endif %}</li>{% endif %}
   </ul>
 </section>
 {% else %}

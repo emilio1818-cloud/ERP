@@ -17,6 +17,7 @@ import re
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
+from . import lexicon
 from .store import dumps, loads, now_iso
 from .text import fold, norm_key, tokens
 from .values import as_date, parse_duration
@@ -586,7 +587,35 @@ def issue(rt, rid: int, actor: str, today: date | None = None, delivery=None, de
         _archive_documents(rt, c, dict(rec, data=data, meta=meta), number, render)
         _write_refs_and_search(rt, c, rid, spec, data)
         rt.bump(c)
+    _order_invoiced(rt, spec, data, number, actor)
     return number
+
+
+_PARTIAL = ("abschlag", "anzahlung", "teilrechnung", "vorauszahlung")
+
+
+def _order_invoiced(rt, spec: dict, data: dict, number: str, actor: str):
+    """The order a final invoice was written for is invoiced: its status says so, in the firm's own word
+    for it ("abgerechnet") – not after a down payment, and only where the order list has such a word."""
+    from .ops import OpError, update
+    src = source_attr(rt, spec)
+    order = rt.by_id.get(data.get(src["id"])) if src else None
+    if not order:
+        return
+    kind = " ".join(str(v) for a in spec["attrs"] if a["kind"] == "text" and (v := data.get(a["id"])))
+    if any(w in fold(kind) for w in _PARTIAL):
+        return
+    proc = next((p for p in rt.model.get("processes", []) if p["type"] == order["type"]), None)
+    st = (proc or {}).get("status") or {}
+    sattr = next((a for a in rt.spec(order["type"])["attrs"] if a["id"] == st.get("attr")), None)
+    word = next((v for v in (sattr or {}).get("enum") or [] if lexicon.status_reaches("berechnet", v)), None)
+    cur = order["data"].get(sattr["id"]) if sattr else None
+    if not word or cur == word or str(cur) in (st.get("negative") or []):
+        return
+    try:
+        update(rt, order["id"], {sattr["id"]: word}, actor, note=f"Rechnung {number} ausgestellt", kind="auto")
+    except OpError:
+        pass  # a locked or vanished order keeps its status
 
 
 def _default_number(c, spec: dict, today: date) -> str:

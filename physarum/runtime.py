@@ -150,14 +150,14 @@ class Runtime:
         if changed:
             risk = next((g for g in work if g["id"] == "risk:iban"), None)
             if risk is None:
-                risk = dict(id="risk:iban", type=changed[0]["type"], kind="risk", severity=3, count=0, amount=None,
+                risk = dict(id="risk:iban", type=changed[0]["type"], kind="risk", severity=3, count=0, amount=None, top=True,
                             items=[], action=None, title="Vorsicht: Bankverbindung oder Absender passen nicht zum Lieferanten",
                             explain="Vor einer Zahlung telefonisch beim bekannten Ansprechpartner prüfen. "
                                     "So sieht Rechnungsbetrug typischerweise aus.")
                 work.append(risk)
             risk["items"] = changed + risk["items"]
             risk["count"] = len(risk["items"])
-        work.sort(key=lambda g: (-g["severity"], -(g["amount"] or 0), -g["count"]))
+        work.sort(key=lambda g: (-g["severity"], not g.get("top"), -(g["amount"] or 0), -g["count"]))
         self._work = work
         self._work_key = key
         return self._work
@@ -361,8 +361,12 @@ class Runtime:
         if isinstance(saved, list):
             saved = dict(order=saved, model=None)
         prev = [tid for tid in saved.get("order", []) if tid in sal]
+        flux = self.store.flux("type:")
         if saved.get("model") == self._mv and set(prev) == set(sal):
             order = prev
+            # which lists sit under "Weitere Listen" is decided when the organism grows, not by each visit:
+            # a menu that rearranges itself while one works loses people
+            quiet = set(saved.get("quiet") or [])
         else:
             # the menu keeps its places (people find things where they were); a new kind of thing joins
             # where its weight puts it, and only a list that became far more important moves up
@@ -379,7 +383,9 @@ class Runtime:
                     if sal[b] > sal[a] * 2 + 0.05:
                         order[i], order[i + 1] = b, a
                         changed = True
-            self.store.kv_set("nav_order", dict(order=order, model=self._mv))
+            quiet = {t["id"] for t in types if sal[t["id"]] < 0.22 and flux.get(f"type:{t['id']}", 0) <= 0.5
+                     and len(self.records.get(t["id"], [])) < 30 and t["kind"] != "document"}
+            self.store.kv_set("nav_order", dict(order=order, model=self._mv, quiet=sorted(quiet)))
         seen = self.store.kv_get("type_seen") or {}
         today = date.today().isoformat()
         first = not seen
@@ -387,15 +393,13 @@ class Runtime:
             for tid in sal:
                 seen.setdefault(tid, "" if first else today)
             self.store.kv_set("type_seen", seen)
-        flux = self.store.flux("type:")
         active, dormant = [], []
         by = {t["id"]: t for t in types}
         for tid in order:
             t = dict(by[tid])
             t["count"] = len(self.records.get(tid, []))  # what is there now, also what was made here since growing
             t["is_new"] = bool(seen.get(tid)) and (date.today() - date.fromisoformat(seen[tid])).days <= 14
-            used = flux.get(f"type:{tid}", 0) > 0.5
-            if (sal[tid] < 0.22 and not used and (t.get("count") or 0) < 30 and not t["is_new"]) and t["kind"] != "document":
+            if tid in quiet and not t["is_new"]:
                 dormant.append(t)
             else:
                 active.append(t)

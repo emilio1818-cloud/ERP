@@ -299,3 +299,10 @@ button.linkish { background: none; border: 0; padding: 0; min-height: 0; color: 
   text-align: left; text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
 button.linkish:hover { background: none; color: var(--ink); }
 button.linkish.muted { color: var(--muted); margin: 0 4px; }
+
+/* search hits: long addresses wrap, and a wide table scrolls inside its card – never the page */
+.scroll-x { overflow-x: auto; max-width: 100%; }
+.search-hits td { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .search-hits td:nth-child(n+4) { display: none; } }
+/* a long "… und 4 weitere Hinweise …" wraps instead of widening the page */
+button.linkish { white-space: normal; text-align: left; max-width: 100%; }

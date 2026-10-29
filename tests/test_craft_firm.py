@@ -914,6 +914,38 @@ class CraftFirm(unittest.TestCase):
         rt = self.f.rt()
         self.assertEqual((rt.ledger[target]["state"], rt.ledger[rid[rows[22][0]]]["state"]), ("offen", "offen"))
 
+    def test_the_final_invoice_marks_its_order_invoiced(self):
+        from physarum import billing, ops
+        jobs = [[f"A26-{i:03d}", f"0{(i % 8) + 1}.0{(i % 8) + 1}.2026", f"Kunde {i % 4}", "Bad", "4000",
+                 "abgerechnet" if i < 20 else "fertig" if i < 26 else "in Arbeit",
+                 f"RE-2026-{i:04d}" if i < 20 else ""] for i in range(1, 31)]
+        book = [[f"RE-2026-{i:04d}", f"1{(i % 8) + 1}.0{(i % 8) + 1}.2026", f"Kunde {i % 4}", f"A26-{i:03d}",
+                 "Abschlagsrechnung" if i % 5 == 0 else "Rechnung", _eur(1000 + 50 * i), _eur((1000 + 50 * i) * 0.19),
+                 _eur((1000 + 50 * i) * 1.19)] for i in range(1, 20)]
+        customers = csv("Kd.-Nr.;Name;Straße;PLZ;Ort", [[f"K{i}", f"Kunde {i}", "Hauptstr. 1", "33602", "Bielefeld"]
+                                                         for i in range(4)])
+        self.f.feed([("Kunden.csv", customers),
+                     ("Auftragsbuch.csv", csv("Auftr.-Nr.;Datum;Kunde;Leistung;Wert;Status;Rechnung", jobs)),
+                     ("Rechnungsausgangsbuch.csv", csv("Re.-Nr.;Datum;Kunde;Auftrag;Art;Netto;USt;Brutto", book))])
+        self.f.store.kv_set("company_profile", dict(name="Muster Haustechnik GmbH", street="Hauptstr. 1", zip="33602",
+                                                    city="Bielefeld", vat_id="DE123456789"))
+        rt = self.f.rt()
+        job, inv = _type(rt, "Auftrag"), _type(rt, "Rechnung")
+        status = next(a for a in job["attrs"] if a["name"] == "Status")
+        order = {rt.by_id[r["id"]]["data"][job["key"]]: r["id"] for r in rt.records[job["id"]]}
+        ref = next(a for a in inv["attrs"] if a["kind"] == "ref" and a.get("ref") == job["id"])
+        art = next(a for a in inv["attrs"] if a["name"] == "Art")
+
+        def invoice(no, kind):
+            rid = ops.create(rt, inv["id"], {ref["id"]: str(order[no]), art["id"]: kind}, "Test")
+            billing.set_positions(rt, rid, [dict(text="Badsanierung", qty="1", price="4000", rate="19")], "Test")
+            billing.issue(rt, rid, "Test", delivery="2026-10-20")
+            rt.ensure()
+        invoice("A26-027", "Abschlagsrechnung")                               # a down payment: still working
+        self.assertEqual(rt.by_id[order["A26-027"]]["data"][status["id"]], "in Arbeit")
+        invoice("A26-021", "Rechnung")                                        # the final one: invoiced
+        self.assertEqual(rt.by_id[order["A26-021"]]["data"][status["id"]], "abgerechnet")
+
 
 if __name__ == "__main__":
     unittest.main()

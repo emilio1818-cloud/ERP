@@ -7,9 +7,9 @@
 {% for g in groups %}
 <section class="card">
   <div class="row between"><h2><a href="/t/{{ g.spec.id }}?q={{ q|urlencode }}">{{ g.spec.plural }}</a> <span class="muted" style="font-weight:500">{{ g.n }}</span></h2></div>
-  <table class="table"><tbody>
+  <div class="scroll-x"><table class="table search-hits"><tbody>
   {% for r in g.recs %}<tr class="clickable" data-href="/r/{{ r.id }}">{% for c in g.cols %}<td>{% if loop.first %}<a href="/r/{{ r.id }}">{{ fmt(c, r.data.get(c.id), link=False, short=True) }}</a>{% else %}{{ fmt(c, r.data.get(c.id), short=True) }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
-  </tbody></table>
+  </tbody></table></div>
 </section>
 {% endfor %}
 {% endblock %}

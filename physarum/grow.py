@@ -88,6 +88,8 @@ def ingest(store: Store, files: list[tuple[str, bytes]], actor: str | None = Non
                 what.append(f"{sum(len(t.rows) for t in d.tables)} Zeilen in {len(d.tables)} Tabelle(n)")
             if d.docs:
                 what.append(f"{len(d.docs)} Dokument(e)")
+            if d.attachments and not d.docs:
+                what.append(f"{len(d.attachments)} Datei(en) darin – werden einzeln gelesen")
             progress(f"{name}: " + (", ".join(what) or "kein lesbarer Inhalt"))
         out.append(dict(id=sid, name=name, new=True, tables=len(d.tables), docs=len(d.docs), notes=d.notes))
         mail_from = next((x.sender for x in d.docs if x.kind == "email"), None)  # an invoice attached to a mail

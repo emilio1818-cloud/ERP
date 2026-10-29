@@ -435,7 +435,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         store.event("view", f"type:{spec['id']}" + (f",rel:{rel}" if rel else ""))
         return page(request, "record.html", record_context(rec, spec, request))
 
-    from ..payments import CASH_KINDS
+    from ..payments import BY_AMOUNT, CASH_KINDS, CONFIRMED
 
     def _assign_candidates(rid: int, spec: dict, data: dict, alloc: list) -> list[dict] | None:
         """For a bank line that pays nothing (or not all): the open invoices it may pay, the likeliest first –
@@ -541,7 +541,12 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         mentions = []
         for row in store.outrefs(rid):
             if row["kind"] == "mention" and row["to_id"] in rt.by_id:
-                mentions.append(dict(rid=row["to_id"], spec=rt.spec(row["type"]), how=row["how"]))
+                how = row["how"]
+                if how == CONFIRMED:
+                    how = "von Ihnen zugeordnet"  # a person said so – the amount may not even fit
+                elif how == BY_AMOUNT:
+                    how = "ohne Nummer – Betrag und Zahler stimmen"
+                mentions.append(dict(rid=row["to_id"], spec=rt.spec(row["type"]), how=how))
         notes = store.q("SELECT * FROM notes WHERE record_id=? ORDER BY id DESC", (rid,))
         changes = []
         attr_names = {a["id"]: a for a in spec["attrs"]}
@@ -555,8 +560,12 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                                               and data.get(a["id"]) == new and ch["note"] != "rückgängig gemacht")))
         src_files = [sources[s] for s in (rec["meta"] or {}).get("src", []) if s in sources]
         lock = ops.lock_state(rt, spec, rec)
+        def comes_before(src_tid: str) -> bool:
+            """An order names its invoice ("Rechnung" in the order book), but it is not made from it."""
+            p = next((x for x in rt.model.get("processes", []) if x["type"] == src_tid), None)
+            return bool(p) and any(x.get("type") == spec["id"] for st in p["steps"] for x in [st] + st.get("also", []))
         children = [r for r in rt.model["relations"] if r["dst"] == spec["id"] and r["kind"] == "ref"
-                    and rt.spec(r["src"]) and rt.spec(r["src"])["kind"] == "transaction"]
+                    and rt.spec(r["src"]) and rt.spec(r["src"])["kind"] == "transaction" and not comes_before(r["src"])]
         refs = [a for a in spec["attrs"] if a["kind"] == "ref" and data.get(a["id"]) and a["id"] != spec.get("key")]
         party = next((a for a in refs if (rt.spec(a.get("ref")) or {}).get("kind") == "master"), None) or (refs[0] if refs else None)
         money_attr = next((a for a in spec["attrs"] if a["kind"] == "money" and not a.get("hidden")

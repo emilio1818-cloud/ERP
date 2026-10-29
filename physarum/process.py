@@ -1056,9 +1056,10 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                  f"nicht hier, sondern unter „Vorsicht“.")
         groups = [g for g in groups if g["count"]]
         if risks:
-            groups.append(dict(id="risk:iban", type="doc", kind="risk", severity=3,
+            at_stake = round(sum(x.get("money") or 0 for x in risks), 2) or None
+            groups.append(dict(id="risk:iban", type="doc", kind="risk", severity=3, top=True,
                                title="Vorsicht: Bankverbindung oder Absender passen nicht zum Lieferanten",
-                               count=len(risks), amount=None, items=risks, action=None,
+                               count=len(risks), amount=at_stake, items=risks, action=None,
                                explain="Vor einer Zahlung telefonisch beim bekannten Ansprechpartner prüfen. "
                                        "So sieht Rechnungsbetrug typischerweise aus."))
     mail = _mail_work(model, records, by_id, title, today, outrefs, mails_done, ledger)
@@ -1073,7 +1074,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
     groups += _rhythm_work(model, records, by_id, title, today)
     groups += _reach_work(model, records, by_id, title, today)
     groups += _budget_work(model, records, mention_refs, title)
-    groups.sort(key=lambda g: (-g["severity"], -(g["amount"] or 0), -g["count"]))
+    # a suspected fraud first: money about to go to the wrong account outweighs money that is late
+    groups.sort(key=lambda g: (-g["severity"], not g.get("top"), -(g["amount"] or 0), -g["count"]))
     return groups
 
 

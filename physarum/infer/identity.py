@@ -44,6 +44,7 @@ class Group:
     merges: list = field(default_factory=list)     # explanations for merged identities
     fuzzy: bool = False
     vanished: str | None = None                    # the newest version of its list no longer has it
+    implied: list | None = None                    # in no list of its own: named by these ([plural, count])
 
     def first(self, aid):
         return self.values.get(aid)

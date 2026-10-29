@@ -245,7 +245,10 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
 
     obs_type = {o.oid: t for t in types for o in t.members}
     rel_dec = store.decisions("relation")
-    rels = discover(types, groups, obs_type, rel_dec, log, asks)
+    history: dict = defaultdict(dict)
+    for row in store.q("SELECT type, ident, record_id FROM idents WHERE ident LIKE 'n:%' OR ident LIKE 'k:%'"):
+        history[row["type"]][row["ident"]] = row["record_id"]
+    rels = discover(types, groups, obs_type, rel_dec, log, asks, history)
     taken = {(id(r.src), id(r.attr)) for r in rels}
     asks = [a for a in asks if not (a.get("kind") == "relation" and (id(a["rel"].src), id(a["rel"].attr)) in taken)]
     mindex = MentionIndex(types, groups)
@@ -956,7 +959,8 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
                 continue
             changed.append((aid, cur[aid], None))
             out.pop(aid)
-    meta.update(w=writers, prov=prov, alts=alts, raw=raw, src=srcs, fuzzy=g.fuzzy or None)
+    meta.update(w=writers, prov=prov, alts=alts, raw=raw, src=srcs, fuzzy=g.fuzzy or None,
+                implied=getattr(g, "implied", None))
     if g.merges:
         meta["joins"] = g.merges[:12]  # what was joined on a guess – the record offers to undo it
     else:

@@ -682,6 +682,48 @@ class CraftFirm(unittest.TestCase):
         self.assertIn("Kunde sagt: bezahlt", overdue["RE-2026-0004"]["claim"])     # look before reminding
         self.assertNotIn("claim", overdue["RE-2026-0005"])
 
+    def test_customers_the_books_name_differently(self):
+        import time
+        people = [["1001", "Wohnbau-Genossenschaft Ostwestfalen-Süd eG"], ["1002", "Emre Kaya"],
+                  ["1003", "Gerd Schulze"], ["1004", "Heike Schulze"], ["1005", "Hausverwaltung Kramer & Söhne"],
+                  ["1006", "Zahnarztpraxis Dr. Lehmann"]] + [[str(1010 + i), f"Kunde {i} GmbH"] for i in range(8)]
+        head = "Kd.-Nr.;Name;Ort"
+        jobs_head = "Auftr.-Nr.;Datum;Kunde;Leistung;Wert"
+        written = ["Genossenschaft OWL-Süd", "Kaya PV", "Fam. Schulze", "Kramer & Söhne", "Fitnessstudio Kraftwerk",
+                   "Praxis Dr. med. dent. Lehmann", "Kraftwerk Fitness UG", "Barverkauf"]
+        jobs = [[f"A26-{i + 1:03d}", f"{(i % 27) + 1:02d}.0{(i % 8) + 2}.2026", f"Kunde {i % 8} GmbH", "Wartung", "300"]
+                for i in range(30)]
+        jobs += [[f"A26-{i + 101:03d}", f"{i + 3:02d}.09.2026", w, "Arbeiten", "900"] for i, w in enumerate(written)]
+        jobs += [["A26-120", "20.09.2026", "Barverkauf", "Kleinteile", "40"]]
+        book = [[r[0].replace("A26-", "RE-2026-"), r[1], r[2], r[0], "Arbeiten", "500,00"] for r in jobs[:30]]
+        # the invoice for the Schulze job names Gerd: that decides "Fam. Schulze"
+        book += [["RE-2026-0203", "30.09.2026", "Gerd Schulze", "A26-103", "Bad", "4800,00"],
+                 ["RE-2026-0205", "30.09.2026", "Kraftwerk Fitness UG", "A26-105", "Duschen", "900,00"]]
+        self.f.feed([("Kundenstamm.csv", csv(head, [p + ["Bielefeld"] for p in people])),
+                     ("Auftragsbuch.csv", csv(jobs_head, jobs)),
+                     ("Rechnungsbuch.csv", csv("Re.-Nr.;Datum;Kunde;Auftrag;Leistung;Netto", book))])
+        time.sleep(1)
+        # the next customer list renames Kramer – the orders keep the old short name
+        people[4] = ["1005", "Kramer Immobilienmanagement GmbH"]
+        self.f.feed([("Kundenstamm_neu.csv", csv(head, [p + ["Bielefeld"] for p in people]))])
+        rt = self.f.rt()
+        job, kunde = _type(rt, "Auftrag"), _type(rt, "Kunde")
+        party = next(a for a in job["attrs"] if a["kind"] == "ref" and a.get("ref") == kunde["id"])
+        to = {rt.by_id[r["id"]]["data"][job["key"]]: rt.by_id[r["id"]]["data"].get(party["id"])
+              for r in rt.records[job["id"]]}
+        name = {r["id"]: rt.title(r["id"]) for r in rt.records[kunde["id"]]}
+        self.assertEqual(name.get(to["A26-101"]), "Wohnbau-Genossenschaft Ostwestfalen-Süd eG")  # OWL
+        self.assertEqual(name.get(to["A26-102"]), "Emre Kaya")                    # PV is the job, not who
+        self.assertEqual(name.get(to["A26-103"]), "Gerd Schulze")                 # the invoice says which Schulze
+        self.assertEqual(name.get(to["A26-104"]), "Kramer Immobilienmanagement GmbH")  # its former name
+        self.assertEqual(name.get(to["A26-106"]), "Zahnarztpraxis Dr. Lehmann")   # a title is no name
+        # a customer only the books know: one record for both spellings, the bank's included
+        self.assertEqual(to["A26-105"], to["A26-107"])
+        self.assertEqual(name[to["A26-105"]], "Kraftwerk Fitness UG")
+        self.assertIn(["Aufträgen", 2], rt.by_id[to["A26-105"]]["meta"]["implied"])
+        self.assertFalse(isinstance(to["A26-108"], int) or isinstance(to["A26-120"], int))  # "Barverkauf" is nobody
+        self.assertEqual(len(rt.records[kunde["id"]]), len(people) + 1)
+
 
 if __name__ == "__main__":
     unittest.main()

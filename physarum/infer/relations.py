@@ -43,7 +43,9 @@ class RelDraft:
 
 class IdentIndex:
     def __init__(self, groups: list[Group], title: str | None = None, alt: dict | None = None,
-                 parts: list[str] | None = None):
+                 parts: list[str] | None = None, former: dict | None = None):
+        """`former`: group -> names it went by in earlier growths ("Hausverwaltung Kramer & Söhne" before
+        the customer list renamed it)."""
         self.alt = alt or {}
         self.by: dict[str, int] = {}
         self.names: dict[str, list[tuple[str, int]]] = defaultdict(list)
@@ -67,6 +69,11 @@ class IdentIndex:
             # the rest of an old program's name fields: "Gaststätte Zum Kesselbrink" + "Inh. Uwe Kröger"
             spoken |= {norm_name(f"{g.values[title]} {g.values[p]}") for p in parts or ()
                        if title and g.values.get(title) and isinstance(g.values.get(p), str)}
+            for nm in (former or {}).get(i, ()):
+                spoken.add(nm)
+                if "n:" + nm in self.by and self.by["n:" + nm] != i:
+                    ambiguous.add("n:" + nm)
+                self.by.setdefault("n:" + nm, i)
             for nm in spoken - {""}:
                 ws = set(nm.split())
                 self.wordsets[i].append(ws)
@@ -118,9 +125,23 @@ class IdentIndex:
             i = self.by.get("n:" + norm_name(text))
             if i is not None:
                 return i, False
-        return self.short(norm_name(text)), False
+        return self.short(norm_name(text), acronyms(text)), False
 
-    def short(self, nm: str) -> int | None:
+    def shares_name(self, ws: list[str]) -> bool:
+        """Does a known record's name share a word with this one, beside what kind of business it is
+        ("Lehmann" in "Zahnarztpraxis Dr. Lehmann")?"""
+        for w in ws:
+            if len(w) < 4 or w in _TRADE or w in _TITLES or w in _SALUTATIONS:
+                continue
+            if any(w in x for i in self.words.get(w[:5], ()) for x in self.wordsets[i]):
+                return True
+        return False
+
+    def short(self, nm: str, acr: set | frozenset = frozenset()) -> int | None:
+        found = self.candidates(nm, acr)
+        return next(iter(found)) if len(found) == 1 else None
+
+    def candidates(self, nm: str, acr: set | frozenset = frozenset()) -> set[int]:
         """A short name ("Elbkind", "Dr. Behrens") names the one thing whose name contains all its words –
         if there is exactly one. Two Hafenkontors leave "Hafenkontor" unresolved. People go by their
         surname ("Fam. Tepe", "Peters") and by initials ("KD Meyer", "H. Schulze"); two Schulzes leave
@@ -128,15 +149,20 @@ class IdentIndex:
         words = nm.split()
         while len(words) > 1 and words[0] in _SALUTATIONS:
             words = words[1:]
-        shorts = [w for w in words if len(w) <= 2 and w.isalpha() or w in _DESCRIPTORS]
+        if len(words) > 1:
+            # "Kaya PV": the job, not who; "Praxis Dr. med. dent. Lehmann": a title, not a name
+            words = [w for w in words if w not in _WHAT and w not in _TITLES] or words
+        shorts = [w for w in words if len(w) <= 2 and w.isalpha() or w in _DESCRIPTORS or (w in acr and len(w) <= 4)]
         small = set(words) - set(shorts)
         size = sum(len(w) for w in small)
         if not small or len(words) > 4 or size < 4:
-            return None
+            return set()
         cands = set().union(*(self.words.get(w[:5], set()) for w in small))
 
         def fits(ws: set, exact: bool) -> bool:
-            if ws == set(words) or not (small <= ws if exact else _within(small, ws)):
+            if ws == set(words):
+                return True  # the same words in another order: "Müller, Hans-Peter"
+            if not (small <= ws if exact else _within(small, ws)):
                 return False
             rest = sorted(ws - small)
             for w in shorts:
@@ -151,21 +177,59 @@ class IdentIndex:
                     if x is not None:
                         rest.remove(x)
                     continue
+                left = list(rest)
+                ok = True
                 for ch in w:  # "KD" is Klaus-Dieter: one first name for each letter
-                    x = next((x for x in rest if x.startswith(ch)), None)
+                    x = next((x for x in left if x.startswith(ch)), None)
                     if x is None:
-                        return False
-                    rest.remove(x)
+                        ok = False
+                        break
+                    left.remove(x)
+                if ok:
+                    rest[:] = left
+                    continue
+                # "OWL" is Ostwestfalen: an abbreviation's letters in order in one word, from its start
+                x = next((x for x in rest if w in acr and _abbreviates(w, x)), None)
+                if x is None:
+                    return False
+                rest.remove(x)
             return True
 
         exact = {i for i in cands if any(fits(ws, True) for ws in self.wordsets[i])}
         if exact or size < 6:
-            return next(iter(exact)) if len(exact) == 1 else None
-        hits = {i for i in cands if any(fits(ws, False) for ws in self.wordsets[i])}
-        return next(iter(hits)) if len(hits) == 1 else None
+            return exact
+        return {i for i in cands if any(fits(ws, False) for ws in self.wordsets[i])}
 
 
 _SALUTATIONS = {"fam", "familie", "eheleute", "ehel", "herr", "herrn", "frau", "hr", "fr"}
+_TITLES = {"dr", "med", "dent", "vet", "prof", "dipl", "ing", "rer", "nat", "phil", "jur", "mag"}
+# the kind of business, not its name: two of them need not be the same one
+_TRADE = {"praxis", "zahnarztpraxis", "arztpraxis", "fitnessstudio", "studio", "gaststaette", "restaurant", "pension",
+          "hotel", "baeckerei", "metzgerei", "autohaus", "tischlerei", "steuerkanzlei", "kanzlei", "hausverwaltung",
+          "immobilien", "immobilienverwaltung", "verwaltung", "service", "handel", "haustechnik", "kita", "schule",
+          "kirchengemeinde", "gemeinde", "verein", "stiftung", "genossenschaft", "wohnbau", "physiotherapie", "familie"}
+# what was done, not for whom: "Kaya PV", "Schulze Bad"
+_WHAT = {"pv", "photovoltaik", "solar", "solaranlage", "heizung", "bad", "badsanierung", "dach", "kueche", "umbau",
+         "neubau", "anbau", "sanierung", "wartung", "notdienst"}
+
+
+def acronyms(value) -> set[str]:
+    """The abbreviations a name was written with: "Genossenschaft OWL-Süd" -> {"owl"}. In a name written
+    all in capitals ("HANS MEIER", a bank's way) no word stands out as one."""
+    v = str(value or "")
+    if not re.search(r"[a-zäöüß]", v):
+        return set()
+    return {fold(t) for t in re.findall(r"(?<![\w])[A-ZÄÖÜ]{2,4}(?![\w])", v)}
+
+
+def _abbreviates(ab: str, word: str) -> bool:
+    if not word.startswith(ab[0]) or len(word) < len(ab) + 3:
+        return False
+    i = 0
+    for ch in word:
+        if i < len(ab) and ch == ab[i]:
+            i += 1
+    return i == len(ab)
 _DESCRIPTORS = {"hv": "verwaltung", "wg": "genossenschaft", "weg": "gemeinschaft"}  # what, not who
 _PARENS = re.compile(r"\([^)]*\)")  # "H. Schulze (Brackwede)": where, not who
 _CARE_OF = re.compile(r"\bc\s*/\s*o\b|\bper adresse\b", re.I)
@@ -224,11 +288,15 @@ def _eligible(t: TypeDraft, a: AttrDraft) -> bool:
 
 
 def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: dict[str, TypeDraft],
-             decisions: dict | None = None, log: list | None = None, ask: list | None = None) -> list[RelDraft]:
+             decisions: dict | None = None, log: list | None = None, ask: list | None = None,
+             history: dict | None = None) -> list[RelDraft]:
+    """`history`: type id -> {ident: record id} of earlier growths – the names a thing went by before."""
     decisions = decisions or {}
     alts = {id(t): alternate_keys(t, groups[id(t)]) for t in types if t.kind == "master"}
     idx = {id(t): IdentIndex(groups[id(t)], t.title.aid if t.title is not None else None, alts.get(id(t)),
-                             [a.aid for a in t.attrs if a.role == "person_part"]) for t in types}
+                             [a.aid for a in t.attrs if a.role == "person_part"],
+                             _former_names(t, groups[id(t)], (history or {}).get(t.tid)))
+           for t in types}
     rels: list[RelDraft] = []
     taken: set[tuple[int, int]] = set()  # (id(type), id(attr))
 
@@ -386,11 +454,148 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
                 rels.append(r)
                 taken.add((id(t), id(a)))
     rels += _composite_refs(types, groups, rels, taken)
+    n_by = _by_neighbours(rels, idx)
+    implied = _implied_masters(types, groups, rels, idx)
+    if log is not None and (n_by or implied):
+        log.append(dict(kind="implied", by_neighbours=n_by, masters=[name for _, _, name in implied]))
     if log is not None:
         for r in rels:
             log.append(dict(kind="relation", src=r.src.name, attr=r.attr.name, dst=r.dst.name, via=r.via,
                             inclusion=round(r.inclusion, 2), structural=r.structural, unresolved=len(r.unresolved)))
     return rels
+
+
+def _former_names(t: TypeDraft, groups: list[Group], hist: dict | None) -> dict[int, set[str]]:
+    """The names each master record went by in earlier growths: found by its number (or any ident it
+    still has), so a renamed customer keeps its old names."""
+    if t.kind != "master" or not hist:
+        return {}
+    names_of: dict[int, set[str]] = defaultdict(set)
+    for ident, rid in hist.items():
+        if ident.startswith("n:"):
+            names_of[rid].add(ident[2:])
+    out = {}
+    for gi, g in enumerate(groups):
+        rid = next((hist[x] for x in sorted(g.idents) if x in hist), None)
+        if rid is not None and names_of.get(rid):
+            out[gi] = names_of[rid] - {x[2:] for x in g.idents if x.startswith("n:")}
+    return out
+
+
+def _by_neighbours(rels: list[RelDraft], idx: dict) -> int:
+    """"Fam. Schulze" where two Schulzes are customers: the invoice for that order, or the order the offer
+    became, names one of them – that one."""
+    party: dict = defaultdict(set)   # (id(type), group) -> {(id(master type), group)}
+    links: dict = defaultdict(set)   # a record and the records it is linked with
+    for r in rels:
+        for gi, ti in r.targets.items():
+            if r.dst.kind == "master":
+                party[(id(r.src), gi)].add((id(r.dst), ti))
+            else:
+                links[(id(r.src), gi)].add((id(r.dst), ti))
+                links[(id(r.dst), ti)].add((id(r.src), gi))
+    done = 0
+    for _ in range(3):  # the offer learns from the order once the order has learned from its invoice
+        moved = False
+        for r in rels:
+            if r.dst.kind != "master" or not r.unresolved:
+                continue
+            for gi, v in list(r.unresolved.items()):
+                if not isinstance(v, str):
+                    continue
+                text = _PARENS.sub(" ", v)
+                cands = idx[id(r.dst)].candidates(norm_name(text), acronyms(text))
+                if len(cands) < 2:
+                    continue
+                seen = {ti for n in links.get((id(r.src), gi), ()) for dt, ti in party.get(n, ()) if dt == id(r.dst)}
+                hit = seen & cands
+                if len(hit) == 1:
+                    ti = hit.pop()
+                    r.targets[gi] = ti
+                    del r.unresolved[gi]
+                    r.hits += 1
+                    r.fuzzy += 1
+                    party[(id(r.src), gi)].add((id(r.dst), ti))
+                    moved = True
+                    done += 1
+        if not moved:
+            break
+    return done
+
+
+# placeholders where a name belongs: no customer of their own
+_NOT_A_PARTY = {"diverse", "div", "barverkauf", "laufkunde", "bar", "intern", "lager", "privat", "sonstige",
+                "sonstiges", "unbekannt", "kunde", "kunden", "keine", "kein", "ohne", "allgemein", "verschiedene"}
+# documents a customer is named in by the firm itself (a bank line names whoever paid)
+_FROM_DOCS = {"rechnung", "auftrag", "angebot", "vertrag", "lieferschein", "projekt", "bestellung"}
+_LEGAL_FORM = re.compile(r"\b(GmbH|gGmbH|mbH|AG|KGaA|KG|UG|e\.\s?K\.|GbR|OHG|e\.\s?V\.|eG|PartG)\b")
+
+
+def _same_party(a: list[str], b: list[str]) -> bool:
+    """"Fitnessstudio Kraftwerk" and "Kraftwerk Fitness": every word of the shorter one in the other, as it is
+    or as part of a compound, and one long word exactly."""
+    small, big = (a, b) if len(a) <= len(b) else (b, a)
+    exact = [w for w in small if w in big and len(w) >= 5]
+    return bool(exact) and all(any(w == x or (min(len(w), len(x)) >= 5 and (w.startswith(x) or x.startswith(w)))
+                                   for x in big) for w in small)
+
+
+def _implied_masters(types: list[TypeDraft], groups: dict, rels: list[RelDraft], idx: dict) -> list:
+    """A customer who is only in the invoices and orders – new since the old customer list was exported – is a
+    customer all the same: one record for the name and its variants ("Fitnessstudio Kraftwerk", "Kraftwerk
+    Fitness UG"), linked wherever it is named."""
+    out = []
+    for d in types:
+        if d.kind != "master" or d.concept != "kunde" or d.title is None:
+            continue
+        clusters: list[dict] = []
+        for r in rels:
+            if r.dst is not d or r.src.kind != "transaction" or (r.src.concept or "") not in _FROM_DOCS:
+                continue
+            for gi, v in r.unresolved.items():
+                if not isinstance(v, str):
+                    continue
+                text = _PARENS.sub(" ", v)
+                nm = norm_name(text)
+                ws = [w for w in nm.split() if w not in _SALUTATIONS and w not in _WHAT]
+                if len(ws) < 2 or sum(len(w) for w in ws) < 8 or set(ws) <= _NOT_A_PARTY:
+                    continue
+                if idx[id(d)].candidates(nm, acronyms(text)) or idx[id(d)].shares_name(ws):
+                    continue  # a known one, named too briefly or too differently to tell – not a new one
+                c = next((c for c in clusters if any(_same_party(ws, x) for x in c["words"])), None)
+                if c is None:
+                    c = dict(words=[], names=Counter(), refs=[])
+                    clusters.append(c)
+                c["words"].append(ws)
+                c["names"][" ".join(v.split())] += 1
+                c["refs"].append((r, gi))
+        for c in clusters:
+            formal = [n for n in c["names"] if _LEGAL_FORM.search(n)]
+            if len(c["refs"]) < 2 and not formal:
+                continue  # named once, in passing: a question, not a customer
+            name = max(formal or c["names"], key=lambda n: (c["names"][n], len(n)))
+            named = Counter(lexicon.dative_plural(d_plural(r.src)) for r, _ in c["refs"])  # "aus 2 Aufträgen"
+            g = Group(protos=[], idents={"n:" + norm_name(_PARENS.sub(" ", n)) for n in c["names"]},
+                      values={d.title.aid: name}, implied=sorted([p, k] for p, k in named.items()))
+            groups[id(d)].append(g)
+            ti = len(groups[id(d)]) - 1
+            for r, gi in c["refs"]:
+                r.targets[gi] = ti
+                r.unresolved.pop(gi, None)
+                r.hits += 1
+            out.append((d, ti, name))
+    # everyone else who names it that way finds it too (a bank line from KRAFTWERK FITNESS UG)
+    for d, ti, _name in out:
+        keys = groups[id(d)][ti].idents
+        for r in rels:
+            if r.dst is not d:
+                continue
+            for gi, v in list(r.unresolved.items()):
+                if isinstance(v, str) and "n:" + norm_name(_PARENS.sub(" ", v)) in keys:
+                    r.targets[gi] = ti
+                    del r.unresolved[gi]
+                    r.hits += 1
+    return out
 
 
 _STOP = {"gmbh", "mbh", "ag", "kg", "ug", "ek", "co", "und", "der", "die", "das", "e", "v", "gbr", "ohg", "eg"}

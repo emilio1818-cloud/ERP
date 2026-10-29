@@ -115,7 +115,16 @@ def werkstatt(tmp: Path) -> list[dict]:
     return [dict(files=_files(out / d["folder"]), today=d["today"], truth=d) for d in t["deliveries"]]
 
 
+def gebaeude(tmp: Path) -> list[dict]:
+    """A commercial cleaning firm nobody had seen (review 8): monthly contract invoices, SEPA batches with returns,
+    standing orders, a property manager paying several objects at once, special jobs, the book's own status; twice."""
+    out = tmp / "gebaeude"
+    subprocess.run([sys.executable, str(HERE / "gen" / "gebaeude.py"), str(out)], check=True, capture_output=True)
+    t = json.loads((out / "truth.json").read_text(encoding="utf-8"))
+    return [dict(files=_files(out / d["folder"]), today=d["today"], truth=d) for d in t["deliveries"]]
+
+
 FIRMS = dict(demo=demo, brenner=brenner, agentur=agentur, handwerk=handwerk, musikschule=musikschule, maler=maler,
-             shop=shop, werkstatt=werkstatt)
+             shop=shop, werkstatt=werkstatt, gebaeude=gebaeude)
 # every firm also runs with neutral file names (S1) and other headings (S2); the quick ones with both (S3)
 VARIED = ("demo", "maler", "musikschule")

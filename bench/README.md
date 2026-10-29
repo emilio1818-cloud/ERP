@@ -22,6 +22,7 @@ python bench/run.py --save       # das Ergebnis wird die neue Basis (bench/basel
 | maler | Bedienungstest (`gen/maler.py`) | zwei „Müller, Hans“, eine Familie, die kein Kunde ist |
 | shop | Online-Händler, Review 6, zwei Lieferungen (`gen/shop/`) | Auszahlungen, Erstattungen, Größen, B2B-Rechnungen |
 | werkstatt | Kfz-Werkstatt, Review 7, zwei Lieferungen (`gen/werkstatt.py`) | Rechnungsnummern als reine Zahl, bar/EC bei Abholung, Versicherung kürzt, Gutschrift und Storno, eigene Rechnungs-PDFs |
+| gebaeude | Gebäudereinigung, Review 8, zwei Lieferungen (`gen/gebaeude.py`) | Sparkassen-CSV (CAMT), Monatsrechnungen je Vertrag, SEPA-Sammellastschrift mit Rücklastschriften, Hausverwaltung zahlt mehrere Objekte, eigene XRechnung, Briefbogen-PDFs |
 
 Gemessen wird je Lieferung: offene Posten (richtig/zu viel/fehlend, Euro), überfällige Rechnungen,
 fertige Aufträge ohne Rechnung, Festpreis-Projekte deutlich über Budget, Geld ohne Rechnung, Einträge auf

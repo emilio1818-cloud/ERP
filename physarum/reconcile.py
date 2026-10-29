@@ -59,7 +59,8 @@ def bank_specs(model: dict) -> list[dict]:
             continue  # a supplier's invoice names an IBAN and an amount too – it is not a bank statement
         iban = next((a for a in t["attrs"] if a["kind"] == "iban" and not a.get("hidden")), None)
         moneys = [a for a in t["attrs"] if a["kind"] == "money" and not a.get("hidden")]
-        money = moneys[0] if moneys else None
+        # the amount stands on every line; "Lastschrift Ursprungsbetrag" before it only on returns
+        money = max(moneys, key=lambda a: a.get("fill") or 0) if moneys else None
         split = _split_amount(moneys)
         date_a = next((a for a in t["attrs"] if a["kind"] in ("date", "datetime") and not a.get("hidden")), None)
         purpose = any(set(tokens(a["name"])) & {"verwendungszweck", "zweck", "buchungstext", "purpose"} for a in t["attrs"])

@@ -15,7 +15,7 @@ from datetime import date, timedelta
 from itertools import combinations
 
 from .billing import is_draft
-from .text import fold, name_similarity, norm_key, norm_name
+from .text import fold, name_similarity, norm_key, norm_name, tokens
 from .values import as_date
 
 _NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
@@ -495,6 +495,12 @@ def apply_to_records(model: dict, records: dict, entries: dict):
         t["attrs"].append(dict(id=PAY_OPEN, name="Offen", kind="money", role="money", fill=1.0, distinct=0, enum=None,
                                constant=False, hidden=False, sources=[], currency="EUR", virtual=dict(payments=True),
                                explain="Bruttobetrag abzüglich der zugeordneten Zahlungen"))
+        for a in t["attrs"]:
+            # the file's own "Offener Betrag" is yesterday's state: the payments say what is open now
+            if a["kind"] == "money" and not a.get("virtual") and set(tokens(a["name"])) & {"offen", "offener", "rest",
+                                                                                              "restbetrag", "outstanding"}:
+                a["hidden"] = True
+                a["superseded"] = PAY_OPEN
     for tid in types:
         for r in records.get(tid, []):
             e = entries.get(r["id"])

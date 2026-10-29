@@ -285,3 +285,5 @@ tfoot td { font-weight: 600; }
 @media (min-width: 901px) and (max-width: 1200px) {
   .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+form.inline { display: inline; margin-left: .4rem; }
+dd.shadow { font-size: .85rem; margin-top: .1rem; }

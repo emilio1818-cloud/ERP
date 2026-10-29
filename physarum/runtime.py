@@ -187,6 +187,23 @@ class Runtime:
                                           reason=f"Nummer {r['data'][key]} gibt es {len(rs)}-mal"
                                                  + (" – diese wurde hier ausgestellt" if here else " – aus einer Datei"),
                                           sev=3))
+        # any kind of thing: a number given here and, for something else, in a file
+        for spec in self.model["types"]:
+            key = spec.get("key")
+            if not key or spec.get("concept") in LOCKED_CONCEPTS:
+                continue
+            by_no = defaultdict(list)
+            for r in self.records.get(spec["id"], []):
+                if r["data"].get(key) is not None and not (r.get("meta") or {}).get("draft"):
+                    by_no[norm_key(r["data"][key])].append(r)
+            for rs in by_no.values():
+                if len(rs) > 1 and any(r.get("origin") == "user" for r in rs) and any(r.get("origin") == "import" for r in rs):
+                    for r in rs:
+                        here = r.get("origin") == "user"
+                        items.append(dict(rid=r["id"], title=self.title(r["id"]), days=0, money=None, party=None,
+                                          reason=f"{spec['name']}-Nummer {r['data'][key]} gibt es zweimal – "
+                                                 + ("hier angelegt" if here else "aus einer Datei")
+                                                 + ": zwei verschiedene, bitte eine umnummerieren", sev=2))
         if not items:
             return []
         seen, uniq = set(), []
@@ -194,8 +211,11 @@ class Runtime:
             if (x["rid"], x["reason"]) not in seen:
                 seen.add((x["rid"], x["reason"]))
                 uniq.append(x)
+        locked = all((self.spec(self.by_id[x["rid"]]["type"]) or {}).get("concept") in LOCKED_CONCEPTS for x in uniq)
         return [dict(id="integrity", type=self.by_id[uniq[0]["rid"]]["type"], kind="integrity",
-                     severity=max(x["sev"] for x in uniq), title="Prüfen: Ihre Dateien widersprechen ausgestellten Belegen",
+                     severity=max(x["sev"] for x in uniq),
+                     title="Prüfen: Ihre Dateien widersprechen ausgestellten Belegen" if locked else
+                     "Prüfen: Ihre Dateien widersprechen dem, was hier steht",
                      count=len({x["rid"] for x in uniq}), amount=None, items=uniq[:50], action=None,
                      explain="Festgeschriebene Rechnungen ändert Physarum beim Einlesen nicht. Was abweicht, steht hier – "
                              "klären Sie es im anderen Programm oder mit einer Stornorechnung.")]

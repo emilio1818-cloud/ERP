@@ -140,6 +140,8 @@
         {% if f.alts %}<span class="tag guess" title="Andere Werte in den Quellen: {{ f.alts|join(' | ') }}">abweichend</span>{% endif %}
       </dt>
       <dd class="view-mode">{{ fmt(a, f.value) }}</dd>
+      {% if f.shadow %}<dd class="view-mode shadow"><span class="muted">laut „{{ f.shadow.source }}“: {{ fmt(a, f.shadow.value, link=False) }} – Ihre Eingabe gilt</span>
+        <form method="post" action="/r/{{ rec.id }}" class="inline noprint"><input type="hidden" name="a_{{ a.id }}" value="{{ input_value(a, f.shadow.value) }}"><button class="small ghost" type="submit">Wert übernehmen</button></form></dd>{% endif %}
       {% if f.src or f.alts %}<dd class="prov hide">{% if f.src %}aus {{ f.src|join(' · ') }}{% endif %}{% if f.alts %}<br>andere Werte: {{ f.alts|join(' | ') }}{% endif %}</dd>{% endif %}
       {% if editable %}<dd class="edit-mode hide">{{ input_for(a, f.value, 'a_' ~ a.id) }}</dd>
       {% else %}<dd class="edit-mode hide muted">{{ fmt(a, f.value) }}</dd>{% endif %}

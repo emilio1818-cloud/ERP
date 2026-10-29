@@ -309,6 +309,27 @@ class UnseenFirm(unittest.TestCase):
         p13 = next(r["id"] for r in rt.records[pj["id"]] if r["data"].get(pj["key"]) == "P-2026-013")
         self.assertEqual(sum(1 for r in rt.records[te["id"]] if r["data"].get(ref["id"]) == p13), 6 + 8)
 
+    def test_an_offer_made_here_is_not_taken_over_by_another_with_its_number(self):
+        from physarum import ops
+        head = "Angebots-Nr.;Datum;Kunde;Titel;Netto;Status"
+        rows = [[f"A-2026-{i:03d}", f"{(i % 28) + 1:02d}.03.2026", f"Kunde {i % 5} GmbH", "Relaunch", f"{1000 + 100 * i},00",
+                 "offen"] for i in range(1, 21)]
+        self.f.feed([("Angebote.csv", csv(head, rows))])
+        rt = self.f.rt()
+        an = _type(rt, "Angebot")
+        attrs = {a["name"]: a["id"] for a in an["attrs"]}
+        mine = ops.create(rt, an["id"], {attrs["Angebots-Nr."]: "A-2026-021", attrs["Datum"]: "2026-04-02",
+                                         attrs["Titel"]: "Kanu-Website", attrs["Netto"]: "20000"}, "Tester")
+        theirs = rows + [["A-2026-021", "08.04.2026", "Hafenkontor Immobilien GmbH", "Online-Shop", "18.700,00", "angenommen"]]
+        self.f.feed([("Angebote_neu.csv", csv(head, theirs))])
+        rt = self.f.rt()
+        same = [r for r in rt.records[an["id"]] if r["data"].get(an["key"]) == "A-2026-021"]
+        self.assertEqual(len(same), 2)                                  # two different offers …
+        mine_now = self.f.store.record(mine)
+        self.assertEqual(mine_now["data"][attrs["Titel"]], "Kanu-Website")  # … and the own one untouched
+        self.assertTrue(any("gibt es zweimal" in it["reason"] for g in rt.work() if g["kind"] == "integrity"
+                            for it in g["items"]))
+
     def test_a_note_is_a_document_not_a_table(self):
         self.f.feed([("LIESMICH.txt", "Export aus Toggl + alter Kundenstamm (WaWi 2014), erstellt 02.07.2025 von J. P.\n"
                                       "Toggl wurde zum 30.06.2025 gekündigt, ab 01.07. Clockify.\n"),

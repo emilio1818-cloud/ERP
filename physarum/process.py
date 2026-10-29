@@ -338,7 +338,10 @@ def _status_for(sa, recs, steps, stage_of, comb) -> dict | None:
         if len(vals) != 1 or vals[0] == initial:
             continue
         v = vals[0]
-        reached = [r for r in recs if stage_of[r["id"]] == i and str(r["data"].get(sa["id"])) not in negative]
+        at_step = [r for r in recs if stage_of[r["id"]] == i]
+        reached = [r for r in at_step if str(r["data"].get(sa["id"])) not in negative]
+        if len(at_step) - len(reached) > 0.1 * max(1, len(at_step)):
+            continue  # "Entschieden am" is filled for rejected offers too: the date does not say which way
         if len(reached) >= 5:
             ok = sum(1 for r in reached if str(r["data"].get(sa["id"])) == v)
             if ok / len(reached) >= 0.9:

@@ -421,13 +421,19 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             if v is None and a["id"] in raw:
                 v = raw[a["id"]]
             src = []
-            for sid, tid_, line in (prov.get(a["id"]) or [])[:2]:
-                s = sources.get(sid)
-                if s:
-                    src.append(f"{s['name']}, Zeile {line}")
-            calc = a["id"] in computed or (writers.get(a["id"]) or [""])[0] == "auto" or bool(a.get("virtual"))
+            w = writers.get(a["id"]) or [""]
+            if w[0] == "user":
+                src.append(f"von Hand eingetragen am {display(str(w[1])[:10], 'date')}" if len(w) > 1 else "von Hand eingetragen")
+            else:
+                for sid, tid_, line in (prov.get(a["id"]) or [])[:2]:
+                    s = sources.get(sid)
+                    if s:
+                        src.append(f"{s['name']}, Zeile {line}")
+            calc = a["id"] in computed or w[0] == "auto" or bool(a.get("virtual"))
+            sh = ((rec["meta"] or {}).get("shadow") or {}).get(a["id"])
             facts.append(dict(attr=a, value=v, src=src, alts=[x[0] for x in alts.get(a["id"], [])][:3], calc=calc,
-                              unlinked=a["kind"] == "ref" and a["id"] in raw and not isinstance(data.get(a["id"]), int)))
+                              unlinked=a["kind"] == "ref" and a["id"] in raw and not isinstance(data.get(a["id"]), int),
+                              shadow=dict(value=sh[0], source=sh[1]) if sh else None))
         # process timeline
         proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
         timeline = None

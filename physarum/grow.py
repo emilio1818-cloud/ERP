@@ -527,6 +527,13 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     made_here = {r["record_id"] for r in c.execute("SELECT DISTINCT record_id FROM changes WHERE kind='create'").fetchall()}
     specs = {t["id"]: t for t in model["types"]}
     protect = {t.tid: protected_attrs(specs[t.tid]) for t in types if t.tid in specs}
+    significant = {}
+    for t in types:
+        sp = specs.get(t.tid)
+        if sp and sp.get("key"):
+            significant[t.tid] = {a["id"] for a in sp["attrs"] if a["id"] != sp["key"] and not a.get("virtual") and
+                                  (a["kind"] == "money" or a["id"] == sp.get("title") or
+                                   (a["kind"] in ("date", "datetime") and not a.get("milestone")))}
     status_guard = {t.tid: next((a["id"] for a in specs[t.tid]["attrs"] if a.get("role") == "status"), None)
                     for t in types if t.tid in specs and protect.get(t.tid)}
     cancelled_by_doc = {t.tid: _cancelled_numbers(specs[t.tid], groups[id(t)]) for t in types
@@ -559,13 +566,15 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
                 continue  # a person removed this record on purpose: it does not come back
             rids = sorted({existing[i] for i in g.idents if i in existing})
             rids = [x for x in rids if x not in seen_records]  # never let two groups share one record
-            if protect.get(t.tid):
-                # a document made here is never taken over by an imported one that only shares its number
+            guard = protect.get(t.tid) or significant.get(t.tid)
+            if guard:
+                # a record made here is never taken over by an imported one that only shares its number
+                # (an offer typed in here as A-2026-082 and another A-2026-082 from the other program)
                 for x in [x for x in rids if x in made_here]:
                     row = c.execute("SELECT data FROM records WHERE id=?", (x,)).fetchone()
                     mine = loads(row["data"]) if row else {}
                     if any(aid in mine and not isinstance(v, (int,)) and not _same(mine[aid], _jsonable(v))
-                           for aid, v in g.values.items() if aid in protect[t.tid]):
+                           for aid, v in g.values.items() if aid in guard):
                         rids.remove(x)
                         stats.setdefault("collisions", []).append(x)
             if rids:
@@ -805,6 +814,7 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
         meta = loads(old_meta_json) or {}
     writers = meta.get("w", {})
     conflicts = meta.get("conflicts", {})
+    shadow = meta.get("shadow", {})  # what a file says where the person's own value stands
     changed, notes = [], {}
     out = dict(cur)
     src_time = src_time or (lambda sid, tid: src_added.get(sid, ""))
@@ -815,7 +825,14 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
                 max((src_added.get(s, "") for s in srcs), default="")
             base = w[2] if len(w) > 2 else _UNSET
             if when <= w[1] or (base is not _UNSET and _same(base, v)):
-                continue  # the person's value stands: the file is older or says what it said before
+                # the person's value stands: the file is older or says what it said before – but if the
+                # other program changed it meanwhile, the person should see that
+                if not _same(cur.get(aid), v) and (base is _UNSET or not _same(base, v)):
+                    first = prov.get(aid, [[srcs[-1] if srcs else None]])[0][0]
+                    shadow[aid] = [_jsonable(v), src_name.get(first, "neuere Datei")]
+                else:
+                    shadow.pop(aid, None)
+                continue
             first = prov.get(aid, [[srcs[-1] if srcs else None]])[0][0]
             notes[aid] = f"aus {src_name.get(first, 'neuer Quelle')} übernommen (neuer als die Änderung vom {w[1][:10]})"
         cancels = bool(protected and aid == status_attr and aid in cur and fold(str(v)) in lexicon.NEGATIVE_STATES
@@ -845,6 +862,11 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
             changed.append((aid, cur[aid], None))
             out.pop(aid)
     meta.update(w=writers, prov=prov, alts=alts, raw=raw, src=srcs, fuzzy=g.fuzzy or None)
+    shadow = {aid: x for aid, x in shadow.items() if aid in data and (writers.get(aid) or [""])[0] in ("user", "auto")}
+    if shadow:
+        meta["shadow"] = shadow
+    else:
+        meta.pop("shadow", None)
     if getattr(g, "vanished", None):
         meta["vanished"] = g.vanished
     else:

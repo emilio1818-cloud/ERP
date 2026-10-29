@@ -102,6 +102,23 @@ class Regrowth(unittest.TestCase):
         self.assertEqual(sorted(r["id"] for r in self.f.live()), before)
         self.assertEqual(self.f.store.q1("SELECT COUNT(*) n FROM changes WHERE kind='remove'")["n"], 0)
 
+    def test_a_changed_source_value_is_shown_next_to_the_own_edit(self):
+        head = "Kundennr;Firma;Ort;Telefon"
+        rows = [(f"K-{1000 + i}", f"Firma {i} GmbH", "Hamburg", f"040 {1000000 + i}") for i in range(20)]
+        self.f.feed([("kunden_2026-09-15.csv", csv(head, rows))])
+        rt = self.f.rt()
+        t = next(t for t in rt.model["types"] if t["name"] == "Kunde")
+        tel = next(a for a in t["attrs"] if a["name"] == "Telefon")
+        rec = next(r for r in rt.records[t["id"]] if r["data"].get(t["key"]) == "K-1000")
+        time.sleep(1.1)
+        ops.update(rt, rec["id"], {tel["id"]: "0171 5555555"}, "Tester")
+        newer = list(rows)
+        newer[0] = (rows[0][0], rows[0][1], rows[0][2], "040 7777777")  # the CRM changed it too, before the edit
+        self.f.feed([("kunden_2026-09-16.csv", csv(head, newer))])
+        r = self.f.store.record(rec["id"])
+        self.assertEqual(r["data"][tel["id"]], "0171 5555555")       # the own edit stands …
+        self.assertEqual(r["meta"]["shadow"][tel["id"]][0], "040 7777777")  # … and the other value is shown
+
     def test_user_edit_survives_unrelated_newer_file(self):
         kunden = csv("Kundennr;Firma;Ort;Telefon", [(f"K-{1000 + i}", f"Firma {i} GmbH", "Hamburg", f"040 {1000000 + i}")
                                                     for i in range(20)])

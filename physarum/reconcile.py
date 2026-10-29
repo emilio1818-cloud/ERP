@@ -20,6 +20,7 @@ from datetime import date
 from itertools import combinations
 
 from .billing import is_draft
+from .lexicon import SALUTATIONS, TITLES
 from .infer.identity import FREEMAIL
 from .text import fold, jaro_winkler, name_similarity, norm_name, tokens
 from .values import as_date, as_number, iban_ok
@@ -180,14 +181,20 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                     if known and len(known) == 1:
                         party = next(iter(known))
                         cands, via_iban = by_party.get(party, []), True
-                if not cands and b["name"] is not None:
-                    payer = norm_name(row["data"].get(b["name"]["id"]) or "")
+                if not cands and (b["name"] is not None or b["party"] is not None):
+                    # who paid, as written: the name column, or the payer the lists do not know
+                    payer = norm_name((row["data"].get(b["name"]["id"]) if b["name"] else None) or
+                                      (((row.get("meta") or {}).get("raw") or {}).get(b["party"]["id"]) if b["party"] else None)
+                                      or "")
                     if payer:
                         cands = [r for r in open_inv if isinstance(r["data"].get(p["party"]), int)
                                  and name_similarity(payer, norm_name(titles.get(r["data"][p["party"]], ""))) >= 0.85]
                         who = {r["data"][p["party"]] for r in cands}
                         if len(who) == 1 and not isinstance(party, int):
                             party = next(iter(who))  # the payer is this customer
+                        if not cands:  # the invoice names someone in no list: "Fischer, Jan und Petra" pays "Fam. Fischer"
+                            cands = [r for r in open_inv if not isinstance(r["data"].get(p["party"]), int) and
+                                     _named_alike(payer, ((r.get("meta") or {}).get("raw") or {}).get(p["party"]))]
                 text = " ".join(str(row["data"].get(a["id"]) or "") for a in b["spec"]["attrs"] if a["kind"] == "text")
                 named = {as_date(m) for m in _INVOICE_OF.findall(text)} - {None}
                 if not cands and named:
@@ -242,6 +249,18 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
         if per_bank[m["bank"]] > 1 or any(per_inv[i] > 1 for i in m["invoices"]):
             m["sure"] = False
     return out
+
+
+_PEOPLE = SALUTATIONS | TITLES
+
+
+def _named_alike(payer: str, name) -> bool:
+    """Every word of the shorter name is in the longer one, salutations aside, and it is more than an initial."""
+    if not isinstance(name, str):
+        return False
+    a, b = ({w for w in norm_name(x).split() if w not in _PEOPLE} for x in (payer, name))
+    small, big = sorted((a, b), key=len)
+    return bool(small) and small <= big and sum(len(w) for w in small) >= 4
 
 
 _INVOICE_OF = re.compile(r"rechnung(?:en)?\s+(?:vom|v\.)\s*(\d{1,2}\.\d{1,2}\.\d{2,4})", re.I)

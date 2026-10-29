@@ -43,10 +43,12 @@ class RelDraft:
 
 class IdentIndex:
     def __init__(self, groups: list[Group], title: str | None = None, alt: dict | None = None,
-                 parts: list[str] | None = None, former: dict | None = None):
+                 parts: list[str] | None = None, former: dict | None = None, places: list[str] | None = None):
         """`former`: group -> names it went by in earlier growths ("Hausverwaltung Kramer & Söhne" before
-        the customer list renamed it)."""
+        the customer list renamed it). `places`: the address fields, which tell two "Müller, Hans" apart."""
         self.alt = alt or {}
+        self.places = {i: {w for p in places or () if isinstance(g.values.get(p), (str, int))
+                           for w in norm_name(str(g.values[p])).split()} for i, g in enumerate(groups)}
         self.by: dict[str, int] = {}
         self.names: dict[str, list[tuple[str, int]]] = defaultdict(list)
         self.words: dict[str, set[int]] = defaultdict(set)        # word prefix -> groups whose name has it
@@ -125,7 +127,15 @@ class IdentIndex:
             i = self.by.get("n:" + norm_name(text))
             if i is not None:
                 return i, False
-        return self.short(norm_name(text), acronyms(text)), False
+        found = self.candidates(norm_name(text), acronyms(text))
+        where = {w for p in _PARENS.findall(str(value)) for w in norm_name(p).split() if len(w) >= 3}
+        if len(found) > 1 and where:
+            found = {i for i in found if where & self.places.get(i, set())}  # "Müller, Hans (Vellmar)"
+        if len(found) != 1 and where and self.by.get("n:" + norm_name(text)) is None:
+            # two of that name, or the plain name taken by both: the place decides
+            both = {i for i in range(len(self.wordsets)) if any(ws == set(norm_name(text).split()) for ws in self.wordsets[i])}
+            found = {i for i in both if where & self.places.get(i, set())} if len(both) > 1 else found
+        return (next(iter(found)) if len(found) == 1 else None), False
 
     def shares_name(self, ws: list[str]) -> bool:
         """Does a known record's name share a word with this one, beside what kind of business it is
@@ -147,6 +157,7 @@ class IdentIndex:
         surname ("Fam. Tepe", "Peters") and by initials ("KD Meyer", "H. Schulze"); two Schulzes leave
         "Fam. Schulze" unresolved."""
         words = nm.split()
+        person = bool(words) and words[0] in _SALUTATIONS and words[0] != "firma"
         while len(words) > 1 and words[0] in _SALUTATIONS:
             words = words[1:]
         if len(words) > 1:
@@ -195,19 +206,23 @@ class IdentIndex:
                 rest.remove(x)
             return True
 
+        if person:  # "Fam. Fischer" is a household, never "Bäckerei Fischer" or a GmbH
+            cands = {i for i in cands if not any(ws & _FIRM for ws in self.wordsets[i])}
         exact = {i for i in cands if any(fits(ws, True) for ws in self.wordsets[i])}
         if exact or size < 6:
             return exact
         return {i for i in cands if any(fits(ws, False) for ws in self.wordsets[i])}
 
 
-_SALUTATIONS = {"fam", "familie", "eheleute", "ehel", "herr", "herrn", "frau", "hr", "fr"}
-_TITLES = {"dr", "med", "dent", "vet", "prof", "dipl", "ing", "rer", "nat", "phil", "jur", "mag"}
+_SALUTATIONS, _TITLES = lexicon.SALUTATIONS, lexicon.TITLES
 # the kind of business, not its name: two of them need not be the same one
 _TRADE = {"praxis", "zahnarztpraxis", "arztpraxis", "fitnessstudio", "studio", "gaststaette", "restaurant", "pension",
           "hotel", "baeckerei", "metzgerei", "autohaus", "tischlerei", "steuerkanzlei", "kanzlei", "hausverwaltung",
           "immobilien", "immobilienverwaltung", "verwaltung", "service", "handel", "haustechnik", "kita", "schule",
           "kirchengemeinde", "gemeinde", "verein", "stiftung", "genossenschaft", "wohnbau", "physiotherapie", "familie"}
+# what a firm's name says and a person's never does
+_FIRM = (_TRADE - {"familie"}) | {"gmbh", "mbh", "ag", "kg", "ohg", "gbr", "ug", "ek", "eg", "ev", "se", "kgaa", "partg",
+                                 "ltd", "inc", "co", "firma", "gruppe", "werke", "werk"}
 # what was done, not for whom: "Kaya PV", "Schulze Bad"
 _WHAT = {"pv", "photovoltaik", "solar", "solaranlage", "heizung", "bad", "badsanierung", "dach", "kueche", "umbau",
          "neubau", "anbau", "sanierung", "wartung", "notdienst"}
@@ -295,7 +310,8 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
     alts = {id(t): alternate_keys(t, groups[id(t)]) for t in types if t.kind == "master"}
     idx = {id(t): IdentIndex(groups[id(t)], t.title.aid if t.title is not None else None, alts.get(id(t)),
                              [a.aid for a in t.attrs if a.role == "person_part"],
-                             _former_names(t, groups[id(t)], (history or {}).get(t.tid)))
+                             _former_names(t, groups[id(t)], (history or {}).get(t.tid)),
+                             [a.aid for a in t.attrs if a.role in ("city", "street", "zip")])
            for t in types}
     rels: list[RelDraft] = []
     taken: set[tuple[int, int]] = set()  # (id(type), id(attr))

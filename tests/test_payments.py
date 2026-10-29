@@ -239,5 +239,68 @@ class MoneyBack(unittest.TestCase):
         self.assertEqual(self.by_no[self.no[11]]["state"], "storniert")
 
 
+class WhoPaid(unittest.TestCase):
+    """Names as people write them: a family is no bakery of the same name, the place in brackets tells two
+    "Müller, Hans" apart, and a family in no list still pays its invoice by amount and name."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="physarum-who-"))
+        kunden = ["Kd-Nr;Anrede;Name;Straße;PLZ;Ort",
+                  "K-1;Firma;Bäckerei Fischer;Bettenhäuser Straße 12;34123;Kassel",
+                  "K-2;Herr;Müller, Hans;Wilhelmshöher Allee 210;34119;Kassel",
+                  "K-3;Herr;Müller, Hans;Kasseler Straße 5;34246;Vellmar"]
+        kunden += [f"K-{i};Firma;Firma {n};Straße {i};341{i:02d};Kassel" for i, n in
+                   enumerate(["Lotse", "Anker", "Krume", "Kompass", "Möwe", "Linde"], start=4)]
+        start = TODAY - timedelta(days=120)
+        inv = ["Re-Nr.;Re-Datum;Kunde;Brutto;fällig am;bezahlt am"]
+        bank = ["Buchungstag;Verwendungszweck;Zahlungspflichtiger;Betrag"]
+        who = ["Firma Lotse", "Firma Anker", "Firma Krume", "Firma Kompass", "Firma Möwe", "Firma Linde",
+               "Bäckerei Fischer", "Fam. Fischer", "Müller, Hans (Vellmar)"]
+        cls.no = {}
+        for i, name in enumerate(who):
+            d = start + timedelta(days=9 * i)
+            g = 300.0 + 17 * i
+            no = f"RE-{d.year}-{i + 1:03d}"
+            cls.no[name] = no
+            if i < 7:
+                bank.append(f"{de(d + timedelta(days=7))};{no};{name};{eur(g)}")
+            elif name == "Fam. Fischer":
+                bank.append(f"{de(d + timedelta(days=12))};Malerarbeiten Kinderzimmer Danke;Fischer, Jan und Petra;{eur(g)}")
+            else:
+                bank.append(f"{de(d + timedelta(days=12))};Malerarbeiten Wohnzimmer;Hans Mueller;{eur(g)}")
+            bank.append(f"{de(d + timedelta(days=1))};Miete Werkstatt;Immobilien Kuhn GbR;-{eur(1450.0)}")
+            inv.append(f"{no};{de(d)};{name};{eur(g)};{de(d + timedelta(days=14))};")
+        for n, rows in (("Kundenliste.csv", kunden), ("Rechnungsbuch.csv", inv), ("Girokonto.csv", bank)):
+            (cls.tmp / n).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        cls.store = Store(cls.tmp / "firma")
+        ingest(cls.store, [(n, (cls.tmp / n).read_bytes()) for n in ("Kundenliste.csv", "Rechnungsbuch.csv", "Girokonto.csv")], "T")
+        regrow(cls.store)
+        cls.rt = Runtime(cls.store)
+        cls.rt.ensure()
+        spec = next(t for t in cls.rt.model["types"] if t["name"] == "Rechnung")
+        party = next(a["id"] for a in spec["attrs"] if a["kind"] == "ref")
+        cls.inv = {r["data"][spec["key"]]: r for r in cls.rt.records[spec["id"]]}
+        cls.party = party
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def customer_of(self, name):
+        v = self.inv[self.no[name]]["data"].get(self.party)
+        return self.rt.by_id[v]["data"] if isinstance(v, int) else None
+
+    def test_a_family_is_no_bakery(self):
+        self.assertIsNone(self.customer_of("Fam. Fischer"))
+        self.assertEqual(self.rt.ledger[self.inv[self.no["Fam. Fischer"]]["id"]]["state"], "bezahlt")  # by amount and name
+
+    def test_the_place_tells_two_of_a_name_apart(self):
+        c = self.customer_of("Müller, Hans (Vellmar)")
+        self.assertIsNotNone(c)
+        self.assertIn("Vellmar", [v for v in c.values() if isinstance(v, str)])
+        self.assertEqual(self.rt.ledger[self.inv[self.no["Müller, Hans (Vellmar)"]]["id"]]["state"], "bezahlt")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -191,6 +191,10 @@ def is_follow_up(header: str) -> bool:
 
 
 # status values that terminate a process without completing it
+# how people are addressed and titled: "Fam. Fischer", "Herrn Dr. Behrens" – a person, not a firm, and not part of the name
+SALUTATIONS = {"fam", "familie", "eheleute", "ehel", "herr", "herrn", "frau", "hr", "fr"}
+TITLES = {"dr", "med", "dent", "vet", "prof", "dipl", "ing", "rer", "nat", "phil", "jur", "mag"}
+
 NEGATIVE_STATES = {"storniert", "storno", "cancelled", "canceled", "abgesagt", "abgelehnt", "rejected", "verloren",
                    "lost", "refunded", "erstattet", "zurueckgezogen", "void", "ungueltig", "inaktiv", "inactive",
                    "gekuendigt", "archiviert"}

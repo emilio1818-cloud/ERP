@@ -2,12 +2,13 @@
 
 Der Maßstab jeder Änderung. Eine Firma, die ein Prüfer einmal gebaut hat, bleibt hier: mit ihren Dateien,
 ihren Lieferungen und dem, was an jedem Liefertag wahr ist. Physarum wächst jede Firma neu, an ihrem Tag
-(fester Stichtag), und wird gegen die Wahrheit gemessen. Die schnellen Firmen laufen zusätzlich unter
-anderen Namen für dieselben Dinge: S1 neutrale Dateinamen, S2 andere Spaltenüberschriften, S3 beides.
+(fester Stichtag), und wird gegen die Wahrheit gemessen. Jede Firma läuft zusätzlich unter anderen Namen für
+dieselben Dinge: S1 neutrale Dateinamen, S2 andere Spaltenüberschriften; die schnellen auch S3 (beides).
 
 ```bash
-python bench/run.py              # alle Firmen, die schnellen auch als S1–S3 (gut 1 Minute)
+python bench/run.py              # alle Firmen, auch als S1 und S2 (gut 2 Minuten)
 python bench/run.py demo maler   # nur diese
+python bench/run.py --s0         # nur unter eigenen Namen: der schnelle Blick beim Arbeiten
 python bench/run.py --save       # das Ergebnis wird die neue Basis (bench/baseline.json)
 ```
 
@@ -20,12 +21,15 @@ python bench/run.py --save       # das Ergebnis wird die neue Basis (bench/basel
 | musikschule | Strategie-Review (`gen/musikschule.py`) | SEPA-Sammellastschrift, umsatzsteuerfreie Beiträge, Kürzel |
 | maler | Bedienungstest (`gen/maler.py`) | zwei „Müller, Hans“, eine Familie, die kein Kunde ist |
 | shop | Online-Händler, Review 6, zwei Lieferungen (`gen/shop/`) | Auszahlungen, Erstattungen, Größen, B2B-Rechnungen |
+| werkstatt | Kfz-Werkstatt, Review 7, zwei Lieferungen (`gen/werkstatt.py`) | Rechnungsnummern als reine Zahl, bar/EC bei Abholung, Versicherung kürzt, Gutschrift und Storno, eigene Rechnungs-PDFs |
 
 Gemessen wird je Lieferung: offene Posten (richtig/zu viel/fehlend, Euro), überfällige Rechnungen,
 fertige Aufträge ohne Rechnung, Festpreis-Projekte deutlich über Budget, Geld ohne Rechnung, Einträge auf
 Heute, Fragen (davon zum Datenmodell). Unter S1–S3 zudem: dieselben offenen Posten wie im Original, und
 heißen die Listen gleich?
-Dazu, was der Code kostet: Zeilen, Wort-Regeln, reguläre Ausdrücke.
+Dazu, was der Code kostet: Zeilen, Wort-Regeln (eine Bedingung, die ein Wort oder eine Wortliste prüft),
+reguläre Ausdrücke. „Listen gleich benannt“ misst nur, ob die Namen unter S1–S3 gleich bleiben, nicht ob sie
+gut sind.
 
 Die Regel: Ein Fund wird nur behoben, wenn die Lösung auf mindestens zwei Firmen greift und keine
 Kennzahl einer anderen Firma schlechter macht. Sonst ist er eine dokumentierte Grenze.

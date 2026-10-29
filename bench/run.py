@@ -1,8 +1,9 @@
 """The bench: every firm grown on the day of each delivery, the quick ones also under other names; one
 table, compared with the baseline. This, not a review's single finding, is what a change must improve.
 
-    python bench/run.py              all firms, the quick ones also as S1–S3
+    python bench/run.py              all firms, also as S1 and S2, the quick ones also as S3
     python bench/run.py demo maler   only these
+    python bench/run.py --s0         only under their own names (the quick look while working)
     python bench/run.py --save       the result becomes the baseline (bench/baseline.json)
 """
 from __future__ import annotations
@@ -80,8 +81,11 @@ def table(results: list[dict]) -> str:
 def main(argv: list[str]) -> int:
     save = "--save" in argv
     only = [a for a in argv if not a.startswith("--")] or list(FIRMS)
-    jobs = [(f, "S0") for f in only] + [(f, v) for f in only if f in VARIED for v in ("S1", "S2", "S3")]
-    with ThreadPoolExecutor(max_workers=6) as ex:
+    jobs = [(f, "S0") for f in only]
+    if "--s0" not in argv:
+        jobs += [(f, v) for f in only for v in ("S1", "S2", "S3") if v != "S3" or f in VARIED]
+    jobs.sort(key=lambda j: j[0] not in ("agentur", "shop"))  # the slow ones first
+    with ThreadPoolExecutor(max_workers=4) as ex:
         results = list(ex.map(lambda j: _run(*j), jobs))
     s = summary(results)
     print(table(results))

@@ -38,12 +38,12 @@ def _word_names(tree: ast.Module) -> set[str]:
 
 def measure(root: Path) -> dict:
     lines = rules = regexes = 0
-    for p in sorted((root / "physarum").rglob("*.py")):
-        if "demo" in p.parts:
-            continue
-        src = p.read_text(encoding="utf-8")
-        lines += src.count("\n")
-        tree = ast.parse(src)
+    trees = {p: ast.parse(p.read_text(encoding="utf-8")) for p in sorted((root / "physarum").rglob("*.py"))
+             if "demo" not in p.parts}
+    # a word list counts wherever it is used, also when imported; other constants (EPS, a fee) are no rule
+    names = set().union(*(_word_names(t) for t in trees.values()))
+    for p, tree in trees.items():
+        lines += p.read_text(encoding="utf-8").count("\n")
         for n in ast.walk(tree):
             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and getattr(n.func.value, "id", "") == "re" \
                     and n.func.attr in ("compile", "search", "match", "fullmatch", "findall", "finditer", "sub", "split") \
@@ -51,14 +51,13 @@ def measure(root: Path) -> dict:
                 regexes += 1
         if "web" in p.parts:
             continue
-        names = _word_names(tree)
         for n in ast.walk(tree):
             tests = [n.test] if isinstance(n, (ast.If, ast.IfExp, ast.While)) else n.ifs if isinstance(n, ast.comprehension) else []
             for test in tests:
                 for m in ast.walk(test):
                     if (isinstance(m, ast.Constant) and isinstance(m.value, str) and _WORD.search(m.value)
                             and m.value.strip().lower() not in _INTERNAL) or \
-                            (isinstance(m, ast.Name) and (m.id in names or (m.id.isupper() and len(m.id) > 2))):
+                            (isinstance(m, ast.Name) and m.id in names):
                         rules += 1
                         break
     return dict(lines=lines, word_rules=rules, regexes=regexes)

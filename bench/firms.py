@@ -106,7 +106,16 @@ def shop(tmp: Path) -> list[dict]:
     return res
 
 
+def werkstatt(tmp: Path) -> list[dict]:
+    """A car repair shop nobody had seen (review 7): invoice numbers that are plain numbers, cash and card at
+    pick-up, insurers that pay less, credit notes and stornos, its own invoice PDFs; twice, the banks overlapping."""
+    out = tmp / "werkstatt"
+    subprocess.run([sys.executable, str(HERE / "gen" / "werkstatt.py"), str(out)], check=True, capture_output=True)
+    t = json.loads((out / "truth.json").read_text(encoding="utf-8"))
+    return [dict(files=_files(out / d["folder"]), today=d["today"], truth=d) for d in t["deliveries"]]
+
+
 FIRMS = dict(demo=demo, brenner=brenner, agentur=agentur, handwerk=handwerk, musikschule=musikschule, maler=maler,
-             shop=shop)
-# the quick firms are also run with other names for the same things
+             shop=shop, werkstatt=werkstatt)
+# every firm also runs with neutral file names (S1) and other headings (S2); the quick ones with both (S3)
 VARIED = ("demo", "maler", "musikschule")

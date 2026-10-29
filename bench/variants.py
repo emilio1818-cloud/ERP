@@ -72,7 +72,7 @@ def _csv(data: bytes) -> bytes:
 
 
 def _xlsx(data: bytes) -> bytes:
-    wb = openpyxl.load_workbook(io.BytesIO(data))
+    wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)  # the values Physarum reads, not formulas without them
     for ws in wb.worksheets:
         for row in ws.iter_rows(min_row=1, max_row=8):
             for c in row:

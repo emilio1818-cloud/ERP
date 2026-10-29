@@ -73,8 +73,17 @@ python -m unittest discover -s tests -t .
 node e2e/screens.cjs http://127.0.0.1:8000 docs/screenshots   # bei laufendem Server
 ```
 
+## Rechnungen, Geld und Steuerberatung
+
+- **Ausgangsrechnungen** aus dem Auftrag: Entwurf, Ausstellen mit fortlaufender Nummer, Druck nach § 14 UStG und **XRechnung**; danach festgeschrieben, Korrektur nur per Storno-Beleg.
+- **Zahlungen** kommen aus dem Kontoauszug – über die Nummer im Verwendungszweck, sonst über Betrag, Zahler und Tag (auch Skonto, Sammelzahlungen, Zahlendreher, Gutschriften). Daraus folgen „offen“, „überfällig“ und die Zahlungserinnerung.
+- **Eingangsrechnungen** aus PDF oder E-Rechnung (XRechnung/ZUGFeRD) werden nachgerechnet und vor dem Bezahlen geprüft: Rechenfehler, fehlende Pflichtangaben, falscher Empfänger, eine neue Bankverbindung, die erste Rechnung eines unbekannten Lieferanten.
+- **Für die Steuerberatung** entsteht je Monat, Quartal oder Jahr ein ZIP: Ausgangsrechnungen als DATEV-Buchungsstapel (eine Buchung je Rechnung und Steuersatz, SKR03/SKR04), beide Rechnungsbücher, Umsatzsteuer je Satz (Soll oder Ist), offene Posten, Debitoren/Kreditoren, die Belege und ein Prüfprotokoll mit Prüfsummen.
+- **Nachvollziehbarkeit:** Das Änderungsprotokoll ist versiegelt (jeder Eintrag trägt den SHA-256-Prüfwert aller vorherigen; Ändern und Löschen weist die Datenbank ab), archivierte Belege sind unveränderlich, und die **Verfahrensdokumentation** schreibt sich in den GoBD-Kapiteln aus Quellen, Regeln, Entscheidungen und Protokoll.
+
 ## Grenzen (ehrlich)
 
-- Freitext, PDFs und E-Mails werden **verknüpft und durchsuchbar**, aber nicht inhaltlich in Datensätze zerlegt; dafür wäre ein optionaler Sprachmodell-Baustein der nächste Schritt (Vorschlag → Prüfung durch Invarianten → Mensch).
-- Keine Finanzbuchhaltung, kein DATEV-Export und keine E-Rechnung (XRechnung/ZUGFeRD), noch keine Benutzerrechte. Das steht auf der Liste in [docs/KONZEPT.md](docs/KONZEPT.md).
-- Heuristiken können irren. Deshalb ist alles erklärt („Wie Physarum Ihre Firma sieht“), korrigierbar und umkehrbar, und die Originale bleiben unangetastet.
+- Freitext, PDFs und E-Mails werden **verknüpft, durchsuchbar und eingeordnet** (Bestellung, Anfrage, Reklamation), aber nicht inhaltlich in Datensätze zerlegt; dafür wäre ein optionaler Sprachmodell-Baustein der nächste Schritt (Vorschlag → Prüfung durch Invarianten → Mensch).
+- Keine Finanzbuchhaltung: Physarum liefert der Steuerberatung Buchungsstapel und Belege, bucht aber keine Aufwandskonten und erstellt keine Umsatzsteuer-Voranmeldung. Der DATEV-Export folgt dem veröffentlichten Format, ein Probe-Import bei der Steuerberatung gehört dazu.
+- Noch keine Benutzerrechte (der Name steht im Protokoll); gedacht für einen Rechner im Büro.
+- Heuristiken können irren. Deshalb ist alles erklärt („Wie Physarum Ihre Firma sieht“), korrigierbar und umkehrbar – auch Zusammenführungen auf Vermutung („Wieder trennen“) –, und die Originale bleiben unangetastet.

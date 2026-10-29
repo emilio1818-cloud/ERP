@@ -118,7 +118,7 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 ## 7. Ehrliche Grenzen
 
 - Freitext, PDFs und E-Mails werden ohne Sprachmodell **verknüpft und durchsuchbar gemacht**, aber nur heuristisch ausgelesen. Ein optionaler LLM-Baustein ist als Erweiterung vorgesehen.
-- Physarum ist die **operative** Schicht und keine Finanzbuchhaltung. DATEV bzw. Steuerberater bleiben, Export ist vorgesehen.
+- Physarum ist die **operative** Schicht und keine Finanzbuchhaltung. Die Steuerberatung bekommt einen DATEV-Buchungsstapel der Ausgangsrechnungen, die Bücher und die Belege; Aufwandskonten und Voranmeldung bleiben bei ihr.
 - Mehrbenutzerbetrieb und Rechte sind nur rudimentär vorhanden (Name im Änderungsprotokoll).
 - Heuristiken irren. Deshalb ist alles erklärbar, korrigierbar und umkehrbar, und die Originaldaten bleiben unangetastet.
 
@@ -143,6 +143,21 @@ Drei Reviewer hatten nur die ursprüngliche Idee vor sich und kannten diesen Ent
 Bewusst **nicht** übernommen:
 
 - Ein firmenübergreifender Struktur-Prior („Genom aus vielen Firmen“) passt nicht zum Versprechen „bleibt bei Ihnen“.
-- E-Rechnung (XRechnung/ZUGFeRD) und DATEV-Export stehen als nächste Schritte an.
+- E-Rechnung (XRechnung/ZUGFeRD) und DATEV-Export standen hier als nächste Schritte – beide sind inzwischen gebaut (siehe 8.2).
 - Die LLM-Extraktion aus Freitext bleibt ein optionaler Baustein.
 - Der Schattenbetrieb über 4–8 Wochen ist eine organisatorische Frage. Unterstützt wird er dadurch, dass sich Quellen jederzeit herausnehmen und wieder aufnehmen lassen.
+
+### 8.2 Nach dem Bau: Prüfungen mit fremden Augen
+
+Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kannten und eine eigene „Wahrheit“ mitbrachten: eine Inhaberin, die mit der Beispiel-Firma ihren Alltag durchspielt; eine ihr unbekannte Webagentur mit zwei Lieferungen (CRM, zwei Zeiterfassungen, Ticketsystem, Rechnungsbuch, Kontoauszug, Freelancer-Stundenzettel, Mails), deren richtige Zahlen vorher feststanden; zuletzt ein Handwerksbetrieb und eine Sicherheitsprüfung.
+
+| Befund | Was daraus wurde |
+|---|---|
+| Beim zweiten Einwerfen verloren Rechnungen ihre Identität; überlappende Exporte doppelten Zeiteinträge | Versionen einer Liste werden je Schlüssel zusammengeführt, die neuere Datei gilt für ihren Zeitraum, gelöschte Zeilen werden als „fehlt in der neuesten Fassung“ markiert statt still entfernt |
+| „Offen“ stimmte nicht: Soll/Haben-Spalten, Gutschriften, Storno, Zahlendreher, Zahlungen ohne Nummer | Eine Wahrheit für „offen“ aus dem Kontoauszug; bei der Agentur stimmen die offenen Posten beider Lieferungen centgenau (32 / 39.949,38 € und 13 / 49.390,91 €), 163 von 163 Zahlungen ohne Nummer richtig zugeordnet |
+| Ticketsystem und Projektliste nennen Kunden „Wattwurm“ oder „Optik Schulz“ | Kurzformen gehören zum einzigen Kunden, dessen Name alle ihre Wörter enthält; mehrdeutige („Hafenkontor“) bleiben offen. Projekte mit Kunde von 76 auf 140 von 143, ohne Fehlzuordnung; jede Zusammenführung auf Vermutung lässt sich wieder trennen |
+| Fehlalarme auf „Heute“ (Retainer „überfällig“, Projekte nie abgeschlossen, Daten älter als heute) | Kennzahlen zum Datenstand, geplante Termine als Norm, Vorgänge ohne Abschluss werden nicht angemahnt |
+| Hänger bei einer 5-MB-Zelle, 2.500 Spalten, 300.000 Zeilen | Begrenzte Suche, linearer Versionsabgleich; 300.000 Zeilen in gut einer Minute |
+| Eingangsrechnungen mit IBAN galten als Kontoauszug; ohne Lieferantenliste lief Geld falsch herum | Behoben; dazu Nachrechnen empfangener E-Rechnungen und Betrugsprüfung gegen frühere Rechnungen desselben Lieferanten |
+| Die Inhaberin: zwei Status im Kopf, Mails mit Bestellungen gehen unter, englische Spaltennamen, kein Paket für die Steuerberatung | Ein Status aus dem Kontoauszug, Mails mit Bestellung/Anfrage/Reklamation auf „Heute“ bis zum Auftrag, deutsche Feldnamen, Steuerberater-Paket mit DATEV-Buchungsstapel, versiegeltes Protokoll |
+

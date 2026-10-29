@@ -76,9 +76,17 @@ class Jobs:
             try:
                 fn(Progress(progress))
                 with self.store.tx() as c:
-                    c.execute("UPDATE jobs SET status='done', progress=1, finished_at=? WHERE id=?", (now_iso(), jid))
                     self.rt.bump(c)
-                self.rt.refresh_network(force=True)
+                progress("Seiten werden vorbereitet …", 0.97)
+                try:
+                    # the first page after growing must not wait: build the picture before saying "fertig"
+                    self.rt.ensure()
+                    self.rt.work()
+                    self.rt.refresh_network(force=True)
+                except Exception:  # noqa: BLE001 - the pages build it themselves then
+                    traceback.print_exc()
+                with self.store.tx() as c:
+                    c.execute("UPDATE jobs SET status='done', progress=1, finished_at=? WHERE id=?", (now_iso(), jid))
             except Exception as e:  # pragma: no cover - shown to the user
                 traceback.print_exc()
                 lines.append(f"Fehler: {type(e).__name__}: {e}")
@@ -1161,6 +1169,10 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             from ..questions import reopen
             reopen(store, qid)
             return JSONResponse(dict(reload=True, toast="Die Frage ist wieder offen."))
+        q = store.q1("SELECT status, payload FROM questions WHERE id=?", (qid,))
+        options = {str(o[0]) for o in ((loads(q["payload"]) or {}).get("options") or [])} if q else set()
+        if not q or not value or (options and value not in options | {"later", "unknown"}):
+            return JSONResponse(dict(error="Diese Antwort passt nicht zur Frage."), status_code=400)
         res = answer_question(store, qid, value, actor(request))
         if res.get("regrow"):
             jid = jobs.start("answer", lambda progress: regrow(store, progress, actor(request)), next_url="/fragen")

@@ -16,7 +16,7 @@ python -m physarum firma    # Ordner "firma" = Datenbank + Originaldateien
 
 Dann `http://127.0.0.1:8000` öffnen und Dateien in das Fenster ziehen – oder **„Beispiel-Firma einwerfen“** klicken: eine erfundene Kaffeerösterei mit 16 typisch unordentlichen Dateien. Nach dem ersten Wachstum lässt sich mit „Nachträglich einwerfen“ ausprobieren, wie eine neue Liste (Wartungsverträge) organisch eingebaut wird.
 
-Ohne Browser: `python -m physarum firma --einwerfen ~/Exporte` bzw. `python -m physarum firma --beispiel`.
+Ohne Browser einwerfen und wachsen lassen: `python -m physarum firma --einwerfen ~/Exporte`. `python -m physarum firma --beispiel` erzeugt die Beispiel-Firma, lässt sie wachsen und startet dann den Server.
 
 ## Was beim Einwerfen passiert
 
@@ -31,7 +31,19 @@ Ohne Browser: `python -m physarum firma --einwerfen ~/Exporte` bzw. `python -m p
 | Verhalten lernen | Formeln, Vorgaben, Nummernkreise, Mindestbestände | *Brutto = Netto + MwSt*, *MwSt = Netto × 0,07*, *kg = Säcke × 60*, nächste Nummer *RE-2026-0189* |
 | Abläufe ablesen | Jede Datumsspalte ist ein Meilenstein; Abweichung vom Üblichen ist Arbeit | Aufträge: *Datum → geliefert (Ø 3 Tage) → berechnet (Ø 1 Tag)*; 4 Aufträge warten auffällig lange auf ihre Rechnung |
 
-Das Ergebnis ist die Seite **Heute**: überfällige Rechnungen, Lieferungen ohne Rechnung, knapper Bestand und Reichweite, Kunden, die ungewöhnlich lange nichts bestellt haben. Dazu kommen ein paar Fragen und Vorschläge („Trampelpfade“), etwa „15 Rechnungen sind laut Kontoauszug schon bezahlt, stehen aber noch auf offen – abgleichen?“.
+Das Ergebnis ist die Seite **Heute**:
+
+- überfällige Rechnungen;
+- Fertiges, das noch nicht berechnet ist;
+- Lieferantenrechnungen, die zu bezahlen sind (mit Skonto-Frist), und solche, die nach Betrug aussehen;
+- Angebote, deren Nachfass-Tag gekommen ist;
+- fällige Wartungen, HU und Prüfungen;
+- Mails, die auf eine Antwort warten;
+- Geld, das keine Rechnung bezahlt;
+- knapper Bestand und Reichweite;
+- Kunden, die ungewöhnlich lange nichts bestellt haben.
+
+Dazu kommen ein paar Fragen und Vorschläge („Trampelpfade“), etwa „15 Rechnungen sind laut Kontoauszug schon bezahlt, stehen aber noch auf offen – abgleichen?“. Gefragt wird nur, was die Inhaberin entscheiden muss.
 
 ## Prinzipien
 
@@ -53,12 +65,18 @@ physarum/
   values.py        Werte verstehen, Spalten profilieren
   lexicon.py       kleines „Genom“: kaufmännische Begriffe DE/EN
   infer/           observe · normalize (MDL) · unify · identity · relations
+  pdfinvoice.py    Rechnungs-PDFs lesen wie E-Rechnungen; einvoice.py: XRechnung/ZUGFeRD
   grow.py          Wachstum: Substrat → Modell → Datensätze (deterministisch, reihenfolgeunabhängig)
   behavior.py      Formeln, Vorgaben, Nummernkreise, Schwellen, Preis-Übernahmen
-  process.py       Meilenstein-Abläufe, Aufgaben, Kennzahlen, Rhythmen, Reichweiten
+  payments.py      Zahlungsbuch: Kontoauszug ↔ Rechnungen, eine Wahrheit für „offen“
+  reconcile.py     Lieferantenrechnungen prüfen (Betrug, doppelt), Geld ohne Rechnung
+  process.py       Meilenstein-Abläufe, Aufgaben für „Heute“, Kennzahlen, Rhythmen, Reichweiten
+  billing.py       Rechnung aus dem Auftrag, Ausstellen, Storno; dunning.py: Zahlungserinnerung
+  taxexport.py     Paket für die Steuerberatung (DATEV); procedure.py: Verfahrensdokumentation
+  coverage.py      Abdeckung: wie vollständig die Firma abgebildet ist
   physarum.py      Tero-Modell + Layout + Salienz
   questions.py     Fragen und Antworten (als Randbedingungen)
-  ops.py           Schreiben mit Regeln (Festschreibung, Storno, Protokoll)
+  ops.py           Schreiben mit Regeln (Festschreibung, Storno, Zahlungen, Protokoll)
   store.py         SQLite: Substrat, Modellversionen, Datensätze, Protokoll, Suche (FTS5)
   web/             Starlette + Jinja2, serverseitig gerendert, wenig Vanilla-JS
   demo/generate.py Beispiel-Firma (16 unordentliche Dateien)
@@ -70,20 +88,22 @@ e2e/screens.cjs    Playwright-Rundgang mit Screenshots
 
 ```bash
 python -m unittest discover -s tests -t .
-node e2e/screens.cjs http://127.0.0.1:8000 docs/screenshots   # bei laufendem Server
+node e2e/screens.cjs http://127.0.0.1:8000 docs/screenshots   # bei laufendem Server, leere Firma
+node e2e/flow.cjs http://127.0.0.1:8000                       # Alltag: Rechnung, Zahlung, Mahnung
 ```
 
 ## Rechnungen, Geld und Steuerberatung
 
 - **Ausgangsrechnungen** aus dem Auftrag: Entwurf, Ausstellen mit fortlaufender Nummer, Druck nach § 14 UStG und **XRechnung**; danach festgeschrieben, Korrektur nur per Storno-Beleg.
-- **Zahlungen** kommen aus dem Kontoauszug – über die Nummer im Verwendungszweck, sonst über Betrag, Zahler und Tag (auch Skonto, Sammelzahlungen, Zahlendreher, Gutschriften). Daraus folgen „offen“, „überfällig“ und die Zahlungserinnerung.
-- **Eingangsrechnungen** aus PDF oder E-Rechnung (XRechnung/ZUGFeRD) werden nachgerechnet und vor dem Bezahlen geprüft: Rechenfehler, fehlende Pflichtangaben, falscher Empfänger, eine neue Bankverbindung, die erste Rechnung eines unbekannten Lieferanten.
+- **Abschlags- und Schlussrechnungen:** Offen ist der Zahlbetrag nach Abschlägen, ein Sicherheitseinbehalt wird nicht gemahnt, der Umsatz zählt keinen Abschlag doppelt. Die Schlussrechnung setzt ihren Auftrag auf „abgerechnet“ (im Wort der Firma).
+- **Zahlungen** kommen aus dem Kontoauszug – über die Nummer im Verwendungszweck (auch „RE 2026 0089“), sonst über Betrag, Zahler und Tag (auch Skonto, Sammelzahlungen, Zahlendreher, Gutschriften, die Nummer eines anderen Kunden). Eindeutiges wird gebucht, Unsicheres gefragt, und solange die Frage offen ist, geht keine Mahnung raus. Bar, Scheck und Teilzahlungen trägt man an der Rechnung ein; eine Kontozeile ohne Nummer ordnet man mit einem Klick zu. Daraus folgen „offen“, „überfällig“ und die Zahlungserinnerung mit der richtigen Anrede.
+- **Eingangsrechnungen** aus PDF oder E-Rechnung (XRechnung/ZUGFeRD) werden gelesen, nachgerechnet und vor dem Bezahlen geprüft: Rechenfehler, fehlende Pflichtangaben, falscher Empfänger, eine neue Bankverbindung, eine ähnliche, aber fremde Absender-Domain, eine Mail über „neue Kontodaten“, die erste Rechnung eines unbekannten Lieferanten, zweimal eingegangene Rechnungen. „Zu bezahlen“ nennt die Skonto-Frist; Verdächtiges steht nicht darauf.
 - **Für die Steuerberatung** entsteht je Monat, Quartal oder Jahr ein ZIP: Ausgangsrechnungen als DATEV-Buchungsstapel (eine Buchung je Rechnung und Steuersatz, SKR03/SKR04), beide Rechnungsbücher, Umsatzsteuer je Satz (Soll oder Ist), offene Posten, Debitoren/Kreditoren, die Belege und ein Prüfprotokoll mit Prüfsummen.
 - **Nachvollziehbarkeit:** Das Änderungsprotokoll ist versiegelt (jeder Eintrag trägt den SHA-256-Prüfwert aller vorherigen; Ändern und Löschen weist die Datenbank ab), archivierte Belege sind unveränderlich, und die **Verfahrensdokumentation** schreibt sich in den GoBD-Kapiteln aus Quellen, Regeln, Entscheidungen und Protokoll.
 
 ## Grenzen (ehrlich)
 
-- Freitext, PDFs und E-Mails werden **verknüpft, durchsuchbar und eingeordnet** (Bestellung, Anfrage, Reklamation), aber nicht inhaltlich in Datensätze zerlegt; dafür wäre ein optionaler Sprachmodell-Baustein der nächste Schritt (Vorschlag → Prüfung durch Invarianten → Mensch).
+- Rechnungs-PDFs werden ausgelesen, Mails nach ihrem Anliegen eingeordnet (Bestellung, Anfrage, Bitte, Reklamation, Kündigung, „schon bezahlt“, neue Bankverbindung). Anderer Freitext wird **verknüpft und durchsuchbar**, aber nicht inhaltlich in Datensätze zerlegt; dafür wäre ein optionaler Sprachmodell-Baustein der nächste Schritt (Vorschlag → Prüfung durch Invarianten → Mensch). Scans ohne Textebene werden aufbewahrt, aber nicht gelesen.
 - Keine Finanzbuchhaltung: Physarum liefert der Steuerberatung Buchungsstapel und Belege, bucht aber keine Aufwandskonten und erstellt keine Umsatzsteuer-Voranmeldung. Der DATEV-Export folgt dem veröffentlichten Format, ein Probe-Import bei der Steuerberatung gehört dazu.
 - Noch keine Benutzerrechte (der Name steht im Protokoll); gedacht für einen Rechner im Büro.
 - Heuristiken können irren. Deshalb ist alles erklärt („Wie Physarum Ihre Firma sieht“), korrigierbar und umkehrbar – auch Zusammenführungen auf Vermutung („Wieder trennen“) –, und die Originale bleiben unangetastet.

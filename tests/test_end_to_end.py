@@ -123,6 +123,27 @@ class DemoCompany(unittest.TestCase):
         self.assertTrue(any(g["kind"] == "rhythm" for g in work))
         self.assertTrue(all(g["count"] > 0 for g in work))
 
+    def test_heute_shows_only_real_work(self):
+        """The shop's weekly payout and a collective transfer are explained, supplier invoices are paid at
+        their gross, an invoice cancelled long ago is no unbilled order, and what fell due before the bank
+        statement begins is unknown rather than overdue."""
+        from physarum.values import as_date
+        work = self.rt.work(TODAY)
+        kb = self.t("Kontobewegung")
+        purpose = self.a("Kontobewegung", "Verwendungszweck")["id"]
+        booked = self.a("Kontobewegung", "Buchungstag")["id"]
+        receipts = [str(self.rt.by_id[x["rid"]]["data"].get(purpose) or "") for g in work if g["kind"] == "receipt"
+                    for x in g["items"]]
+        self.assertFalse([t for t in receipts if "Auszahlung Shop" in t or "Sammelzahlung" in t])
+        self.assertFalse([g["title"] for g in work if g["kind"] == "payment"])  # nothing paid partly or twice
+        ready = next(g for g in work if g["kind"] == "ready")
+        self.assertTrue(all(x["days"] < 25 or "storniert" in (x.get("reason") or "") for x in ready["items"]))
+        er = self.t("Eingangsrechnung")
+        bank_from = min(as_date(r["data"].get(booked)) for r in self.rt.records[kb["id"]])
+        due = [date.fromisoformat(x["due"]) for g in work if g["kind"] in ("payable", "overdue") and g["type"] == er["id"]
+               for x in g["items"]]
+        self.assertTrue(all(d >= bank_from for d in due))
+
     def test_questions_are_few_and_meaningful(self):
         qs = self.store.q("SELECT kind, payload FROM questions WHERE status='open'")
         self.assertLessEqual(len(qs), 5)

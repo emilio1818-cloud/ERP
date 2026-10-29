@@ -97,8 +97,8 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
         │  Materialisieren: Datensätze mit stabiler Identität + Änderungsprotokoll + Suchindex
         ▼
  ┌──────────────┐   Verhalten: Formeln, Vorgaben, Meilenstein-Prozesse, Aufgaben, Kennzahlen
- │  Datensätze  │   Physarum-Dynamik: Leitfähigkeit aus Daten- und Nutzungsfluss
- └──────┬───────┘
+ │  Datensätze  │   Zahlungsbuch: Kontoauszug ↔ Rechnungen ↔ Lieferantenrechnungen, eine Wahrheit für „offen“
+ └──────┬───────┘   Physarum-Dynamik: Leitfähigkeit aus Daten- und Nutzungsfluss
         ▼
    Oberfläche: Heute · Listen · Datensatz · Formulare · Organismus · Prozesse · Fragen
 ```
@@ -117,7 +117,7 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 
 ## 7. Ehrliche Grenzen
 
-- Freitext, PDFs und E-Mails werden ohne Sprachmodell **verknüpft und durchsuchbar gemacht**, aber nur heuristisch ausgelesen. Ein optionaler LLM-Baustein ist als Erweiterung vorgesehen.
+- Ohne Sprachmodell werden Rechnungs-PDFs gelesen wie E-Rechnungen (Nummer, Beträge, Fristen, Skonto, IBAN), Mails nach ihrem Anliegen eingeordnet (Bestellung, Bitte, Reklamation, Kündigung, „schon bezahlt“, neue Bankverbindung) und über der Tabelle Stehendes („Auftrag: A26-028“) übernommen. Anderer Freitext wird **verknüpft und durchsuchbar gemacht**, aber nicht in Datensätze zerlegt. Gescannte PDFs ohne Textebene liest Physarum nicht (kein OCR). Ein optionaler LLM-Baustein ist als Erweiterung vorgesehen.
 - Physarum ist die **operative** Schicht und keine Finanzbuchhaltung. Die Steuerberatung bekommt einen DATEV-Buchungsstapel der Ausgangsrechnungen, die Bücher und die Belege; Aufwandskonten und Voranmeldung bleiben bei ihr.
 - Mehrbenutzerbetrieb und Rechte sind nur rudimentär vorhanden (Name im Änderungsprotokoll).
 - Heuristiken irren. Deshalb ist alles erklärbar, korrigierbar und umkehrbar, und die Originaldaten bleiben unangetastet.
@@ -149,7 +149,12 @@ Bewusst **nicht** übernommen:
 
 ### 8.2 Nach dem Bau: Prüfungen mit fremden Augen
 
-Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kannten und eine eigene „Wahrheit“ mitbrachten: eine Inhaberin, die mit der Beispiel-Firma ihren Alltag durchspielt; eine ihr unbekannte Webagentur mit zwei Lieferungen (CRM, zwei Zeiterfassungen, Ticketsystem, Rechnungsbuch, Kontoauszug, Freelancer-Stundenzettel, Mails), deren richtige Zahlen vorher feststanden; zuletzt ein Handwerksbetrieb und eine Sicherheitsprüfung.
+Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kannten und eine eigene „Wahrheit“ mitbrachten:
+
+- eine Inhaberin, die mit der Beispiel-Firma ihren Alltag durchspielt;
+- eine ihr unbekannte Webagentur mit zwei Lieferungen (CRM, zwei Zeiterfassungen, Ticketsystem, Rechnungsbuch, Kontoauszug, Freelancer-Stundenzettel, Mails), deren richtige Zahlen vorher feststanden;
+- eine Sicherheitsprüfung mit präparierten Dateien;
+- zuletzt ein Handwerksbetrieb (Haustechnik, 11 Leute) mit zwei Lieferungen aus gewachsener Ablage: Auftragsbuch mit einem Blatt je Jahr, Stundenzettel je Monteur, Aufmaße, Wartungsverträge, Fuhrpark, Kundenstamm aus einem alten Programm, zwei Banken, Lieferantenrechnungen nur als PDF, Mails und die Listen der Steuerberatung.
 
 | Befund | Was daraus wurde |
 |---|---|
@@ -160,4 +165,9 @@ Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kann
 | Hänger bei einer 5-MB-Zelle, 2.500 Spalten, 300.000 Zeilen | Begrenzte Suche, linearer Versionsabgleich; 300.000 Zeilen in gut einer Minute |
 | Eingangsrechnungen mit IBAN galten als Kontoauszug; ohne Lieferantenliste lief Geld falsch herum | Behoben; dazu Nachrechnen empfangener E-Rechnungen und Betrugsprüfung gegen frühere Rechnungen desselben Lieferanten |
 | Die Inhaberin: zwei Status im Kopf, Mails mit Bestellungen gehen unter, englische Spaltennamen, kein Paket für die Steuerberatung | Ein Status aus dem Kontoauszug, Mails mit Bestellung/Anfrage/Reklamation auf „Heute“ bis zum Auftrag, deutsche Feldnamen, Steuerberater-Paket mit DATEV-Buchungsstapel, versiegeltes Protokoll |
+| Sicherheit: Eine Zelle mit 200.000 Leerzeichen legte das Wachsen stundenlang lahm. Ein mitgeschickter „Zahlungsnachweis“ setzte Rechnungen auf bezahlt und unterdrückte die Mahnung. Physarum ließ sich in fremde Seiten einbetten. | Werte werden nur bis zu einer sinnvollen Länge gedeutet (6 MB in 0,9 s). Geld zählt nur aus eigenen Kontoauszügen, Listen aus Mails erst, wenn die Inhaberin sie anerkennt. Kein Einbetten, kein Inline-Skript. Entpack-Bomben werden vor dem Öffnen erkannt. Eine geänderte Lieferanten-IBAN ist Betrugsverdacht. |
+| Handwerk, Geld: Rechnungen ohne Fälligkeit, Schlussrechnungen mit Abschlägen, Sicherheitseinbehalt, Zahlungen ohne Nummer oder mit der Nummer eines anderen Kunden, eine zweite Bank mit S/H-Spalte | Fälligkeit aus dem Zahlungsziel des Kunden, sonst 30 Tage (§ 286 BGB), sichtbar als berechnet. Offen ist der Zahlbetrag nach Abschlägen, ein Einbehalt wird nicht gemahnt. Eindeutige Zahlungen werden gebucht, unsichere gefragt, und solange die Frage offen ist, geht keine Mahnung raus. In beiden Lieferungen stimmt jeder offene Betrag centgenau (18.237,08 € und 39.348,27 € über 107 und 134 Rechnungen), und alle Zahlungseingänge sind richtig zugeordnet (63 und 105). |
+| Handwerk, Namen: Kundenstamm mit NAME1/NAME2 und KDNR; die Bücher schreiben „Fam. Tepe“, „ZA-Praxis Lehmann“, „Müller, Hans-Peter“ oder den alten Namen einer umbenannten Firma; ein Kunde steht in keiner Liste | Personen bekommen ihren vollen Namen. Kürzel, Initialen, Titel, Abkürzungen, Wortreihenfolge, frühere Namen und die Nachbarn im Belegfluss entscheiden die Zuordnung. Ein Kunde, den nur die Bücher kennen, wird angelegt und sagt, woraus er erschlossen ist. 134 von 134 Rechnungen und 26 von 26 Wartungsverträgen hängen an ihrem Kunden, 133 von 134 Aufträgen, ohne falsche Zuordnung. |
+| Handwerk, Struktur: ein Blatt je Jahr und je Monteur mit anders benannten Spalten; Aufmaße ohne Auftrag; sieben Rückfragen, von denen eine echt war | Blätter einer Datei und Listen derselben bekannten Art werden ohne Rückfrage eine Liste. Spalten werden über Nummernmuster, zusammengesetzte Wörter und gleiche Meilensteine verglichen. Was über einer Tabelle steht („Auftrag: A26-028“), wird zur Spalte jeder Zeile. Übrig bleibt die eine Frage, die der Chef entscheiden muss: zwei Müllers an derselben Straße. |
+| Handwerk, Alltag: Was morgens zählt, fehlte auf „Heute“: Angebote zum Nachfassen, fertige, nicht berechnete Aufträge, fällige Wartungen und HU, Mails, die auf Antwort warten, Geld ohne Rechnung, Lieferantenrechnungen mit Skonto-Frist – und ein Betrugsversuch mit neuer IBAN und ähnlicher Domain | Nachfassen an dem Tag, den das Angebotsbuch nennt; verlaufene Angebote nicht (§ 147 BGB). Jeder fertige Auftrag ohne Rechnung. Wartung aus letzter Wartung plus Intervall, einen Monat voraus. Mails mit Bitte, Kündigung, „schon bezahlt“ oder neuer Bankverbindung. „Geld erhalten – wofür?“ mit Anzahlungsrechnung oder Zuordnung. PDF-Rechnungen werden wie E-Rechnungen gelesen, Betrugsverdacht steht ganz oben und nicht auf der Liste zum Bezahlen. Bar- und Teilzahlungen lassen sich eintragen, Kontozeilen von Hand zuordnen. |
 

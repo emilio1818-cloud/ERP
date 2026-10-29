@@ -105,6 +105,18 @@ def coverage(rt) -> dict:
                                   f"Auftrag oder keine Rechnung, die Physarum kennt ({names})",
                              hint="Steht dort eine Nummer oder ein Name, fehlt die passende Liste."))
 
+    # what only an older bank statement can tell: invoices that fell due before the first booking
+    unseen = [e for e in rt.ledger.values() if e.get("unseen")]
+    if unseen:
+        first = min(e["unseen"] for e in unseen)
+        by_type = Counter(e["type"] for e in unseen)
+        what = ", ".join(f"{n} {(rt.spec(t) or {}).get('plural' if n != 1 else 'name', 'Rechnungen')}" for t, n in by_type.items())
+        gaps.append(dict(weight=len(unseen) * 4, href="/quellen#einwerfen",
+                         text=f"Ob {what} bezahlt {'ist' if len(unseen) == 1 else 'sind'}, zeigt erst ein Kontoauszug "
+                              f"vor dem {first.strftime('%d.%m.%Y')}",
+                         hint=f"{'Sie war' if len(unseen) == 1 else 'Sie waren'} fällig, bevor der eingeworfene "
+                              f"Kontoauszug beginnt – ein älterer Auszug klärt es."))
+
     # 4. business cases whose course is known
     cases = [t for t in m["types"] if t["kind"] == "transaction" and (t.get("concept") or "") not in _NO_COURSE
              and len(rt.records.get(t["id"], [])) >= 2

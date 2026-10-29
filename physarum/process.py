@@ -96,6 +96,9 @@ def infer_processes(model: dict, records: dict, store=None, today: date | None =
     model["dues"] = _due_specs(model, records)
 
 
+# a corrected invoice follows its cancellation within days; a quarter later the cancellation was the decision
+_VOID_GRACE = 90
+
 _SUPPLIER = {"lieferant", "kreditor", "rechnungssteller", "supplier", "vendor"}
 _DUE_WORDS = {"naechste", "naechster", "naechstes", "faellig", "faelligkeit", "next", "due", "geplant", "plan",
               "am", "bis", "datum", "spaetestens", "soll"}
@@ -783,6 +786,15 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         def start_of(rid, _p=p):
             return as_date(by_id[rid]["data"].get(_p["start"]["attr"])) or today
 
+        voided = {}  # step -> case -> (day, rid) of its latest cancelled invoice
+
+        def cancelled(sid, rid, c, attr):
+            # the day of the cancellation: Physarum's own storno knows it, a book only has the invoice's date
+            v = as_date((((c.get("meta") or {}).get("storno") or {}).get("ts") or "")[:10]) or \
+                as_date(c["data"].get(attr)) or as_date((c.get("created_at") or "")[:10]) or date.min
+            if v >= voided.setdefault(sid, {}).get(rid, (date.min, None))[0]:
+                voided[sid][rid] = (v, c["id"])
+
         for st in p["steps"]:
             d = {}
             for src in [st] + st.get("also", []):
@@ -794,7 +806,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 elif src["rel_kind"] == "own_ref":
                     for r in recs:
                         c = by_id.get(r["data"].get(src["rel_attr"]))
-                        if c and c["type"] == src["type"] and not void(c) and not is_draft(c):
+                        if c and c["type"] == src["type"] and void(c):
+                            cancelled(st["id"], r["id"], c, src["attr"])
+                        elif c and c["type"] == src["type"] and not is_draft(c):
                             v = as_date(c["data"].get(src["attr"]))
                             if v:
                                 d[r["id"]] = min(v, d.get(r["id"], v))
@@ -811,7 +825,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                         if t in rid_set and is_draft(c):
                             draft_of[t] = c["id"]  # drafted, not yet issued
                             continue
-                        if t in rid_set and not void(c):
+                        if t in rid_set and void(c):
+                            cancelled(st["id"], t, c, src["attr"])
+                        elif t in rid_set:
                             v = as_date(c["data"].get(src["attr"]))
                             if v:
                                 d[t] = min(v, d.get(t, v))
@@ -862,6 +878,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 if any(step_dates[x["id"]].get(r["id"]) for x in p["steps"][si + 1:] if (x.get("share") or 1) >= 0.5):
                     continue  # a later (regular) step happened: this one was skipped, not forgotten
                 optional = (st.get("share") or 1) < 0.5  # most cases go without it (time sheets for some months)
+                gone = voided.get(st["id"], {}).get(r["id"])
+                if gone and (today - gone[0]).days > _VOID_GRACE:
+                    break  # its invoice was cancelled long ago and none followed: decided, not forgotten
                 # first missing step: is it overdue or waiting unusually long?
                 w0 = date.fromisoformat(st["window"][0]) if st.get("window") else None
                 expected_by = start + timedelta(days=(st.get("median_days") or 0))
@@ -883,6 +902,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 if dl and not due and ledger is not None and (ledger.get(r["id"]) or {}).get("due_attr") == dl["attr"]:
                     due, due_how = ledger[r["id"]]["due"], ledger[r["id"]]["due_how"]  # reckoned, not in the book
                 entry = (ledger or {}).get(r["id"]) or {}
+                if entry.get("unseen") and fold(st["label"]) == "bezahlt":
+                    break  # due before the bank statement starts: unknown, not overdue
                 if entry.get("outgoing") and fold(st["label"]) == "bezahlt":
                     # the firm's own bills: what to pay in the next two weeks, Skonto first
                     cut = _skonto(r, skonto, entry, today) if skonto else None
@@ -902,8 +923,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     if reached and st.get("source") == "child" and \
                             (specs.get(st.get("type")) or {}).get("concept") == "rechnung" and 0 <= waited < 1100:
                         # finished and not invoiced: money waiting to be asked for – all of it, the oldest first
-                        buckets[(st["id"], "ready")].append(dict(rid=r["id"], days=waited, money=money,
-                                                                 usual=st["median_days"], late=waited > limit))
+                        buckets[(st["id"], "ready")].append(dict(
+                            rid=r["id"], days=waited, money=money, usual=st["median_days"], late=waited > limit,
+                            reason=f"{title(gone[1])} storniert, noch keine neue" if gone else None))
                     elif waited > limit and waited < 1100 and not optional:
                         # claims become time-barred after three years; a step most cases never reach (an offer
                         # that is never ordered) is nothing one waits for
@@ -926,8 +948,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 due_how = None
                 if not due and e and e.get("due_attr") == dl["attr"]:
                     due, due_how = e["due"], e["due_how"]  # reckoned, not in the book
-                if e and e["state"] in ("bezahlt", "überzahlt", "storniert", "verrechnet"):
-                    continue  # the money has gone out already
+                if e and (e["state"] in ("bezahlt", "überzahlt", "storniert", "verrechnet") or e.get("unseen")):
+                    continue  # the money has gone out already, or the statement does not reach back that far
                 if due and (due - today).days < -30 and not e:
                     continue  # long past, and nothing says whether it happened: history, not work
                 cut = _skonto(r, skonto, e, today) if skonto and e and e["outgoing"] else None

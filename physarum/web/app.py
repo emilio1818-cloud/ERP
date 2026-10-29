@@ -167,7 +167,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         pref = {"rechnung": 0, "auftrag": 1, "bestellung": 2, "einkauf": 4}
         ks.sort(key=lambda k: (pref.get(k.get("concept") or "", 3), -(k.get("salience") or 0)))
         open_amount = sum(g["amount"] or 0 for g in work if g["kind"] == "overdue" and g.get("step") == "bezahlt")
-        n_items = sum(g["count"] for g in work)
+        n_items = sum(g["count"] for g in work if g.get("severity", 2) >= 2)  # hints (a quiet customer) wait
         open_items = None
         by_type = defaultdict(list)
         for e in rt.ledger.values():

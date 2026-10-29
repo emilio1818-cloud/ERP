@@ -479,9 +479,9 @@ def write_bank(path: Path, today: date, invoices: list[dict], purchases: list[di
                               inv["no"].replace("-", "", 1), f"Re.Nr. {inv['no']} Kd {o.customer.no}"])
         tx.append((inv["paid"], "GUTSCHR. UEBERWEISUNG", ref, o.customer.name.upper()[:27], iban, inv["gross"]))
     for p in purchases:
-        if p.get("paid") and since <= p["paid"] <= today:
+        if p.get("paid") and since <= p["paid"] <= today:  # the invoice's total: the list's sum plus 7 % VAT
             tx.append((p["paid"], "UEBERWEISUNG", f"Rechnung {p['supplier_invoice']} Bestellung {p['no']}",
-                       p["supplier"].upper()[:27], supplier_iban[p["supplier"]], -p["sum"]))
+                       p["supplier"].upper()[:27], supplier_iban[p["supplier"]], -_gross(p["sum"])))
     landlord, power, shop_iban, own = make_iban(rng), make_iban(rng), make_iban(rng), make_iban(rng, "20050550")
     d = since
     while d <= today:
@@ -660,6 +660,11 @@ def write_mails(folder: Path, today: date, customers: list[Customer], invoices: 
          today - timedelta(days=5))
 
 
+def _gross(net: float) -> float:
+    """Roasted or green, coffee carries the reduced VAT rate."""
+    return _round2(net + _round2(net * 0.07))
+
+
 def write_supplier_pdf(path: Path, today: date, purchases: list[dict]):
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
@@ -672,7 +677,9 @@ def write_supplier_pdf(path: Path, today: date, purchases: list[dict]):
                  "Hafenstraße 12", "20459 Hamburg", "", f"RECHNUNG Nr. {p['supplier_invoice']}",
                  f"Rechnungsdatum: {p['received'].strftime('%d.%m.%Y')}", f"Ihre Bestellung: {p['no']}", "",
                  f"{p['bags']} Sack Rohkaffee {p['origin']} à 60 kg = {p['kg']} kg",
-                 f"Preis pro kg: {de_money(p['price'])} EUR", f"Gesamtbetrag: {de_money(p['sum'])} EUR",
+                 f"Preis pro kg: {de_money(p['price'])} EUR", f"Nettobetrag: {de_money(p['sum'])} EUR",
+                 f"zzgl. 7 % USt: {de_money(_round2(p['sum'] * 0.07))} EUR",
+                 f"Gesamtbetrag: {de_money(_gross(p['sum']))} EUR",
                  "", "Zahlbar innerhalb 30 Tagen ohne Abzug.", "IBAN DE34 2004 0000 0123 4567 89 · BIC COBADEFFXXX"]:
         c.drawString(60, y, line)
         y -= 20

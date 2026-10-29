@@ -46,7 +46,7 @@ def overdue_of(rt, party_rid: int, tid: str, today: date | None = None) -> list[
         if r["data"].get(proc["party"]) != party_rid:
             continue
         e = rt.ledger.get(r["id"])
-        if not e or e["state"] not in ("offen", "teilbezahlt") or e["open"] <= 0.005 or e.get("retention"):
+        if not e or e["state"] not in ("offen", "teilbezahlt") or e["open"] <= 0.005 or e.get("retention") or e.get("unseen"):
             continue  # paid, or what is left is a retention until the warranty ends
         due = e.get("due")  # from the book, or reckoned the way the firm does it (see payments.estimate_due)
         if not due or due >= today:

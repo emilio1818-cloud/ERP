@@ -84,8 +84,8 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
             cols_a = [c.name for c in ma.cols][:8]
             cols_b = [c.name for c in mb.cols][:8]
             found[subj] = dict(kind="same_type", subject=subj, impact=(ma.n + mb.n) * 0.5,
-                               payload=dict(text=f"Gehören {_where(ma.label, ma.name_hint)} und {_where(mb.label, mb.name_hint)} "
-                                                 f"in eine Liste – sind es dieselbe Art von Dingen?",
+                               payload=dict(text=f"Sind {_where(ma.label, ma.name_hint)} und {_where(mb.label, mb.name_hint)} "
+                                                 f"dieselbe Art von Dingen – gehören sie in eine Liste?",
                                             detail=f"Spalten: {', '.join(cols_a)} — bzw. {', '.join(cols_b)}. "
                                                    f"Grund für die Vermutung: {sim['reason']}.",
                                             decision=dict(kind="same_type", subject=pair_subject(*sigs)),
@@ -187,17 +187,18 @@ def reopen(store: Store, qid: int):
 
 
 def _where(label: str, hint=None, dative: bool = False) -> str:
-    """"Stundenzettel_August_2026 › Kortmann" -> "das Blatt „Kortmann“ in Stundenzettel_August_2026" – no
-    internal labels in a question."""
-    what = (hint or (None,))[0] if hint else None
+    """"Stundenzettel_August_2026 › Kortmann" -> "das Blatt „Kortmann“ in „Stundenzettel_August_2026“" – no
+    internal labels in a question. With a name for its entries: "die Auftragspositionen aus
+    „Aufträge_Großkunden“ (Blatt „2026“)"."""
+    what = hint[1] if hint else None  # the plural: "die Kunde" would be wrong, the list's name is not
     if " › " in label:
         file, sheet = label.split(" › ", 1)
         sheet = sheet.split(" + ")[-1]
         if what:
-            return f"die {what} im Blatt „{sheet}“ in {file}"
-        return f"{'dem' if dative else 'das'} Blatt „{sheet}“ in {file}"
+            return f"{'den' if dative else 'die'} {what} aus „{file}“ (Blatt „{sheet}“)"
+        return f"{'dem' if dative else 'das'} Blatt „{sheet}“ in „{file}“"
     if what:
-        return f"die {what} aus „{label}“"
+        return f"{'den' if dative else 'die'} {what} aus „{label}“"
     return f"{'der' if dative else 'die'} Liste „{label}“"
 
 

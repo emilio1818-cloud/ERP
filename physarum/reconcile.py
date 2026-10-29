@@ -15,7 +15,7 @@ an invoice open, a matching transfer without reference), there is work or a miss
 from __future__ import annotations
 
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import date
 from itertools import combinations
 
@@ -530,7 +530,9 @@ _OWN_MOVES = ("umbuchung", "uebertrag", "kontouebertrag", "eigene", "sparbuch", 
 def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict, today: date,
                          pending: set | None = None, days: int = 60) -> list[dict]:
     """Money that came in and pays no invoice: an advance on an order nobody invoiced yet, a supplier's
-    credit for a return, or something to ask about. The last two months."""
+    credit for a return, or something to ask about. The last two months. A payer whose money comes
+    again and again without ever paying an invoice (the shop's weekly payout, a tenant's rent) is a
+    known source of income, not a question."""
     specs = {t["id"]: t for t in model["types"]}
     by_id = {r["id"]: r for rs in records.values() for r in rs}
     used = {p.get("rid") for e in (ledger or {}).values() for p in e.get("payments", [])}
@@ -551,6 +553,23 @@ def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict,
             if isinstance(name, str):
                 suppliers[norm_name(name)] = name
     inv = next((t for t in model["types"] if t.get("concept") == "rechnung" and not t.get("incoming")), None)
+
+    def payer(b, r):
+        iv = re.sub(r"\s+", "", str(r["data"].get(b["iban"]["id"]) or "")).upper() if b["iban"] else ""
+        who = r["data"].get(b["name"]["id"]) if b["name"] else None
+        return iv if len(iv) >= 15 else norm_name(str(who)) if who else ""
+
+    days_of, paying = defaultdict(set), set()  # payer -> days money came in; payers whose money paid invoices
+    for b in bank_specs(model):
+        for r in records.get(b["spec"]["id"], []):
+            v = r["data"].get(b["money"]["id"])
+            when = as_date(r["data"].get(b["date"]["id"]))
+            k = payer(b, r)
+            if k and isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0.005 and when:
+                days_of[k].add(when)
+                if r["id"] in used:
+                    paying.add(k)
+    regular = {k for k, ds in days_of.items() if len(ds) >= 3 and k not in paying}
     out = []
     for b in bank_specs(model):
         for r in records.get(b["spec"]["id"], []):
@@ -563,6 +582,8 @@ def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict,
             who = r["data"].get(b["name"]["id"]) if b["name"] else None
             if any(w in fold(text) for w in _OWN_MOVES):
                 continue  # money moved between the firm's own accounts
+            if payer(b, r) in regular:
+                continue  # comes every week or month and never pays an invoice: a known income
             iv = re.sub(r"\s+", "", str(r["data"].get(b["iban"]["id"]) or "")).upper() if b["iban"] else ""
             supplier = suppliers.get(iv) or suppliers.get(norm_name(who)) if (iv or who) else None
             item = dict(rid=r["id"], title=titles.get(r["id"]) or f"{when.strftime('%d.%m.%Y')} · {v:.2f} €",

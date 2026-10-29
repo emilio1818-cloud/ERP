@@ -236,6 +236,9 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
     by_id = {r["id"]: r for rs in records.values() for r in rs}
     out: dict[int, dict] = {}
     claimed: set[int] = set()  # bank lines given to an invoice by amount, so no second one takes them
+    # the first day the statements cover: a payment before it cannot be seen
+    bank_from = min((d for b in banks.values() for row in records.get(b["spec"]["id"], [])
+                     for d in [as_date(row["data"].get(b["date"]["id"]))] if d), default=None)
     for ip in invoice_specs(model):
         p, spec, step = ip["p"], ip["spec"], ip["step"]
         recs = records.get(p["type"], [])
@@ -433,6 +436,12 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         for e in entries.values():
             _finish(e)
             _retained(e, records_gross=_num(by_id[e["rid"]]["data"].get(p["gross"])))
+            if bank_from and not own_paid and not st.get("attr") and e["state"] == "offen" and not e["payments"] \
+                    and e["due"] and e["due"] < bank_from:
+                # only the bank could say it was paid, and the statement starts after the invoice was due
+                e["unseen"] = bank_from
+                e["notes"].append(f"fällig am {e['due'].strftime('%d.%m.%Y')}, der Kontoauszug beginnt erst am "
+                                  f"{bank_from.strftime('%d.%m.%Y')} – ob bezahlt, zeigt ein älterer Auszug")
             out[e["rid"]] = e
     return out
 
@@ -518,7 +527,8 @@ def _listed_payment(model, pool, owed, paid_on, r, p, spec, by_id, iban_party=No
     if not cands:
         return None
     party = r["data"].get(p.get("party")) if p.get("party") else None
-    cust = norm_name(_title_of(model, by_id.get(party), by_id)) if isinstance(party, int) else ""
+    cust = norm_name(_title_of(model, by_id.get(party), by_id)) if isinstance(party, int) else \
+        norm_name(party) if isinstance(party, str) else ""  # a book without a customer list names them
     start = as_date(r["data"].get(p["start"]["attr"]))
     fit = [x for x in cands if (x["party"] is not None and x["party"] == party) or
            (cust and x["name"] and name_similarity(cust, x["name"]) >= 0.6) or
@@ -535,30 +545,39 @@ def _listed_payment(model, pool, owed, paid_on, r, p, spec, by_id, iban_party=No
 
 
 def _listed_together(alone, pool, model, p, by_id, claimed, iban_party):
-    """Two invoices the book marks paid on the same day, and one transfer of the payer over exactly their
-    sum ("Sammelzahlung lt. Aufstellung August"): that transfer paid both."""
+    """Two invoices the book marks paid within a few days of each other, and one transfer of the payer
+    over exactly their sum ("Sammelzahlung lt. Aufstellung August"): that transfer paid both. The book
+    may give each invoice its own day; two pairs that would fit the same transfer leave it alone."""
     if not pool or len(alone) < 2:
         return
     by_party = defaultdict(list)
     for r, e, day in alone:
         pv = r["data"].get(p.get("party")) if p.get("party") else None
-        if isinstance(pv, int):
-            by_party[(pv, day)].append((r, e))
-    for (pv, day), items in by_party.items():
+        if isinstance(pv, int) or (isinstance(pv, str) and norm_name(pv)):
+            by_party[pv if isinstance(pv, int) else norm_name(pv)].append((r, e, day))
+    for pv, items in by_party.items():
         if len(items) < 2:
             continue
-        cust = norm_name(_title_of(model, by_id.get(pv), by_id))
-        for (r1, e1), (r2, e2) in combinations(items, 2):
+        cust = norm_name(_title_of(model, by_id.get(pv), by_id)) if isinstance(pv, int) else pv
+        options = defaultdict(list)  # transfer -> the pairs it would pay
+        for (r1, e1, d1), (r2, e2, d2) in combinations(items, 2):
+            if abs((d1 - d2).days) > 7 or e1["payments"][0]["rid"] is not None or e2["payments"][0]["rid"] is not None:
+                continue
             total = round(e1["paid"] + e2["paid"], 2)
-            fit = [x for x in pool.get(total, []) if abs((x["date"] - day).days) <= 7 and
+            fit = [x for x in pool.get(total, []) if all(abs((x["date"] - d).days) <= 7 for d in (d1, d2)) and
                    ((x["party"] == pv) or (cust and x["name"] and name_similarity(cust, x["name"]) >= 0.6) or
                     (iban_party or {}).get(x["iban"]) == {pv})]
-            if len(fit) != 1 or e1["payments"][0]["rid"] is not None or e2["payments"][0]["rid"] is not None:
+            if len(fit) == 1:
+                options[fit[0]["rid"]].append((fit[0], total, (e1, e2)))
+        for opts in options.values():
+            if len(opts) != 1:
                 continue
-            hit = fit[0]
+            hit, total, pair = opts[0]
+            if hit not in pool.get(total, []) or any(e["payments"][0]["rid"] is not None for e in pair):
+                continue
             pool[total].remove(hit)
             claimed.add(hit["rid"])
-            for e in (e1, e2):
+            for e in pair:
                 e["payments"][0].update(rid=hit["rid"], date=hit["date"], shared=True,
                                         how="Sammelzahlung ohne Nummern – Summe, Zahler und Tag passen zur Liste")
 

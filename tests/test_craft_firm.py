@@ -63,7 +63,7 @@ def _supplier_invoice(no, day: date, net: float, iban: str, mail="rechnung@gh-no
 
 
 def _states(rt, inv):
-    return {rt.by_id[rid]["data"][inv["key"]]: e for rid, e in rt.ledger.items()}
+    return {rt.by_id[rid]["data"][inv["key"]]: e for rid, e in rt.ledger.items() if e["type"] == inv["id"]}
 
 
 class CraftFirm(unittest.TestCase):
@@ -945,6 +945,80 @@ class CraftFirm(unittest.TestCase):
         self.assertEqual(rt.by_id[order["A26-027"]]["data"][status["id"]], "in Arbeit")
         invoice("A26-021", "Rechnung")                                        # the final one: invoiced
         self.assertEqual(rt.by_id[order["A26-021"]]["data"][status["id"]], "abgerechnet")
+
+    def test_what_the_statement_cannot_see_and_what_comes_every_week(self):
+        import random
+        from physarum.demo.generate import make_iban
+        rng = random.Random(7)
+        today = date(2026, 10, 29)
+        iban = {n: make_iban(rng) for n in range(5)}
+        rows, bank = [], []
+        for i in range(30):
+            d = date(2026, 6, 1) + timedelta(days=4 * i)
+            net, paid = 500 + 20 * i, d + timedelta(days=10)
+            rows.append([f"RE-2026-{i + 1:04d}", d.strftime("%d.%m.%Y"), f"Kunde {i % 5}", _eur(net), _eur(net * 0.19),
+                         _eur(net * 1.19), (d + timedelta(days=14)).strftime("%d.%m.%Y"), paid.strftime("%d.%m.%Y")])
+            if i not in (20, 25):
+                bank.append([paid.strftime("%d.%m.%Y"), f"KUNDE {i % 5}", iban[i % 5], f"Rechnung RE-2026-{i + 1:04d}",
+                             _eur(net * 1.19)])
+        # Kunde 0 pays two invoices with one transfer; the book gives each its own day
+        rows[20][7], rows[25][7] = "16.09.2026", "19.09.2026"
+        both = round(float(rows[20][5].replace(",", ".")) + float(rows[25][5].replace(",", ".")), 2)
+        bank.append(["19.09.2026", "KUNDE 0", iban[0], "Sammelzahlung", _eur(both)])
+        shop = make_iban(rng)
+        for k in range(8):  # the shop's weekly payout pays no invoice and never will
+            day = date(2026, 9, 7) + timedelta(days=7 * k)
+            bank.append([day.strftime("%d.%m.%Y"), "SHOP PAYMENTS EUROPE", shop, f"Auszahlung Shop {37 + k}/2026",
+                         _eur(400 + 97 * k)])
+        bank.append(["02.10.2026", "HANS MEIER", make_iban(rng), "Danke für alles", "777,00"])
+        good = "DE89370400440532013000"
+        self.f.feed([("Kunden.csv", csv("Kd.-Nr.;Name;Ort", [[f"K{i}", f"Kunde {i}", "Bielefeld"] for i in range(5)])),
+                     ("Rechnungsausgangsbuch.csv", csv("Rechnungsnr;Datum;Kunde;Netto;USt;Brutto;fällig am;bezahlt am", rows)),
+                     ("Umsaetze.csv", csv("Buchungstag;Auftraggeber/Empfänger;IBAN;Verwendungszweck;Betrag", bank)),
+                     # due in early June, before the statement begins: whether it was paid, the bank cannot say
+                     ("Eingangsrechnungen/RE_4471300.pdf", _supplier_invoice("4471300", date(2026, 5, 4), 1000.0, good)),
+                     ("Eingangsrechnungen/RE_4471301.pdf", _supplier_invoice("4471301", date(2026, 10, 20), 2000.0, good))])
+        rt = self.f.rt()
+        inv, inc = _type(rt, "Rechnung"), _type(rt, "Eingangsrechnung")
+        st = _states(rt, inv)
+        for no in ("RE-2026-0021", "RE-2026-0026"):
+            self.assertEqual(st[no]["state"], "bezahlt")
+            self.assertIn("Sammelzahlung", st[no]["payments"][0]["how"])
+            self.assertIsNotNone(st[no]["payments"][0]["rid"])
+        work = rt.work(today)
+        receipts = [x["money"] for g in work if g["kind"] == "receipt" for x in g["items"]]
+        self.assertEqual(receipts, [777.0])                     # not the shop, not the collective transfer
+        old = _states(rt, inc)["4471300"]
+        self.assertEqual(old["unseen"], date(2026, 6, 11))
+        self.assertIn("ob bezahlt, zeigt ein älterer Auszug", " ".join(old["notes"]))
+        pay = [x["title"] for g in work if g["kind"] in ("payable", "overdue") and g["type"] == inc["id"] for x in g["items"]]
+        self.assertEqual(pay, ["4471301"])                      # what is due now – not what the statement cannot see
+
+    def test_an_order_whose_invoice_was_cancelled_long_ago_is_no_work(self):
+        today = date(2026, 10, 29)
+        jobs, book = [], []
+        for i in range(1, 31):
+            start = date(2026, 3, 2) + timedelta(days=7 * i)
+            done = start + timedelta(days=10)
+            jobs.append([f"A26-{i:03d}", start.strftime("%d.%m.%Y"), f"Kunde {i % 4}", "Bad", _eur(3000 + 10 * i),
+                         done.strftime("%d.%m.%Y")])
+            if i < 30:
+                status = "storniert" if i in (5, 29) else "bezahlt"
+                book.append([f"RE-2026-{i:04d}", (done + timedelta(days=2)).strftime("%d.%m.%Y"), f"Kunde {i % 4}",
+                             f"A26-{i:03d}", _eur(3000 + 10 * i), _eur((3000 + 10 * i) * 0.19),
+                             _eur((3000 + 10 * i) * 1.19), status,
+                             "" if status == "storniert" else (done + timedelta(days=20)).strftime("%d.%m.%Y")])
+        self.f.feed([("Auftragsbuch.csv", csv("Auftr.-Nr.;Datum;Kunde;Leistung;Wert;fertig am", jobs)),
+                     ("Rechnungsausgangsbuch.csv", csv("Re.-Nr.;Datum;Kunde;Auftrag;Netto;USt;Brutto;Status;bezahlt am",
+                                                       book))])
+        rt = self.f.rt()
+        job = _type(rt, "Auftrag")
+        ready = next(g for g in rt.work(today) if g["type"] == job["id"] and g["kind"] == "ready")
+        got = {rt.by_id[x["rid"]]["data"][job["key"]]: x for x in ready["items"]}
+        self.assertNotIn("A26-005", got)                        # cancelled in spring, nothing followed: decided
+        self.assertEqual(got["A26-029"]["reason"], "RE-2026-0029 storniert, noch keine neue")
+        self.assertIn("A26-030", got)                           # finished, never invoiced
+        self.assertIsNone(got["A26-030"]["reason"])
 
 
 if __name__ == "__main__":

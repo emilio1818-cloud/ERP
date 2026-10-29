@@ -22,6 +22,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import PurePath
 
 from . import lexicon
+from .text import fold
 from .values import is_empty, parse_date, parse_number
 
 MAX_ZIP_TOTAL = 300 * 1024 * 1024
@@ -186,9 +187,69 @@ def _apply_debit_credit(t: "RawTable"):
                     r[amount] = -abs(v)
                 elif isinstance(v, str) and v.strip() and not v.strip().startswith("-"):
                     r[amount] = "-" + v.strip()
-        if not str(t.columns[j]).strip():
-            t.columns[j] = "Soll/Haben"
+        # the sign is in the amount now: the S/H column says nothing more
+        t.columns.pop(j)
+        for r in t.rows:
+            if j < len(r):
+                r.pop(j)
         return
+
+
+_BALANCE = {"anfangssaldo", "endsaldo", "saldo", "kontostand", "alter kontostand", "neuer kontostand", "schlusssaldo"}
+_PARTY_WORDS = ("auftraggeber", "zahlungsempf", "empfaenger", "zahlungspflichtig", "beguenstigt", "glaeubiger")
+_TX_KINDS = ("ueberweisung", "gutschr", "lastschrift", "abschluss", "dauerauftrag", "kartenzahlung", "bargeld",
+             "sepa", "entgelt", "zinsen", "storno", "rueckbuchung", "scheck", "einzahlung", "auszahlung")
+
+
+def _bank_layout(t: "RawTable"):
+    """Every bank exports its statement differently. The VR banks' "Umsatzanzeige" names the amount
+    "Umsatz", puts the kind of booking on the first line of "Vorgang/Verwendungszweck", and writes the
+    account holder into one of two name columns depending on the direction. Here it becomes the
+    statement every other bank delivers: Betrag, Buchungstext, Verwendungszweck, Zahlungspartner."""
+    cols = [fold(str(c or "")).strip() for c in t.columns]
+    if not any(c.startswith(("buchungstag", "buchungsdatum", "valuta")) for c in cols) or len(t.rows) < 2:
+        return
+    # the balance lines below the bookings are no bookings
+    t_rows = [(r, l) for r, l in zip(t.rows, t.lines)
+              if not any(fold(str(v or "")).strip() in _BALANCE for v in r)]
+    if len(t_rows) != len(t.rows):
+        t.rows, t.lines = [r for r, _ in t_rows], [l for _, l in t_rows]
+    if "umsatz" in cols and "betrag" not in cols:
+        t.columns[cols.index("umsatz")] = "Betrag"
+    mixed = next((j for j, c in enumerate(cols) if "vorgang" in c and "verwendungszweck" in c), None)
+    if mixed is not None and "verwendungszweck" not in cols:
+        vals = [str(r[mixed]) for r in t.rows if mixed < len(r) and r[mixed] not in (None, "")]
+        heads = [v.replace("\r", "").split("\n", 1)[0] for v in vals if "\n" in v]
+        if vals and len(heads) >= 0.8 * len(vals) and sum(1 for h in heads if any(w in fold(h) for w in _TX_KINDS)) >= 0.8 * len(heads):
+            t.columns[mixed] = "Verwendungszweck"
+            t.columns.insert(mixed, "Buchungstext")
+            for r in t.rows:
+                v = r[mixed] if mixed < len(r) else None
+                parts = str(v).replace("\r", "").split("\n", 1) if v not in (None, "") else ["", ""]
+                head, rest = (parts[0].strip(), " ".join(parts[1].split())) if len(parts) == 2 else ("", parts[0].strip())
+                while len(r) <= mixed:
+                    r.append(None)
+                r[mixed:mixed + 1] = [head or None, rest or None]
+            cols = [fold(str(c or "")).strip() for c in t.columns]
+        elif vals:
+            t.columns[mixed] = "Verwendungszweck"
+    party = [j for j, c in enumerate(cols) if any(w in c for w in _PARTY_WORDS)]
+    if len(party) == 2:
+        a, b = party
+        names = Counter(fold(str(r[j])).strip() for r in t.rows for j in (a, b) if j < len(r) and r[j] not in (None, ""))
+        if names:
+            holder, n = names.most_common(1)[0]
+            if n >= 0.5 * len(t.rows):
+                for r in t.rows:
+                    va = r[a] if a < len(r) else None
+                    vb = r[b] if b < len(r) else None
+                    r[a] = vb if fold(str(va or "")).strip() == holder else va
+                t.columns[a] = "Zahlungspartner"
+                t.columns.pop(b)
+                for r in t.rows:
+                    if b < len(r):
+                        r.pop(b)
+                t.meta["account_holder"] = holder
 
 
 _KV = re.compile(r"^\s*([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß .\-/()&]{0,40}?)\s*:\s+(.*\S)?\s*$")
@@ -417,6 +478,7 @@ def detect_tables(grid: list[list], name: str, meta: dict) -> list[RawTable]:
                 t.name = f"{name} ({k + 1})"
     for t in tables:
         _apply_debit_credit(t)
+        _bank_layout(t)
         if _is_crosstab(t.columns):
             t.meta["report"] = "Auswertung"  # months as columns: a pivot of other data, not records
     return tables

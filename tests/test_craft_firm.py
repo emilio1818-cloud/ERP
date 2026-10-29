@@ -252,6 +252,62 @@ class CraftFirm(unittest.TestCase):
         g = next(g for g in rt.work() if g["kind"] == "integrity")
         self.assertTrue(any(x["rid"] == e["RE-2026-0087"]["rid"] and "PDF" in x["reason"] for x in g["items"]))
 
+    def test_a_second_bank_with_its_own_layout_counts_the_same(self):
+        today = date.today()
+        d = lambda n: (today - timedelta(days=n)).strftime("%d.%m.%Y")
+        head = "KDNR;ANREDE;NAME1;NAME2"
+        custs = [["1020", "Firma", "Immobilienverwaltung Teutoburg GmbH", "z. Hd. Frau Kortenbruck"],
+                 ["1021", "Firma", "Hausverwaltung Kramer & Söhne", ""], ["1028", "Firma", "Gaststätte Zum Kesselbrink", ""],
+                 ["1003", "Eheleute", "Rasche", "Detlef u. Sabine"], ["1004", "Herr", "Meyer", "Klaus-Dieter"],
+                 ["1006", "Familie", "Tepe", "Markus"]]
+        book = []
+        for i in range(20):
+            net = 200 + 11 * i
+            book.append([f"RE-2026-{i + 1:04d}", d(150 - 6 * i), ["1020", "1021", "1028", "1003", "1004", "1006", "1021",
+                                                                    "1020", "1003", "1004"][i % 10], f"Arbeiten {i}",
+                         _eur(net), _eur(net * 0.19), _eur(net * 1.19), "", _eur(net * 1.19), d(136 - 6 * i)])
+        spk = [[r[1], "Kunde", r[0], r[8]] for r in book[:12]]
+        # the Volksbank's "Umsatzanzeige": Umsatz with S/H, two name columns, the kind of booking on line one
+        vb = ['"Volksbank Bielefeld-Gütersloh eG"', '', '"Umsatzanzeige";;;;;;;;;;;;', '',
+              '"Buchungstag";"Valuta";"Auftraggeber/Zahlungsempfänger";"Empfänger/Zahlungspflichtiger";"Konto-Nr.";"IBAN";'
+              '"BLZ";"BIC";"Vorgang/Verwendungszweck";"Kundenreferenz";"Währung";"Umsatz";" "']
+        teutoburg, kramer = "DE91100000000123456789", "DE25500105177119332108"
+        lines = []
+        for r in book[12:16]:  # with the number, but written as payers write it
+            who, iban = ("IMMOBILIENVERWALTUNG TEUTOBURG", teutoburg) if r[2] == "1020" else \
+                ("HAUSVERWALTUNG KRAMER + SOEHNE", kramer) if r[2] == "1021" else ("KESSELBRINK", "DE02120300000000202051")
+            number = r[0].replace("-", " ") if r[2] == "1020" else r[0].replace("RE-", "Rg. ").replace("-", "/")
+            lines.append((r[1], who, iban, f"Überweisungsgutschr.\n{number}", r[8], "H"))
+        r16, r17 = book[16], book[17]   # the owners' association pays the manager's invoice: by date, from a known account
+        lines.append((d(20), "WEG BAHNHOFSTR. 12", teutoburg if r16[2] == "1020" else kramer,
+                      f"Überweisungsgutschr.\nIhre Rechnung vom {r16[1]}", r16[8], "H"))
+        lines.append((d(18), "WIESNER HAUSTECHNIK GMBH", "", "Lastschrift\nLeasingrate 10/2026", "545,00", "S"))
+        for when, who, iban, purpose, amount, sh in lines:
+            payer, payee = (who, "Wiesner Haustechnik GmbH") if sh == "H" else ("Wiesner Haustechnik GmbH", who)
+            vb.append(f'"{when}";"{when}";"{payer}";"{payee}";"";"{iban}";"";"";"{purpose}";"";"EUR";"{amount}";"{sh}"')
+        vb += ['', f'"{d(160)}";;;;;;;;;"Anfangssaldo";"EUR";"8.412,77";"H"', f'"{d(1)}";;;;;;;;;"Endsaldo";"EUR";"9.000,00";"H"']
+        # the accounts are known from the Sparkasse: Teutoburg and Kramer paid with numbers there
+        for r in book[:12]:
+            if r[2] in ("1020", "1021"):
+                spk[book.index(r)][1] = "IMMOBILIENVERWALTUNG TEUTOBURG" if r[2] == "1020" else "HAUSVERWALTUNG KRAMER"
+        spk_head = "Buchungstag;Beguenstigter/Zahlungspflichtiger;Verwendungszweck;Betrag;Kontonummer/IBAN"
+        spk = [row + [teutoburg if "TEUTOBURG" in row[1] else kramer if "KRAMER" in row[1] else ""] for row in spk]
+        self.f.feed([("Kundenstamm_alt.csv", csv(head, custs)),
+                     ("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD.replace(";Kunde;", ";Kd.-Nr.;"), book)),
+                     ("Sparkasse_Umsaetze.csv", csv(spk_head, spk)),
+                     ("Volksbank_Umsaetze_2026.csv", ("\r\n".join(vb) + "\r\n").encode("cp1252"))])
+        rt = self.f.rt()
+        bank = _type(rt, "Kontobewegung")
+        names = {a["name"] for a in bank["attrs"] if not a.get("hidden")}
+        self.assertFalse(names & {"Umsatz", "Vorgang/Verwendungszweck", "Spalte 13", "Empfänger/Zahlungspflichtiger"})
+        self.assertFalse(any("saldo" in str(v).lower() for r in rt.records[bank["id"]] for v in r["data"].values()))
+        inv = _type(rt, "Rechnung")
+        e = _states(rt, inv)
+        self.assertEqual({e[r[0]]["state"] for r in book[:17]}, {"bezahlt"}, {r[0]: e[r[0]]["state"] for r in book[:17]})
+        self.assertEqual({e[r[0]]["state"] for r in book[17:]}, {"offen"})
+        lease = next(r for r in rt.records[bank["id"]] if "Leasing" in str(r["data"]))
+        self.assertIn(-545.0, lease["data"].values())                              # S is money going out
+
 
 if __name__ == "__main__":
     unittest.main()

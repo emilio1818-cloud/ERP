@@ -118,7 +118,7 @@ class DemoCompany(unittest.TestCase):
     def test_work_items(self):
         work = self.rt.work(TODAY)
         kinds = {(g["title"].split(" ")[0], g["kind"]) for g in work}
-        self.assertIn(("Aufträge", "late"), kinds)          # delivered, not invoiced for too long
+        self.assertIn(("Aufträge", "ready"), kinds)         # delivered, not invoiced yet
         self.assertIn(("Artikel", "threshold"), kinds)      # below minimum stock
         self.assertTrue(any(g["kind"] == "rhythm" for g in work))
         self.assertTrue(all(g["count"] > 0 for g in work))

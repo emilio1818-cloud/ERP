@@ -744,10 +744,12 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             if not start:
                 continue
             last = start
+            reached = False  # some step after the start is done (finished, delivered)
             for si, st in enumerate(p["steps"]):
                 dv = step_dates[st["id"]].get(r["id"])
                 if dv:
                     last = max(last, dv)
+                    reached = reached or (st.get("share") or 1) >= 0.5
                     continue
                 if any(step_dates[x["id"]].get(r["id"]) for x in p["steps"][si + 1:] if (x.get("share") or 1) >= 0.5):
                     continue  # a later (regular) step happened: this one was skipped, not forgotten
@@ -780,7 +782,12 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                         not any((st["id"], a, str(r["data"].get(a))) in never for a in never_attrs(never)):
                     waited = (today - last).days
                     limit = max(st["p80_days"] * 1.25, (st["median_days"] or 0) + 2, 2)
-                    if waited > limit and waited < 1100:  # claims become time-barred after three years
+                    if reached and st.get("source") == "child" and \
+                            (specs.get(st.get("type")) or {}).get("concept") == "rechnung" and 0 <= waited < 1100:
+                        # finished and not invoiced: money waiting to be asked for – all of it, the oldest first
+                        buckets[(st["id"], "ready")].append(dict(rid=r["id"], days=waited, money=money,
+                                                                 usual=st["median_days"], late=waited > limit))
+                    elif waited > limit and waited < 1100:  # claims become time-barred after three years
                         buckets[(st["id"], "late")].append(dict(rid=r["id"], days=waited, money=money,
                                                                 usual=st["median_days"]))
                     elif due and (due - today).days <= 3:
@@ -809,7 +816,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                                             due=due.isoformat(), name=dl["name"], due_how=due_how))
         for (sid, kind), items in buckets.items():
             st = next((s for s in p["steps"] if s["id"] == sid), None)
-            items.sort(key=lambda x: (-x["days"] if kind in ("overdue", "late") else x["days"]))
+            items.sort(key=lambda x: (-x["days"] if kind in ("overdue", "late", "ready") else x["days"]))
             total = round(sum(x["money"] or 0 for x in items), 2)
             party = p.get("party")
             for x in items:
@@ -827,6 +834,11 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             elif kind == "late":
                 head = f"{spec['plural']} {st['phrase']} – länger als üblich"
                 sev = 2
+            elif kind == "ready":
+                before = next((x["label"] for x in reversed(p["steps"][:p["steps"].index(st)]) if (x.get("share") or 1) >= 0.5),
+                              None) if st in p["steps"] else None
+                head = f"{spec['plural']} {before or 'erledigt'} – noch nicht {st['label']}"
+                sev = 2 if any(x["late"] for x in items) else 1
             elif kind == "soon":
                 head = f"{spec['plural']} {st['phrase']} – bald fällig"
                 sev = 1

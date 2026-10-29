@@ -105,10 +105,13 @@ class SecondFirm(unittest.TestCase):
         # some invoices name their order nowhere, the order book says "abgerechnet"; time sheets exist for one quarter only
         order = self.t("Auftrag")
         nr = order["key"]
-        late = next(g for g in self.rt.work() if g["type"] == order["id"] and g.get("step") == "berechnet")
-        found = {self.rt.by_id[x["rid"]]["data"].get(nr) for x in late["items"]} if late["count"] <= 50 else set()
-        self.assertEqual(late["count"], len(UNBILLED))
+        ready = next(g for g in self.rt.work() if g["type"] == order["id"] and g.get("step") == "berechnet")
+        self.assertEqual(ready["kind"], "ready")    # every finished order not yet invoiced, the oldest first …
+        late = [x for x in ready["items"] if x["late"]]
+        found = {self.rt.by_id[x["rid"]]["data"].get(nr) for x in late}
+        self.assertEqual(len(late), len(UNBILLED))  # … and those waiting longer than usual are the forgotten ones
         self.assertEqual(found, UNBILLED)
+        self.assertTrue(all(not x["late"] for x in ready["items"][len(late):]))
 
     def test_how_well_the_firm_is_known(self):
         from physarum.coverage import coverage

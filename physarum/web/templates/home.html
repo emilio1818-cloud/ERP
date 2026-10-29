@@ -3,6 +3,7 @@
 {% macro reason(g, it) -%}
   {%- if g.kind == 'overdue' -%}seit {{ it.days }} {{ 'Tag' if it.days == 1 else 'Tagen' }} überfällig{% if it.due_how %} <span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">(Fälligkeit berechnet: {{ it.due_how }})</span>{% endif %}
   {%- elif g.kind == 'late' -%}wartet seit {{ it.days }} Tagen <span class="faint">(üblich {{ after_days(it.usual or 0) }})</span>
+  {%- elif g.kind == 'ready' -%}{{ 'seit heute' if it.days == 0 else 'seit ' ~ days_text(it.days) }} fertig{% if it.late %} <span class="faint">(üblich berechnet {{ after_days(it.usual or 0) }})</span>{% endif %}
   {%- elif g.kind == 'soon' -%}{{ 'heute fällig' if it.days == 0 else 'fällig in ' ~ it.days ~ ' Tagen' }}
   {%- elif g.kind == 'payable' -%}{{ 'heute fällig' if it.days == 0 else ('seit ' ~ (-it.days) ~ (' Tag' if it.days == -1 else ' Tagen') ~ ' fällig' if it.days < 0 else 'fällig in ' ~ it.days ~ (' Tag' if it.days == 1 else ' Tagen')) }}{% if it.due_how %} <span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">(berechnet: {{ it.due_how }})</span>{% endif %}
   {%- elif g.kind == 'due' -%}{% if it.label %}{{ it.label }} · {% endif %}{{ 'heute' if it.days == 0 else (('seit ' ~ (-it.days) ~ (' Tag' if it.days == -1 else ' Tagen') ~ (' überschritten' if it.label else '')) if it.days < 0 else ('bis ' ~ display(it.due, 'date') if it.label else 'in ' ~ it.days ~ (' Tag' if it.days == 1 else ' Tagen'))) }}{% if it.due_how %} <span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">(berechnet: {{ it.due_how }})</span>{% endif %}

@@ -279,7 +279,8 @@ class CraftFirm(unittest.TestCase):
         sr = e["SR-2026-002"]
         self.assertAlmostEqual(sr["retention"], 5250.28, places=2)
         overdue = {x["rid"] for g in rt.work() if g["kind"] in ("overdue", "due") for x in g["items"]}
-        self.assertNotIn(sr["rid"], overdue)                        # a retention is not chased
+        self.assertNotIn(sr["rid"], overdue)                        # a retention is not chased …
+        self.assertNotIn(sr["rid"], {x["rid"] for g in rt.work() if g["kind"] == "payment" for x in g["items"]})  # … nor a problem
         party = next(a["id"] for a in inv["attrs"] if a["kind"] == "ref")
         self.assertEqual(dunning.overdue_of(rt, rt.by_id[sr["rid"]]["data"][party], inv["id"]), [])
         self.assertAlmostEqual(e["RE-2026-0087"]["gross"], 1433.95, places=2)   # the PDF the customer got

@@ -788,6 +788,8 @@ def problems(entries: dict) -> list[dict]:
     """Payments that do not add up: partial, too much, on cancelled invoices, charged back."""
     out = []
     for e in entries.values():
+        if e.get("retention"):
+            continue  # paid as agreed: the rest is kept back until the warranty ends
         if e["state"] in ("teilbezahlt", "überzahlt") or (e["state"] == "storniert" and e["paid"] > EPS) or \
                 (e["state"] == "offen" and any(x["how"] == "Rückbuchung" for x in e["payments"])):
             out.append(e)

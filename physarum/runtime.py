@@ -61,6 +61,8 @@ class Runtime:
                 self._overlay_network(net)
             self.records = self.store.all_records()
             apply_virtual(self.model, self.records)
+            from .behavior import apply_recurring
+            apply_recurring(self.model, self.records)
             self.by_id = {r["id"]: r for rs in self.records.values() for r in rs}
             specs = self.specs
             self.titles = record_titles(specs, ((rid, r["type"], r["data"]) for rid, r in self.by_id.items()))

@@ -499,6 +499,8 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
             elif share(lambda x: parse_bool(x) is not None and fold(x) not in ("0", "1", ""), s_all[:3000]) >= 0.95 and \
                     len({fold(x) for x in s_all[:3000]}) <= 3:
                 kind = "bool"
+            elif share(lambda x: parse_period(x) is not None, typed[:3000]) >= 0.8:
+                kind = "text"  # "11/2026", "03/2027": a month (next inspection, MOT), not a phone number
             elif hrole == "phone" or share(lambda x: bool(_PHONE.match(x)) and sum(c.isdigit() for c in x) >= 6
                                            and (x.startswith(("0", "+", "(")) or " " in x or "/" in x), s_all[:3000]) >= 0.9:
                 kind = "phone"
@@ -637,9 +639,11 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
         if kind == "text":
             has_digit = "9" in top_shape
             spaced = share(lambda x: " " in str(x), present[:3000]) > 0.2
+            known = [v for v in present[:3000] if not is_placeholder(str(v)) and fold(str(v)) not in ("div.", "div", "diverse")]
             coded = (has_digit and not spaced and p.avg_len <= 24 and
                      (p.pattern_share >= 0.6 or hrole == "id") and
-                     share(lambda x: any(c.isdigit() for c in str(x)), present[:3000]) >= 0.9)
+                     share(lambda x: any(c.isdigit() for c in str(x)), known or present[:3000]) >= 0.9 and
+                     share(lambda x: parse_period(x) is not None, present[:3000]) < 0.8)  # "11/2026" is a month
             if coded and (p.distinct > 12 or hrole == "id" or p.unique_ratio > 0.7 or p.pattern_share >= 0.95):
                 p.kind = kind = "id"
 
@@ -815,7 +819,40 @@ def as_date(x) -> date | None:
     try:
         return _plausible(date.fromisoformat(str(x)[:10]))
     except ValueError:
-        return None
+        pass
+    m = _HAND_DATE.match(str(x).strip())
+    if m:  # "31.08.26", "8.10.2026": typed by hand where the column was not read as dates
+        d, mo, y = (int(g) for g in m.groups())
+        y = y + 2000 if y < 100 else y
+        try:
+            return _plausible(date(y, mo, d))
+        except ValueError:
+            return None
+    return None
+
+
+_HAND_DATE = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$")
+
+
+def next_occurrence(v, after: date | None) -> tuple[date, date] | None:
+    """A planned date as (first, last day): a day, a month ("10/2026", "Okt. 2026") or a week; "KW 39"
+    without a year is the first such week after `after`."""
+    d = as_date(v)
+    if d:
+        return d, d
+    p = parse_period(v)
+    if p:
+        return p
+    m = re.match(r"^(?:kw|kalenderwoche|woche|wk|cw)\s*\.?\s*(\d{1,2})$", " ".join(fold(str(v or "")).split()))
+    if m and after:
+        for y in (after.year, after.year + 1, after.year + 2):
+            try:
+                a = date.fromisocalendar(y, int(m.group(1)), 1)
+            except ValueError:
+                continue
+            if a > after:
+                return a, a + timedelta(days=6)
+    return None
 
 
 _PERIOD_NUM = re.compile(r"^(\d{1,2})\s*/\s*(\d{4})$")
@@ -916,16 +953,23 @@ INTERVAL_MONTHS = {"monatlich": 1, "zweimonatlich": 2, "vierteljaehrlich": 3, "q
 
 
 def interval_months(v) -> int | None:
-    """'jährlich' -> 12, 'halbjährlich' -> 6, 'alle 3 Monate' -> 3."""
+    """'jährlich' -> 12, 'halbjährlich' -> 6, 'alle 3 Monate' -> 3, '12 Mon.' -> 12, '1x jährl.' -> 12,
+    '2x jährlich' -> 6."""
     if v is None:
         return None
-    s = " ".join(fold(str(v)).replace("-", " ").split())
+    s = " ".join(fold(str(v)).replace("-", " ").replace(".", " ").split())
     if s in INTERVAL_MONTHS:
         return INTERVAL_MONTHS[s]
-    m = re.match(r"^(?:alle|every)\s+(\d{1,2})\s+(monate?|months?|jahre?|years?)$", s)
+    s = re.sub(r"\bjaehrl\b", "jaehrlich", re.sub(r"\bhalbjaehrl\b", "halbjaehrlich", s))
+    if s in INTERVAL_MONTHS:
+        return INTERVAL_MONTHS[s]
+    m = re.match(r"^(?:alle|every|je)?\s*(\d{1,2})\s*(monate?|mon|mo|months?|jahre?|j|years?)$", s)
     if m:
         n = int(m.group(1))
-        return n if m.group(2).startswith(("monat", "month")) else 12 * n
+        return n if m.group(2).startswith(("mo", "month")) else 12 * n
+    m = re.match(r"^(\d)\s*x\s*(?:im\s+)?(jaehrlich|jahr|pro jahr|p a)$", s)
+    if m and int(m.group(1)) in (1, 2, 3, 4, 6, 12):
+        return 12 // int(m.group(1))
     return None
 
 

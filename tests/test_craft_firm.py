@@ -433,6 +433,65 @@ class CraftFirm(unittest.TestCase):
         self.assertEqual((cfg["berater"], cfg["mandant"]), (24680, 10117))   # as the advisor's own export says
         self.assertEqual(taxexport.advisor_accounts(self.f.store)["re-2026-0010"], 11001)
 
+    def test_maintenance_inspections_and_mot_come_due_on_heute(self):
+        import io
+        import openpyxl
+        today = date(2026, 10, 29)
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Verträge"
+        ws.append(["Wartungsverträge Heizung / Sanitär – Stand 10/2026"])
+        ws.append([])
+        ws.append(["Vertr.-Nr.", "Kunde", "Anlage", "Intervall", "letzte Wartung", "nächste Wartung", "Status"])
+        contracts = [  # number, interval, last, next as written by hand
+            ("WV-0106", "1x jährl.", "20.10.25", "10/2026"),        # overdue: the month hides the day
+            ("WV-0120", "alle 2 Jahre", date(2024, 10, 10), "10/2026"),
+            ("WV-0124", "12 Monate", date(2025, 5, 20), "KW 21"),    # a week without a year: last round's
+            ("WV-0121", "jährlich", "Okt. 2025", "KW 42"),           # due this month
+            ("WV-0105", "jährlich", date(2025, 11, 5), None),        # in a week
+            ("WV-0101", "jährlich", date(2025, 10, 8), None),        # done on 06.10. – the time sheet says so
+            ("WV-0104", "halbjährlich", date(2026, 10, 13), None),   # just done
+            ("WV-0103", "12 Mon.", "31.08.26", "nach Absprache"),
+            ("WV-0113", "jährlich", "—", "07/2027"),                 # first visit next year
+        ]
+        for no, iv, last, nxt in contracts:
+            ws.append([no, "Kunde", "Gastherme", iv, last, nxt, "aktiv"])
+        ws.append(["WV-0110", "Kunde", "Wärmepumpe", "jährlich", date(2025, 10, 8), None, "gekündigt zum 30.09.2026"])
+        buf = io.BytesIO()
+        wb.save(buf)
+        contracts_xlsx = buf.getvalue()
+        wb = openpyxl.Workbook()
+        wb.active.title = "Werkzeug + Geräte"
+        wb.active.append(["Inv.-Nr.", "Gerät", "letzte Prüfung", "nächste Prüfung"])
+        for no, what, nxt in [("WZ-001", "Pressmaschine", "11/2026"), ("WZ-002", "Rohrreiniger", "06/2026"),
+                              ("WZ-003", "Kernbohrgerät", "11/2027"), ("WZ-004", "Abgasmessgerät", "09/2026")]:
+            wb.active.append([no, what, date(2025, 6, 1), nxt])
+        fleet = wb.create_sheet("Fahrzeuge")
+        fleet.append(["Kennzeichen", "Fahrzeug", "EZ", "Fahrer", "HU fällig"])
+        for plate, car, ez, hu in [("BI-WH 101", "VW Crafter", "03/2021", "03/2027"), ("BI-WH 103", "Sprinter", "09/2018", "09/2026"),
+                                   ("BI-WH 104", "Transit", "11/2023", "11/2026"), ("BI-WH 105", "Caddy", "04/2019", "04/2027"),
+                                   ("BI-WH 106", "Anhänger", "07/2014", "07/2026")]:
+            fleet.append([plate, car, ez, "—", hu])
+        buf = io.BytesIO()
+        wb.save(buf)
+        visit = csv("Datum;Auftrag;Tätigkeit;Std.;Mitarbeiter", [["06.10.2026", "WV-0101", "Wartung Therme", "2", "Dreier"]] +
+                    [[f"{d:02d}.10.2026", "WV-0104", "Wartung", "3", "Dreier"] for d in (12, 13)])
+        self.f.feed([("Wartungsvertraege.xlsx", contracts_xlsx), ("Fuhrpark_Werkzeug.xlsx", buf.getvalue()),
+                     ("Stundenzettel_Dreier_Oktober.csv", visit)])
+        rt = self.f.rt()
+        self.assertTrue({"Fahrzeuge", "Werkzeug + Geräte"} <= {t["plural"] for t in rt.model["types"]})  # by sheet
+        work = rt.work(today)
+        due = {x["title"]: x for g in work if g["kind"] == "due" for x in g["items"]}
+        late = {k for k, x in due.items() if x["days"] < 0}
+        self.assertEqual({k for k in late if k.startswith("WV")}, {"WV-0106", "WV-0120", "WV-0124"})
+        self.assertEqual(due["WV-0121"]["due"], "2026-10-31")                      # this month
+        self.assertIn("WV-0105", due)                                              # within the month ahead
+        self.assertFalse({"WV-0101", "WV-0104", "WV-0103", "WV-0113", "WV-0110"} & set(due))
+        self.assertEqual({k for k in late if not k.startswith("WV")}, {"Sprinter", "Anhänger", "Rohrreiniger",
+                                                                       "Abgasmessgerät"})  # HU and inspection overdue
+        self.assertIn("Transit", due)                                              # HU next month
+        self.assertIn("Pressmaschine", due)
+
 
 if __name__ == "__main__":
     unittest.main()

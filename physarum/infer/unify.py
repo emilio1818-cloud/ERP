@@ -4,6 +4,8 @@ the order export are all Kunden).
 """
 from __future__ import annotations
 
+import re
+
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -364,14 +366,23 @@ def _finish(t: TypeDraft):
         t.name, t.plural = sg, pl
     else:
         stem = clean_stem(lead.label)
-        sg = singular_de(stem[:1].upper() + stem[1:])
-        # a file name that cannot be made singular and has no regular plural ("Steinbach", "LIESMICH")
-        # is not given an invented ending
+        sheet = lead.label.split(" › ", 1)[1].strip() if " › " in lead.label else ""
+        if sheet and not re.match(r"^(tabelle|sheet|blatt|table|liste)\s*\d*$", fold(sheet)) and \
+                len(sheet) <= 40 and not any(ch.isdigit() for ch in sheet):
+            stem = sheet  # "Fuhrpark_Werkzeug › Fahrzeuge": the sheet says what its rows are
         from ..text import plural_de, plural_is_known
-        if fold(stem) != fold(sg):
-            t.name, t.plural = sg, stem[:1].upper() + stem[1:]
+        if re.search(r"\s(\+|&|und)\s", stem):
+            # "Werkzeug + Geräte": one of them is a "Gerät", the list keeps its name
+            last = stem.split()[-1]
+            t.name, t.plural = singular_de(last[:1].upper() + last[1:]), stem
         else:
-            t.name, t.plural = sg, plural_de(sg) if plural_is_known(sg) else sg
+            sg = singular_de(stem[:1].upper() + stem[1:])
+            # a file name that cannot be made singular and has no regular plural ("Steinbach", "LIESMICH")
+            # is not given an invented ending
+            if fold(stem) != fold(sg):
+                t.name, t.plural = sg, stem[:1].upper() + stem[1:]
+            else:
+                t.name, t.plural = sg, plural_de(sg) if plural_is_known(sg) else sg
     from ..text import plural_de
     if not t.plural:
         t.plural = plural_de(t.name)
@@ -416,8 +427,8 @@ def _finish(t: TypeDraft):
     for role in ("name", "person"):
         for m in by_auth:
             for a in t.attrs:
-                if a is t.key or a.role != role or a.kind != "text":
-                    continue
+                if a is t.key or a.role != role or a.kind != "text" or lexicon.header_role(a.name) == "id":
+                    continue  # "Serien-Nr." with odd values is still a number, not what the thing is called
                 if any(mo is m for mo, _ in a.cols):
                     t.title = a
                     break
@@ -425,6 +436,12 @@ def _finish(t: TypeDraft):
                 break
         if t.title:
             break
+    if t.title is None and t.kind == "master":
+        # "Gerät", "Fahrzeug": the first column that describes each row in its own words
+        t.title = next((a for a in t.attrs if a is not t.key and a.kind == "text" and a.role in (None, "category")
+                        and lexicon.header_role(a.name) != "id"
+                        and all(c.distinct >= 0.8 * max(c.filled, 1) and c.filled >= 0.8 * mo.n for mo, c in a.cols)),
+                       None)
     for a in t.attrs:
         # an identifier hiding under a generic header ("Name" holding #1001 in shop exports)
         if a.kind == "id" and fold(a.name) in ("name", "bezeichnung", "titel", "title", "spalte 1"):

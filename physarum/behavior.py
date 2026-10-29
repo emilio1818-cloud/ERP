@@ -12,7 +12,7 @@ from collections import Counter, defaultdict
 from datetime import date, timedelta
 
 from .text import fold, tokens
-from .values import add_months, as_date, interval_months, parse_duration, parse_period
+from .values import add_months, as_date, interval_months, next_occurrence, parse_duration, parse_period
 
 NUMERIC = ("number", "money", "percent", "duration")
 NICE = [0.07, 0.19, 0.16, 0.05, 1.07, 1.19, 1.16, 0.5, 2, 3, 4, 5, 6, 10, 12, 20, 24, 25, 30, 50, 60, 100, 1000, 0.01, 0.1]
@@ -476,7 +476,7 @@ def apply_virtual(model: dict, records: dict):
     for t in model["types"]:
         for a in t["attrs"]:
             v = a.get("virtual")
-            if not v or v.get("payments") or v.get("stock"):
+            if not v or v.get("payments") or v.get("stock") or v.get("recurring"):
                 continue
             sums = defaultdict(float)
             for r in records.get(v["child"], []):
@@ -487,6 +487,105 @@ def apply_virtual(model: dict, records: dict):
             for r in records.get(t["id"], []):
                 if r["id"] in sums:
                     r["data"][a["id"]] = round(sums[r["id"]], 2)
+
+
+_LAST_WORDS = {"letzte", "letzter", "letztes", "zuletzt", "last", "durchgefuehrt", "erledigt", "geprueft"}
+_NEXT_WORDS = {"naechste", "naechster", "naechstes", "next", "faellig", "geplant", "planung", "soll"}
+_END_WORDS = {"gekuendigt", "kuendigung", "ende", "endet", "vertragsende", "bis"}
+
+
+def find_recurring(spec: dict, recs: list[dict]) -> dict | None:
+    """A maintenance contract: "letzte Wartung", "Intervall" and – sometimes – "nächste Wartung". The next
+    date written by hand is often missing, out of date or "nach Absprache"; last date plus interval is not."""
+    if len(recs) < 4:
+        return None
+    def share(aid, fn):
+        vals = [_raw(r, aid) for r in recs]
+        vals = [v for v in vals if v not in (None, "", "—", "-")]
+        return (sum(1 for v in vals if fn(v)) / len(vals), len(vals)) if vals else (0.0, 0)
+    ivs = [a for a in spec["attrs"] if a["kind"] == "text" and not a.get("virtual")
+           and (lambda sh: sh[0] >= 0.6 and sh[1] >= 3)(share(a["id"], lambda v: interval_months(v) is not None))]
+    lasts = [a for a in spec["attrs"] if a["kind"] in ("date", "datetime", "text") and not a.get("virtual")
+             and set(tokens(a["name"])) & _LAST_WORDS and not set(tokens(a["name"])) & _NEXT_WORDS
+             and share(a["id"], lambda v: next_occurrence(v, None) is not None)[0] >= 0.5]
+    if not ivs or not lasts:
+        return None
+    last = lasts[0]
+    noun = [w for w in tokens(last["name"]) if w not in _LAST_WORDS] or ["termin"]
+    nxt = next((a for a in spec["attrs"] if a is not last and not a.get("virtual") and set(tokens(a["name"])) & _NEXT_WORDS
+                and set(tokens(a["name"])) & set(noun)), None)
+    end = next((a for a in spec["attrs"] if a["kind"] in ("date", "datetime") and set(tokens(a["name"])) & _END_WORDS), None)
+    status = next((a for a in spec["attrs"] if a.get("role") == "status"), None)
+    word = " ".join(noun).capitalize().replace("Pruefung", "Prüfung")
+    return dict(attr=f"next_{last['id']}", last=last["id"], interval=ivs[0]["id"], next=nxt["id"] if nxt else None,
+                end=end["id"] if end else None, status=status["id"] if status else None, name=f"{word} fällig",
+                text=f"{word} fällig = {last['name']} + {ivs[0]['name']}" + (f"; „{nxt['name']}“, wenn später" if nxt else ""))
+
+
+def _raw(r: dict, aid: str):
+    """The value as read; for a date column, what could not be read as a day ("Okt. 2025") is in raw."""
+    v = r["data"].get(aid)
+    return v if v is not None else ((r.get("meta") or {}).get("raw") or {}).get(aid)
+
+
+def recurring_due(rule: dict, r: dict, visit: date | None = None) -> tuple[str, str] | None:
+    """(when it is due – a day or a month –, how it was reckoned) for one contract."""
+    last = next_occurrence(_raw(r, rule["last"]), None)
+    if visit and (not last or visit > last[1]):
+        last = (visit, visit)  # the time sheet shows the visit the list does not have yet
+    k = interval_months(_raw(r, rule["interval"]))
+    computed = (add_months(last[0], k), add_months(last[1], k), "letzte + Intervall") if last and k else None
+    planned = None
+    if rule.get("next"):
+        raw = _raw(r, rule["next"])
+        # "KW 42" without a year is often last round's week: it only counts where nothing else is known
+        yearless = bool(re.match(r"^\s*(kw|kalenderwoche|woche)\s*\.?\s*\d{1,2}\s*$", fold(str(raw or ""))))
+        nx = next_occurrence(raw, last[1] if last else date.today() - timedelta(days=365))
+        if nx and not (yearless and computed):
+            planned = (nx[0], nx[1], "eingetragen")
+    if computed and planned:
+        # a later appointment moves it; an earlier or the same month is what the computed day says more exactly
+        a, b, how = planned if planned[0] > computed[1] else computed
+    elif computed or planned:
+        a, b, how = computed or planned
+    else:
+        return None
+    ends = []
+    if rule.get("end"):
+        ends.append(as_date(r["data"].get(rule["end"])))
+    if rule.get("status"):
+        m = re.search(r"(\d{1,2}\.\d{1,2}\.\d{2,4})", str(r["data"].get(rule["status"]) or ""))
+        if m and "kuendig" in fold(str(r["data"].get(rule["status"]))):
+            ends.append(as_date(m.group(1)))
+    if any(e and a > e for e in ends):
+        return None  # the contract has ended before
+    value = a.isoformat() if a == b else (f"KW {a.isocalendar()[1]}/{a.isocalendar()[0]}" if (b - a).days == 6
+                                         else f"{a.month:02d}/{a.year}")
+    return value, how
+
+
+def apply_recurring(model: dict, records: dict):
+    """Fill the computed next date of every recurring contract into the in-memory records."""
+    visits: dict[int, date] = {}
+    for t in model["types"]:
+        if t.get("concept") not in ("zeiteintrag", "stundenzettel"):
+            continue
+        refs = [a["id"] for a in t["attrs"] if a["kind"] == "ref"]
+        d_attr = next((a["id"] for a in t["attrs"] if a["kind"] in ("date", "datetime")), None)
+        for r in records.get(t["id"], []):
+            d = as_date(r["data"].get(d_attr)) if d_attr else None
+            for aid in refs:
+                v = r["data"].get(aid)
+                if d and isinstance(v, int) and (v not in visits or d > visits[v]):
+                    visits[v] = d
+    for t in model["types"]:
+        rule = t.get("recurring")
+        if not rule:
+            continue
+        for r in records.get(t["id"], []):
+            got = recurring_due(rule, r, visits.get(r["id"]))
+            if got:
+                r["data"][rule["attr"]] = got[0]
 
 
 def find_lookups(model: dict, records: dict) -> list[dict]:
@@ -564,12 +663,19 @@ def infer_behavior(model: dict, records: dict, today: date | None = None):
         t["formulas"] += [a for a in model["aggregates"] if a["type"] == t["id"]]
         t["formulas"] += find_date_offsets(t, recs, model, records)
         t["formulas"] += find_period_next(t, recs)
+        t["recurring"] = find_recurring(t, recs) if t["kind"] != "line" else None
+        if t["recurring"] and not any(a["id"] == t["recurring"]["attr"] for a in t["attrs"]):
+            rule = t["recurring"]
+            t["attrs"].append(dict(id=rule["attr"], name=rule["name"], kind="text", role="due", period=True, fill=1.0,
+                                   distinct=0, enum=None, constant=False, hidden=False, sources=[],
+                                   virtual=dict(recurring=True), explain=rule["text"]))
         t["numbering"] = find_numbering(t, recs, today)
         t["incoming"] = bool(t.get("concept") == "rechnung" and _foreign_numbers(t, model))
         if t["numbering"] and t["incoming"]:
             t["numbering"]["issues"] = []  # the supplier's numbers: gaps there are not ours to close
         t["defaults"] = find_defaults(t, recs)
         t["thresholds"] = find_thresholds(t)
+    apply_recurring(model, records)
     doc = next((t for t in model["types"] if t["kind"] == "document"), None)
     if doc:
         doc["count"] = len(records.get(doc["id"], []))

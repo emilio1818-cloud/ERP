@@ -112,14 +112,16 @@ def _due_specs(model: dict, records: dict) -> list[dict]:
         for a in spec["attrs"]:
             if a.get("role") != "due" or a.get("hidden") or not (a["kind"] in ("date", "datetime") or a.get("period")):
                 continue
-            if free is not None and a["id"] not in free:
+            recurring = bool((a.get("virtual") or {}).get("recurring"))
+            if free is not None and a["id"] not in free and not recurring:
                 continue  # the deadline of a step: handled with that step
             obj = set(tokens(a["name"])) - _DUE_WORDS
             done = next((b for b in spec["attrs"] if b is not a and b["kind"] in ("date", "datetime")
                          and b.get("role") != "due" and not b.get("hidden") and obj & set(tokens(b["name"]))), None)
             if sum(1 for r in records.get(spec["id"], []) if due_range(r["data"].get(a["id"]))) >= 2:
                 out.append(dict(type=spec["id"], attr=a["id"], name=a["name"], done=done["id"] if done else None,
-                                done_label=(done.get("milestone") or done["name"]) if done else None))
+                                done_label=(done.get("milestone") or done["name"]) if done else None,
+                                recurring=recurring))
     return out
 
 
@@ -1003,8 +1005,8 @@ def _due_work(model, records, by_id, title, today) -> list[dict]:
             done = as_date(r["data"].get(du["done"])) if du.get("done") else None
             if done and done >= start - timedelta(days=45):
                 continue  # done for this round (a little early counts)
-            if (start - today).days > 14:
-                continue
+            if (start - today).days > (30 if du.get("recurring") else 14):
+                continue  # a maintenance visit is arranged a month ahead
             pv = r["data"].get(party) if party else None
             items.append(dict(rid=r["id"], title=title(r["id"]), days=(end - today).days, money=None,
                               due=end.isoformat(), label=str(v) if start != end else None, name=du["name"],

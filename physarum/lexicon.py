@@ -476,6 +476,9 @@ def show_value(v) -> str:
 def dative_plural(plural: str) -> str:
     """„zwischen den Aufträgen“, „mit den Artikeln“ – German plural nouns take -n in the dative."""
     p = plural.strip()
+    if p.endswith(")") and " (" in p:  # "Zeiteinträge (Tickets)" -> "Zeiteinträgen (Tickets)"
+        head, tail = p.split(" (", 1)
+        return f"{dative_plural(head)} ({tail}"
     return p if not p or p.endswith(("n", "s")) or not p[-1].isalpha() else p + "n"
 
 

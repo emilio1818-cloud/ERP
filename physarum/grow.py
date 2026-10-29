@@ -120,6 +120,8 @@ def _assign_ids(store: Store, types: list[TypeDraft], c):
         tid = sorted(votes.items(), key=lambda kv: (-kv[1], kv[0]))[0][0] if votes else f"t{store.next_id('type', c)}"
         used_t.add(tid)
         t.tid = tid
+        # where its members lived before: a list split off by an answer keeps its records
+        t.prev_tids = sorted({reg_t[s] for s in sigs if s in reg_t and reg_t[s] != tid})
         for s in sigs:
             new_t[s] = tid
         for m in t.members:
@@ -541,6 +543,9 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     for t in types:
         existing = {r["ident"]: r["record_id"] for r in
                     c.execute("SELECT ident, record_id FROM idents WHERE type=?", (t.tid,)).fetchall()}
+        for pt in getattr(t, "prev_tids", ()):
+            for r in c.execute("SELECT ident, record_id FROM idents WHERE type=?", (pt,)).fetchall():
+                existing.setdefault(r["ident"], r["record_id"])
         shared = Counter(i for g in groups[id(t)] for i in g.idents)
         for g in groups[id(t)]:
             amb = {i for i in g.idents if shared[i] > 1}
@@ -570,6 +575,12 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
                         continue
                     _merge_record(c, other, rid, ts, actor, "gleiche Identität in den Quellen")
                     stats["merged"] += 1
+                moved = c.execute("SELECT type FROM records WHERE id=?", (rid,)).fetchone()
+                if moved and moved["type"] != t.tid:
+                    # its list became a kind of thing of its own: same record, notes and history
+                    c.execute("UPDATE records SET type=? WHERE id=?", (t.tid, rid))
+                    c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
+                              (rid, ts, actor, "import", f"jetzt bei den {t.plural or t.name}"))
             else:
                 cur = c.execute("INSERT INTO records(type,data,meta,origin,created_at,updated_at) VALUES(?,?,?,?,?,?)",
                                 (t.tid, "{}", "{}", "import", ts, ts))

@@ -234,9 +234,90 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
             if not g.idents:
                 g.idents = {f"h~{_content_hash(p)}" for p in g.protos}
     _number_occurrences(groups)
+    if key_aid and any(m.extracted_from is None for m in t.members) and any(m.extracted_from for m in t.members):
+        def rebuild(protos):
+            g = Group(protos=protos)
+            _merge_values(t, g)
+            _idents(t, g, key_aid, email_aids, title_aid, link_aids, pos_aids)
+            return g
+        groups = _phantoms(t, groups, decisions, questions, rebuild)
     if master and title_aid:
         groups = _fuzzy(t, groups, decisions, questions, log)
     return groups
+
+
+def _near_key(a: str, b: str) -> bool:
+    """P-2026-031 for P-2026-013: the same number with two digits swapped (one digit off is just
+    the next number in a series)."""
+    if a == b or re.sub(r"\d", "9", a) != re.sub(r"\d", "9", b):
+        return False
+    da, db = re.sub(r"\D", "", a), re.sub(r"\D", "", b)
+    diff = [i for i, (x, y) in enumerate(zip(da, db)) if x != y]
+    return len(diff) == 2 and da[diff[0]] == db[diff[1]] and da[diff[1]] == db[diff[0]]
+
+
+def _compatible(t: TypeDraft, a: Group, b: Group) -> bool:
+    """Do the names both know agree? "P-2026-031 Website-Relaunch" for the "Website-Relaunch" of the same
+    customer does; "Café Strandperle" for "Bäckerei Hansen" does not."""
+    agree = 0
+    for at in t.attrs:
+        if at is t.key or at.kind != "text" or at.role not in ("name", "person"):
+            continue
+        va, vb = a.values.get(at.aid), b.values.get(at.aid)
+        if not va or not vb:
+            continue
+        na, nb = norm_name(str(va)), norm_name(str(vb))
+        if na == nb or (na and nb and (na in nb or nb in na)) or name_similarity(na, nb) >= 0.8:
+            agree += 1
+        else:
+            return False
+    return agree >= 1
+
+
+def _phantoms(t: TypeDraft, groups: list[Group], decisions: dict, questions: list | None, rebuild) -> list[Group]:
+    """A number that only other lists name (40 time entries on "P-2026-031"), while the list of these
+    things has a number one swap away ("P-2026-013"): probably a typo. Asked, merged when confirmed."""
+    key = t.key.aid
+    base, phantom = {}, []
+    for gi, g in enumerate(groups):
+        k = g.values.get(key)
+        if k is None:
+            continue
+        if any(p.member.extracted_from is None for p in g.protos):
+            base[gi] = str(k)
+        else:
+            phantom.append(gi)
+    if not base or not phantom or len(phantom) > 0.3 * len(base):
+        return groups
+    merged, drop = {}, set()
+    for gi in phantom:
+        k = str(groups[gi].values.get(key))
+        near = [bi for bi, bk in base.items() if _near_key(k, bk)]
+        if len(near) != 1:
+            continue
+        g, b = groups[gi], groups[near[0]]
+        if not _compatible(t, g, b):
+            continue  # a customer of its own (another name), not a typo
+        pk = pair_key(g, b)
+        d = decisions.get(pk)
+        if d == "same":
+            merged.setdefault(near[0], list(b.protos)).extend(g.protos)
+            drop.add(gi)
+        elif d != "different" and questions is not None:
+            n = sum(len(p.prov) for p in g.protos)
+            kb = base[near[0]]
+            questions.append(dict(kind="same_record", type=t, a=g, b=b, sim=0.9, key=pk, con=[],
+                                  pro=[f"„{k}“ steht nur in {n} Zeilen anderer Listen", f"„{kb}“ hat dieselben Ziffern"],
+                                  text=f"„{k}“ kommt nur in {n} Zeilen anderer Listen vor, nicht in der Liste der "
+                                       f"{t.plural or t.name} – ist „{kb}“ gemeint?"))
+    if not merged:
+        return groups
+    out = []
+    for gi, g in enumerate(groups):
+        if gi in drop:
+            continue
+        out.append(rebuild(merged[gi]) if gi in merged else g)
+    return out
 
 
 def _family(p: Proto) -> str:

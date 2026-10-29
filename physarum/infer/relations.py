@@ -204,8 +204,8 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
                         name_cands.append(r)
                     concept_hint = a.concept is not None and a.concept == d.concept
                     ok = r.inclusion >= 0.8 or (r.inclusion >= 0.5 and concept_hint)
-                    dkey = f"rel|{t.name}|{a.name}|{d.name}"
-                    dec = decisions.get(dkey)
+                    dkey = f"rel|{t.tid}|{a.aid}|{d.tid}"  # ids stay when a type is renamed
+                    dec = decisions.get(dkey) or decisions.get(f"rel|{t.name}|{a.name}|{d.name}")
                     if dec == "no":
                         ok = False
                     elif dec == "yes":
@@ -229,7 +229,8 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
                         extra.append((r2.dst, add))
                         covered |= {norm_name(groups[id(t)][gi].values.get(a.aid)) for gi in add}
                 distinct = {norm_name(v) for _, v in values_of(t, a)}
-                dec = decisions.get(f"rel|{t.name}|{a.name}|{lead.dst.name}")
+                dec = decisions.get(f"rel|{t.tid}|{a.aid}|{lead.dst.tid}") or \
+                    decisions.get(f"rel|{t.name}|{a.name}|{lead.dst.name}")
                 if distinct and lead.inclusion >= 0.4 and len(covered) / len(distinct) >= 0.8 and dec != "no":
                     lead.extra = extra
                     for d2, add in extra:

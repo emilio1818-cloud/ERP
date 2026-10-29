@@ -250,6 +250,65 @@ class UnseenFirm(unittest.TestCase):
             p = projects[int(no[-3:]) - 1]
             self.assertIn(p[1], str(rt.title(r["data"][ref["id"]])) + " " + no + " " + p[1])
 
+    def test_keeping_two_lists_apart_keeps_their_records(self):
+        import io
+        import openpyxl
+        from physarum import ops
+        from physarum.grow import regrow
+        from physarum.questions import answer, open_questions
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Aktiv"
+        ws.append(["Projekt-Nr.", "Kunde", "Projekt", "Start", "Budget"])
+        for i in range(12):
+            ws.append([f"P-2026-{i + 1:03d}", f"Kunde {i % 4}", "Website-Relaunch", f"{i + 1:02d}.03.2026", 5000 + i])
+        ws2 = wb.create_sheet("Abgeschlossen")
+        ws2.append(["Projekt-Nr.", "Kunde", "Projekt", "Start", "Ende", "Budget"])
+        for i in range(10):
+            ws2.append([f"P-2025-{i + 1:03d}", f"Kunde {i % 4}", "Kampagne", f"{i + 1:02d}.03.2025", f"{i + 1:02d}.06.2025", 3000 + i])
+        buf = io.BytesIO()
+        wb.save(buf)
+        self.f.feed([("Projektliste.xlsx", buf.getvalue())])
+        rt = self.f.rt()
+        pj = _type(rt, "Projekt")
+        if len(rt.records[pj["id"]]) != 22:
+            self.skipTest("the two sheets were not put into one list here")
+        ids = {r["data"][pj["key"]]: r["id"] for r in rt.records[pj["id"]]}
+        ops.add_note(rt, ids["P-2026-001"], "Kunde will Termin im April", "Tester")
+        q = next((q for q in open_questions(self.f.store) if q["kind"] == "confirm_merge"), None)
+        if q is None:
+            self.skipTest("no confirmation asked")
+        answer(self.f.store, q["id"], "split", "Tester")
+        regrow(self.f.store)
+        rt = self.f.rt()
+        after = {r["data"].get(next((a["id"] for a in rt.spec(r["type"])["attrs"] if a["name"] == "Projekt-Nr."), None)): r["id"]
+                 for t in rt.model["types"] for r in rt.records.get(t["id"], [])}
+        self.assertTrue(all(after.get(k) == v for k, v in ids.items()), "every project kept its record")
+        self.assertEqual(self.f.store.q1("SELECT COUNT(*) n FROM notes WHERE record_id=?", (ids["P-2026-001"],))["n"], 1)
+
+    def test_a_project_number_with_swapped_digits_is_asked_and_merged(self):
+        from physarum.grow import regrow
+        from physarum.questions import answer, open_questions
+        projects = [[f"P-2026-{i:03d}", f"Kunde {i % 4} GmbH", "Website-Relaunch", f"{(i % 9) + 1:02d}.02.2026"]
+                    for i in range(10, 25)]
+        entries = [[f"P-2026-{10 + k % 15:03d} Website-Relaunch", "anna@agentur.de",
+                    (date(2026, 3, 1) + timedelta(days=k % 50)).strftime("%d.%m.%Y"), "2,0"] for k in range(90)]
+        entries += [["P-2026-031 Website-Relaunch", "anna@agentur.de", "02.04.2026", "1,0"] for _ in range(8)]
+        self.f.feed([("Projektliste.csv", csv("Projekt-Nr.;Kunde;Projekt;Start", projects)),
+                     ("time_entries.csv", csv("Project;Email;Date;Duration (h)", entries))])
+        q = next((q for q in open_questions(self.f.store) if "P-2026-031" in q["text"]), None)
+        self.assertIsNotNone(q)
+        self.assertIn("P-2026-013", q["text"])
+        answer(self.f.store, q["id"], "same", "Tester")
+        regrow(self.f.store)
+        rt = self.f.rt()
+        pj = _type(rt, "Projekt")
+        self.assertNotIn("P-2026-031", {r["data"].get(pj["key"]) for r in rt.records[pj["id"]]})
+        te = _type(rt, "Zeiteintrag")
+        ref = next(a for a in te["attrs"] if a["kind"] == "ref" and a.get("ref") == pj["id"])
+        p13 = next(r["id"] for r in rt.records[pj["id"]] if r["data"].get(pj["key"]) == "P-2026-013")
+        self.assertEqual(sum(1 for r in rt.records[te["id"]] if r["data"].get(ref["id"]) == p13), 6 + 8)
+
     def test_a_note_is_a_document_not_a_table(self):
         self.f.feed([("LIESMICH.txt", "Export aus Toggl + alter Kundenstamm (WaWi 2014), erstellt 02.07.2025 von J. P.\n"
                                       "Toggl wurde zum 30.06.2025 gekündigt, ab 01.07. Clockify.\n"),

@@ -7,6 +7,7 @@ decision that all future growth respects, so nothing is asked twice.
 from __future__ import annotations
 
 from .grow import record_title
+from .lexicon import dative_plural
 from .store import Store, dumps, loads, now_iso, pair_subject
 from .text import norm_key
 
@@ -88,14 +89,24 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
                                             options=[["same", "Ja, dasselbe"], ["different", "Nein, verschieden"]]))
     for q in er:
         t = q["type"]
-        ta = q["a"].values.get(t.title.aid)
-        tb = q["b"].values.get(t.title.aid)
+        ta = q["a"].values.get(t.title.aid) if t.title else None
+        tb = q["b"].values.get(t.title.aid) if t.title else None
         subj = f"same_record|{q['key']}"
         why = ", ".join(q["pro"]) or "Name fast gleich"
         against = ", ".join(q["con"])
+        if t.key is not None and q["a"].values.get(t.key.aid) and q["b"].values.get(t.key.aid):
+            ka, kb = q["a"].values.get(t.key.aid), q["b"].values.get(t.key.aid)
+            if str(ka) != str(ta):
+                ta, tb = f"{ka} · {ta}" if ta else ka, f"{kb} · {tb}" if tb else kb  # numbers tell twins apart
+        if q.get("text"):
+            text = q["text"]
+        elif str(ta) == str(tb):
+            text = f"„{ta}“ gibt es zweimal – ist das derselbe {t.name}?"
+        else:
+            text = f"Ist „{ta}“ derselbe {t.name} wie „{tb}“?"
         found[subj] = dict(kind="same_record", subject=subj,
                            impact=(len(q["a"].protos) + len(q["b"].protos)) * (1.5 if q["pro"] else 0.6),
-                           payload=dict(text=f"Ist „{ta}“ derselbe {t.name} wie „{tb}“?",
+                           payload=dict(text=text,
                                         detail=f"Dafür: {why}." + (f" Dagegen: {against}." if against else ""),
                                         a=_rec_brief(t, q["a"]), b=_rec_brief(t, q["b"]), type=t.tid,
                                         idents=[sorted(q["a"].idents)[:3], sorted(q["b"].idents)[:3]],
@@ -115,7 +126,8 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
                     examples = (f" Zum Beispiel aus „{m['obs']}“: {', '.join(ex_a)} – aus „{m['into']}“: {', '.join(ex_b)}.")
                 found[subj] = dict(kind="confirm_merge", subject=subj, impact=5,
                                    payload=dict(text=f"Ich habe {n or 'die'} {t['plural']} aus „{m['obs']}“ zu den "
-                                                     f"{t['plural']} aus „{m['into']}“ gelegt. Gehören sie in eine Liste?",
+                                                     f"{dative_plural(t['plural'])} aus „{m['into']}“ gelegt. "
+                                                     f"Gehören sie in eine Liste?",
                                                 detail=f"Grund: {m['reason']}; kein Eintrag steht in beiden Dateien – darum frage ich."
                                                        f"{examples} Ja: eine gemeinsame Liste. Nein: zwei getrennte Listen.",
                                                 decision=dict(kind="same_type", subject=None, obs=m["obs"], into=m["into"],

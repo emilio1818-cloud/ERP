@@ -57,7 +57,41 @@ _BELEG_OK = re.compile(r"[^A-Za-z0-9$&%*+\-/]")  # what DATEV accepts in "Belegf
 
 
 def settings(store) -> dict:
-    return {**DEFAULTS, **(store.kv_get("tax_advisor") or {})}
+    return {**DEFAULTS, **from_advisor(store), **(store.kv_get("tax_advisor") or {})}
+
+
+def advisor_reports(store) -> list[dict]:
+    """The tax advisor's own exports that were dropped in (DATEV Buchungsstapel, open items), newest first."""
+    out = []
+    for t in store.q("SELECT meta, source_id FROM raw_tables ORDER BY id DESC"):
+        meta = loads(t["meta"]) or {}
+        if meta.get("report") in ("DATEV-Buchungsstapel", "Offene-Posten-Liste"):
+            out.append(meta)
+    return out
+
+
+def from_advisor(store) -> dict:
+    """Advisor and client number, chart of accounts: as the advisor's own DATEV export says them."""
+    out = {}
+    for meta in advisor_reports(store):
+        h = meta.get("datev") or {}
+        if h.get("berater") and "berater" not in out:
+            out["berater"] = int(h["berater"])
+        if h.get("mandant") and "mandant" not in out:
+            out["mandant"] = int(h["mandant"])
+        if h.get("wj_beginn") and len(h["wj_beginn"]) == 8 and "fy_start" not in out:
+            out["fy_start"] = int(h["wj_beginn"][4:6])
+    return out
+
+
+def advisor_accounts(store) -> dict[str, int]:
+    """{invoice number: debtor account} as the advisor books them."""
+    out: dict[str, int] = {}
+    for meta in reversed(advisor_reports(store)):  # the newest report has the last word
+        for no, acc in (meta.get("accounts") or {}).items():
+            if str(acc).isdigit():
+                out[str(no).strip().casefold()] = int(acc)
+    return out
 
 
 def save_settings(store, form: dict) -> dict:
@@ -128,6 +162,7 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
     acc = ACCOUNTS[cfg["skr"]]
     debitors = _numbers(store, "datev_debitors")
     kreditors = _numbers(store, "datev_kreditors")
+    theirs = advisor_accounts(store)
     out, inc, warn = [], [], []
     vat_out: dict = {}
     vat_in: dict = {}
@@ -176,6 +211,10 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
             if row["party_rid"]:
                 cs = rt.spec(rt.by_id[row["party_rid"]]["type"])
                 own_no = rt.by_id[row["party_rid"]]["data"].get(cs.get("key")) if cs and cs.get("key") else None
+            known = theirs.get(row["number"].strip().casefold())
+            if known and row["party_rid"] and DEBITOR_START <= known < KREDITOR_START and \
+                    debitors.get(row["party_rid"]) != known and known not in debitors.values():
+                debitors[row["party_rid"]] = known  # the advisor's debtor number for this customer
             row["account"] = _assign(debitors, row["party_rid"], own_no, DEBITOR_START, KREDITOR_START)
             code = (rec.get("meta") or {}).get("tax_category") or ""
             for g in row["groups"]:

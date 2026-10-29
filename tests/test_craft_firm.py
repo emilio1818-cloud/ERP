@@ -343,6 +343,95 @@ class CraftFirm(unittest.TestCase):
         lease = next(r for r in rt.records[bank["id"]] if "Leasing" in str(r["data"]))
         self.assertIn(-545.0, lease["data"].values())                              # S is money going out
 
+    def _timesheets(self) -> bytes:
+        import io
+        import openpyxl
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+        layouts = {  # every fitter keeps his sheet his own way
+            "Kortmann": (["Datum", "Auftrag", "Baustelle", "Tätigkeit", "Std."], lambda d, job: [d, job, "BV Lindenstr.", "Heizung", 8]),
+            "Nowak": (["Datum", "Kommission", "Objekt", "Arbeiten", "Stunden"],
+                      lambda d, job: [d, job, "Schulze Bad", "Bad", timedelta(hours=7, minutes=30)]),
+            "Schäfer": (["Tag", "Auftrag/Kunde", "Was gemacht", "Fahrtzeit", "Arbeitszeit"],
+                        lambda d, job: [d, f"{job} Pension", "Duschthermostat", "0:30", "1,5 h"]),
+        }
+        for n, (who, (head, row)) in enumerate(layouts.items()):
+            ws = wb.create_sheet(who)
+            ws.append(["Stundenzettel August 2026"])
+            ws.append([f"Mitarbeiter: {['Jens Kortmann', 'Dariusz Nowak', 'Timo Schäfer'][n]}", None, None, None,
+                       f"Pers.-Nr. {103 + n}"])
+            ws.append([])
+            ws.append(head)
+            for day in range(3, 24):
+                ws.append(row(date(2026, 8, day), ["A26-003", "A26-028", "A26-074"][n] if day % 7 else "WV-0102"))
+            ws.append([])
+            ws.append([None, None, None, "Summe", "=SUM(E5:E25)"])
+            ws.append([None, None, None, "Unterschrift:"])
+        buf = io.BytesIO()
+        wb.save(buf)
+        return buf.getvalue()
+
+    def test_three_fitters_three_layouts_one_time_sheet(self):
+        orders = [[f"A26-{i:03d}", "02.03.2026", "Kunde", f"Leistung {i}", "1000,00"] for i in range(1, 80)]
+        contracts = [[f"WV-{100 + i:04d}", "Kunde", "Gastherme", "jährlich"] for i in range(1, 12)]
+        self.f.feed([("Auftragsbuch_2026.csv", csv("Auftr.-Nr.;Datum;Kunde;Leistung;Wert €", orders)),
+                     ("Wartungsvertraege.csv", csv("Vertr.-Nr.;Kunde;Anlage;Intervall", contracts)),
+                     ("Stundenzettel_August_2026.xlsx", self._timesheets())])
+        rt = self.f.rt()
+        sheets = [t for t in rt.model["types"] if t.get("concept") == "zeiteintrag"]
+        self.assertEqual(len(sheets), 1)                                    # one list, whatever the layout
+        sz = sheets[0]
+        self.assertEqual(len(rt.records[sz["id"]]), 3 * 21)                 # "Unterschrift:" is no entry
+        ma = _type(rt, "Mitarbeiter")
+        self.assertEqual({rt.title(r["id"]) for r in rt.records[ma["id"]]}, {"Jens Kortmann", "Dariusz Nowak", "Timo Schäfer"})
+        who = next(a["id"] for a in sz["attrs"] if a["kind"] == "ref" and a.get("ref") == ma["id"])
+        job = next(a["id"] for a in sz["attrs"] if a["kind"] == "ref" and a.get("ref") == _type(rt, "Auftrag")["id"])
+        hours = next(a["id"] for a in sz["attrs"] if a["name"] == "Stunden")
+        per = {}
+        for r in rt.records[sz["id"]]:
+            key = (rt.title(r["data"].get(who)), rt.title(r["data"][job]) if isinstance(r["data"].get(job), int) else None)
+            per[key] = per.get(key, 0) + (r["data"].get(hours) or 0)
+        self.assertEqual(per[("Jens Kortmann", "A26-003")], 18 * 8)
+        self.assertEqual(per[("Dariusz Nowak", "A26-028")], 18 * 7.5)
+        self.assertEqual(per[("Timo Schäfer", "A26-074")], 18 * 1.5)        # "A26-074 Pension" names the order
+        wv = [r for r in rt.records[sz["id"]] if "WV-0102" in str((r.get("meta") or {}).get("raw") or {})
+              or rt.title(r["data"].get(job)) == "WV-0102"]
+        self.assertEqual(len(wv), 3 * 3)
+        self.assertTrue(all(isinstance(r["data"].get(job), int) for r in wv))  # the visit names the contract
+        auftrag = _type(rt, "Auftrag")
+        self.assertFalse({a["name"] for a in auftrag["attrs"]} & {"Tätigkeit", "Baustelle", "Arbeiten"})
+        self.assertFalse([t for t in rt.model["types"] if t["name"] == "Projekt"])  # no projects made of sites
+
+    def test_measurement_lines_and_the_advisors_lists_ask_nothing(self):
+        aufmass = [["Pos.", "Bezeichnung", "Menge", "Einheit", "EP", "GP"]]
+        rows = []
+        for flat in range(1, 7):
+            rows.append([f"Wohnung {flat}", None, None, None, None, None])
+            for pos, what in enumerate(["Heizung / FBH", "Sanitär / Bad", "Lüftung / Sonstiges"], start=1):
+                rows.append([pos, what, 1, "psch", f"{5000 + 37 * flat},00", f"{5000 + 37 * flat},00"])
+            rows.append([None, f"Zwischensumme Wohnung {flat}", None, None, None, "15000,00"])
+        opos = ("Offene Posten Debitoren;Stichtag 30.09.2026;;;;;;\n;;;;;;;\n"
+                "Konto;Name;Belegdatum;Belegfeld1;Fällig;Betrag EUR;Offen EUR;Tage überf.\n"
+                + "".join(f"1100{i};Kunde {i};0{i}.09.2026;RE-2026-00{i}0;1{i}.09.2026;100,00;100,00;\n" for i in range(1, 9)))
+        extf = ('"EXTF";700;21;"Buchungsstapel";13;20261005101530123;;"RE";"";"";24680;10117;20260101;4;20260901;20260930;;"PL";1;0;0;"EUR"\n'
+                '"Umsatz (ohne Soll/Haben-Kz)";"Soll/Haben-Kennzeichen";"WKZ Umsatz";"Konto";"Gegenkonto (ohne BU-Schlüssel)";"Belegdatum";"Belegfeld 1";"Buchungstext"\n'
+                + "".join(f'"119,00";"S";"EUR";"1100{i}";"8400";"0{i}09";"RE-2026-00{i}0";"Kunde {i}"\n' for i in range(1, 9)))
+        rows = [["" if v is None else v for v in r] for r in rows]
+        self.f.feed([("Aufmass_A26-003_Schlussaufmass.csv", csv(";".join(aufmass[0]), rows)),
+                     ("OPOS_Debitoren_30.09.2026.csv", opos.encode("cp1252")),
+                     ("EXTF_Buchungsstapel_09_2026.csv", extf.encode("cp1252"))])
+        rt = self.f.rt()
+        qs = self.f.store.q("SELECT payload FROM questions WHERE status='open' AND kind='same_record'")
+        self.assertEqual(qs, [])                                            # a position repeats per flat
+        lines = next(t for t in rt.model["types"] if "Aufmass" in t["name"] or "Aufmaß" in t["name"])
+        self.assertEqual(len(rt.records[lines["id"]]), 18)                  # subtotals are no lines
+        self.assertFalse([t for t in rt.model["types"] if any("OPOS" in m["label"] or "EXTF" in m["label"]
+                                                              for m in t["members"])])
+        from physarum import taxexport
+        cfg = taxexport.settings(self.f.store)
+        self.assertEqual((cfg["berater"], cfg["mandant"]), (24680, 10117))   # as the advisor's own export says
+        self.assertEqual(taxexport.advisor_accounts(self.f.store)["re-2026-0010"], 11001)
+
 
 if __name__ == "__main__":
     unittest.main()

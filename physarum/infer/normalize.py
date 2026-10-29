@@ -102,6 +102,9 @@ def _mode_value(col: Col, idxs: list[int]):
     return mk, vals[0][1]
 
 
+_EVENT_CONCEPTS = {"zeiteintrag", "stundenzettel", "zeiterfassung"}
+
+
 def candidate_extractions(o: Obs) -> list[dict]:
     if (o.concept or o.file_concept) == "kontobewegung":
         # whoever paid or was paid – customers, suppliers, staff, the tax office – is no kind of
@@ -147,6 +150,11 @@ def candidate_extractions(o: Obs) -> list[dict]:
         dep_cols = [y for y, _ in deps]
         if not any(y.role not in lexicon.ADDRESS_ROLES and y.role != "id" for y in dep_cols):
             continue  # an IBAN per payee is not a new kind of thing
+        if (o.concept or o.file_concept) in _EVENT_CONCEPTS and not any(
+                y.role in ("email", "person") or (y.prof.concept and lexicon.CONCEPTS[y.prof.concept]["kind"] == "master")
+                or y.origin == x.origin  # "P-2026-031 Website-Relaunch": the project's number and its name
+                for y in dep_cols):
+            continue  # a time sheet's site and activity describe the day, not the order they refer to
         if x.kind == "email" and not any(y.role in ("name", "person") for y in dep_cols):
             continue
         n_x = filled

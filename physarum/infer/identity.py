@@ -14,7 +14,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 from .. import lexicon
-from ..text import fold, name_similarity, norm_key, norm_name
+from ..text import fold, name_similarity, norm_key, norm_name, tokens
 from .observe import Obs
 from .unify import TypeDraft
 
@@ -545,6 +545,15 @@ def _fuzzy(t: TypeDraft, groups: list[Group], decisions: dict, questions: list |
     title = t.title.aid
     blocks: dict[str, list[int]] = defaultdict(list)
     names = []
+    # a name that repeats inside one list names no single thing there ("Heizung / FBH" in every flat
+    # of a measurement sheet): such rows are not asked about
+    tables = [{ln[0] for ln in g.lines} for g in groups]
+    positions = any(set(tokens(a.name)) & _POS_WORDS for a in t.attrs)  # lines of a measurement or offer
+    inside = Counter()
+    for i, g in enumerate(groups):
+        nm = norm_name(g.values.get(title, "")) if g.values.get(title) else ""
+        for tb in tables[i]:
+            inside[(tb, nm)] += 1
     for i, g in enumerate(groups):
         nm = norm_name(g.values.get(title, "")) if g.values.get(title) else ""
         names.append(nm)
@@ -564,6 +573,10 @@ def _fuzzy(t: TypeDraft, groups: list[Group], decisions: dict, questions: list |
                 if i == j or (i, j) in seen_pairs:
                     continue
                 seen_pairs.add((i, j))
+                shared = tables[i] & tables[j]
+                if shared and any(max(inside[(tb, names[i])], inside[(tb, names[j])]) > (1 if positions else 2)
+                                  for tb in shared):
+                    continue
                 sim = name_similarity(names[i], names[j])
                 if sim < 0.8:
                     continue

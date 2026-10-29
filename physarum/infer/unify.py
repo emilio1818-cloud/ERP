@@ -4,6 +4,7 @@ the order export are all Kunden).
 """
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 
 from .. import lexicon
@@ -105,7 +106,7 @@ def col_sim(a: Col, b: Col) -> float:
     if ga == "text" and a.role in ("notes",) and b.role in ("notes",):
         h = max(h, 0.7)
     names = ("name", "person")
-    if ga == "text" and (a.role in names) != (b.role in names) and v < 0.2:
+    if ga == "text" and (a.role in names) != (b.role in names) and v < 0.2 and not (h >= 0.99 and _numbers_inside(a, b)):
         h *= 0.6  # a column of names belongs with names, whatever its header says
     if h >= 0.75:
         return min(1.0, h + 0.1 * v)
@@ -114,6 +115,25 @@ def col_sim(a: Col, b: Col) -> float:
     if v >= 0.8 and a.role == b.role:
         return 0.7
     return h * 0.85
+
+
+def _numbers_inside(a: Col, b: Col) -> bool:
+    """"A26-079 Wehmeier" under the same header as "A26-079": the number with a word, not a name."""
+    ids, texts = (a, b) if a.role == "id" or a.kind == "id" else (b, a)
+    shapes = Counter(_shape(str(v)) for v in ids.values if v is not None and str(v).strip())
+    if not shapes:
+        return False
+    shape, n = shapes.most_common(1)[0]
+    if n < 0.7 * sum(shapes.values()) or not any(ch == "9" for ch in shape):
+        return False
+    vals = [str(v) for v in texts.values if isinstance(v, str)]
+    hits = sum(1 for v in vals if any(_shape(tok) == shape for tok in v.split()[:3]))
+    return bool(vals) and hits >= 0.5 * len(vals)
+
+
+def _shape(s: str) -> str:
+    """"A26-074" -> "A99-999": the way a number is written, not which one."""
+    return "".join("9" if ch.isdigit() else "A" if ch.isalpha() else ch for ch in s.strip())
 
 
 def match_columns(xs: list[Col], ys: list[Col], threshold: float = 0.62) -> list[tuple[Col, Col, float]]:

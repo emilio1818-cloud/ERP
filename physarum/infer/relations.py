@@ -86,6 +86,12 @@ class IdentIndex:
             i = self.by.get("k:" + norm_key(value))
             if i is None and isinstance(value, str):
                 i = self.by.get("n:" + norm_name(value))
+            if i is None and isinstance(value, str) and " " in value.strip():
+                # "A26-074 Pension": the number, and who it was for
+                hits = {self.by.get("k:" + norm_key(tok)) for tok in value.split()[:4]
+                        if len(tok) >= 3 and any(ch.isdigit() for ch in tok)} - {None}
+                if len(hits) == 1:
+                    return next(iter(hits)), True
             return i, True if i is not None else False
         if via == "e":
             return self.by.get("e:" + str(value).strip().casefold()), True
@@ -344,6 +350,21 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
                     best = (lead.inclusion, lead)
             if best:
                 r = best[1]
+                # a time sheet names the order or, for a maintenance visit, the contract: "WV-0103" is a
+                # number of another list – where it is one of its numbers exactly, it points there
+                if r.unresolved and r.via == "k":
+                    for d in types:
+                        if d is t or d is r.dst or d.key is None:
+                            continue
+                        hits = {}
+                        for gi, v in r.unresolved.items():
+                            ti, exact = idx[id(d)].lookup(v, "k")
+                            if ti is not None and exact:
+                                hits[gi] = ti
+                        if len(hits) >= 2:
+                            r.extra.append((d, hits))
+                            for gi in hits:
+                                r.unresolved.pop(gi, None)
                 # a payee can be a customer or a supplier: resolve the rest against other master data
                 if r.unresolved and r.via == "n":
                     for d in types:

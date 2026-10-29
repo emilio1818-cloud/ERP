@@ -444,7 +444,7 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
         generic = set(tokens(spec["name"])) <= (set(lexicon.ROLE_TERMS["id"]) | {"name", "email", "mail", "e"}) or \
             spec.get("concept") == r.dst.concept or fold(spec["name"]) in (fold(r.dst.name), fold(r.dst.plural))
         if len(same_target) == 1 and (generic or r.via in ("k", "e") or r.via.startswith("a:")) and r.attr.aid not in rename_attr:
-            spec["name"] = r.dst.name if not r.extra else "Partner"
+            spec["name"] = r.dst.name if not r.extra else spec["name"] if r.via == "k" else "Partner"
     # "Kd-Nr" and "Kunde" side by side point at the same customer: one reference is enough
     pairs = defaultdict(list)
     for r in rels:

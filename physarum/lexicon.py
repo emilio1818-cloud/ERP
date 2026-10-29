@@ -372,7 +372,8 @@ def is_total_label(value) -> bool:
     if not isinstance(value, str):
         return False
     toks = tokens(value)
-    return bool(toks) and toks[0] in TOTAL_WORDS and len(toks) <= 4
+    # "Summe", "Gesamt netto", "Zwischensumme Wohnung 1 (EG links)"
+    return bool(toks) and toks[0] in TOTAL_WORDS and len(toks) <= (8 if toks[0] == "zwischensumme" else 4)
 
 
 BALANCE_WORDS = {"anfangssaldo", "endsaldo", "schlusssaldo", "saldovortrag", "kontostand", "saldo", "uebertrag",

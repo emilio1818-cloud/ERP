@@ -195,6 +195,95 @@ def _apply_debit_credit(t: "RawTable"):
         return
 
 
+_SIGNATURE = re.compile(r"^(unterschrift|datum\s*/?,?\s*unterschrift|gez\.|gepr(ü|ue)ft|freigabe|abgezeichnet)\b.{0,30}$", re.I)
+_ABOUT = re.compile(r"^\s*(mitarbeiter(?:in)?|monteur(?:in)?|arbeitnehmer(?:in)?|name|pers\.?\s*-?\s*nr\.?|personalnummer|"
+                    r"personal-nr\.?)\s*[:.]?\s*(\S.{0,60}?)\s*$", re.I)
+_ABOUT_NAMES = {"mitarbeiter": "Mitarbeiter", "mitarbeiterin": "Mitarbeiter", "monteur": "Mitarbeiter",
+                "monteurin": "Mitarbeiter", "arbeitnehmer": "Mitarbeiter", "arbeitnehmerin": "Mitarbeiter",
+                "name": "Mitarbeiter"}
+
+
+def _about(rows, pending_title) -> dict[str, str]:
+    """Cells above a table that say whom it is about ("Mitarbeiter: Jens Kortmann", "Pers.-Nr. 103")."""
+    out: dict[str, str] = {}
+    cells = [v for _, r in rows for v in r if isinstance(v, str)] + [x for x in pending_title if isinstance(x, str)]
+    for v in cells:
+        m = _ABOUT.match(v)
+        if not m:
+            continue
+        key = fold(m.group(1)).replace(" ", "").rstrip(".")
+        label = _ABOUT_NAMES.get(key) or "Pers.-Nr."
+        if label == "Mitarbeiter" and (key == "name" and len(m.group(2).split()) > 4):
+            continue
+        out.setdefault(label, m.group(2).strip())
+    return out if "Mitarbeiter" in out else {}
+
+
+def _datev_header(grid: list[list]) -> dict | None:
+    """The first line of a DATEV export ("EXTF";700;21;"Buchungsstapel";…): advisor and client numbers,
+    the financial year and the account length – what the next export has to say the same way."""
+    head = [str(c).strip().strip('"') if c is not None else "" for c in (grid[0] if grid else [])]
+    if len(head) < 14 or head[0] not in ("EXTF", "DTVF"):
+        return None
+    def num(i):
+        return head[i] if i < len(head) and head[i].isdigit() else None
+    return dict(kind=head[3] if len(head) > 3 else "", berater=num(10), mandant=num(11), wj_beginn=num(12),
+                sachkonten=num(13), von=num(14), bis=num(15))
+
+
+_OPEN_ITEMS = ("offene posten", "op-liste", "oplist", "offene-posten")
+
+
+def _open_items(t: "RawTable") -> bool:
+    """An open-items list from the tax advisor ("Offene Posten Debitoren, Stichtag 30.09.2026"): per
+    invoice what was still open on one day – a snapshot of the books, not a list of customers."""
+    title = fold(" ".join(str(x) for x in (t.meta.get("title"), t.name) if x))
+    cols = {fold(str(c or "")).strip() for c in t.columns}
+    beleg = any(c.startswith(("belegfeld", "beleg-nr", "belegnr", "rechnung")) for c in cols)
+    return beleg and any(c.startswith(("offen", "op-betrag", "saldo")) for c in cols) and \
+        (any(w in title for w in _OPEN_ITEMS) or "konto" in cols and "faellig" in cols)
+
+
+def _report_accounts(t: "RawTable") -> dict[str, str]:
+    """{invoice number: debtor account} from a report of the tax advisor."""
+    cols = [fold(str(c or "")).strip() for c in t.columns]
+    k = next((j for j, c in enumerate(cols) if c == "konto"), None)
+    b = next((j for j, c in enumerate(cols) if c.startswith(("belegfeld 1", "belegfeld1", "beleg-nr", "belegnr"))), None)
+    if k is None or b is None:
+        return {}
+    out = {}
+    for r in t.rows:
+        acc = str(r[k]).strip() if k < len(r) and r[k] is not None else ""
+        no = str(r[b]).strip() if b < len(r) and r[b] is not None else ""
+        if acc.isdigit() and no:
+            out[no] = acc
+    return out
+
+
+_TS_NAMES = {"tag": "Datum", "kommission": "Auftrag", "auftrag/kunde": "Auftrag", "auftrags-nr.": "Auftrag",
+             "auftragsnr.": "Auftrag", "auftrag-nr.": "Auftrag", "objekt": "Baustelle", "kunde/baustelle": "Baustelle",
+             "baustelle/kunde": "Baustelle", "einsatzort": "Baustelle", "arbeiten": "Tätigkeit", "was gemacht": "Tätigkeit",
+             "taetigkeit": "Tätigkeit", "beschreibung": "Tätigkeit", "std.": "Stunden", "std": "Stunden",
+             "stunden": "Stunden", "arbeitszeit": "Stunden", "std. gesamt": "Stunden", "von": "Von", "bis": "Bis"}
+_TS_WORDS = ("stundenzettel", "zeiterfassung", "stundennachweis", "arbeitszeit", "stundenbericht", "rapport")
+
+
+def _timesheet_layout(t: "RawTable"):
+    """Each fitter keeps his sheet his own way ("Kommission", "Objekt", "Arbeiten", "Stunden" here,
+    "Auftrag", "Baustelle", "Tätigkeit", "Std." there): one time sheet for the firm."""
+    cols = [fold(str(c or "")).strip() for c in t.columns]
+    if not (any(w in fold(t.name) for w in _TS_WORDS) or "mitarbeiter" in cols):
+        return
+    if not any(c in ("datum", "tag") for c in cols) or not any(_TS_NAMES.get(c) == "Stunden" for c in cols):
+        return
+    taken = {fold(c) for c in t.columns}
+    for j, c in enumerate(cols):
+        new = _TS_NAMES.get(c)
+        if new and fold(new) not in taken:
+            taken.add(fold(new))
+            t.columns[j] = new
+
+
 _BALANCE = {"anfangssaldo", "endsaldo", "saldo", "kontostand", "alter kontostand", "neuer kontostand", "schlusssaldo"}
 _PARTY_WORDS = ("auftraggeber", "zahlungsempf", "empfaenger", "zahlungspflichtig", "beguenstigt", "glaeubiger")
 _TX_KINDS = ("ueberweisung", "gutschr", "lastschrift", "abschluss", "dauerauftrag", "kartenzahlung", "bargeld",
@@ -446,6 +535,7 @@ def detect_tables(grid: list[list], name: str, meta: dict) -> list[RawTable]:
     if len(grid) > MAX_ROWS:
         meta = dict(meta, truncated=len(grid))
         grid = grid[:MAX_ROWS]
+    datev = _datev_header(grid)
     rows = _clean_grid(grid)
     if not rows or not rows[0]:
         return []
@@ -477,10 +567,25 @@ def detect_tables(grid: list[list], name: str, meta: dict) -> list[RawTable]:
             if t.name == name:
                 t.name = f"{name} ({k + 1})"
     for t in tables:
+        if datev:
+            t.meta.update(report="DATEV-Buchungsstapel", datev=datev, accounts=_report_accounts(t))
+            continue  # the tax advisor's bookings: evidence about invoices, not things of their own
+        if _open_items(t):
+            t.meta.update(report="Offene-Posten-Liste", accounts=_report_accounts(t))
+            continue
         _apply_debit_credit(t)
         _bank_layout(t)
+        _timesheet_layout(t)
         if _is_crosstab(t.columns):
             t.meta["report"] = "Auswertung"  # months as columns: a pivot of other data, not records
+    people = [t.meta["about"] for t in tables if t.meta.get("about") and "Pers.-Nr." in t.meta["about"]]
+    if people:
+        stem = name.split(" › ")[0]
+        tables.append(RawTable(name=f"{stem} › Mitarbeiter", columns=["Pers.-Nr.", "Mitarbeiter"],
+                               rows=[[a["Pers.-Nr."], a["Mitarbeiter"]] for a in people],
+                               lines=[t.lines[0] if t.lines else 1 for t in tables if t.meta.get("about")
+                                      and "Pers.-Nr." in t.meta["about"]],
+                               sheet="Mitarbeiter", meta=dict(meta, title="Mitarbeiter laut Stundenzettel", derived="about")))
     return tables
 
 
@@ -528,6 +633,8 @@ def _block_to_table(block, name, meta, pending_title) -> RawTable | None:
         title_lines += [" ".join(str(v) for v in r if v is not None) for _, r in block[:best_i]]
         header = block[best_i][1]
         data_rows = block[best_i + 1:]
+    # "Mitarbeiter: Jens Kortmann · Pers.-Nr. 103" above a time sheet: who every row is about
+    about = _about(block[:best_i] if best_i else [], pending_title)
     # data rows: sections, sums, repeated headers
     norm_header = [str(h).strip().lower() if h is not None else None for h in header]
     rows, lines, sections, totals = [], [], [], 0
@@ -545,6 +652,9 @@ def _block_to_table(block, name, meta, pending_title) -> RawTable | None:
         if ne <= max(3, int(0.5 * width)) and any(lexicon.is_balance_label(v) for v in r):
             totals += 1  # "Anfangssaldo", "Endsaldo", "Übertrag": a statement's balance, not a booking
             continue
+        if ne <= 2 and any(isinstance(v, str) and _SIGNATURE.match(v.strip()) for v in r):
+            totals += 1  # "Unterschrift:" below a time sheet is a line to sign, not an entry
+            continue
         if ne == 1 and width >= 3 and isinstance(r[0], str) and r[0] is first_val and _is_label(r[0]):
             current_section = r[0].strip()
             sections.append(current_section)
@@ -558,6 +668,14 @@ def _block_to_table(block, name, meta, pending_title) -> RawTable | None:
     if not rows:
         return None
     rows = [r + [None] * (width - len(r)) for r in rows]
+    if about:
+        # with a personnel number the rows name the person by it; the person goes into a list of their own
+        have = {fold(str(h or "")).strip() for h in header}
+        ref = "Pers.-Nr." if "Pers.-Nr." in about else "Mitarbeiter"
+        if fold(ref) not in have:
+            header = list(header) + [ref]
+            width += 1
+            rows = [r + [about[ref]] for r in rows]
     # column names
     names, seen = [], Counter()
     keep = []
@@ -585,6 +703,8 @@ def _block_to_table(block, name, meta, pending_title) -> RawTable | None:
     nf_by_col = meta.get("number_formats_by_col") or {}
     number_formats = {str(k): nf_by_col[j] for k, j in enumerate(keep) if j in nf_by_col}
     tmeta = {k: v for k, v in meta.items() if k != "number_formats_by_col"}
+    if about:
+        tmeta["about"] = about
     tmeta.update({"title": " · ".join(x for x in title_lines if x)[:300], "number_formats": number_formats,
                   "sections": len(sections), "skipped_totals": totals, "header_row": block[best_i][0] if best_i is not None else None})
     return RawTable(name=name, columns=names, rows=rows, lines=lines, meta=tmeta)

@@ -1659,6 +1659,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         data = taxexport.collect(rt, von, bis) if rt.model else None
         return page(request, "taxadvisor.html", dict(art=art, jahr=jahr, nr=nr, label=label, data=data,
                                                      cfg=taxexport.settings(store), exports=store.kv_get("tax_exports") or [],
+                                                     theirs=taxexport.from_advisor(store) if not store.kv_get("tax_advisor") else {},
+                                                     their_accounts=len(taxexport.advisor_accounts(store)),
                                                      years=list(range(date.today().year, date.today().year - 6, -1))))
 
     def tax_settings(request: Request, form):

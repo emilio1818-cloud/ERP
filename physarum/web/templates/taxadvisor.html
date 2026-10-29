@@ -42,6 +42,7 @@
 
 <details class="card">
   <summary><b>Einstellungen</b> <span class="muted">– Berater {{ cfg.berater }}, Mandant {{ cfg.mandant }}, SKR{{ cfg.skr }}, {{ 'Ist' if cfg.method == 'ist' else 'Soll' }}-Versteuerung</span></summary>
+  {% if theirs or their_accounts %}<p class="muted" style="margin:8px 0">{% if theirs %}Berater- und Mandantennummer stammen aus dem DATEV-Export Ihrer Steuerberatung. {% endif %}{% if their_accounts %}Debitorennummern wie in den Listen Ihrer Steuerberatung ({{ their_accounts }} Rechnungen zugeordnet).{% endif %}</p>{% endif %}
   <form method="post" action="/steuerberatung/einstellungen" style="margin-top:12px">
     <input type="hidden" name="art" value="{{ art }}"><input type="hidden" name="nr" value="{{ nr }}"><input type="hidden" name="jahr" value="{{ jahr }}">
     <div class="form-grid">

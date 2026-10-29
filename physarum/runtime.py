@@ -128,7 +128,8 @@ class Runtime:
                 pending[inv] = dict(qid=q["id"], bank=recs[0], text=pl.get("text"))
         self.pending_payments = pending
         work = compute_work(self.model, self.active_records(), self.mentions, today, self.outrefs, self.titles,
-                            pending_payments=pending, ledger=self.ledger)
+                            pending_payments=pending, ledger=self.ledger,
+                            mails_done=set(self.store.decisions("mail_done")))
         work += self.integrity()
         work.sort(key=lambda g: (-g["severity"], -(g["amount"] or 0), -g["count"]))
         self._work = work

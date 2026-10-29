@@ -118,7 +118,7 @@ class UnseenFirm(unittest.TestCase):
         self.f.feed([("Clockify_Time_Report_09_11_2026-09_25_2026.csv", csv(head, new, ","))])
         rt = self.f.rt()
         te = _type(rt, "Zeiteintrag")
-        hours = next(a["id"] for a in te["attrs"] if a["name"].startswith("Duration"))
+        hours = next(a["id"] for a in te["attrs"] if a["name"].startswith(("Dauer", "Duration")))
         recs = rt.records[te["id"]]
         self.assertEqual(len(recs), 10 + 9 + 5)
         self.assertAlmostEqual(sum(r["data"][hours] for r in recs), 10 * 2 + 3 + 8 * 2 + 5, places=2)
@@ -417,6 +417,85 @@ class UnseenFirm(unittest.TestCase):
         te = [t for t in rt.model["types"] if any("time_entries" in m["label"] for m in t["members"])]
         self.assertEqual(len(te), 1, [t["name"] for t in te])
         self.assertEqual(len(rt.records[te[0]["id"]]), 30 * 2 + 3)
+
+    def _mail(self, frm, subject, body, when):
+        from email.utils import format_datetime
+        from datetime import datetime
+        m = EmailMessage()
+        m["From"], m["To"], m["Subject"] = frm, "info@roesterei.de", subject
+        m["Date"] = format_datetime(datetime(when.year, when.month, when.day, 9, 30))
+        m.set_content(body)
+        return m.as_bytes()
+
+    def test_orders_and_complaints_by_mail_wait_on_heute_until_answered(self):
+        from physarum import ops
+        today = date.today()
+        kunden = [[f"K-{100 + i}", n, f"einkauf@{d}", "Hamburg"] for i, (n, d) in
+                  enumerate([("Hotel Landungsbrücke KG", "hotel-landungsbruecke.de"), ("Feinkost Elbinsel GmbH", "feinkost-elbinsel.de"),
+                             ("Café Kajüte", "cafe-kajuete.de")])]
+        auftraege = [[f"AU-2026-{i:03d}", (today - timedelta(days=60 - 2 * i)).strftime("%d.%m.%Y"), f"K-{100 + i % 3}",
+                      f"{200 + 10 * i},00"] for i in range(20)]
+        rechnungen = [[f"RE-2026-{i:04d}", (today - timedelta(days=40 - i)).strftime("%d.%m.%Y"), f"K-{100 + i % 3}",
+                       f"{238 + i},00", (today - timedelta(days=26 - i)).strftime("%d.%m.%Y")] for i in range(1, 16)]
+        y = today - timedelta(days=1)
+        self.f.feed([("Kunden.csv", csv("Kd-Nr;Firma;E-Mail;Ort", kunden)),
+                     ("Auftraege.csv", csv("Auftrags-Nr.;Datum;Kd-Nr;Betrag", auftraege)),
+                     ("Rechnungen.csv", csv("Rechnungs-Nr.;Datum;Kd-Nr;Brutto;Fällig am", rechnungen)),
+                     ("mails/bestellung.eml", self._mail("Hannah Becker <einkauf@hotel-landungsbruecke.de>",
+                                                         "Bestellung für nächste Woche",
+                                                         "Hallo, wir bestellen 6 kg Hafenmischung Espresso. Gruß", y)),
+                     ("mails/rueckfrage.eml", self._mail("Finn Kruse <einkauf@feinkost-elbinsel.de>",
+                                                         "Rückfrage zu Rechnung RE-2026-0012",
+                                                         "Die Rechnung RE-2026-0012 stimmt nicht, es fehlt der Rabatt.", y)),
+                     ("mails/news.eml", self._mail("Röstmagazin <news@roestmagazin.de>", "Newsletter: Trends der Saison",
+                                                   "Jetzt bestellen und sparen! Abmelden hier.", y))])
+        rt = self.f.rt()
+        g = next((g for g in rt.work() if g["kind"] == "mail"), None)
+        self.assertIsNotNone(g)
+        self.assertEqual(sorted(it["mail"] for it in g["items"]), ["complaint", "order"])
+        order = next(it for it in g["items"] if it["mail"] == "order")
+        self.assertEqual(order["party"], "Hotel Landungsbrücke KG")
+        self.assertIn("/neu?a_", order["act"]["href"])                 # "+ Auftrag" for that customer
+        complaint = next(it for it in g["items"] if it["mail"] == "complaint")
+        self.assertIn("RE-2026-0012", complaint["reason"])
+        # an order for that customer answers the mail; the complaint is ticked off by hand
+        au = _type(rt, "Auftrag")
+        attrs = {a["name"]: a["id"] for a in au["attrs"]}
+        hotel = next(r["id"] for r in rt.records[_type(rt, "Kunde")["id"]] if r["data"].get(_type(rt, "Kunde")["key"]) == "K-100")
+        kd = next(a["id"] for a in au["attrs"] if a["kind"] == "ref")
+        ops.create(rt, au["id"], {attrs["Auftrags-Nr."]: "AU-2026-099", attrs["Datum"]: today.isoformat(),
+                                  kd: hotel, attrs["Betrag"]: "180"}, "Tester")
+        with self.f.store.tx() as c:
+            self.f.store.decide("mail_done", str(complaint["rid"]), "done", "Tester", c=c)
+        rt.bump()
+        rt = self.f.rt()
+        self.assertFalse([g for g in rt.work() if g["kind"] == "mail"])
+
+    def test_the_firm_finds_its_own_name_in_its_list_titles(self):
+        from openpyxl import Workbook
+        from physarum.billing import guess_company
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Jan 26"
+        ws.append(["Stundennachweis Marco Steinbach – Steinbach IT · Auftraggeber: Nordlicht Digital GmbH · Monat: Januar 2026"])
+        ws.append([])
+        ws.append(["Datum", "Projekt", "Tätigkeit", "Stunden"])
+        for i in range(12):
+            ws.append([date(2026, 1, 2 + i), "P-2026-001", "Entwicklung", 4])
+        buf = __import__("io").BytesIO()
+        wb.save(buf)
+        wb2 = Workbook()
+        ws2 = wb2.active
+        ws2.append(["Projektübersicht Nordlicht Digital GmbH · Stand: 15.09.2026"])
+        ws2.append(["Projekt-Nr.", "Kunde", "Projekt", "Start"])
+        for i in range(10):
+            ws2.append([f"P-2026-{i + 1:03d}", f"Kunde {i} GmbH", "Relaunch", date(2026, 1, 1 + i)])
+        buf2 = __import__("io").BytesIO()
+        wb2.save(buf2)
+        self.f.feed([("Stundenzettel_Steinbach_2026.xlsx", buf.getvalue()), ("Projektliste.xlsx", buf2.getvalue()),
+                     ("belege/Rechnung_Kaffee_Kontor_Nord_GmbH.pdf", _pdf("Kaffee Kontor Nord GmbH Rechnung 2026-253"))])
+        self.assertEqual(guess_company(self.f.rt()).get("name"), "Nordlicht Digital GmbH")
+
 
 if __name__ == "__main__":
     unittest.main()

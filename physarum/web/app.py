@@ -549,8 +549,12 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 other_invoices=billing.other_invoices(rt, spec, rec))
         effort = _effort(spec, rec)
         owes = _owes(spec, rec) if spec["kind"] == "master" else None
+        # one status in the header: where the file's status speaks of payment ("offen", "bezahlt"), the bank has the say
+        own_status = rec["data"].get(status_attr) if status_attr else None
+        pay_status = rec["data"].get("pay_state") if pay else None
+        status_is_payment = bool(pay_status and own_status and fold(str(own_status)) in _PAY_WORDS)
         return dict(rec=rec, spec=spec, facts=facts, timeline=timeline, related=related, mentions=mentions, notes=notes,
-                    effort=effort, owes=owes,
+                    effort=effort, owes=owes, own_status=own_status, pay_status=pay_status, status_is_payment=status_is_payment,
                     stale=stale, issued_here=bool(meta.get("issued")), incoming=bool(spec.get("incoming")), **issue_ctx,
                     draft_lines=bool(draft and meta.get("positions") is not None),
                     maybe_paid=maybe_paid, pay=pay, alloc=alloc, invoice=inv, draft=draft, doc=doc,
@@ -562,6 +566,10 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     changes=changes, src_files=src_files, lock=lock, children=children, party=party,
                     money_attr=money_attr, status_attr=rt.attr(spec["id"], status_attr) if status_attr else None,
                     line=line_child(spec), reach=reach)
+
+    _PAY_WORDS = {"offen", "bezahlt", "teilbezahlt", "teilweise bezahlt", "ueberfaellig", "gemahnt", "ueberzahlt",
+                  "unbezahlt", "nicht bezahlt", "open", "paid", "unpaid", "overdue", "mahnung", "1. mahnung", "2. mahnung",
+                  "zahlungserinnerung", "erinnert", "ausstehend"}
 
     def _owes(spec: dict, rec: dict) -> list[dict]:
         """What a customer still owes (or what is still to be paid to a supplier), per kind of invoice."""
@@ -1249,6 +1257,20 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             return JSONResponse(dict(toast=msg, reload=True))
         return JSONResponse(dict(toast=msg))
 
+    def mail_done(request: Request, form):
+        """A mail that is answered leaves "Heute"; the mail itself stays among the documents."""
+        rid = int(request.path_params["rid"])
+        with store.tx() as c:
+            if form.get("undo"):
+                c.execute("DELETE FROM decisions WHERE kind='mail_done' AND subject=?", (str(rid),))
+            else:
+                store.decide("mail_done", str(rid), "done", actor(request), c=c)
+        rt.bump()
+        if form.get("undo"):
+            return JSONResponse(dict(toast="Wieder offen.", reload=True))
+        return JSONResponse(dict(toast="Abgehakt. Die Mail bleibt unter den Dokumenten.", reload=True,
+                                 undo=dict(url=f"/post/{rid}/erledigt", body=dict(undo="1"))))
+
     def record_split(request: Request, form):
         """Undo a join made on a guess ("Wattwurm" is not Wattwurm Reisen GmbH): remembered for good."""
         rid = int(request.path_params["rid"])
@@ -1570,6 +1592,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/t/{tid}/neu", new_form), Route("/t/{tid}/neu", formed(new_submit), methods=["POST"]),
         Route("/r/{rid:int}", record_view), Route("/r/{rid:int}", formed(record_update), methods=["POST"]),
         Route("/r/{rid:int}/trennen", formed(record_split), methods=["POST"]),
+        Route("/post/{rid:int}/erledigt", formed(mail_done), methods=["POST"]),
         Route("/r/{rid:int}/schritt", formed(record_step), methods=["POST"]),
         Route("/r/{rid:int}/notiz", formed(record_note), methods=["POST"]),
         Route("/r/{rid:int}/storno", formed(record_storno), methods=["POST"]),

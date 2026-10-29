@@ -717,30 +717,66 @@ def company(store) -> dict:
     return c
 
 
+_LEGAL_END = (r"(?:GmbH\s*&\s*Co\.?\s*KG|GmbH|gGmbH|mbH|AG|KGaA|KG|UG(?:\s*\(haftungsbeschränkt\))?|e\.\s?K\.|GbR|OHG|"
+              r"e\.\s?V\.|eG|PartG(?:\s*mbB)?)")
+_FIRM_RE = re.compile(r"((?:[^\s:·–|;]+\s+){1,6})(" + _LEGAL_END + r")(?![\w])")
+_OWN_LABELS = {"kontoinhaber", "inhaber", "auftraggeber", "firma", "unternehmen", "mandant", "absender"}
+_IBAN_RE = re.compile(r"IBAN:?\s*([A-Z]{2}\d{2}(?:\s?[0-9A-Z]{4}){3,7}(?:\s?[0-9A-Z]{1,3})?)")
+
+
+def _firm_names(text: str) -> list[str]:
+    """"Eingangsrechnungen Nordlicht Digital GmbH" -> "Digital GmbH", "Nordlicht Digital GmbH", … (every
+    tail that ends in a legal form; the most frequent long one is the name)."""
+    out = []
+    for m in _FIRM_RE.finditer(text):
+        words = m.group(1).split()
+        out += [" ".join(words[k:] + [m.group(2)]) for k in range(len(words))]
+    return out
+
+
 def guess_company(rt) -> dict:
-    """What the data already says about the firm itself: the name in its list titles, its own
-    account in the bank statement."""
+    """What the data already says about the firm itself: the name its own lists carry in their titles
+    ("Projektübersicht Nordlicht Digital GmbH", "Kontoinhaber: …", a freelancer's "Auftraggeber: …"),
+    the IBAN of its own bank statement. Letters from others (PDFs, mails) do not count: a supplier's
+    invoice names the supplier."""
     from collections import Counter
 
     from .store import loads
+    from .values import iban_ok
     out = {}
-    names = Counter()
-    for t in rt.store.q("SELECT meta FROM raw_tables"):
+    names, strong = Counter(), Counter()
+    seen = set()
+    rows = rt.store.q("SELECT t.meta, s.name AS src FROM raw_tables t LEFT JOIN sources s ON s.id = t.source_id")
+    for t in rows:
+        if str(t["src"] or "").lower().endswith((".pdf", ".eml", ".msg")):
+            continue
         title = (loads(t["meta"]) or {}).get("title") or ""
-        for sep in (" – ", " - ", ": ", " · "):
-            for part in title.split(sep):
-                part = part.strip()
-                if 3 <= len(part) <= 60 and re.search(r"\b(GmbH|AG|KG|UG|e\.K\.|GbR|OHG|mbH)\b", part):
-                    names[part] += 1
-    if names:
-        out["name"] = names.most_common(1)[0][0]
-    from .reconcile import bank_specs
-    for b in bank_specs(rt.model):
-        own = next((a for a in b["spec"]["attrs"] if a["kind"] == "iban" and a.get("hidden")), None)
-        if own:
-            for r in rt.records.get(b["spec"]["id"], [])[:1]:
-                if r["data"].get(own["id"]):
-                    out["iban"] = r["data"][own["id"]]
+        if not title or title in seen:
+            continue
+        seen.add(title)
+        for part in re.split(r"\s+[–·|-]\s+|\s*;\s*", title):
+            label, colon, rest = part.partition(":")
+            own = bool(colon) and fold(label).strip() in _OWN_LABELS
+            for name in set(_firm_names(rest if colon and len(label) <= 30 else part)):
+                names[name] += 1
+                if own:
+                    strong[name] += 1
+            if not out.get("iban") and (own or "konto" in fold(title)):
+                m = _IBAN_RE.search(part)
+                if m and iban_ok(m.group(1).replace(" ", "")):
+                    out["iban"] = m.group(1).replace(" ", "")
+    pool = strong or names
+    if pool:
+        top = max(pool.values())
+        out["name"] = max((n for n, c in pool.items() if c == top), key=len)
+    if not out.get("iban"):
+        from .reconcile import bank_specs
+        for b in bank_specs(rt.model):
+            own = next((a for a in b["spec"]["attrs"] if a["kind"] == "iban" and a.get("hidden")), None)
+            if own:
+                for r in rt.records.get(b["spec"]["id"], [])[:1]:
+                    if r["data"].get(own["id"]):
+                        out["iban"] = r["data"][own["id"]]
     return out
 
 

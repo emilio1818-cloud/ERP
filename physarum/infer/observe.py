@@ -298,6 +298,20 @@ _EN_HEADERS = {
     "end": "Ende", "resource ids": "Mitarbeiter", "resources": "Mitarbeiter", "short": "Kürzel",
     "created": "Erstellt am", "updated at": "Geändert am", "reference": "Bezug", "price estimate amount": "Schätzpreis",
     "amount": "Betrag", "currency": "Währung", "customer": "Kunde", "notes": "Notizen", "title": "Titel",
+    # ticket systems, CRMs and time trackers export in English
+    "id": "ID", "subject": "Betreff", "description text": "Beschreibung", "priority": "Priorität", "source": "Quelle",
+    "resolved at": "Gelöst am", "closed at": "Geschlossen am", "first responded at": "Erste Antwort am",
+    "due by": "Fällig am", "executed at": "Ausgeführt am", "time spent": "Zeitaufwand", "billable": "Abrechenbar",
+    "agent": "Bearbeiter", "agent email": "E-Mail (Bearbeiter)", "responder": "Bearbeiter", "requester": "Kontakt",
+    "ticket id": "Ticket-Nr.", "start time": "Startzeit", "end time": "Endzeit", "billable rate eur": "Stundensatz (EUR)",
+    "billable amount eur": "Betrag (EUR)", "duration h": "Dauer (h)", "duration decimal": "Dauer (dezimal)",
+    "duration": "Dauer", "task": "Aufgabe", "user": "Mitarbeiter", "group": "Team", "client": "Kunde",
+    "project": "Projekt", "record id": "Datensatz-Nr. (CRM)", "phone number": "Telefon", "job title": "Position",
+    "associated company id": "Firmen-Nr. (CRM)", "associated company ids": "Firmen-Nr. (CRM)",
+    "lifecycle stage": "Lebenszyklus", "create date": "Erstellt am", "last activity date": "Letzte Aktivität",
+    "deal name": "Verkaufschance", "deal stage": "Phase", "close date": "Abschlussdatum", "deal type": "Art",
+    "company domain name": "Website", "industry": "Branche", "cf umgebung": "Umgebung", "cf projekt": "Projekt",
+    "von": "Von", "bis": "Bis", "country region": "Land",
 }
 
 

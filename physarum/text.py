@@ -74,6 +74,13 @@ def norm_name(v) -> str:
     return " ".join(s.split())
 
 
+def norm_street(v) -> str:
+    """"Jöllenbecker Str. 210", "Jöllenbecker Straße 210" and "Jöllenbeckerstr. 210" are one street."""
+    s = fold(str(v or ""))
+    s = re.sub(r"strasse|str\.|str\b", "str", s)
+    return re.sub(r"[^a-z0-9]", "", s)
+
+
 def jaro_winkler(a: str, b: str) -> float:
     if a == b:
         return 1.0

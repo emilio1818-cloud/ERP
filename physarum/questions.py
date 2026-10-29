@@ -123,6 +123,8 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
                 subj = f"confirm|{t['id']}|{m['obs']}"
                 member = next((x for x in t["members"] if x["label"] == m["obs"]), {})
                 into = next((x for x in t["members"] if x["label"] == m["into"]), {})
+                if (member.get("source") and member.get("source") == into.get("source")) or t.get("concept"):
+                    continue  # one sheet per fitter or per year, two banks' statements: one list by design
                 n = member.get("rows")
                 ex_a, ex_b = _member_examples(c, t, member), _member_examples(c, t, into)
                 examples = ""

@@ -758,6 +758,45 @@ class CraftFirm(unittest.TestCase):
         done = [a for a in t["attrs"] if a["kind"] in ("date", "datetime") and a["name"] != "Datum"]
         self.assertEqual(len(done), 1)                                             # "erledigt" is "fertig am"
 
+    def test_only_questions_that_need_the_owner(self):
+        import io
+        import openpyxl
+        from physarum.questions import open_questions
+        jobs = [[f"A26-{i + 1:03d}", f"{(i % 27) + 1:02d}.0{(i % 8) + 2}.2026", f"Kunde {i % 6}", "Reparatur", "400"]
+                for i in range(30)]
+        wb = openpyxl.Workbook()
+        wb.active.title = "Schäfer"
+        for name in ("Schäfer", "Kortmann"):
+            ws = wb[name] if name in wb.sheetnames else wb.create_sheet(name)
+            ws.append([f"Stundenzettel August 2026 – {name}"])
+            ws.append(["Datum", "Auftrag", "Baustelle", "Tätigkeit", "Stunden"])
+            for d in range(3, 25):
+                ws.append([date(2026, 8, d), f"A26-{(d * 3) % 30 + 1:03d}", f"Hauptstr. {d}", "Montage", 7.5])
+        sheets = io.BytesIO()
+        wb.save(sheets)
+        wb = openpyxl.Workbook()
+        wb.active.append(["Pos.", "Art.-Nr.", "Bezeichnung", "Menge", "Einheit", "EP netto", "GP netto"])
+        for i in range(10):
+            wb.active.append([i + 1, f"KM-{100 + i}", f"Fitting {i}", 2 + i, "Stk", 4.5, (2 + i) * 4.5])
+        aufmass = io.BytesIO()
+        wb.save(aufmass)
+        prices = csv("Art.-Nr.;Bezeichnung;Einheit;EK netto;VK netto;Lieferant;Gruppe",
+                     [[f"KM-{100 + i}", f"Fitting {i}", "Stk", "3,00", "4,50", "HTG", "Kleinmaterial"] for i in range(15)])
+        people = csv("KDNR;ANREDE;NAME1;NAME2;STRASSE;PLZ;ORT;TELEFON",
+                     [[str(1000 + i), "Herr", f"Name{i}", "Max", f"Weg {i}", "33602", "Bielefeld", f"0521 10{i:02d}"]
+                      for i in range(6)] + [["1008", "Herr", "Müller", "Hans-Peter", "Jöllenbecker Str. 210", "33613",
+                                             "Bielefeld", "0521 887766"],
+                                            ["1044", "Herr", "Mueller", "Hans Peter", "Jöllenbecker Straße 210", "33613",
+                                             "Bielefeld", "0521/887766"]])
+        self.f.feed([("Auftragsbuch.csv", csv("Auftr.-Nr.;Datum;Kunde;Leistung;Wert", jobs)),
+                     ("Stundenzettel_August_2026.xlsx", sheets.getvalue()), ("Aufmass_A26-028_Schulze_Bad.xlsx", aufmass.getvalue()),
+                     ("Kleinmaterial_Preisliste_2026.csv", prices), ("Kundenstamm_alt.csv", people)])
+        qs = open_questions(self.f.store)
+        self.assertFalse([q["text"] for q in qs if q["kind"] in ("same_type", "confirm_merge")])
+        twin = [q for q in qs if q["kind"] == "same_record"]
+        self.assertEqual(len(twin), 1)                                             # the one the owner must decide
+        self.assertIn("gleiche Straße", twin[0]["detail"])                         # "Str." is "Straße"
+
 
 if __name__ == "__main__":
     unittest.main()

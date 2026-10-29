@@ -14,7 +14,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 from .. import lexicon
-from ..text import fold, name_similarity, norm_key, norm_name, tokens
+from ..text import fold, name_similarity, norm_key, norm_name, norm_street, tokens
 from .observe import Obs
 from .unify import TypeDraft
 
@@ -514,7 +514,7 @@ def _evidence(t: TypeDraft, a: Group, b: Group) -> tuple[list[str], list[str]]:
             else:
                 con.append("verschiedene E-Mail-Adressen")
         elif attr.role == "street":
-            if norm_name(va) == norm_name(vb):
+            if norm_street(va) == norm_street(vb):
                 pro.append("gleiche Straße")
             else:
                 con.append("andere Straße")

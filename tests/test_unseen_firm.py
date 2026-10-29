@@ -252,40 +252,31 @@ class UnseenFirm(unittest.TestCase):
             self.assertIn(p[1], str(rt.title(r["data"][ref["id"]])) + " " + no + " " + p[1])
 
     def test_keeping_two_lists_apart_keeps_their_records(self):
-        import io
-        import openpyxl
         from physarum import ops
         from physarum.grow import regrow
         from physarum.questions import answer, open_questions
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Aktiv"
-        ws.append(["Projekt-Nr.", "Kunde", "Projekt", "Start", "Budget"])
-        for i in range(12):
-            ws.append([f"P-2026-{i + 1:03d}", f"Kunde {i % 4}", "Website-Relaunch", f"{i + 1:02d}.03.2026", 5000 + i])
-        ws2 = wb.create_sheet("Abgeschlossen")
-        ws2.append(["Projekt-Nr.", "Kunde", "Projekt", "Start", "Ende", "Budget"])
-        for i in range(10):
-            ws2.append([f"P-2025-{i + 1:03d}", f"Kunde {i % 4}", "Kampagne", f"{i + 1:02d}.03.2025", f"{i + 1:02d}.06.2025", 3000 + i])
-        buf = io.BytesIO()
-        wb.save(buf)
-        self.f.feed([("Projektliste.xlsx", buf.getvalue())])
+        # two files of one shape and no known kind: put together on a guess, so Physarum asks
+        a = [[f"V-2026-{i + 1:03d}", f"Kunde {i % 4}", "Website-Relaunch", f"{i + 1:02d}.03.2026", 5000 + i] for i in range(12)]
+        b = [[f"V-2025-{i + 1:03d}", f"Kunde {i % 4}", "Kampagne", f"{i + 1:02d}.03.2025", f"{i + 1:02d}.06.2025",
+              3000 + i] for i in range(10)]
+        self.f.feed([("Vorhaben.csv", csv("Kennung;Kunde;Vorhaben;Start;Budget", a)),
+                     ("Kampagnen.csv", csv("Kennung;Kunde;Vorhaben;Start;Ende;Budget", b))])
         rt = self.f.rt()
-        pj = _type(rt, "Projekt")
-        if len(rt.records[pj["id"]]) != 22:
-            self.skipTest("the two sheets were not put into one list here")
+        pj = next(t for t in rt.model["types"] if t["key"] and any(
+            str(r["data"].get(t["key"])).startswith("V-2026") for r in rt.records.get(t["id"], [])))
+        self.assertEqual(len(rt.records[pj["id"]]), 22)
         ids = {r["data"][pj["key"]]: r["id"] for r in rt.records[pj["id"]]}
-        ops.add_note(rt, ids["P-2026-001"], "Kunde will Termin im April", "Tester")
+        ops.add_note(rt, ids["V-2026-001"], "Kunde will Termin im April", "Tester")
         q = next((q for q in open_questions(self.f.store) if q["kind"] == "confirm_merge"), None)
-        if q is None:
-            self.skipTest("no confirmation asked")
+        self.assertIsNotNone(q)
         answer(self.f.store, q["id"], "split", "Tester")
         regrow(self.f.store)
         rt = self.f.rt()
-        after = {r["data"].get(next((a["id"] for a in rt.spec(r["type"])["attrs"] if a["name"] == "Projekt-Nr."), None)): r["id"]
+        after = {r["data"].get(next((a["id"] for a in rt.spec(r["type"])["attrs"] if a["name"] == "Kennung"), None)): r["id"]
                  for t in rt.model["types"] for r in rt.records.get(t["id"], [])}
         self.assertTrue(all(after.get(k) == v for k, v in ids.items()), "every project kept its record")
-        self.assertEqual(self.f.store.q1("SELECT COUNT(*) n FROM notes WHERE record_id=?", (ids["P-2026-001"],))["n"], 1)
+        self.assertEqual(self.f.store.q1("SELECT COUNT(*) n FROM notes WHERE record_id=?", (ids["V-2026-001"],))["n"], 1)
+        self.assertEqual(len({rt.by_id[v]["type"] for v in after.values() if v in rt.by_id}), 2)  # two lists now
 
     def test_a_project_number_with_swapped_digits_is_asked_and_merged(self):
         from physarum.grow import regrow

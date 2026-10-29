@@ -105,6 +105,10 @@ class Runtime:
     def title(self, rid) -> str:
         return self.titles.get(rid, f"#{rid}")
 
+    def active_records(self) -> dict[str, list[dict]]:
+        """Records without those the newest version of their list no longer has: kept, but not worked on."""
+        return {tid: [r for r in rs if not (r.get("meta") or {}).get("vanished")] for tid, rs in self.records.items()}
+
     def work(self, today: date | None = None) -> list[dict]:
         from .process import compute_work
 
@@ -123,7 +127,7 @@ class Runtime:
             for inv in recs[1:]:
                 pending[inv] = dict(qid=q["id"], bank=recs[0], text=pl.get("text"))
         self.pending_payments = pending
-        work = compute_work(self.model, self.records, self.mentions, today, self.outrefs, self.titles,
+        work = compute_work(self.model, self.active_records(), self.mentions, today, self.outrefs, self.titles,
                             pending_payments=pending, ledger=self.ledger)
         work += self.integrity()
         work.sort(key=lambda g: (-g["severity"], -(g["amount"] or 0), -g["count"]))

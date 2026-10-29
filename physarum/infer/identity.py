@@ -214,10 +214,13 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
     if stale:
         for g in groups:
             old = [p for p in g.protos if p.prov and all(tuple(x) in stale for x in p.prov)]
-            if old and len(old) < len(g.protos):
-                g.protos = [p for p in g.protos if not any(p is o for o in old)]
-            elif old:
-                g.vanished = stale[tuple(old[0].prov[0])]
+            if not old:
+                continue
+            rest = [p for p in g.protos if not any(p is o for o in old)]
+            if any(_family(p) in {_family(o) for o in old} for p in rest):
+                g.protos = rest  # moved within its list ("Aktiv" -> "Abgeschlossen"): the old row no longer speaks
+            else:
+                g.vanished = stale[tuple(old[0].prov[0])]  # gone from that program; other sources may still know it
     link_aids, pos_aids = _line_attrs(t) if t.kind == "line" else ({}, {})
     for g in groups:
         _merge_values(t, g)
@@ -234,6 +237,12 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
     if master and title_aid:
         groups = _fuzzy(t, groups, decisions, questions, log)
     return groups
+
+
+def _family(p: Proto) -> str:
+    """The list a row belongs to, whatever the sheet or the date in the file name."""
+    label = (p.member.sig_label or p.member.label or "").split(" › ")[0]
+    return re.sub(r"[^a-zäöüß]+", "", label.casefold())
 
 
 _ADDRESS_ROLES = ("street", "zip", "city")

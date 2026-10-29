@@ -14,7 +14,7 @@ from collections import Counter
 from datetime import date, datetime
 
 from .. import lexicon
-from ..text import tokens
+from ..text import fold, tokens
 from ..values import asof_date
 
 _ID_WORDS = {"nr", "nummer", "id", "no", "number", "code", "kennung"}
@@ -317,10 +317,64 @@ def _common_prefix(xs: list[str]) -> str:
     return p if not p or p[-1] in " -–—:|,(" else p[:max(p.rfind(" "), 0) + 1] if " " in p else ""
 
 
+def _list_name(t: dict) -> str:
+    """'Projektliste_2025-2026 › Aktiv', 'hubspot-crm-exports-all-contacts-2026-10-27': the list, without dates."""
+    return re.sub(r"[^a-zäöüß›]+", "", str(t.get("name") or "").casefold())
+
+
+def _align(ts: list[dict], columns: list[str]) -> list[dict]:
+    """Versions whose columns differ a little (an empty column left out, one added): one layout."""
+    out = []
+    for t in ts:
+        if t["columns"] == columns:
+            out.append(t)
+            continue
+        pos = {" ".join(tokens(c)): j for j, c in enumerate(t["columns"])}
+        idx = [pos.get(" ".join(tokens(c))) for c in columns]
+        rows = [[(r[j] if j is not None and j < len(r) else None) for j in idx] for r in t["rows"]]
+        out.append(dict(t, columns=list(columns), rows=rows))
+    return out
+
+
+_SHEET_STATES = {"aktiv", "aktive", "laufend", "offen", "inaktiv", "archiv", "archiviert", "abgeschlossen",
+                 "abgeschlossene", "erledigt", "storniert", "geplant", "pausiert", "beendet", "gekuendigt",
+                 "abgelehnt", "angenommen", "done", "active", "closed", "open"}
+
+
+def _sheet_status(t: dict) -> dict:
+    """A sheet called "Abgeschlossen" says the status of every row on it."""
+    sheet = fold(str(t.get("sheet") or "")).strip()
+    if sheet not in _SHEET_STATES and sheet not in lexicon.DONE_STATES and sheet not in lexicon.NEGATIVE_STATES:
+        return t
+    if any(lexicon.header_role(c) == "status" for c in t["columns"]):
+        return t
+    name = str(t["sheet"]).strip()
+    return dict(t, columns=list(t["columns"]) + ["Status"], rows=[list(r) + [name] for r in t["rows"]])
+
+
 def merge_versions(raw: list[dict]) -> list[dict]:
+    raw = [_sheet_status(t) for t in raw]
     groups: dict[tuple, list[dict]] = {}
     for t in raw:
         sig = tuple(" ".join(tokens(c)) for c in t["columns"])
         groups.setdefault(sig, []).append(t)
+    # the same list from another delivery, with a column more or less: still a version of it
+    sigs = list(groups)
+    for i, a in enumerate(sigs):
+        if a not in groups:
+            continue
+        for b in sigs[i + 1:]:
+            if b not in groups or a == b:
+                continue
+            sa, sb = set(a), set(b)
+            names_a = {_list_name(t) for t in groups[a]}
+            names_b = {_list_name(t) for t in groups[b]}
+            if not (names_a & names_b) or len(sa & sb) < max(3, 0.8 * max(len(sa), len(sb))):
+                continue
+            if {t.get("source_id") for t in groups[a]} & {t.get("source_id") for t in groups[b]}:
+                continue  # two blocks of one file are two lists, not two versions
+            cols = list(groups[a][0]["columns"]) + [c for c in groups[b][0]["columns"]
+                                                    if " ".join(tokens(c)) not in sa]
+            groups[a] = _align(groups[a] + groups.pop(b), cols)
     return [merge_group(ts) for ts in groups.values()]
 

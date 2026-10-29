@@ -66,6 +66,7 @@
 
 {% if invoice and company_missing %}<div class="notice warn row between" style="margin-bottom:12px"><span>Für Druck und E-Rechnung fehlen noch Ihre Firmendaten: {{ company_missing|join(', ') }}{{ '' if (company_missing|last).endswith('.') else '.' }}</span><a class="btn small" href="/firma?zurueck=/r/{{ rec.id }}">Firmendaten eintragen</a></div>{% endif %}
 {% if lock and not lock.cancelled %}<div class="notice" style="margin-bottom:12px">{{ lock.reason }}</div>{% endif %}
+{% if rec.meta and rec.meta.vanished %}<div class="notice warn" style="margin-bottom:12px">Fehlt in der neuesten Fassung von „{{ rec.meta.vanished }}“ – dort gelöscht oder ausgetragen? Der Eintrag bleibt hier mit seinem Verlauf erhalten, zählt aber nicht mehr bei „Heute“ und in den Kennzahlen.</div>{% endif %}
 {% for c in conflicts %}<div class="notice bad" style="margin-bottom:12px"><b>Abweichung:</b> In „{{ c.source }}“ steht für {{ c.attr.name }} {{ fmt(c.attr, c.value, link=False) }} statt {{ fmt(c.attr, rec.data.get(c.attr.id), link=False) }}. Nicht übernommen, weil die Rechnung festgeschrieben ist – bitte prüfen; eine Korrektur geht nur per Storno.</div>{% endfor %}
 {% if maybe_paid %}<div class="notice warn row between" style="margin-bottom:12px"><span>{{ maybe_paid.text }} <a href="/r/{{ maybe_paid.bank }}">Zahlung ansehen</a></span>
   <button class="small primary" data-post="/fragen/{{ maybe_paid.qid }}" data-body='{"value": "yes"}'>Ja, zuordnen</button></div>{% endif %}

@@ -142,7 +142,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             return page(request, "empty.html", {})
         rt.refresh_network()
         work = rt.work()
-        ks = kpis(rt.model, rt.records)
+        ks = kpis(rt.model, rt.active_records())
         pref = {"rechnung": 0, "auftrag": 1, "bestellung": 2, "einkauf": 4}
         ks.sort(key=lambda k: (pref.get(k.get("concept") or "", 3), -(k.get("salience") or 0)))
         open_amount = sum(g["amount"] or 0 for g in work if g["kind"] == "overdue" and g.get("step") == "bezahlt")

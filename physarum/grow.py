@@ -862,6 +862,10 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
             changed.append((aid, cur[aid], None))
             out.pop(aid)
     meta.update(w=writers, prov=prov, alts=alts, raw=raw, src=srcs, fuzzy=g.fuzzy or None)
+    if g.merges:
+        meta["joins"] = g.merges[:12]  # what was joined on a guess – the record offers to undo it
+    else:
+        meta.pop("joins", None)
     shadow = {aid: x for aid, x in shadow.items() if aid in data and (writers.get(aid) or [""])[0] in ("user", "auto")}
     if shadow:
         meta["shadow"] = shadow

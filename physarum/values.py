@@ -85,8 +85,11 @@ PLACEHOLDERS = {"unbefristet", "laufend", "offen", "tbd", "n/a", "na", "-", "--"
                 "keine", "noch offen", "ausstehend", "x", "?"}
 
 
+_PLACEHOLDER_KEYS = frozenset(PLACEHOLDERS | {p.rstrip(".") for p in PLACEHOLDERS})
+
+
 def is_placeholder(v) -> bool:
-    return isinstance(v, str) and fold(v).strip().rstrip(".") in PLACEHOLDERS | {p.rstrip(".") for p in PLACEHOLDERS}
+    return isinstance(v, str) and len(v) <= 24 and fold(v).strip().rstrip(".") in _PLACEHOLDER_KEYS
 
 
 def _clean_num_str(s: str) -> tuple[str, bool, str | None]:

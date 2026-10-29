@@ -40,11 +40,12 @@ def _rank(t: dict) -> tuple:
     return (d.isoformat() if d else "", t.get("added_at") or "", t.get("source_id") or 0, t["id"])
 
 
-def _unique(ts: list[dict], cols: list[int], volatile: set[int] | None = None) -> bool:
+def _unique(ts: list[dict], cols: list[int], volatile: set[int] | None = None, sig_of=None) -> bool:
     """A key column: (almost) always filled and unique in every version. A row exported twice
     (the same number with the same content) is an export error, not a second thing; a few
     numbers used twice with different content do not disqualify the column either."""
     volatile = volatile or set()
+    sig_of = sig_of or _Sigs(volatile)
     for t in ts:
         first: dict[tuple, tuple] = {}
         n = filled = clashes = 0
@@ -54,7 +55,7 @@ def _unique(ts: list[dict], cols: list[int], volatile: set[int] | None = None) -
             if not all(kv):
                 continue
             filled += 1
-            sig = _sig(r, volatile)
+            sig = sig_of(r)
             if kv in first:
                 if first[kv] != sig:
                     clashes += 1
@@ -67,25 +68,39 @@ def _unique(ts: list[dict], cols: list[int], volatile: set[int] | None = None) -
     return True
 
 
-def key_columns(ts: list[dict], columns: list[str], volatile: set[int] | None = None) -> list[int] | None:
+def key_columns(ts: list[dict], columns: list[str], volatile: set[int] | None = None, sig_of=None) -> list[int] | None:
     idlike = []
     for j, name in enumerate(columns):
         toks = set(tokens(name))
         if lexicon.header_role(name) == "id" or toks & _ID_WORDS:
             idlike.append(j)
     for j in idlike:
-        if _unique(ts, [j], volatile):
+        if _unique(ts, [j], volatile, sig_of):
             return [j]
     pos = [j for j, name in enumerate(columns) if set(tokens(name)) & _POS_WORDS]
     for j in idlike:
         for k in pos:
-            if k != j and _unique(ts, [j, k], volatile):
+            if k != j and _unique(ts, [j, k], volatile, sig_of):
                 return [j, k]
     return None
 
 
 def _sig(row: list, volatile: set[int]) -> tuple:
     return tuple(_cell(v) for j, v in enumerate(row) if j not in volatile)
+
+
+class _Sigs(dict):
+    """Row signatures, computed once per merge (a 300.000-row export is compared several times)."""
+
+    def __init__(self, volatile: set[int]):
+        super().__init__()
+        self.volatile = volatile
+
+    def __call__(self, row: list) -> tuple:
+        s = self.get(id(row))
+        if s is None:
+            s = self[id(row)] = _sig(row, self.volatile)
+        return s
 
 
 def merge_group(ts: list[dict]) -> dict:
@@ -98,14 +113,15 @@ def merge_group(ts: list[dict]) -> dict:
     info = dict(versions=len(ts), files=len({t.get("source_id") for t in ts}), dropped=0, changed=[], vanished=[])
     keep: list[tuple[int, int]] = []  # (index of table in ts, row index)
     pos = {id(t): n for n, t in enumerate(ts)}
-    key = key_columns(ts, columns, volatile)
+    sig_of = _Sigs(volatile)
+    key = key_columns(ts, columns, volatile, sig_of)
     stale: dict[tuple[int, int], str] = {}  # rows the newest version no longer lists -> its file name
     if len(ts) == 1:
         seen_rows: set = set()
         for i, r in enumerate(founder["rows"]):
             kv = tuple(_cell(r[j]) if j < len(r) else "" for j in key) if key else None
             if kv and all(kv):
-                sig = (kv, _sig(r, volatile))
+                sig = (kv, sig_of(r))
                 if sig in seen_rows:
                     info["dropped"] += 1  # the same numbered row exported twice
                     continue
@@ -123,7 +139,7 @@ def merge_group(ts: list[dict]) -> dict:
                 if not all(kv):
                     keep.append((p, i))
                     continue
-                sig = _sig(r, volatile)
+                sig = sig_of(r)
                 if kv not in owner:
                     owner[kv], first[kv], sigs[kv] = p, (p, i), {sig}
                     keep.append((p, i))
@@ -139,7 +155,7 @@ def merge_group(ts: list[dict]) -> dict:
                     continue
                 info["dropped"] += 1
                 ti, ri = first[kv]
-                if _sig(ts[ti]["rows"][ri], volatile) != sig and len(info["changed"]) < 200:
+                if sig_of(ts[ti]["rows"][ri]) != sig and len(info["changed"]) < 200:
                     info["changed"].append(" / ".join(str(r[j]) for j in key))
         # rows the newest full snapshot no longer contains (an updated export, not the next period)
         newest, second = newest_first[0], newest_first[1]
@@ -162,8 +178,8 @@ def merge_group(ts: list[dict]) -> dict:
         # sheets of one workbook are parts of one list, not versions of it: count per file
         per_source: dict = {}
         for t in ts:
-            per_source.setdefault(t.get("source_id"), Counter()).update(_sig(r, volatile) for r in t["rows"])
-        superseded = _superseded(ts, columns, volatile, info)
+            per_source.setdefault(t.get("source_id"), Counter()).update(sig_of(r) for r in t["rows"])
+        superseded = _superseded(ts, columns, volatile, info, sig_of)
         most: Counter = Counter()
         for cnt in per_source.values():
             for h, n in cnt.items():
@@ -174,7 +190,7 @@ def merge_group(ts: list[dict]) -> dict:
                 if (n, i) in superseded:
                     info["dropped"] += 1
                     continue
-                h = _sig(r, volatile)
+                h = sig_of(r)
                 if used[h] < most[h]:
                     used[h] += 1
                     keep.append((n, i))
@@ -231,13 +247,14 @@ def _date_col(ts: list[dict], columns: list[str]) -> int | None:
     return best
 
 
-def _superseded(ts: list[dict], columns: list[str], volatile: set[int], info: dict) -> set[tuple[int, int]]:
+def _superseded(ts: list[dict], columns: list[str], volatile: set[int], info: dict, sig_of=None) -> set[tuple[int, int]]:
     """Two exports of a list without numbers (time entries, bank lines) that overlap in time:
     for the days it covers, the newer export is right – an entry corrected or deleted in the
     other program is missing there. Only when the overlap shows they really are the same list
     (three in four rows identical); two people's time sheets with the same columns are not. Bank
     statements are left alone: a booking never changes, a missing one means a shorter export."""
     from ..values import parse_date
+    sig_of = sig_of or _Sigs(volatile)
     files = {}
     for n, t in enumerate(ts):
         files.setdefault(t.get("source_id"), []).append(n)
@@ -258,7 +275,7 @@ def _superseded(ts: list[dict], columns: list[str], volatile: set[int], info: di
         if not ds:
             continue
         span[sid] = (min(ds), max(ds))
-        sigs[sid] = Counter(_sig(ts[n]["rows"][i], volatile) for n in ns for i in range(len(ts[n]["rows"])))
+        sigs[sid] = Counter(sig_of(ts[n]["rows"][i]) for n in ns for i in range(len(ts[n]["rows"])))
     order = sorted(span, key=lambda sid: max(_rank(ts[n]) for n in files[sid]), reverse=True)
     out: set[tuple[int, int]] = set()
     for k, newer in enumerate(order):
@@ -271,13 +288,14 @@ def _superseded(ts: list[dict], columns: list[str], volatile: set[int], info: di
             left = Counter(sigs[newer])
             same = []
             for n, i in inside:
-                h = _sig(ts[n]["rows"][i], volatile)
+                h = sig_of(ts[n]["rows"][i])
                 if left[h] > 0:
                     left[h] -= 1
                     same.append((n, i))
             if len(same) < 0.75 * len(inside):
                 continue  # not clearly the same list: both stay
-            gone = [x for x in inside if x not in set(same)]
+            kept = set(same)
+            gone = [x for x in inside if x not in kept]
             out.update(gone)
             if gone:
                 info.setdefault("superseded", 0)

@@ -242,7 +242,15 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
             return g
         groups = _phantoms(t, groups, decisions, questions, rebuild)
     if master and title_aid:
+        groups = _aliases(t, groups, decisions, log)
+        n_q = len(questions) if questions is not None else 0
         groups = _fuzzy(t, groups, decisions, questions, log)
+        # once "Fährhaus Hotel GmbH" and "Hotel Fährhaus GmbH" are one, the short "Fährhaus Hotel" has one home
+        groups = _aliases(t, groups, decisions, log)
+        if questions is not None and len(questions) > n_q:
+            where = {id(p): k for k, g in enumerate(groups) for p in g.protos}
+            questions[n_q:] = [q for q in questions[n_q:] if q.get("kind") != "same_record" or
+                               where.get(id(q["a"].protos[0])) != where.get(id(q["b"].protos[0]))]
     return groups
 
 
@@ -615,15 +623,132 @@ def _fuzzy(t: TypeDraft, groups: list[Group], decisions: dict, questions: list |
     for i, g in enumerate(groups):
         r = uf.find(i)
         if r not in merged:
-            merged[r] = Group(protos=list(g.protos), idents=set(g.idents))
+            merged[r] = Group(protos=list(g.protos), idents=set(g.idents), merges=list(g.merges), fuzzy=g.fuzzy,
+                              vanished=g.vanished)
         else:
             merged[r].protos.extend(g.protos)
             merged[r].idents |= g.idents
+            merged[r].merges.extend(g.merges)
             merged[r].fuzzy = True
+            merged[r].vanished = merged[r].vanished or g.vanished
+    for i, j, sim, pro, decided in merges:
+        r = uf.find(i)
+        if not decided and r == uf.find(j) and r in merged:
+            merged[r].merges.append(dict(key=pair_key(groups[i], groups[j]), name=groups[j].values.get(title),
+                                         other=groups[i].values.get(title), why=", ".join(pro) or "ähnlicher Name"))
     out = []
     for g in merged.values():
         _merge_values(t, g)
         out.append(g)
+    return out
+
+
+# what makes a row more than a name: a ticket system's "Wattwurm" has none of it, the customer list has all
+_SUBSTANCE_ROLES = {"email", "phone", "street", "zip", "city", "iban", "url", "vat_id"}
+
+
+def _thin(t: TypeDraft, g: Group, title: str) -> bool:
+    """Only a name (and perhaps another program's own number for it): how a ticket system, a time tracker
+    or a project list names a customer it knows by its short name."""
+    if t.key is not None and g.values.get(t.key.aid) is not None:
+        return False
+    return not any(g.values.get(a.aid) is not None for a in t.attrs
+                   if a.aid != title and (a.role in _SUBSTANCE_ROLES or a.kind in _SUBSTANCE_ROLES))
+
+
+_INFLECTIONS = ("er", "s", "es", "n", "en", "e", "ern", "sche", "scher", "isch")
+
+
+def _same_word(w: str, x: str) -> bool:
+    """"Lokstedt" and "Lokstedter" are one word; "Alster" and "Alsterblick" are not."""
+    if w == x:
+        return True
+    a, b = (w, x) if len(w) < len(x) else (x, w)
+    return len(a) >= 4 and b.startswith(a) and b[len(a):] in _INFLECTIONS
+
+
+def _part_of(w: str, x: str) -> bool:
+    """"Optik" in "Augenoptik", "Dach" in "Dachdeckerei": one part of a compound."""
+    return len(w) >= 4 and len(x) >= len(w) + 4 and (x.startswith(w) or x.endswith(w))
+
+
+def _within(small: set, big: set) -> bool:
+    """Every word of the short name is in the long one ("Druckhaus Lokstedt" in "Lokstedter Druckhaus");
+    beside a word found as it is, a part of a compound will do ("Optik Schulz" in "Augenoptik Schulz")."""
+    found = {w for w in small if any(_same_word(w, x) for x in big)}
+    if not found:
+        return False
+    return all(any(_part_of(w, x) for x in big) for w in small - found)
+
+
+def _aliases(t: TypeDraft, groups: list[Group], decisions: dict, log: list | None) -> list[Group]:
+    """Short names: the ticket system and the time tracker say "Wattwurm", the customer list says
+    "Wattwurm Reisen GmbH". A row that is nothing but such a name joins the one thing whose name contains
+    all its words – if there is exactly one. "Hafenkontor" stays apart when there is a Hafenkontor
+    Logistik and a Hafenkontor Immobilien. The join is shown on the record and can be undone."""
+    title = t.title.aid
+    names = [norm_name(g.values.get(title) or "") for g in groups]
+    toks = [set(n.split()) for n in names]
+    index: dict[str, set] = defaultdict(set)
+    for i, ws in enumerate(toks):
+        for w in ws:
+            index[w[:5]].add(i)
+    into: dict[int, int] = {}
+    for i, g in enumerate(groups):
+        small = toks[i]
+        if not small or sum(len(w) for w in small) < 6 or not _thin(t, g, title):
+            continue
+        if lexicon.looks_like_person(str(g.values.get(title))) and len(small) > 1:
+            continue  # "Anna Brandt" is not "Brandt Media Group"
+        cands = set().union(*(index.get(w[:5], set()) for w in small)) - {i}
+        cands = {j for j in cands if names[j] != names[i] and _within(small, toks[j])
+                 and (len(toks[j]) > len(small) or len(names[j]) > len(names[i]))}
+        if len(cands) != 1:
+            continue  # nothing, or two firms with that word: the short name says too little
+        j = next(iter(cands))
+        if decisions.get(pair_key(g, groups[j])) == "different":
+            continue
+        into[i] = j
+    if not into:
+        return groups
+    # a chain (A -> B -> C) ends at the fullest name
+    def root(i):
+        seen = set()
+        while i in into and i not in seen:
+            seen.add(i)
+            i = into[i]
+        return i
+    joined: dict[int, list[int]] = defaultdict(list)
+    for i in into:
+        joined[root(i)].append(i)
+    out = []
+    for i, g in enumerate(groups):
+        if i in into:
+            continue
+        if i not in joined:
+            out.append(g)
+            continue
+        m = Group(protos=list(g.protos), idents=set(g.idents), merges=list(g.merges), fuzzy=True, vanished=g.vanished)
+        for k in joined[i]:
+            m.protos.extend(groups[k].protos)
+            m.idents |= groups[k].idents
+            m.merges.append(dict(key=pair_key(groups[k], g), name=groups[k].values.get(title), why="Kurzform"))
+        _merge_values(t, m)
+        long_name = g.values.get(title)
+        if long_name is not None:
+            m.values[title] = long_name  # the full name stays the name; the short one is no contradiction
+            m.prov[title] = list(g.prov.get(title, [])[:3])
+            shorts = {norm_name(groups[k].values.get(title) or "") for k in joined[i]}
+            kept = [(v, pv) for v, pv in m.alts.get(title, []) if norm_name(v) not in shorts]
+            if kept:
+                m.alts[title] = kept
+            else:
+                m.alts.pop(title, None)
+        if log is not None:
+            for k in joined[i]:
+                log.append(dict(kind="dedupe", type=t.name, a=groups[k].values.get(title), b=long_name, sim=None,
+                                why=["Kurzform"], decided=False))
+        out.append(m)
     return out
 
 

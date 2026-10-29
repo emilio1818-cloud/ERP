@@ -21,6 +21,8 @@ _UND_RE = re.compile(r"(?:^|\s)(?:und|u)(?=\s|$)")
 
 def fold(s: str) -> str:
     """Lowercase, umlauts to ae/oe/ue/ss, strip all other diacritics."""
+    if s.isascii():
+        return s.lower()  # nothing to fold – most cells of a large export
     s = s.translate(_FOLD).lower()
     s = unicodedata.normalize("NFKD", s)
     return "".join(ch for ch in s if not unicodedata.combining(ch))

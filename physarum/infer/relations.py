@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 from .. import lexicon
 from ..text import fold, name_similarity, norm_key, norm_name, tokens
-from .identity import FREEMAIL, Group
+from .identity import FREEMAIL, Group, _within
 from .unify import AttrDraft, TypeDraft
 
 REF_ROLES = {"id", "name", "person", None, "email"}
@@ -42,9 +42,11 @@ class RelDraft:
 
 
 class IdentIndex:
-    def __init__(self, groups: list[Group]):
+    def __init__(self, groups: list[Group], title: str | None = None):
         self.by: dict[str, int] = {}
         self.names: dict[str, list[tuple[str, int]]] = defaultdict(list)
+        self.words: dict[str, set[int]] = defaultdict(set)        # word prefix -> groups whose name has it
+        self.wordsets: dict[int, list[set]] = defaultdict(list)
         ambiguous = set()
         for i, g in enumerate(groups):
             for ident in g.idents:
@@ -56,6 +58,15 @@ class IdentIndex:
                     for tok in nm.split()[:2]:
                         if len(tok) >= 3:
                             self.names[tok[:3]].append((nm, i))
+            # every name a thing goes by, even one two records share (then a short name cannot decide)
+            spoken = {norm_name(g.values[title])} if title and g.values.get(title) else set()
+            spoken |= {norm_name(v) for v, _ in (g.alts.get(title) or [])} if title else set()
+            spoken |= {x[2:] for x in g.idents if x.startswith("n:")}
+            for nm in spoken - {""}:
+                ws = set(nm.split())
+                self.wordsets[i].append(ws)
+                for w in ws:
+                    self.words[w[:5]].add(i)
         for ident in ambiguous:
             del self.by[ident]  # "Lena Neumann" twice: a name that cannot decide
         for k, lst in self.names.items():
@@ -88,7 +99,17 @@ class IdentIndex:
                     best, best_sim = ci, s
         if best_sim >= 0.9:
             return best, False
-        return None, False
+        return self.short(nm), False
+
+    def short(self, nm: str) -> int | None:
+        """A short name ("Elbkind", "Dr. Behrens") names the one thing whose name contains all its words –
+        if there is exactly one. Two Hafenkontors leave "Hafenkontor" unresolved."""
+        small = set(nm.split())
+        if not small or len(small) > 4 or sum(len(w) for w in small) < 6:
+            return None
+        cands = set().union(*(self.words.get(w[:5], set()) for w in small))
+        hits = {i for i in cands if any(ws != small and _within(small, ws) for ws in self.wordsets[i])}
+        return next(iter(hits)) if len(hits) == 1 else None
 
 
 _MULTI = re.compile(r"\s*(?:[,;+/&]|\bund\b)\s*")
@@ -120,7 +141,7 @@ def _eligible(t: TypeDraft, a: AttrDraft) -> bool:
 def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: dict[str, TypeDraft],
              decisions: dict | None = None, log: list | None = None, ask: list | None = None) -> list[RelDraft]:
     decisions = decisions or {}
-    idx = {id(t): IdentIndex(groups[id(t)]) for t in types}
+    idx = {id(t): IdentIndex(groups[id(t)], t.title.aid if t.title is not None else None) for t in types}
     rels: list[RelDraft] = []
     taken: set[tuple[int, int]] = set()  # (id(type), id(attr))
 

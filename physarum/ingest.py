@@ -529,6 +529,23 @@ def _flatten(obj, prefix="", depth=0) -> tuple[dict, dict]:
 _ID_FIELDS = ("id", "number", "nummer", "nr", "no", "key", "code", "uuid")
 
 
+_EXPORT_WORDS = {"export", "exports", "exported", "updated", "update", "since", "all", "to", "from", "bis", "von", "ab",
+                 "seit", "data", "daten", "dump", "backup", "full", "delta", "neu", "new", "latest", "stand"}
+
+
+def _parent_noun(name: str) -> str:
+    """What a nested list's rows belong to, without the file's date or export words: the time entries of
+    "tickets_export_2026-09-15.tickets" and of "tickets_updated_since_2026-09-10.tickets" both point at a
+    "ticket_id", so both deliveries stay one list."""
+    last = name.rsplit(".", 1)[-1]
+    words = [w for w in re.split(r"[\s_\-]+", last) if w and not any(ch.isdigit() for ch in w)
+             and w.lower() not in _EXPORT_WORDS]
+    noun = "_".join(words) or last
+    if noun.endswith("ies") and len(noun) > 4:
+        return noun[:-3] + "y"
+    return noun[:-1] if noun.endswith("s") and len(noun) > 3 and noun[-2] not in "sui" else noun
+
+
 def _json_rows(items: list[dict], name: str, d: Digest, parent: tuple[str, list] | None = None):
     rows, cols, children = [], [], {}
     for idx, it in enumerate(items):
@@ -550,7 +567,7 @@ def _json_rows(items: list[dict], name: str, d: Digest, parent: tuple[str, list]
         id_col = next((c for c in cols if c.lower() in _ID_FIELDS or c.lower().endswith(("_id", "id", "number"))),
                       cols[0])
         parent_vals = [r.get(id_col) for r in rows]
-        sg = name.rstrip("s")
+        sg = _parent_noun(name)
         for k, lst in children.items():
             sub_items, keys = [], []
             for idx, v in lst:

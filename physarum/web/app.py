@@ -321,15 +321,18 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             except TypeError:
                 recs.sort(key=lambda r: str(r["data"].get(aid)), reverse=desc)
         else:
-            # newest first for documents with a date, otherwise by title
-            proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
-            dattr = proc["start"]["attr"] if proc else next((a["id"] for a in spec["attrs"] if a["kind"] in ("date", "datetime")
-                                                            and a.get("fill", 0) > 0.8), None)
-            if dattr and spec["kind"] in ("transaction", "document"):
-                recs.sort(key=lambda r: str(r["data"].get(dattr) or ""), reverse=True)
-            else:
-                recs.sort(key=lambda r: fold(rt.title(r["id"])))
+            default_order(spec, recs)
         return recs, state
+
+    def default_order(spec: dict, recs: list[dict]) -> None:
+        """Newest first for things with a date (invoices, mails, bank lines), otherwise by title."""
+        proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+        dattr = proc["start"]["attr"] if proc else next((a["id"] for a in spec["attrs"] if a["kind"] in ("date", "datetime")
+                                                        and a.get("fill", 0) > 0.8), None)
+        if dattr and spec["kind"] in ("transaction", "document", "line"):
+            recs.sort(key=lambda r: str(r["data"].get(dattr) or ""), reverse=True)
+        else:
+            recs.sort(key=lambda r: fold(rt.title(r["id"])))
 
     def search_ids(q: str, tid: str | None = None) -> set[int]:
         terms = [t for t in "".join(ch if ch.isalnum() or ch in "-@." else " " for ch in q).split() if t]
@@ -1187,10 +1190,25 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 r = rt.by_id.get(i)
                 if r:
                     by_t[r["type"]].append(r)
+            qf = fold(q)
+            words = qf.split()
             for tid, recs in by_t.items():
                 spec = rt.spec(tid)
-                groups.append(dict(spec=spec, recs=recs[:25], n=len(recs), cols=views.list_columns(spec, 4)))
-            groups.sort(key=lambda g: (g["spec"]["kind"] == "line", -(g["spec"].get("salience") or 0)))
+                default_order(spec, recs)
+
+                # the thing itself first ("RE-2026-0311" → the invoice, then the bank line and the mail naming it),
+                # then what carries the words in its own name, then what only points at it
+                def rank(r):
+                    t = fold(rt.title(r["id"]))
+                    if qf in (fold(str(r["data"].get(spec.get("key")) or "")), t):
+                        return 0
+                    return 1 if all(w in t for w in words) else 2
+                ranks = {r["id"]: rank(r) for r in recs}
+                recs.sort(key=lambda r: ranks[r["id"]])  # stable: the date order stays within each rank
+                groups.append(dict(spec=spec, recs=recs[:25], n=len(recs), cols=views.list_columns(spec, 4),
+                                   best=min(ranks.values())))
+            groups.sort(key=lambda g: (g["best"], g["spec"]["kind"] != "master", g["spec"]["kind"] == "line",
+                                       -(g["spec"].get("salience") or 0)))
         return page(request, "search.html", dict(q=q, groups=groups))
 
     # --- questions -----------------------------------------------------------------------------------------------
@@ -1230,6 +1248,19 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             msg = "Zugeordnet" + (f" – {', '.join(states)}." if states else ".")
             return JSONResponse(dict(toast=msg, reload=True))
         return JSONResponse(dict(toast=msg))
+
+    def record_split(request: Request, form):
+        """Undo a join made on a guess ("Wattwurm" is not Wattwurm Reisen GmbH): remembered for good."""
+        rid = int(request.path_params["rid"])
+        rec = store.q1("SELECT meta FROM records WHERE id=?", (rid,))
+        joins = (loads(rec["meta"]) or {}).get("joins") or [] if rec else []
+        j = next((x for x in joins if x.get("key") == form.get("key")), None)
+        if not j:
+            return JSONResponse(dict(error="Diese Zusammenführung gibt es nicht mehr."), status_code=400)
+        with store.tx() as c:
+            store.decide("same_record", j["key"], "different", actor(request), c=c)
+        jid = jobs.start("split", lambda progress: regrow(store, progress, actor(request)), next_url=f"/r/{rid}")
+        return JSONResponse(dict(job=jid))
 
     def rule_toggle(request: Request, form):
         key = form.get("key")
@@ -1538,6 +1569,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/t/{tid}", list_view), Route("/t/{tid}/spalte", formed(pin_column), methods=["POST"]),
         Route("/t/{tid}/neu", new_form), Route("/t/{tid}/neu", formed(new_submit), methods=["POST"]),
         Route("/r/{rid:int}", record_view), Route("/r/{rid:int}", formed(record_update), methods=["POST"]),
+        Route("/r/{rid:int}/trennen", formed(record_split), methods=["POST"]),
         Route("/r/{rid:int}/schritt", formed(record_step), methods=["POST"]),
         Route("/r/{rid:int}/notiz", formed(record_note), methods=["POST"]),
         Route("/r/{rid:int}/storno", formed(record_storno), methods=["POST"]),

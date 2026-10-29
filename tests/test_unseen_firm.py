@@ -4,6 +4,7 @@ invoice book, a bank statement and a ticket system, delivered twice.
 Each test is one finding of the independent review that once gave a wrong answer.
 """
 import json
+from collections import Counter
 import shutil
 import tempfile
 import unittest
@@ -338,6 +339,84 @@ class UnseenFirm(unittest.TestCase):
         self.assertFalse(any("LIESMICH" in t["name"] for t in rt.model["types"]))
         self.assertTrue(any("LIESMICH" in str(r["data"].get("doc_title")) for r in rt.records.get("doc", [])))
 
+
+    SHORT = ["Wattwurm", "Hafenkontor", "Optik Schulz", "Elbkind", "Druckhaus Lokstedt", "Alsterblick"]
+
+    def _short_name_firm(self):
+        firms = [("K-10001", "Hafenkontor Logistik GmbH", "hafenkontor-logistik.de"),
+                 ("K-10007", "Wattwurm Reisen GmbH", "wattwurm-reisen.de"),
+                 ("K-10008", "Alsterblick Immobilien GmbH", "alsterblick.de"),
+                 ("K-10019", "Kita Elbkind gGmbH", "elbkind.de"),
+                 ("K-10027", "Augenoptik Schulz e.K.", "optik-schulz.de"),
+                 ("K-10043", "Lokstedter Druckhaus GmbH", "druckhaus-lokstedt.de"),
+                 ("K-10055", "Alster Dental MVZ", "alster-dental.de"),
+                 ("K-10073", "Hafenkontor Immobilien GmbH", "hafenkontor-immobilien.de")]
+        kunden = [[k, n, f"Hafenstraße {i + 1}", f"2{i}457", "Hamburg", f"info@{d}"] for i, (k, n, d) in enumerate(firms)]
+        projects = [[f"P-2026-{i + 1:03d}", self.SHORT[i % 6], "Wartung & Hosting", f"{(i % 27) + 1:02d}.01.2026"]
+                    for i in range(18)]
+        tickets = []
+        for t in range(30):
+            tickets.append(dict(id=4000 + t, subject=f"Anfrage {t}", status=5, created_at=f"2026-0{1 + t % 8}-1{t % 9}T09:00:00Z",
+                                company=dict(id=7010000 + t % 3, name=["Wattwurm", "Hafenkontor Logistik", "Elbkind"][t % 3]),
+                                time_entries=[dict(agent_email=["lukas@agentur.de", "jana@agentur.de"][k],
+                                                   time_spent=f"0{k}:{15 + 7 * ((t + k) % 6):02d}",
+                                                   executed_at=f"2026-0{1 + t % 8}-{11 + k + t % 9}T1{k}:{t % 6}0:00Z",
+                                                   note=f"Arbeit {t}-{k}") for k in range(2)]))
+        return [("Kundenstamm.csv", csv("KdNr;Firma;Straße;PLZ;Ort;E-Mail", kunden)),
+                ("Projektliste.csv", csv("Projekt-Nr.;Kunde;Projekt;Start", projects)),
+                ("freshdesk_tickets_export_2026-09-15.json", json.dumps(dict(tickets=tickets, exported="2026-09-15")))]
+
+    def test_short_names_of_customers_find_the_one_they_mean(self):
+        self.f.feed(self._short_name_firm())
+        rt = self.f.rt()
+        ku = _type(rt, "Kunde")
+        self.assertEqual(len(rt.records[ku["id"]]), 8)
+        kd = lambda v: rt.by_id[v]["data"].get(ku["key"]) if isinstance(v, int) else None
+        pj = _type(rt, "Projekt")
+        ref = next(a for a in pj["attrs"] if a["kind"] == "ref" and a.get("ref") == ku["id"])
+        by_short = {self.SHORT[int(r["data"][pj["key"]][-3:]) % 6 - 1]: kd(r["data"].get(ref["id"])) for r in rt.records[pj["id"]]}
+        self.assertEqual(by_short, {"Wattwurm": "K-10007", "Optik Schulz": "K-10027", "Elbkind": "K-10019",
+                                    "Druckhaus Lokstedt": "K-10043", "Alsterblick": "K-10008",
+                                    "Hafenkontor": None})       # two Hafenkontors: the short name cannot decide
+        tk = _type(rt, "Ticket")
+        tref = next(a for a in tk["attrs"] if a["kind"] == "ref" and a.get("ref") == ku["id"])
+        self.assertEqual(Counter(kd(r["data"].get(tref["id"])) for r in rt.records[tk["id"]]),
+                         Counter({"K-10007": 10, "K-10001": 10, "K-10019": 10}))
+
+    def test_a_join_on_a_guess_can_be_undone(self):
+        from physarum.grow import regrow
+        clients = [[n, "No"] for n in self.SHORT]          # a time tracker's client list knows only short names
+        self.f.feed(self._short_name_firm() + [("Clockify_Clients.csv", csv("Client;Archived", clients))])
+        rt = self.f.rt()
+        ku = _type(rt, "Kunde")
+        names = sorted(rt.title(r["id"]) for r in rt.records[ku["id"]])
+        self.assertEqual(len(names), 9, names)            # only "Hafenkontor" stays a customer of its own
+        self.assertIn("Hafenkontor", names)
+        watt = next(r for r in rt.records[ku["id"]] if r["data"].get(ku["key"]) == "K-10007")
+        j = next(j for j in watt["meta"].get("joins") or [] if j["name"] == "Wattwurm")
+        with self.f.store.tx() as c:
+            self.f.store.decide("same_record", j["key"], "different", "Tester", c=c)
+        regrow(self.f.store)
+        rt = self.f.rt()
+        ku = _type(rt, "Kunde")
+        self.assertIn("Wattwurm", [rt.title(r["id"]) for r in rt.records[ku["id"]]])
+        again = next(r for r in rt.records[ku["id"]] if r["data"].get(ku["key"]) == "K-10007")
+        self.assertEqual(again["id"], watt["id"])
+        self.assertNotIn("Wattwurm", [j["name"] for j in again["meta"].get("joins") or []])
+
+    def test_nested_lists_of_two_deliveries_stay_one_list(self):
+        files = self._short_name_firm()
+        self.f.feed(files)
+        upd = json.loads(files[2][1])
+        upd["tickets"] = [t for t in upd["tickets"] if t["id"] >= 4020]
+        for t in upd["tickets"][:3]:
+            t["time_entries"].append(dict(agent_email="lukas@agentur.de", time_spent="00:30",
+                                          executed_at="2026-09-20T10:00:00Z", note=f"Nachtrag {t['id']}"))
+        self.f.feed([("freshdesk_tickets_updated_since_2026-09-10.json", json.dumps(upd))])
+        rt = self.f.rt()
+        te = [t for t in rt.model["types"] if any("time_entries" in m["label"] for m in t["members"])]
+        self.assertEqual(len(te), 1, [t["name"] for t in te])
+        self.assertEqual(len(rt.records[te[0]["id"]]), 30 * 2 + 3)
 
 if __name__ == "__main__":
     unittest.main()

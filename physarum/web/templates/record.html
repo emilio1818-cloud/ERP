@@ -246,6 +246,7 @@
         {% if c.attr %}{{ c.attr.name }} {% if c.old is not none %}<span class="faint">{{ fmt(c.attr, c.old, link=False, short=True) }}</span> → {% endif %}{{ fmt(c.attr, c.new, link=False, short=True) }}{% if c.note %} <span class="faint">({{ c.note }})</span>{% endif %}
         {% else %}{{ c.note }}{% endif %}
         {% if c.kind in ('auto',) %}<span class="tag calc">automatisch</span>{% elif c.kind == 'storno' %}<span class="tag lock">Storno</span>{% elif c.kind == 'merge' %}<span class="tag guess">zusammengeführt</span>{% elif c.kind == 'conflict' %}<span class="tag guess">abweichend</span>{% elif c.kind == 'issue' %}<span class="tag lock">ausgestellt</span>{% endif %}
+        {% if c.undoable %}<button class="small ghost noprint" data-post="/r/{{ rec.id }}/rueckgaengig" data-body='{"change": "{{ c.id }}"}' title="Diese Änderung zurücknehmen (steht dann ebenfalls im Verlauf)">zurücknehmen</button>{% endif %}
       </li>
       {% endfor %}
     </ul>

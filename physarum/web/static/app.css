@@ -158,6 +158,7 @@ table { border-collapse: collapse; width: 100%; }
 .question { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; background: var(--panel); }
 .question + .question { margin-top: 10px; }
 .question .q { font-weight: 600; }
+.consequences { margin: 6px 0 0; padding-left: 18px; font-size: .8rem; color: var(--muted); }
 .question .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0; font-size: .85rem; }
 .question .compare div { background: var(--soft); border-radius: 8px; padding: 8px 10px; }
 .question .compare dt { color: var(--muted); font-size: .75rem; }

@@ -224,19 +224,84 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
     return groups
 
 
+_ADDRESS_ROLES = ("street", "zip", "city")
+
+
+def _edit1(a: str, b: str) -> bool:
+    """At most two letters apart (a typo), for words long enough that this is not a different word."""
+    if a == b or min(len(a), len(b)) < 5 or abs(len(a) - len(b)) > 2:
+        return False
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        cur = [i]
+        for j, cb in enumerate(b, start=1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1] <= 2
+
+
+def is_typo_of(v, w) -> bool:
+    """'Bistro Krabenkutter' and 'Bistro Krabbenkutter': same words, one of them misspelt.
+    'Bistro Leuchtturm' and 'Bistro Leuchtturm GmbH' is a change, not a typo."""
+    a, b = norm_name(v).split(), norm_name(w).split()
+    if len(a) != len(b) or a == b:
+        return False
+    diff = [(x, y) for x, y in zip(a, b) if x != y]
+    return len(diff) == 1 and _edit1(*diff[0])
+
+
+_LEGAL = {"gmbh", "mbh", "ag", "kg", "ug", "ek", "e k", "gbr", "ohg", "ev", "e v", "eg", "kgaa", "se", "co", "co kg",
+          "gmbh co kg", "partg", "partgmbb", "haftungsbeschraenkt", "ltd", "inc", "llc", "bv", "sarl", "srl"}
+
+
+def fuller_legal_name(a, b):
+    """'Feinkost Tidenhub' and 'Feinkost Tidenhub GmbH': the second, which names the legal form, belongs on
+    an invoice. Returns the fuller of the two, or None if they are not that kind of pair."""
+    if not isinstance(a, str) or not isinstance(b, str):
+        return None
+    wa, wb = fold(a).replace(".", " ").replace("&", " ").split(), fold(b).replace(".", " ").replace("&", " ").split()
+    short, long_, longer = (wa, wb, b) if len(wa) < len(wb) else (wb, wa, a)
+    if short and long_[:len(short)] == short and len(long_) > len(short) and " ".join(long_[len(short):]) in _LEGAL:
+        return longer
+    return None
+
+
 def _merge_values(t: TypeDraft, g: Group):
     g.protos.sort(key=lambda p: p.priority, reverse=True)
+    roles = {a.aid: a.role for a in t.attrs}
+    addr = {aid for aid, r in roles.items() if r in _ADDRESS_ROLES}
+    # an address moves as a whole: street, postcode and town from the same (most current) source
+    owner = next((p for p in g.protos if addr & set(p.values)), None)
     for p in g.protos:
         g.lines.extend(p.prov)
         for aid, v in p.values.items():
-            if aid not in g.values:
+            mixed = aid in addr and owner is not None and p is not owner and addr & set(owner.values) and \
+                any(owner.values.get(x) is not None and p.values.get(x) is not None and
+                    norm_name(owner.values[x]) != norm_name(p.values[x]) for x in addr)
+            if aid not in g.values and not mixed:
                 g.values[aid] = v
                 g.prov[aid] = list(p.prov[:3])
-            else:
-                if norm_key(v) != norm_key(g.values[aid]) and norm_name(v) != norm_name(g.values[aid]):
-                    alts = g.alts.setdefault(aid, [])
-                    if len(alts) < 5 and all(norm_key(x) != norm_key(v) for x, _ in alts):
-                        alts.append((v, p.prov[:1]))
+            elif aid not in g.values or norm_key(v) != norm_key(g.values.get(aid)) and norm_name(v) != norm_name(g.values.get(aid)):
+                alts = g.alts.setdefault(aid, [])
+                if len(alts) < 5 and all(norm_key(x) != norm_key(v) for x, _ in alts):
+                    alts.append((v, p.prov[:1]))
+    # a typo in the newest file does not overwrite the name every other source spells the same
+    ta = t.title.aid if t.title is not None and t.kind == "master" else None
+    if ta and ta in g.values:
+        for p in g.protos:
+            full = fuller_legal_name(g.values[ta], p.values.get(ta))
+            if full is not None and full != g.values[ta]:
+                g.values[ta] = full  # the name with its legal form
+                g.prov[ta] = list(p.prov[:3])
+    if ta and ta in g.values and len(g.protos) >= 3:
+        votes = Counter(norm_name(p.values[ta]) for p in g.protos if p.values.get(ta) is not None)
+        cur = norm_name(g.values[ta])
+        best, n = max(votes.items(), key=lambda kv: (kv[1], kv[0] == cur))
+        if best != cur and n >= 2 and votes[cur] == 1 and is_typo_of(g.values[ta], best):
+            winner = next(p for p in g.protos if norm_name(p.values.get(ta) or "") == best)
+            g.alts.setdefault(ta, []).insert(0, (g.values[ta], g.prov.get(ta, [])[:1]))
+            g.values[ta] = winner.values[ta]
+            g.prov[ta] = list(winner.prov[:3])
 
 
 _POS_WORDS = {"pos", "position", "zeile", "lfd", "posnr", "line", "positionsnr"}

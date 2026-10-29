@@ -839,6 +839,20 @@ def _merge_record(c, src: int, dst: int, ts: str, actor: str, why: str):
     if srow:
         sd = loads(srow["data"]) or {}
         label = next((str(v) for v in sd.values() if isinstance(v, str) and 2 < len(v) < 60), "")
+        if drow:
+            # the merged record knows what either knew: gaps are filled, a name keeps its legal form
+            from .infer.identity import fuller_legal_name
+            dd = loads(drow["data"]) or {}
+            before = dict(dd)
+            for k, v in sd.items():
+                if dd.get(k) is None:
+                    dd[k] = v
+                else:
+                    full = fuller_legal_name(dd[k], v)
+                    if full is not None:
+                        dd[k] = full
+            if dd != before:
+                c.execute("UPDATE records SET data=?, updated_at=? WHERE id=?", (dumps(dd), ts, dst))
     c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
               (dst, ts, actor, "merge", f"zusammengeführt mit „{label}“ (Datensatz {src}): {why}" if label else
                f"zusammengeführt mit Datensatz {src}: {why}"))

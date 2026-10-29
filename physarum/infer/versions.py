@@ -159,7 +159,14 @@ def merge_group(ts: list[dict]) -> dict:
     else:
         label = founder["name"]
     srcs = list(dict.fromkeys(t.get("source_name") for t in ts))
-    return dict(founder, name=label, sig_name=founder["name"], columns=columns, rows=rows, lines=lines,
+    # the list is as current as its newest version: its "Stand", its title (the founder only names it)
+    newest = max(ts, key=_rank) if len(ts) > 1 and key else founder
+    meta = dict(founder.get("meta") or {})
+    if newest is not founder:
+        meta["title"] = (newest.get("meta") or {}).get("title") or meta.get("title")
+        if asof_date((newest.get("meta") or {}).get("title")) is None and asof_date(newest.get("source_name")):
+            meta["title"] = f"{meta.get('title') or ''} Stand {asof_date(newest.get('source_name')).strftime('%d.%m.%Y')}".strip()
+    return dict(founder, meta=meta, name=label, sig_name=founder["name"], columns=columns, rows=rows, lines=lines,
                 tables=[t["id"] for t in ts],
                 source_id=max(t.get("source_id") or 0 for t in ts), sources=srcs,
                 source_name=srcs[0] if len(srcs) == 1 else f"{srcs[0]} + {len(srcs) - 1} weitere",

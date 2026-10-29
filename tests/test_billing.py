@@ -174,6 +174,26 @@ class InvoiceFromOrder(unittest.TestCase):
                 with self.store.tx() as c:
                     c.execute("UPDATE archive SET content=? WHERE id=?", (b"x", arch["id"]))
 
+    def test_paid_can_be_taken_back_later_and_status_follows(self):
+        inv, rid, number = self.issued()
+        proc = next(p for p in self.rt.model["processes"] if p["type"] == inv["id"])
+        paid = next(x["attr"] for x in [proc["steps"][0]] + proc["steps"][0].get("also", []) if x["source"] == "own")
+        status = proc["status"]["attr"]
+        ops.set_step(self.rt, rid, paid, None, "Test")
+        self.rt.ensure()
+        self.assertEqual(self.rt.by_id[rid]["data"][status], "bezahlt")
+        cid = self.store.q1("SELECT id FROM changes WHERE record_id=? AND attr=? ORDER BY id DESC", (rid, paid))["id"]
+        ops.revert_change(self.rt, rid, cid, "Test")                     # days later, from the history
+        self.rt.ensure()
+        d = self.rt.by_id[rid]["data"]
+        self.assertIsNone(d.get(paid))
+        self.assertNotEqual(d.get(status), "bezahlt")
+        ops.set_step(self.rt, rid, paid, None, "Test")
+        ops.update(self.rt, rid, {paid: ""}, "Test")                       # emptied by hand: status goes back too
+        self.rt.ensure()
+        self.assertNotEqual(self.rt.by_id[rid]["data"].get(status), "bezahlt")
+        self.assertEqual(self.store.record(rid)["data"][inv["key"]], number)
+
     def test_supplier_invoices_are_not_ours_to_cancel(self):
         ein = next((t for t in self.rt.model["types"] if t["name"] == "Eingangsrechnung"), None)
         if not ein:

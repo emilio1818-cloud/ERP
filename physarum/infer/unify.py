@@ -229,6 +229,8 @@ def unify(observations: list[Obs], decisions: dict | None = None, log: list | No
                 # order lines and invoice lines are different things: lines merge only under the same parent type
                 if parent_cluster(t.members[0]) != parent_cluster(o):
                     continue
+            if any(decisions.get(frozenset((obs_sig(m), obs_sig(o)))) == "different" for m in t.members):
+                continue  # "keep them apart" holds for the whole list, not just for one of its files
             for m in t.members:
                 sim = obs_similarity(m, o)
                 d = decisions.get(frozenset((obs_sig(m), obs_sig(o))))

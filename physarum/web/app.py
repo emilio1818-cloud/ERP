@@ -172,8 +172,10 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         summ = store.q1("SELECT summary, created_at FROM models ORDER BY version DESC LIMIT 1")
         summary = loads(summ["summary"]) if summ else {}
         from ..coverage import coverage
+        from ..questions import CONSEQUENCES
         cov = coverage(rt)
         return page(request, "home.html", dict(work=work[:10], more_work=max(0, len(work) - 10), kpis=ks[:4], cov=cov,
+                                               consequences=CONSEQUENCES,
                                                questions=qs, suggestions=sugg, quality=quality, summary=summary,
                                                payments=payments, pay_exact=len(pay_exact),
                                                grown_at=summ["created_at"] if summ else None, greeting=views.greeting(),
@@ -474,9 +476,12 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         attr_names = {a["id"]: a for a in spec["attrs"]}
         for ch in store.changes(rid)[:60]:
             a = attr_names.get(ch["attr"])
-            changes.append(dict(ts=ch["ts"], actor=ch["actor"], kind=ch["kind"], attr=a, note=ch["note"],
-                                old=loads(ch["old"]) if ch["old"] else None, new=loads(ch["new"]) if ch["new"] else None,
-                                source=sources.get(ch["source_id"])))
+            new = loads(ch["new"]) if ch["new"] else None
+            changes.append(dict(id=ch["id"], ts=ch["ts"], actor=ch["actor"], kind=ch["kind"], attr=a, note=ch["note"],
+                                old=loads(ch["old"]) if ch["old"] else None, new=new,
+                                source=sources.get(ch["source_id"]),
+                                undoable=bool(a and ch["kind"] in ("edit", "auto") and ch["actor"] != "Physarum"
+                                              and data.get(a["id"]) == new and ch["note"] != "rückgängig gemacht")))
         src_files = [sources[s] for s in (rec["meta"] or {}).get("src", []) if s in sources]
         lock = ops.lock_state(rt, spec, rec)
         children = [r for r in rt.model["relations"] if r["dst"] == spec["id"] and r["kind"] == "ref"
@@ -629,8 +634,11 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         rid = int(request.path_params["rid"])
         attrs = [a for a in (form.get("attrs") or "").split(",") if a]
         try:
-            ops.revert(rt, rid, attrs, actor(request))
-        except ops.OpError as e:
+            if form.get("change"):
+                ops.revert_change(rt, rid, int(form.get("change")), actor(request))
+            else:
+                ops.revert(rt, rid, attrs, actor(request))
+        except (ops.OpError, ValueError) as e:
             return JSONResponse(dict(error=str(e)))
         return JSONResponse(dict(reload=True, toast="Rückgängig gemacht."))
 
@@ -1104,13 +1112,19 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
     def questions_page(request: Request):
         rt.ensure()
         qs = open_questions(store)
-        answered = store.q("SELECT * FROM questions WHERE status='answered' ORDER BY answered_at DESC LIMIT 30")
-        return page(request, "questions.html", dict(questions=qs, answered=[dict(r, payload=loads(r["payload"]),
-                                                                                  answer=loads(r["answer"])) for r in answered]))
+        answered = store.q("SELECT * FROM questions WHERE status='answered' ORDER BY answered_at DESC LIMIT 60")
+        from ..questions import CONSEQUENCES
+        return page(request, "questions.html", dict(questions=qs, consequences=CONSEQUENCES,
+                                                    answered=[dict(r, payload=loads(r["payload"]), answer=loads(r["answer"]))
+                                                              for r in answered]))
 
     def question_answer(request: Request, form):
         qid = int(request.path_params["qid"])
         value = form.get("value")
+        if value == "reopen":
+            from ..questions import reopen
+            reopen(store, qid)
+            return JSONResponse(dict(reload=True, toast="Die Frage ist wieder offen."))
         res = answer_question(store, qid, value, actor(request))
         if res.get("regrow"):
             jid = jobs.start("answer", lambda progress: regrow(store, progress, actor(request)), next_url="/fragen")

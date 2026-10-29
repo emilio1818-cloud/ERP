@@ -148,6 +148,26 @@ def _stable_ident(c, tid: str, rid: int) -> str | None:
     return None
 
 
+CONSEQUENCES = {
+    ("same_record", "same"): "Aus zwei Einträgen wird einer – Aufträge, Rechnungen und Notizen beider hängen dann daran.",
+    ("same_record", "different"): "Beide bleiben getrennt; diese Frage kommt nicht wieder.",
+    ("same_type", "same"): "Beide Listen werden eine Art von Dingen.",
+    ("same_type", "different"): "Zwei getrennte Arten mit eigener Liste.",
+    ("confirm_merge", "ok"): "Bleibt eine gemeinsame Liste.",
+    ("confirm_merge", "split"): "Wird beim nächsten Wachsen eine eigene Liste (Name lässt sich ändern).",
+    ("relation", "yes"): "Die Werte werden zu Verweisen: man kann hin- und herspringen.",
+    ("relation", "no"): "Die Spalte bleibt einfacher Text.",
+    ("payment_match", "yes"): "Die Zahlung gilt für diese Rechnung(en) – sie werden bezahlt bzw. teilbezahlt.",
+    ("payment_match", "no"): "Die Zahlung bleibt ohne Rechnung; die Rechnung bleibt offen.",
+}
+
+
+def reopen(store: Store, qid: int):
+    """Ask again: the answer is forgotten, the question is open."""
+    with store.tx() as c:
+        c.execute("UPDATE questions SET status='open', answer=NULL, answered_at=NULL, snooze_until=NULL WHERE id=?", (qid,))
+
+
 def open_questions(store: Store, limit: int | None = None) -> list[dict]:
     rows = store.q("SELECT * FROM questions WHERE status='open' AND (snooze_until IS NULL OR snooze_until < ?) "
                    "ORDER BY impact DESC, id", (now_iso(),))
@@ -181,7 +201,15 @@ def answer(store: Store, qid: int, value: str, actor: str | None = None) -> dict
             store.decide("relation", dec["subject"], value, actor, c=c)
             result["regrow"] = True
         elif kind == "payment_match":
+            before = store.decisions("payment_match").get(dec["subject"])
             store.decide("payment_match", dec["subject"], value, actor, c=c)
+            if value != "yes" and before == "yes":
+                # changed one's mind: the transfer no longer pays these invoices
+                recs = payload.get("records") or []
+                if len(recs) >= 2:
+                    c.executemany("DELETE FROM refs WHERE from_id=? AND to_id=? AND kind='mention' AND how LIKE 'Zuordnung über den Betrag%'",
+                                  [(recs[0], i) for i in recs[1:]])
+                    store.kv_set("data_version", (store.kv_get("data_version", 0) or 0) + 1, c)
             if value == "yes":
                 from .grow import _accepted_matches
                 m = store.model()

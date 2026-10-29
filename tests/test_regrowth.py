@@ -198,11 +198,18 @@ class DemoDecisions(unittest.TestCase):
         answer(store, q["id"], "same", "Tester")
         self.assertEqual(store.record(rid)["data"][num["id"]], drop)
         # split a structural merge, then grow again
+        split = [q for q in open_questions(store) if q["kind"] == "confirm_merge"]
         for q in open_questions(store):
             answer(store, q["id"], "split" if q["kind"] == "confirm_merge" else
                    ("different" if q["kind"] == "same_type" else "no"), "Tester")
         regrow(store)
-        self.assertTrue(store.model()["types"])
+        m = store.model()
+        self.assertTrue(m["types"])
+        for q in split:  # "keep apart" really keeps them apart – not merged again through another file
+            home = {mem["label"]: t["id"] for t in m["types"] for mem in t["members"]}
+            obs, into = q["decision"]["obs"], q["decision"]["into"]
+            if obs in home and into in home:
+                self.assertNotEqual(home[obs], home[into], q["text"])
 
 
 class OrderIndependence(unittest.TestCase):
@@ -220,6 +227,45 @@ class OrderIndependence(unittest.TestCase):
             finally:
                 f.close()
         self.assertEqual(grow(False), grow(True))
+
+
+class NewerCustomerList(unittest.TestCase):
+    """The owner's own, newer customer list: one customer moved, one name has a typo."""
+
+    def test_a_move_is_taken_as_a_whole_and_a_typo_does_not_win(self):
+        import openpyxl
+        from datetime import date
+        f = Firm()
+        try:
+            res = generate(f.dir / "dump")
+            f.feed([(p.name, p.read_bytes()) for p in res["initial"]])
+            src = next(x for x in res["initial"] if x.name == "Kundenliste_alt.xlsx")
+            wb = openpyxl.load_workbook(src)
+            ws = wb.active
+            ws.cell(row=2, column=1).value = f"Stand: {date.today().strftime('%d.%m.%Y')}"
+            for row in ws.iter_rows(min_row=5):
+                if row[0].value == "K-1003":            # moved to Hamburg, new number
+                    row[3].value, row[4].value, row[5].value, row[6].value = "Elbchaussee 12", "22763", "Hamburg", "040 3041499"
+                if row[0].value == "K-1001":            # a slip of the finger
+                    row[1].value = "Bistro Krabenkutter GmbH & Co. KG"
+            out = f.dir / "Kundenliste_2026.xlsx"
+            wb.save(out)
+            time.sleep(1)
+            f.feed([(out.name, out.read_bytes())])
+            rt = f.rt()
+            kunde = next(t for t in rt.model["types"] if t["name"] == "Kunde")
+            by = {r["data"].get(kunde["key"]): r for r in rt.records[kunde["id"]]}
+            attr = {a["name"]: a["id"] for a in kunde["attrs"]}
+            moved = by["K-1003"]["data"]
+            self.assertEqual((moved[attr["Straße"]], moved[attr["PLZ"]], moved[attr["Ort"]]), ("Elbchaussee 12", "22763", "Hamburg"))
+            self.assertEqual(moved[attr["Telefon"]], "040 3041499")
+            self.assertEqual(by["K-1001"]["data"][kunde["title"]], "Bistro Krabbenkutter GmbH & Co. KG")
+            self.assertIn("Bistro Krabenkutter GmbH & Co. KG",
+                          [x[0] for x in (by["K-1001"]["meta"].get("alts") or {}).get(kunde["title"], [])])
+            member = next(m for m in kunde["members"] if m.get("versions") and m["versions"].get("files", 0) > 1)
+            self.assertEqual(member["asof"], date.today().isoformat())   # the list is as current as its newest version
+        finally:
+            f.close()
 
 
 if __name__ == "__main__":

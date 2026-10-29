@@ -413,7 +413,7 @@ def update(rt, rid: int, raw: dict, actor: str, note: str | None = None, kind: s
     if not given:
         return []
     computed = apply_formulas(rt, spec, data, given) if not lock else []
-    autos = _automations(rt, spec, rec["data"], data, given)
+    autos = _automations(rt, spec, rec["data"], data, given) + _step_taken_back(rt, spec, rec["data"], data, given)
     data = _clean(spec, data)
     ts = now_iso()
     meta = rec["meta"] or {}
@@ -477,6 +477,55 @@ def step_attrs(rt, spec: dict) -> set:
         if a.get("milestone") and a["kind"] in ("date", "datetime"):
             out.add(a["id"])
     return out
+
+
+def _step_taken_back(rt, spec, before: dict, data: dict, given: set) -> list[tuple[str, str]]:
+    """"Bezahlt am" emptied: the status that came with it goes back too – never "bezahlt" next to "offen"."""
+    proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+    st = (proc or {}).get("status")
+    if not st or st["attr"] in given:
+        return []
+    out = []
+    for stage, step in enumerate(proc["steps"], start=1):
+        own = [x["attr"] for x in [step] + step.get("also", []) if x["source"] == "own"]
+        if not any(a in given and before.get(a) and not data.get(a) for a in own):
+            continue
+        cur = str(data.get(st["attr"]))
+        if (st.get("map") or {}).get(cur) != stage:
+            continue
+        lower = [(k, v) for v, k in (st.get("map") or {}).items() if k < stage and v not in (st.get("negative") or [])]
+        back = st.get("initial") or (max(lower)[1] if lower else None)
+        if back:
+            data[st["attr"]] = back
+            out.append((st["attr"], f"„{step['label']}“ zurückgenommen"))
+    return out
+
+
+def revert_change(rt, rid: int, cid: int, actor: str) -> list[str]:
+    """Undo one change from the history – and what came with it in the same action (a step and its status)."""
+    rt.ensure()
+    row = rt.store.q1("SELECT * FROM changes WHERE id=? AND record_id=?", (cid, rid))
+    if not row or row["kind"] not in ("edit", "auto") or not row["attr"]:
+        raise OpError("Diese Änderung lässt sich nicht zurücknehmen")
+    rec = rt.store.record(rid)
+    if not rec or rec["deleted"]:
+        raise OpError("Datensatz nicht gefunden")
+    spec = rt.spec(rec["type"])
+    same = rt.store.q("SELECT * FROM changes WHERE record_id=? AND ts=? AND kind IN ('edit','auto') AND attr IS NOT NULL",
+                      (rid, row["ts"]))
+    raw = {}
+    for ch in same:
+        a = next((x for x in spec["attrs"] if x["id"] == ch["attr"]), None)
+        if not a:
+            continue
+        new = loads(ch["new"]) if ch["new"] else None
+        if rec["data"].get(ch["attr"]) != new:
+            raise OpError(f"{a['name']} wurde seitdem wieder geändert – bitte direkt bearbeiten")
+        old = loads(ch["old"]) if ch["old"] else None
+        raw[ch["attr"]] = "" if old is None else _to_input(a, old)
+    if not raw:
+        raise OpError("Nichts zurückzunehmen")
+    return update(rt, rid, raw, actor, note="rückgängig gemacht", allow=set(raw))
 
 
 def set_step(rt, rid: int, attr: str, when: str | None, actor: str) -> list[str]:

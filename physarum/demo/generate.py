@@ -836,7 +836,13 @@ def generate(out: Path, today: date | None = None, growth: bool = True) -> dict:
         fn = einv / f"Rechnung_{p['supplier_invoice']}.xml"
         (write_zugferd_cii if p["supplier"].startswith("Origin") else write_xrechnung_ubl)(fn, p)
         written.append(fn)
-    result = {"initial": written, "growth": []}
+    # what a bookkeeper knows about this firm today – the bench measures Physarum against it
+    billed = {inv["order"].no for inv in invoices}
+    open_ = {inv["no"]: inv["gross"] for inv in invoices if inv["status"] != "storniert" and not inv["paid"]}
+    truth = dict(today=today.isoformat(), open=open_,
+                 overdue=sorted(no for no, inv in ((i["no"], i) for i in invoices) if no in open_ and inv["due"] < today),
+                 unbilled=sorted(o.no for o in orders if o.delivered and o.no not in billed))
+    result = {"initial": written, "growth": [], "truth": truth}
     if growth:
         gdir = out.parent / (out.name + "_spaeter")
         gdir.mkdir(parents=True, exist_ok=True)

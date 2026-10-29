@@ -176,3 +176,24 @@ Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kann
 | Handwerk, Struktur: ein Blatt je Jahr und je Monteur mit anders benannten Spalten; Aufmaße ohne Auftrag; sieben Rückfragen, von denen eine echt war | Blätter einer Datei und Listen derselben bekannten Art werden ohne Rückfrage eine Liste. Spalten werden über Nummernmuster, zusammengesetzte Wörter und gleiche Meilensteine verglichen. Was über einer Tabelle steht („Auftrag: A26-028“), wird zur Spalte jeder Zeile. Übrig bleibt die eine Frage, die der Chef entscheiden muss: zwei Müllers an derselben Straße. |
 | Handwerk, Alltag: Was morgens zählt, fehlte auf „Heute“: Angebote zum Nachfassen, fertige, nicht berechnete Aufträge, fällige Wartungen und HU, Mails, die auf Antwort warten, Geld ohne Rechnung, Lieferantenrechnungen mit Skonto-Frist – und ein Betrugsversuch mit neuer IBAN und ähnlicher Domain | Nachfassen an dem Tag, den das Angebotsbuch nennt; verlaufene Angebote nicht (§ 147 BGB). Jeder fertige Auftrag ohne Rechnung. Wartung aus letzter Wartung plus Intervall, einen Monat voraus. Mails mit Bitte, Kündigung, „schon bezahlt“ oder neuer Bankverbindung. „Geld erhalten – wofür?“ mit Anzahlungsrechnung oder Zuordnung. PDF-Rechnungen werden wie E-Rechnungen gelesen, Betrugsverdacht steht ganz oben und nicht auf der Liste zum Bezahlen. Bar- und Teilzahlungen lassen sich eintragen, Kontozeilen von Hand zuordnen. |
 
+| Online-Shop (Shopify, PayPal, Klarna, Auszahlungen, Erstattungen, B2B-Rechnungen aus lexoffice) | Auszahlungen netto und Sammelzahlungen nach Betrag; die Steuerberatung bekommt nur eigene Rechnungen im DATEV-Stapel, eingelesene als Kopie mit Herkunft; versiegeltes, lückenlos geprüftes Protokoll; die Inhaberin sieht beim ersten Kontakt eine Kette „bis das Geld da ist“ |
+
+### 8.3 Raptor: erst viel bauen, dann wegnehmen
+
+Nach sechs Runden fragte eine strategische Prüfung, ob das System noch das schlankeste ist, das den Auftrag erfüllt. Befund: Es wuchs nur noch, jede Runde fügte Regeln für die eine geprüfte Firma hinzu, und der Geldkern hing an den Wörtern „bezahlt“ und „fällig“. Seitdem gilt:
+
+- **Der Prüfstand ist die Belohnung.** Sieben Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Die drei kleinen laufen zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
+- **Die Stopp-Regel:** Eine Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
+- **Erst löschen.** Weg sind der Abgleich-Ablauf (zwei Wahrheiten für „bezahlt“), die Fragen zum Datenmodell (jetzt umkehrbare Hinweise an der Liste), doppelte Hilfsfunktionen, tote Funktionen und der Tero-Löser.
+
+| Kennzahl (Prüfstand) | vorher | nachher |
+|---|---:|---:|
+| Geld richtig (offene Posten, alle Firmen) | 0,471 | 0,848 |
+| Heute-Aufgaben richtig (überfällig, nicht berechnet, über Budget, Geld ohne Rechnung) | 0,721 | 0,967 |
+| gleiche offene Posten unter anderen Datei- und Spaltennamen | 0,48 | 1,0 |
+| Listen gleich benannt unter anderen Namen | 0,43 | 0,53 |
+| Fragen zum Datenmodell | 9 | 0 |
+| Zeilen Code | 18.723 | 18.564 |
+| Wort-Regeln / reguläre Ausdrücke | 739 / 162 | 746 / 164 |
+
+Centgenau stimmen jetzt Agentur, Handwerk, Demo, Musikschule und Maler, die drei kleinen auch unter fremden Namen. Beim Shop bleiben 10 bzw. 12 Bestellungen zu viel offen: Sie sind über Wege bezahlt, die in den Dateien nicht stehen, oder nur autorisiert. Nicht erreicht ist das Ziel, die Wort-Regeln zu halbieren. Die Runde hat Wörter durch Struktur ersetzt, wo der Geldkern daran hing. Neue Regeln brauchte es für Erstattungen, Namen und neutrale Dateinamen; die alten Wortlisten der Erkennung stehen noch.

@@ -127,6 +127,9 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - Unter neutralen Dateinamen weiß Physarum nicht mehr, dass die Käufer im Shop-Export Kunden sind; sie bleiben eine eigene Liste neben den Kunden aus CRM und Kundenliste, und die Zusammenlegung steht als Hinweis an der Liste.
 - Abrechnungen von Zahlungsanbietern (Klarna, PayPal, Stripe) zählen nicht als Zahlungsnachweis für die einzelne Bestellung; nur der Kontoauszug zählt. Bei einem Shop bleiben so Bestellungen offen, die der Anbieter längst ausgezahlt hat.
 - Ein Kontoauszug, der nur Zahlungseingänge auf Rechnungen enthält und dessen Verwendungszweck nur die Rechnungsnummer nennt, sieht unter einem neutralen Dateinamen aus wie eine zweite Fassung des Rechnungsbuchs und wird mit ihm zu einer Liste. Echte Auszüge mit Miete, Löhnen und Lastschriften trennt Physarum richtig.
+- Rechnungsnummern aus reinen Ziffern sucht Physarum in Verwendungszwecken und Mails ab fünf Stellen, wenn sie lückenlos hochzählen (31001, 31002, …). Vierstellige (1001 …) nicht: Sie sind von Jahreszahlen und Beträgen nicht zu unterscheiden.
+- Steht ein Kunde doppelt in der Kartei (zwei Kundennummern, eine mit Skontovereinbarung), gilt die Vereinbarung für den anderen Datensatz erst, wenn der Inhaber die Dublettenfrage beantwortet; bis dahin steht der Abzug als „nicht vereinbart“ da.
+- „Geld erhalten – wofür?“ zeigt die Eingänge der letzten zwei Monate; ältere unerklärte Eingänge stehen in der Kontoliste, nicht auf „Heute“.
 
 ## 8. Was die unabhängigen Reviews verändert haben
 
@@ -177,12 +180,13 @@ Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kann
 | Handwerk, Struktur: ein Blatt je Jahr und je Monteur mit anders benannten Spalten; Aufmaße ohne Auftrag; sieben Rückfragen, von denen eine echt war | Blätter einer Datei und Listen derselben bekannten Art werden ohne Rückfrage eine Liste. Spalten werden über Nummernmuster, zusammengesetzte Wörter und gleiche Meilensteine verglichen. Was über einer Tabelle steht („Auftrag: A26-028“), wird zur Spalte jeder Zeile. Übrig bleibt die eine Frage, die der Chef entscheiden muss: zwei Müllers an derselben Straße. |
 | Handwerk, Alltag: Was morgens zählt, fehlte auf „Heute“: Angebote zum Nachfassen, fertige, nicht berechnete Aufträge, fällige Wartungen und HU, Mails, die auf Antwort warten, Geld ohne Rechnung, Lieferantenrechnungen mit Skonto-Frist – und ein Betrugsversuch mit neuer IBAN und ähnlicher Domain | Nachfassen an dem Tag, den das Angebotsbuch nennt; verlaufene Angebote nicht (§ 147 BGB). Jeder fertige Auftrag ohne Rechnung. Wartung aus letzter Wartung plus Intervall, einen Monat voraus. Mails mit Bitte, Kündigung, „schon bezahlt“ oder neuer Bankverbindung. „Geld erhalten – wofür?“ mit Anzahlungsrechnung oder Zuordnung. PDF-Rechnungen werden wie E-Rechnungen gelesen, Betrugsverdacht steht ganz oben und nicht auf der Liste zum Bezahlen. Bar- und Teilzahlungen lassen sich eintragen, Kontozeilen von Hand zuordnen. |
 | Online-Shop (Shopify, PayPal, Klarna, Auszahlungen, Erstattungen, B2B-Rechnungen aus lexoffice) | Auszahlungen netto und Sammelzahlungen nach Betrag; die Steuerberatung bekommt nur eigene Rechnungen im DATEV-Stapel, eingelesene als Kopie mit Herkunft; versiegeltes, lückenlos geprüftes Protokoll; die Inhaberin sieht beim ersten Kontakt eine Kette „bis das Geld da ist“ |
+| Kfz-Werkstatt (Runde 7): Rechnungsnummern als reine Zahl, bar und Karte bei Abholung, Versicherung zahlt den Rest, Gutschrift und Storno, eigene Rechnungs-PDFs, Fahrzeuge zweier gleichnamiger Kunden, Zahlungsavis. Erster Stand: 183 statt 16 offene Posten, 23 Betrugswarnungen über die eigenen Rechnungen | Nummern, die lückenlos hochzählen, werden auch kurz gefunden; was das Buch als erhalten führt, zählt neben der Bank; eine Überweisung, die das Kennzeichen nennt, findet ihre Rechnung; eine neue Bankverbindung ist nur bei Partnern ein Risiko, an die die Firma zahlt. Jetzt 16 von 16 und 18 von 18 offenen Posten, 8 von 8 überfälligen, 4 von 4 und 3 von 3 fertigen, nicht berechneten Aufträgen; der Rest hängt an einer Dublette, nach der Physarum fragt |
 
 ### 8.3 Raptor: erst viel bauen, dann wegnehmen
 
 Nach sechs Runden fragte eine strategische Prüfung, ob das System noch das schlankeste ist, das den Auftrag erfüllt. Befund: Es wuchs nur noch, jede Runde fügte Regeln für die eine geprüfte Firma hinzu, und der Geldkern hing an den Wörtern „bezahlt“ und „fällig“. Seitdem gilt:
 
-- **Der Prüfstand ist die Belohnung.** Sieben Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Die drei kleinen laufen zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
+- **Der Prüfstand ist die Belohnung.** Acht Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Jede läuft zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
 - **Die Stopp-Regel:** Eine Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
 - **Erst löschen.** Weg sind der Abgleich-Ablauf (zwei Wahrheiten für „bezahlt“), die Fragen zum Datenmodell (jetzt umkehrbare Hinweise an der Liste), doppelte Hilfsfunktionen, tote Funktionen und der Tero-Löser.
 
@@ -197,3 +201,17 @@ Nach sechs Runden fragte eine strategische Prüfung, ob das System noch das schl
 | Wort-Regeln / reguläre Ausdrücke | 739 / 162 | 746 / 164 |
 
 Centgenau stimmen jetzt Agentur, Handwerk, Demo, Musikschule und Maler, die drei kleinen auch unter fremden Namen. Beim Shop bleiben 10 bzw. 12 Bestellungen zu viel offen: Sie sind über Klarna oder PayPal bezahlt, deren Abrechnungen Physarum noch nicht als Zahlungsnachweis liest (nur der Kontoauszug zählt), über eine B2B-Rechnung abgerechnet oder nur autorisiert. Nicht erreicht ist das Ziel, die Wort-Regeln zu halbieren. Die Runde hat Wörter durch Struktur ersetzt, wo der Geldkern daran hing. Neue Regeln brauchte es für Erstattungen, Namen und neutrale Dateinamen; die alten Wortlisten der Erkennung stehen noch.
+
+**Runde 7** prüfte das gleichzeitig von zwei Seiten: eine Kfz-Werkstatt, die niemand kannte, und eine Code-Prüfung der Raptor-Runde. Die Werkstatt kam in den Prüfstand, und alle Firmen laufen seitdem auch unter fremden Namen. Erst dort wurden ein Absturz der Haustechnik, Heute mit über 900 Einträgen bei der Agentur und eine vermischte Kontaktliste beim Shop sichtbar. Ersetzt wurde wieder Wort durch Struktur: Rücklastschrift an der Gläubiger-ID, Skonto nach Kondition, Brutto als der größte Betrag, Netto über den Steuersatz, ein Buchdatum, das der Bank folgt, Stammdaten neben Geschäftsvorfällen an Datum und Betrag. Ein Datum, das nie nach dem Start liegt, ist Herkunft und kein Schritt.
+
+| Kennzahl (Prüfstand mit Werkstatt, alle Firmen auch unter fremden Namen) | vorher | nachher |
+|---|---:|---:|
+| Geld richtig | 0,269 | 0,882 |
+| Heute-Aufgaben richtig | 0,614 | 0,934 |
+| gleiche offene Posten unter anderen Namen | 0,954 | 1,0 |
+| Listen gleich benannt | 0,622 | 0,671 |
+| Abstürze | 1 | 0 |
+| Zeilen Code | 18.564 | 18.867 |
+| Wort-Regeln / reguläre Ausdrücke | 696 / 164 | 708 / 174 |
+
+Wort-Regeln zählen seit Runde 7 nur echte Wortlisten (vorher auch Konstanten wie `EPS`: 746). Die Runde hat 300 Zeilen gekostet. Wieder gestrichen wurden toter Code, ungenutzte Importe und doppelte Mechanismen.

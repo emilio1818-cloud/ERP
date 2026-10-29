@@ -863,6 +863,8 @@ def guess_company(rt) -> dict:
     if pool:
         top = max(pool.values())
         out["name"] = max((n for n, c in pool.items() if c == top), key=len)
+    for k, v in _letterhead(rt, out.get("name")).items():
+        out.setdefault(k, v)
     if not out.get("iban"):
         from .reconcile import bank_specs
         for b in bank_specs(rt.model):
@@ -872,6 +874,41 @@ def guess_company(rt) -> dict:
                     if r["data"].get(own["id"]):
                         out["iban"] = r["data"][own["id"]]
     return out
+
+
+_ADDRESS = re.compile(r"([A-ZÄÖÜ][\wäöüß.\- ]*?\s\d+\s?[a-z]?)\s*[·,|]\s*(\d{5})\s+([A-ZÄÖÜ][\wäöüß\-]+(?: [A-ZÄÖÜ][\wäöüß\-]+)?)")
+_VAT_RE = re.compile(r"USt\.?-?\s?Id(?:ent)?(?:\.?-?Nr)?\.?:?\s*([A-Z]{2}\s?\d(?:\s?\d){8,11})")
+_TAX_NO_RE = re.compile(r"(?:Steuernummer|St\.?-?Nr\.?):?\s*(\d{2,3}/\d{3,4}/\d{4,5})")
+_MAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_PHONE_RE = re.compile(r"(?:Tel\.?|Telefon):?\s*(\+?[\d][\d /()-]{5,}\d)")
+
+
+def _letterhead(rt, name: str | None) -> dict:
+    """The firm's own letters (its invoices as PDF) carry what it is: address, VAT id or tax number,
+    account, mail and phone – read from those whose letterhead names it, the most frequent value wins."""
+    from collections import Counter, defaultdict
+
+    from .pdfinvoice import is_own, norm
+    if not name:
+        return {}
+    own = {norm(name)}
+    seen = defaultdict(Counter)
+    for d in rt.records.get("doc", []):
+        text = str(d["data"].get("doc_text") or "")
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        if not lines or not is_own(lines[0], own):
+            continue
+        head = "\n".join(lines[:4])
+        if (m := _ADDRESS.search(head)):
+            seen["street"][m.group(1).strip()] += 1
+            seen["zip"][m.group(2)] += 1
+            seen["city"][m.group(3).strip()] += 1
+        for key, rx, where in (("vat_id", _VAT_RE, text), ("tax_no", _TAX_NO_RE, text), ("iban", _IBAN_RE, text),
+                               ("email", _MAIL_RE, head), ("phone", _PHONE_RE, head)):
+            if (m := rx.search(where)):
+                v = m.group(1) if m.groups() else m.group(0)
+                seen[key][v.replace(" ", "") if key in ("vat_id", "iban") else v.strip()] += 1
+    return {k: c.most_common(1)[0][0] for k, c in seen.items() if c}
 
 
 def company_missing(store) -> list[str]:

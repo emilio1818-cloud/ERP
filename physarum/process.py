@@ -1183,6 +1183,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     x["maybe_paid"] = pending_payments[x["rid"]]  # a transfer without reference fits: do not dun
                 if x["rid"] in draft_of and st and st["source"] == "child":
                     x["draft"] = draft_of[x["rid"]]
+                if kind == "overdue" and ledger and (ledger.get(x["rid"]) or {}).get("notes") and not x.get("reason"):
+                    x["reason"] = "; ".join(ledger[x["rid"]]["notes"])  # "400,00 € von 1.120,00 € bezahlt, …"
             if kind == "overdue":
                 head = f"{spec['plural']} {st['phrase']} – überfällig"
                 sev = 3
@@ -1231,7 +1233,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                            explain="Erst beim Ausstellen bekommen sie ihre Nummer und werden verschickt. Bis dahin schuldet niemand etwas."))
     if ledger:
         from .payments import problems
-        bad = problems(ledger)
+        dunned = {x["rid"] for g in groups if g["kind"] == "overdue" for x in g["items"]}
+        bad = [e for e in problems(ledger) if e["rid"] not in dunned]  # overdue says it already, with the reason
         if bad:
             items = []
             for e in sorted(bad, key=lambda e: (e["state"] != "überzahlt", -abs(e["open"]))):

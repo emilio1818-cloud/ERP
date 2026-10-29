@@ -186,6 +186,19 @@ class Runtime:
                                    + " – vor der nächsten Zahlung telefonisch bestätigen"))
         return out
 
+    def _course_of_payment(self, spec: dict) -> set:
+        """The book's columns that follow the money – its own paid date, what it has received – not the
+        document: they change as payments come in."""
+        from .payments import _received_attr
+        from .text import fold
+        p = next((x for x in self.model.get("processes", []) if x["type"] == spec["id"]), None)
+        if not p:
+            return set()
+        own = [s["attr"] for st in p["steps"] if fold(st["label"]) == "bezahlt"
+               for s in [st] + st.get("also", []) if s["source"] == "own"]
+        got = _received_attr(spec, p, self.records.get(spec["id"], []), own)
+        return set(own) | ({got} if got else set())
+
     def mail_payments(self) -> list[dict]:
         """A list that came by mail says invoices are paid: shown, not counted, until the owner accepts it."""
         from .payments import untrusted_rows
@@ -239,6 +252,7 @@ class Runtime:
                 if _foreign_numbers(spec, self.model) else None
             by_number = defaultdict(list)
             missing = {}
+            course = self._course_of_payment(spec)  # kept up as the money comes: no correction of the document
             for m in spec.get("members", []):
                 v = m.get("versions") or {}
                 for k in v.get("vanished") or []:
@@ -262,11 +276,19 @@ class Runtime:
                                                  f"die Rechnung ist festgeschrieben", sev=3))
                 for aid, (was, now, src, when) in (meta.get("corrected") or {}).items():
                     a = next((x for x in spec["attrs"] if x["id"] == aid), None)
-                    if a:
+                    if a and aid not in course:
                         from .values import display
+
+                        def shown(v, number=False):  # a customer by name (and number), not by its id in here
+                            if a["kind"] == "ref" and isinstance(v, int) and v in self.by_id:
+                                k = (self.spec(self.by_id[v]["type"]) or {}).get("key")
+                                no = self.by_id[v]["data"].get(k) if k and number else None
+                                return f"{no} · {self.title(v)}" if no is not None else self.title(v)
+                            return display(v, a["kind"])
+                        same = shown(was) == shown(now)  # two Thomas Beckers: their numbers tell them apart
                         items.append(dict(rid=r["id"], title=self.title(r["id"]), days=0, money=None, party=None,
-                                          reason=f"{a['name']} nach der Ausstellung geändert: {display(was, a['kind'])} → "
-                                                 f"{display(now, a['kind'])} laut „{src}“ – im anderen Programm korrigiert?",
+                                          reason=f"{a['name']} nach der Ausstellung geändert: {shown(was, same)} → "
+                                                 f"{shown(now, same)} laut „{src}“ – im anderen Programm korrigiert?",
                                           sev=2, seen=f"/r/{r['id']}/korrektur-gesehen"))
                         break
                 e = self.ledger.get(r["id"])

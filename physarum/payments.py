@@ -451,7 +451,24 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                     e["paid"] += amount
                     e["payments"].append(dict(rid=None, date=when, amount=round(amount, 2), by_hand=m.get("id"),
                                               how=f"{CASH_KINDS.get(m.get('how'), 'Zahlung')} (von Hand eingetragen)"))
-        # the book's "erhalten": what came in at the counter (cash, card) next to what the bank shows
+        pool = iban_party = None
+
+        def pool_of():  # bank lines that name no invoice, and the accounts that paid a customer's invoices before
+            nonlocal pool, iban_party
+            if pool is None:
+                pool = _bank_pool(model, banks, records, by_id, set(links) | claimed, ip["outgoing"])
+                iban_party = {}
+                for bb, invs in links.items():
+                    row = by_id.get(bb)
+                    iv = _iban_of(banks[row["type"]], row) if row and row["type"] in banks else ""
+                    for i in invs:
+                        pv = by_id[i]["data"].get(p.get("party")) if i in by_id and p.get("party") else None
+                        if len(iv) >= 15 and isinstance(pv, int):
+                            iban_party.setdefault(iv, set()).add(pv)
+            return pool, iban_party
+
+        # the book's "erhalten" beyond what the bank shows: the customer's transfer without a number (a down
+        # payment before the invoice), or money at the counter (cash, card)
         for r in recs:
             e = entries.get(r["id"])
             v = got.get(r["id"]) if e else None
@@ -459,12 +476,19 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 continue
             bank = sum(x["amount"] for x in e["payments"] if x["amount"] > 0)
             ds = [d for a in own_paid if (d := as_date(r["data"].get(a)))]
-            if v > bank + EPS and (bank > EPS or not ds):  # paid in the book's words: the paid date says it already
-                e["paid"] += round(v - bank, 2)
-                e["payments"].append(dict(rid=None, date=min(ds) if ds else e["start"], amount=round(v - bank, 2),
-                                          how="laut Buch erhalten (bar oder Karte)"))
+            extra = round(v - bank, 2)
+            if extra <= EPS or not (bank > EPS or not ds):  # paid in the book's words: the paid date says it already
+                continue
+            hit = _listed_payment(model, *pool_of(), extra, e["start"], r, p, spec, by_id, window=(120, 60)) \
+                if e["start"] else None
+            if hit:
+                claimed.add(hit["rid"])
+            e["paid"] += extra
+            e["payments"].append(dict(rid=hit["rid"], date=hit["date"], amount=extra,
+                                      how="Zahlung ohne Nummer – Betrag und Zahler passen zum Buch") if hit else
+                                 dict(rid=None, date=min(ds) if ds else e["start"], amount=extra,
+                                      how="laut Buch erhalten (bar oder Karte)"))
         # book or manual paid date: paid in full when the bank does not speak
-        pool = iban_party = None
         alone = []  # paid by the list, no transfer of their own amount: perhaps one transfer for several
         for r in recs:
             e = entries.get(r["id"])
@@ -482,18 +506,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 e["paid"] = owed
                 w = ((r.get("meta") or {}).get("w") or {}).get(own_paid[0]) or ["import"]
                 if w[0] != "user" and owed > EPS:
-                    if pool is None:
-                        pool = _bank_pool(model, banks, records, by_id, set(links) | claimed, ip["outgoing"])
-                    if iban_party is None:
-                        iban_party = {}
-                        for bb, invs in links.items():
-                            row = by_id.get(bb)
-                            iv = _iban_of(banks[row["type"]], row) if row and row["type"] in banks else ""
-                            for i in invs:
-                                pv = by_id[i]["data"].get(p.get("party")) if i in by_id and p.get("party") else None
-                                if len(iv) >= 15 and isinstance(pv, int):
-                                    iban_party.setdefault(iv, set()).add(pv)
-                    hit = _listed_payment(model, pool, owed, min(ds), r, p, spec, by_id, iban_party)
+                    pool_of()
+                    hit = _listed_payment(model, pool, iban_party, owed, min(ds), r, p, spec, by_id)
                     if hit:
                         claimed.add(hit["rid"])
                         e["payments"].append(dict(rid=hit["rid"], date=hit["date"], amount=owed,
@@ -589,11 +603,12 @@ def _iban_of(b: dict, row: dict) -> str:
     return str(row["data"].get(b["iban"]["id"]) or "").replace(" ", "").upper() if b.get("iban") else ""
 
 
-def _listed_payment(model, pool, owed, paid_on, r, p, spec, by_id, iban_party=None) -> dict | None:
+def _listed_payment(model, pool, iban_party, owed, paid_on, r, p, spec, by_id, window=(7, 7)) -> dict | None:
     """The invoice book says "bezahlt am 13.01."; on the statement, the same customer transferred
-    exactly that amount within a few days, without a number: that is the payment. "The same customer"
-    is its name, an account that paid its invoices before, or a purpose naming the invoice's date."""
-    cands = [x for x in pool.get(round(owed, 2), []) if abs((x["date"] - paid_on).days) <= 7]
+    exactly that amount within a few days (`window`: days before, days after), without a number: that is the
+    payment. "The same customer" is its name, an account that paid its invoices before, or a purpose naming
+    the invoice's date."""
+    cands = [x for x in pool.get(round(owed, 2), []) if -window[0] <= (x["date"] - paid_on).days <= window[1]]
     if not cands:
         return None
     party = r["data"].get(p.get("party")) if p.get("party") else None

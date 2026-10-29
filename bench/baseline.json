@@ -1,14 +1,14 @@
 {
  "summary": {
   "money": 0.853,
-  "heute": 0.922,
+  "heute": 0.928,
   "names": 1.0,
   "lists": 0.671,
   "schema_questions": 0,
   "errors": 0,
-  "lines": 18734,
-  "word_rules": 700,
-  "regexes": 168
+  "lines": 18816,
+  "word_rules": 705,
+  "regexes": 173
  },
  "results": [
   {
@@ -35,8 +35,8 @@
      ],
      "questions": 3,
      "schema_questions": 0,
-     "heute_groups": 6,
-     "heute_items": 18,
+     "heute_groups": 5,
+     "heute_items": 16,
      "coverage": 0.883,
      "open": {
       "RE-2026-0311": 178.5,
@@ -108,7 +108,7 @@
        "fn": 0
       }
      },
-     "seconds": 33.0,
+     "seconds": 31.6,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -134,8 +134,8 @@
      ],
      "questions": 2,
      "schema_questions": 0,
-     "heute_groups": 5,
-     "heute_items": 18,
+     "heute_groups": 4,
+     "heute_items": 17,
      "coverage": 0.9,
      "open": {
       "RE-2026-0311": 178.5,
@@ -193,7 +193,7 @@
        "fn": 1
       }
      },
-     "seconds": 40.1,
+     "seconds": 40.4,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -227,7 +227,7 @@
      "questions": 202,
      "schema_questions": 0,
      "heute_groups": 7,
-     "heute_items": 100,
+     "heute_items": 99,
      "coverage": 0.782,
      "open": {
       "RE2026-104": 621.57,
@@ -289,7 +289,7 @@
        "fn": 0
       }
      },
-     "seconds": 31.3,
+     "seconds": 29.9,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -317,7 +317,7 @@
      "questions": 202,
      "schema_questions": 0,
      "heute_groups": 7,
-     "heute_items": 109,
+     "heute_items": 108,
      "coverage": 0.785,
      "open": {
       "RE2026-104": 621.57,
@@ -380,7 +380,7 @@
        "fn": 0
       }
      },
-     "seconds": 41.5,
+     "seconds": 41.0,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -412,8 +412,8 @@
      ],
      "questions": 2,
      "schema_questions": 0,
-     "heute_groups": 6,
-     "heute_items": 18,
+     "heute_groups": 5,
+     "heute_items": 16,
      "coverage": 0.883,
      "open": {
       "RE-2026-0311": 178.5,
@@ -485,7 +485,7 @@
        "fn": 0
       }
      },
-     "seconds": 34.5,
+     "seconds": 33.6,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -513,8 +513,8 @@
      ],
      "questions": 1,
      "schema_questions": 0,
-     "heute_groups": 5,
-     "heute_items": 18,
+     "heute_groups": 4,
+     "heute_items": 17,
      "coverage": 0.9,
      "open": {
       "RE-2026-0311": 178.5,
@@ -572,7 +572,7 @@
        "fn": 1
       }
      },
-     "seconds": 42.4,
+     "seconds": 41.5,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -604,7 +604,7 @@
      "questions": 3,
      "schema_questions": 0,
      "heute_groups": 9,
-     "heute_items": 24,
+     "heute_items": 22,
      "coverage": 0.883,
      "open": {
       "RE-2026-0311": 178.5,
@@ -682,7 +682,7 @@
        "fn": 0
       }
      },
-     "seconds": 45.6,
+     "seconds": 44.5,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -710,7 +710,7 @@
      "questions": 2,
      "schema_questions": 0,
      "heute_groups": 9,
-     "heute_items": 23,
+     "heute_items": 22,
      "coverage": 0.899,
      "open": {
       "RE-2026-0311": 178.5,
@@ -772,7 +772,7 @@
        "fn": 1
       }
      },
-     "seconds": 55.8,
+     "seconds": 53.9,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -806,7 +806,7 @@
      "questions": 202,
      "schema_questions": 0,
      "heute_groups": 7,
-     "heute_items": 100,
+     "heute_items": 99,
      "coverage": 0.793,
      "open": {
       "RE2026-104": 621.57,
@@ -868,7 +868,7 @@
        "fn": 0
       }
      },
-     "seconds": 31.6,
+     "seconds": 31.1,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -896,7 +896,7 @@
      "questions": 202,
      "schema_questions": 0,
      "heute_groups": 7,
-     "heute_items": 111,
+     "heute_items": 110,
      "coverage": 0.796,
      "open": {
       "RE2026-104": 621.57,
@@ -959,7 +959,7 @@
        "fn": 0
       }
      },
-     "seconds": 41.3,
+     "seconds": 39.8,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -994,7 +994,7 @@
      "questions": 202,
      "schema_questions": 0,
      "heute_groups": 8,
-     "heute_items": 113,
+     "heute_items": 112,
      "coverage": 0.792,
      "open": {
       "RE2026-104": 621.57,
@@ -1056,7 +1056,7 @@
        "fn": 0
       }
      },
-     "seconds": 33.0,
+     "seconds": 32.4,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -1085,7 +1085,7 @@
      "questions": 202,
      "schema_questions": 0,
      "heute_groups": 8,
-     "heute_items": 122,
+     "heute_items": 121,
      "coverage": 0.794,
      "open": {
       "RE2026-104": 621.57,
@@ -1148,7 +1148,7 @@
        "fn": 0
       }
      },
-     "seconds": 43.3,
+     "seconds": 42.6,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -1223,7 +1223,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.8,
+     "seconds": 1.7,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1254,8 +1254,8 @@
      ],
      "questions": 1,
      "schema_questions": 0,
-     "heute_groups": 8,
-     "heute_items": 274,
+     "heute_groups": 7,
+     "heute_items": 269,
      "coverage": 0.826,
      "open": {
       "RE-2025-0201": 7391.09,
@@ -1363,7 +1363,7 @@
        "fn": 0
       }
      },
-     "seconds": 5.8,
+     "seconds": 5.6,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1396,7 +1396,7 @@
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 11,
-     "heute_items": 48,
+     "heute_items": 46,
      "coverage": 0.827,
      "open": {
       "RE-2026-0010": 1785.0,
@@ -1448,7 +1448,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.1,
+     "seconds": 2.0,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -1473,8 +1473,8 @@
      ],
      "questions": 1,
      "schema_questions": 0,
-     "heute_groups": 14,
-     "heute_items": 58,
+     "heute_groups": 13,
+     "heute_items": 56,
      "coverage": 0.857,
      "open": {
       "RE-2026-0010": 1785.0,
@@ -1533,7 +1533,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.2,
+     "seconds": 3.0,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -1557,8 +1557,8 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 5,
-     "heute_items": 28,
+     "heute_groups": 4,
+     "heute_items": 24,
      "coverage": 0.839,
      "open": {
       "BR-2026-0276": 95.0,
@@ -1614,7 +1614,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.7,
+     "seconds": 0.6,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1635,8 +1635,8 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 7,
-     "heute_items": 9,
+     "heute_groups": 6,
+     "heute_items": 8,
      "coverage": 0.986,
      "open": {
       "RE-2026-100": 1570.0,
@@ -1703,7 +1703,7 @@
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 4,
-     "heute_items": 23,
+     "heute_items": 17,
      "coverage": 0.876,
      "open": {
       "31034": 720.0,
@@ -1790,7 +1790,7 @@
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 6,
-     "heute_items": 28,
+     "heute_items": 20,
      "coverage": 0.881,
      "open": {
       "31034": 720.0,
@@ -1839,7 +1839,6 @@
      "over_budget": [],
      "receipts": [
       250.0,
-      500.0,
       795.35
      ],
      "eur_open": 13941.2,
@@ -1863,7 +1862,7 @@
       },
       "receipts": {
        "tp": 1,
-       "fp": 2,
+       "fp": 1,
        "fn": 2
       }
      },
@@ -1943,7 +1942,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.9,
+     "seconds": 1.7,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2093,7 +2092,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.0,
+     "seconds": 1.9,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2123,8 +2122,8 @@
      ],
      "questions": 1,
      "schema_questions": 0,
-     "heute_groups": 7,
-     "heute_items": 174,
+     "heute_groups": 6,
+     "heute_items": 169,
      "coverage": 0.826,
      "open": {
       "RE-2025-0201": 7391.09,
@@ -2232,7 +2231,7 @@
        "fn": 0
       }
      },
-     "seconds": 5.7,
+     "seconds": 5.8,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2263,8 +2262,8 @@
      ],
      "questions": 1,
      "schema_questions": 0,
-     "heute_groups": 8,
-     "heute_items": 274,
+     "heute_groups": 7,
+     "heute_items": 269,
      "coverage": 0.826,
      "open": {
       "RE-2025-0201": 7391.09,
@@ -2372,7 +2371,7 @@
        "fn": 0
       }
      },
-     "seconds": 6.2,
+     "seconds": 6.0,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2410,7 +2409,7 @@
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 12,
-     "heute_items": 55,
+     "heute_items": 50,
      "coverage": 0.881,
      "open": {
       "RE-2026-0010": 1785.0,
@@ -2470,7 +2469,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.0,
+     "seconds": 2.1,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -2502,8 +2501,8 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 13,
-     "heute_items": 58,
+     "heute_groups": 12,
+     "heute_items": 56,
      "coverage": 0.985,
      "open": {
       "RE-2026-0010": 1785.0,
@@ -2562,7 +2561,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.6,
+     "seconds": 2.5,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -2597,7 +2596,7 @@
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 11,
-     "heute_items": 48,
+     "heute_items": 46,
      "coverage": 0.796,
      "open": {
       "RE-2026-0010": 1785.0,
@@ -2649,7 +2648,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.3,
+     "seconds": 2.2,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -2677,8 +2676,8 @@
      ],
      "questions": 1,
      "schema_questions": 0,
-     "heute_groups": 14,
-     "heute_items": 59,
+     "heute_groups": 13,
+     "heute_items": 57,
      "coverage": 0.799,
      "open": {
       "RE-2026-0010": 1785.0,
@@ -2737,7 +2736,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.2,
+     "seconds": 3.1,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -2761,8 +2760,8 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 5,
-     "heute_items": 28,
+     "heute_groups": 4,
+     "heute_items": 24,
      "coverage": 0.839,
      "open": {
       "BR-2026-0276": 95.0,
@@ -2818,7 +2817,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.7,
+     "seconds": 0.6,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2842,8 +2841,8 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 5,
-     "heute_items": 28,
+     "heute_groups": 4,
+     "heute_items": 24,
      "coverage": 0.839,
      "open": {
       "BR-2026-0276": 95.0,
@@ -2923,8 +2922,8 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 5,
-     "heute_items": 28,
+     "heute_groups": 4,
+     "heute_items": 24,
      "coverage": 0.839,
      "open": {
       "BR-2026-0276": 95.0,
@@ -2980,7 +2979,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.7,
+     "seconds": 0.8,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -3001,8 +3000,74 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 7,
-     "heute_items": 9,
+     "heute_groups": 6,
+     "heute_items": 8,
+     "coverage": 0.986,
+     "open": {
+      "RE-2026-100": 1570.0,
+      "RE-2026-106": 4284.0,
+      "RE-2026-107": 1071.0,
+      "RE-2026-109": 2856.0,
+      "RE-2026-110": 3689.0,
+      "RE-2026-111": 690.2,
+      "RE-2026-112": 2558.5
+     },
+     "overdue": [
+      "RE-2026-100",
+      "RE-2026-106",
+      "RE-2026-107"
+     ],
+     "unbilled": [
+      "A-2026-030",
+      "A-2026-034"
+     ],
+     "over_budget": [],
+     "receipts": [
+      3000.0
+     ],
+     "eur_open": 16718.7,
+     "score": {
+      "open": {
+       "tp": 7,
+       "fp": 0,
+       "fn": 0,
+       "amount_ok": 7,
+       "eur_truth": 16718.7
+      },
+      "overdue": {
+       "tp": 3,
+       "fp": 0,
+       "fn": 0
+      },
+      "unbilled": {
+       "tp": 2,
+       "fp": 0,
+       "fn": 0
+      }
+     },
+     "seconds": 0.1,
+     "delivery": 1,
+     "today": "2026-10-29"
+    }
+   ]
+  },
+  {
+   "firm": "maler",
+   "variant": "S2",
+   "deliveries": [
+    {
+     "types": 5,
+     "lists": [
+      "Aufträge",
+      "Dokumente",
+      "Kontobewegungen",
+      "Kunden",
+      "Rechnungen"
+     ],
+     "questions": 0,
+     "schema_questions": 0,
+     "heute_groups": 6,
+     "heute_items": 8,
      "coverage": 0.986,
      "open": {
       "RE-2026-100": 1570.0,
@@ -3054,72 +3119,6 @@
   },
   {
    "firm": "maler",
-   "variant": "S2",
-   "deliveries": [
-    {
-     "types": 5,
-     "lists": [
-      "Aufträge",
-      "Dokumente",
-      "Kontobewegungen",
-      "Kunden",
-      "Rechnungen"
-     ],
-     "questions": 0,
-     "schema_questions": 0,
-     "heute_groups": 7,
-     "heute_items": 9,
-     "coverage": 0.986,
-     "open": {
-      "RE-2026-100": 1570.0,
-      "RE-2026-106": 4284.0,
-      "RE-2026-107": 1071.0,
-      "RE-2026-109": 2856.0,
-      "RE-2026-110": 3689.0,
-      "RE-2026-111": 690.2,
-      "RE-2026-112": 2558.5
-     },
-     "overdue": [
-      "RE-2026-100",
-      "RE-2026-106",
-      "RE-2026-107"
-     ],
-     "unbilled": [
-      "A-2026-030",
-      "A-2026-034"
-     ],
-     "over_budget": [],
-     "receipts": [
-      3000.0
-     ],
-     "eur_open": 16718.7,
-     "score": {
-      "open": {
-       "tp": 7,
-       "fp": 0,
-       "fn": 0,
-       "amount_ok": 7,
-       "eur_truth": 16718.7
-      },
-      "overdue": {
-       "tp": 3,
-       "fp": 0,
-       "fn": 0
-      },
-      "unbilled": {
-       "tp": 2,
-       "fp": 0,
-       "fn": 0
-      }
-     },
-     "seconds": 0.3,
-     "delivery": 1,
-     "today": "2026-10-29"
-    }
-   ]
-  },
-  {
-   "firm": "maler",
    "variant": "S3",
    "deliveries": [
     {
@@ -3133,8 +3132,8 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 7,
-     "heute_items": 9,
+     "heute_groups": 6,
+     "heute_items": 8,
      "coverage": 0.986,
      "open": {
       "RE-2026-100": 1570.0,
@@ -3201,7 +3200,7 @@
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 4,
-     "heute_items": 23,
+     "heute_items": 17,
      "coverage": 0.876,
      "open": {
       "31034": 720.0,
@@ -3271,7 +3270,7 @@
        "fn": 1
       }
      },
-     "seconds": 1.6,
+     "seconds": 1.7,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -3288,7 +3287,7 @@
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 6,
-     "heute_items": 28,
+     "heute_items": 20,
      "coverage": 0.881,
      "open": {
       "31034": 720.0,
@@ -3337,7 +3336,6 @@
      "over_budget": [],
      "receipts": [
       250.0,
-      500.0,
       795.35
      ],
      "eur_open": 13941.2,
@@ -3361,11 +3359,11 @@
       },
       "receipts": {
        "tp": 1,
-       "fp": 2,
+       "fp": 1,
        "fn": 2
       }
      },
-     "seconds": 2.1,
+     "seconds": 1.9,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -3388,7 +3386,7 @@
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 4,
-     "heute_items": 23,
+     "heute_items": 17,
      "coverage": 0.876,
      "open": {
       "31034": 720.0,
@@ -3458,7 +3456,7 @@
        "fn": 1
       }
      },
-     "seconds": 1.8,
+     "seconds": 1.7,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -3476,7 +3474,7 @@
      "questions": 1,
      "schema_questions": 0,
      "heute_groups": 6,
-     "heute_items": 28,
+     "heute_items": 20,
      "coverage": 0.885,
      "open": {
       "31034": 720.0,
@@ -3525,7 +3523,6 @@
      "over_budget": [],
      "receipts": [
       250.0,
-      500.0,
       795.35
      ],
      "eur_open": 13941.2,
@@ -3549,7 +3546,7 @@
       },
       "receipts": {
        "tp": 1,
-       "fp": 2,
+       "fp": 1,
        "fn": 2
       }
      },

@@ -90,6 +90,9 @@ def read_file(name: str, data: bytes, sender: str | None = None) -> Digest:
     ext = PurePath(name).suffix.lower()
     stem = PurePath(name).stem
     d = Digest()
+    if stem.startswith("~$"):
+        d.notes.append("Sperrdatei von Office (die Mappe war beim Kopieren geöffnet) – nichts darin, übersprungen.")
+        return d
     try:
         if ext in SHEET_EXT:
             _read_xlsx(stem, data, d)
@@ -120,6 +123,8 @@ def read_file(name: str, data: bytes, sender: str | None = None) -> Digest:
                 d.notes.append(f"Unbekanntes Binärformat ({ext or 'ohne Endung'}) – Datei wurde aufbewahrt.")
             else:
                 _read_text(stem, text, enc, ext, d)
+    except zipfile.BadZipFile:
+        d.notes.append(f"Konnte {name} nicht lesen: beschädigt oder keine echte {ext[1:].upper()}-Datei. Sie ist aufbewahrt.")
     except Exception as e:  # a broken file must never break the whole dump
         d.notes.append(f"Konnte {name} nicht lesen: {type(e).__name__}: {e}")
     return d

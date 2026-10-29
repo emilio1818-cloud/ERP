@@ -5,7 +5,7 @@
   <p>Nur dort, wo die Daten nicht eindeutig sind. Sortiert nach Wirkung: Ihre Antwort klärt hier am meisten. Nichts wird zweimal gefragt.</p></div></div>
 {% for q in questions %}
 <div class="question" data-remove>
-  <div class="row between"><div class="q">{{ q.text }}</div><span class="pill">{{ {'same_record':'Dublette?','same_type':'Gleiche Art?','relation':'Verweis?','confirm_merge':'Bestätigen'}.get(q.kind, q.kind) }}</span></div>
+  <div class="row between"><div class="q">{{ q.text }}</div><span class="pill">{{ {'same_record':'Dublette?','same_type':'Gleiche Art?','relation':'Verweis?','confirm_merge':'Bestätigen','payment_match':'Zahlung?'}.get(q.kind, 'Frage') }}</span></div>
   <p class="muted" style="font-size:.88rem; margin:.3rem 0">{{ q.detail }}</p>
   {% if q.a and q.b %}
   <div class="compare">

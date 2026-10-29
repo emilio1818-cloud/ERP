@@ -6,6 +6,7 @@
   {%- elif g.kind == 'ready' -%}{{ 'seit heute' if it.days == 0 else 'seit ' ~ days_text(it.days) }} fertig{% if it.late %} <span class="faint">(üblich berechnet {{ after_days(it.usual or 0) }})</span>{% endif %}
   {%- elif g.kind == 'soon' -%}{{ 'heute fällig' if it.days == 0 else 'fällig in ' ~ it.days ~ ' Tagen' }}
   {%- elif g.kind == 'payable' -%}{{ 'heute fällig' if it.days == 0 else ('seit ' ~ (-it.days) ~ (' Tag' if it.days == -1 else ' Tagen') ~ ' fällig' if it.days < 0 else 'fällig in ' ~ it.days ~ (' Tag' if it.days == 1 else ' Tagen')) }}{% if it.due_how %} <span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">(berechnet: {{ it.due_how }})</span>{% endif %}
+  {%- elif g.kind == 'due' and it.reason -%}{{ it.reason }}
   {%- elif g.kind == 'due' -%}{% if it.label %}{{ it.label }} · {% endif %}{{ 'heute' if it.days == 0 else (('seit ' ~ (-it.days) ~ (' Tag' if it.days == -1 else ' Tagen') ~ (' überschritten' if it.label else '')) if it.days < 0 else ('bis ' ~ display(it.due, 'date') if it.label else 'in ' ~ it.days ~ (' Tag' if it.days == 1 else ' Tagen'))) }}{% if it.due_how %} <span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">(berechnet: {{ it.due_how }})</span>{% endif %}
   {%- elif g.kind == 'threshold' -%}Bestand {{ it.value|de }} · mindestens {{ it.min|de }}
   {%- elif g.kind == 'rhythm' -%}seit {{ days_text(it.days) }} nichts <span class="faint">(sonst alle {{ it.usual }} Tage)</span>
@@ -63,7 +64,11 @@
             {% elif g.kind == 'overdue' and g.step == 'bezahlt' %}
               <a class="btn small ghost" href="/r/{{ it.rid }}/erinnerung" target="_blank" title="Ein Brief an den Kunden mit allen überfälligen Rechnungen">Erinnern</a>
             {% endif %}
-            {% if g.action and g.action.kind == 'set_date' %}
+            {% if g.action and g.action.kind == 'follow_up' %}
+              {% if g.action.create %}<a class="btn small" href="/t/{{ g.action.create.type }}/neu?a_{{ g.action.create.attr }}={{ it.rid }}" title="Der Kunde hat zugesagt">+ {{ g.action.create.label }}</a>{% endif %}
+              <button class="small" data-post="/r/{{ it.rid }}/nachfassen" data-body='{"outcome": "later"}' title="Nachgefasst, noch keine Entscheidung – in {{ g.action.days }} Tagen wieder vorlegen">In {{ g.action.days }} Tagen wieder</button>
+              {% if g.action.negative %}<button class="small ghost" data-post="/r/{{ it.rid }}/nachfassen" data-body='{"outcome": "lost"}' title="Der Kunde hat abgesagt – Status „{{ g.action.negative }}“">{{ g.action.negative|capitalize }}</button>{% endif %}
+            {% elif g.action and g.action.kind == 'set_date' %}
               <button class="small" data-post="/r/{{ it.rid }}/schritt" data-body='{"attr": "{{ g.action.attr }}"}' title="Mit heutigem Datum eintragen – lässt sich rückgängig machen">✓ {{ g.action.label }}</button>
             {% elif g.action and g.action.kind == 'create_child' and it.draft %}
               <a class="btn small ghost" href="/r/{{ it.draft }}" title="Für diesen Vorgang liegt schon ein Entwurf bereit">Entwurf öffnen</a>

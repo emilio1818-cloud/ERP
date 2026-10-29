@@ -492,6 +492,51 @@ class CraftFirm(unittest.TestCase):
         self.assertIn("Transit", due)                                              # HU next month
         self.assertIn("Pressmaschine", due)
 
+    def test_offers_to_follow_up_are_the_open_ones_whose_day_has_come(self):
+        from starlette.testclient import TestClient
+        from physarum import ops
+        from physarum.web.app import create_app
+        today = date(2026, 10, 29)
+        head = "Angebots-Nr.;Datum;Kunde;Betreff;Netto;Status;Auftrag;nachfassen am"
+        rows, orders = [], []
+        for i in range(40):
+            d = date(2026, 1, 8) + timedelta(days=7 * i)
+            no, age = f"AN-26-{i + 1:03d}", (today - d).days
+            st, job = ("beauftragt" if i % 4 == 0 and age > 40 else "abgelehnt" if i % 4 == 1 and age > 30 else "offen"), ""
+            if st == "beauftragt" or i == 34:  # AN-26-035: ordered, but the list still says "offen"
+                job = f"A26-{i + 1:03d}"
+                orders.append([job, (d + timedelta(days=21)).strftime("%d.%m.%Y"), f"Kunde {i % 6}", no,
+                               f"Arbeiten {i}", _eur(5000 + 100 * i)])
+            follow = (d + timedelta(days=14)).strftime("%d.%m.%Y") if st == "offen" or i == 33 else ""
+            rows.append([no, d.strftime("%d.%m.%Y"), f"Kunde {i % 6}", f"Arbeiten {i}", _eur(5000 + 100 * i), st, job,
+                         follow])
+        rows.append(["AN-26-041", "16.10.2026", "Kunde 1", "Bad", "7000,00", "offen", "", "30.10.2026"])  # tomorrow
+        self.f.feed([("Angebote_2026.csv", csv(head, rows)),
+                     ("Auftragsbuch.csv", csv("Auftrag;Datum;Kunde;Angebot;Leistung;Wert", orders))])
+        rt = self.f.rt()
+        self.assertEqual(next(a for a in _type(rt, "Angebot")["attrs"] if a["name"] == "nachfassen am")["role"], "due")
+        work = rt.work(today)
+        g = next(g for g in work if g["kind"] == "due" and g["type"] == _type(rt, "Angebot")["id"])
+        self.assertEqual(g["title"], "Angebote nachfassen")
+        # open, the day has come, younger than three months – not the taken, the turned down, the lapsed
+        self.assertEqual({x["title"] for x in g["items"]}, {"AN-26-031", "AN-26-032", "AN-26-036", "AN-26-039",
+                                                             "AN-26-040"})
+        self.assertIn("verlaufen", g["explain"])
+        self.assertFalse([w for w in work if w["kind"] == "late" and w["type"] == g["type"]])  # no "not ordered yet"
+        self.assertEqual(g["action"]["days"], 14)                     # the firm sets the day two weeks ahead
+        rid = {x["title"]: x["rid"] for x in g["items"]}
+        # after the call: again in two weeks, or the customer said no
+        ops.follow_up(rt, rid["AN-26-031"], "later", "Test", today)
+        c = TestClient(create_app(self.f.dir / "firma"))
+        r = c.post(f"/r/{rid['AN-26-032']}/nachfassen", data={"outcome": "lost"}, headers={"origin": "http://testserver"})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertIn("abgelehnt", r.json()["toast"])
+        rt = self.f.rt()
+        left = {x["title"] for g in rt.work(today) if g["kind"] == "due" for x in g["items"]}
+        self.assertFalse({"AN-26-031", "AN-26-032"} & left)
+        self.assertIn("AN-26-031", {x["title"] for g in rt.work(today + timedelta(days=14)) if g["kind"] == "due"
+                                    for x in g["items"]})              # back on the list in two weeks
+
 
 if __name__ == "__main__":
     unittest.main()

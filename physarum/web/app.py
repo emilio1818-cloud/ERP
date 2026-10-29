@@ -729,6 +729,22 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                                  if names else "Gespeichert",
                                  undo=dict(url=f"/r/{rid}/rueckgaengig", body=dict(attrs=",".join(changed)))))
 
+    def record_follow_up(request: Request, form):
+        rid = int(request.path_params["rid"])
+        try:
+            changed = ops.follow_up(rt, rid, form.get("outcome") or "", actor(request))
+        except ops.OpError as e:
+            return JSONResponse(dict(error=str(e)))
+        rt.ensure()
+        rec = rt.by_id.get(rid)
+        if not changed or not rec:
+            return JSONResponse(dict(reload=True, toast="Gespeichert"))
+        a = rt.attr(rec["type"], changed[0])
+        toast = (f"Wieder vorlegen am {display(rec['data'].get(changed[0]), 'date')}" if form.get("outcome") == "later"
+                 else f"{a['name']}: {rec['data'].get(changed[0])}")
+        return JSONResponse(dict(reload=True, toast=toast,
+                                 undo=dict(url=f"/r/{rid}/rueckgaengig", body=dict(attrs=",".join(changed)))))
+
     def record_take_over(request: Request):
         """One record: take over the payment state the bank statement shows."""
         rid = int(request.path_params["rid"])
@@ -1732,6 +1748,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/post/{rid:int}/erledigt", formed(mail_done), methods=["POST"]),
         Route("/zahlungsquelle/{sid:int}", formed(payment_source), methods=["POST"]),
         Route("/r/{rid:int}/schritt", formed(record_step), methods=["POST"]),
+        Route("/r/{rid:int}/nachfassen", formed(record_follow_up), methods=["POST"]),
         Route("/r/{rid:int}/notiz", formed(record_note), methods=["POST"]),
         Route("/r/{rid:int}/storno", formed(record_storno), methods=["POST"]),
         Route("/r/{rid:int}/loeschen", formed(record_delete), methods=["POST"]),

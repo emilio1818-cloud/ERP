@@ -169,6 +169,20 @@ MILESTONE_WORDS = {
     "wartung": "gewartet", "gewartet": "gewartet", "ende": "beendet", "end": "beendet", "austritt": "ausgetreten",
 }
 
+# a date to act on, not one on which something happened ("nachfassen am", "Wiedervorlage", "Follow-up")
+FOLLOW_UP = ("nachfass", "wiedervorlage", "followup", "nachhaken")
+
+
+
+def _follows_up(toks: list[str]) -> bool:
+    return any(t.startswith(FOLLOW_UP) for t in toks) or ("follow" in toks and "up" in toks)
+
+
+def is_follow_up(header: str) -> bool:
+    """'nachfassen am', 'Wiedervorlage': a day to call the customer again, not a deadline someone owes."""
+    return _follows_up(tokens(header))
+
+
 # status values that terminate a process without completing it
 NEGATIVE_STATES = {"storniert", "storno", "cancelled", "canceled", "abgesagt", "abgelehnt", "rejected", "verloren",
                    "lost", "refunded", "erstattet", "zurueckgezogen", "void", "ungueltig", "inaktiv", "inactive",
@@ -331,6 +345,8 @@ def _header_role(toks: list[str]) -> str | None:
             p = " ".join(toks[i:i + n])
             if p in ROLE_PHRASES:
                 return ROLE_PHRASES[p]
+    if _follows_up(toks):
+        return "due"
     # last token is the head of the header in German and English ("Kunden-Nr", "Order ID")
     order = list(reversed(toks))
     for t in order:
@@ -501,6 +517,7 @@ STEP_STATES = {
     "versendet": {"versendet", "versandt", "verschickt", "shipped", "fulfilled"},
     "erledigt": {"erledigt", "fertig", "abgeschlossen", "done", "completed", "finished"},
     "eingegangen": {"eingegangen", "geliefert", "erhalten", "received"},
+    "beauftragt": {"beauftragt", "angenommen", "auftrag erteilt", "zugesagt", "accepted", "won", "gewonnen"},
 }
 
 

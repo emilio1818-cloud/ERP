@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from . import lexicon
 from .store import dumps, loads, now_iso
@@ -549,6 +549,23 @@ def set_step(rt, rid: int, attr: str, when: str | None, actor: str) -> list[str]
                 raw[st["attr"]] = vals[0]  # "paid" also means status "bezahlt"
                 allow.add(st["attr"])
     return update(rt, rid, raw, actor, note="Schritt erledigt", allow=allow)
+
+
+def follow_up(rt, rid: int, outcome: str, actor: str, today: date | None = None) -> list[str]:
+    """After the call: show the case again in a while ("later"), or the customer said no ("lost")."""
+    rt.ensure()
+    rec = rt.by_id.get(rid)
+    if not rec:
+        raise OpError("Datensatz nicht gefunden")
+    du = next((d for d in rt.model.get("dues", []) if d["type"] == rec["type"] and d.get("follow_up")), None)
+    if not du:
+        raise OpError("Hier gibt es keinen Termin zum Nachfassen")
+    if outcome == "later":
+        when = (today or date.today()) + timedelta(days=du.get("offset") or 14)
+        return update(rt, rid, {du["attr"]: when.isoformat()}, actor, note="nachgefasst, wieder vorlegen")
+    if outcome == "lost" and du.get("status") and du.get("negative"):
+        return update(rt, rid, {du["status"]: du["negative"]}, actor, note="nachgefasst: abgesagt")
+    raise OpError("Unbekannte Antwort")
 
 
 def paid_by_hand(rt, rid: int, when: str | None, actor: str):

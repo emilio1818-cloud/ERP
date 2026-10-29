@@ -118,11 +118,40 @@ def _due_specs(model: dict, records: dict) -> list[dict]:
             obj = set(tokens(a["name"])) - _DUE_WORDS
             done = next((b for b in spec["attrs"] if b is not a and b["kind"] in ("date", "datetime")
                          and b.get("role") != "due" and not b.get("hidden") and obj & set(tokens(b["name"]))), None)
-            if sum(1 for r in records.get(spec["id"], []) if due_range(r["data"].get(a["id"]))) >= 2:
-                out.append(dict(type=spec["id"], attr=a["id"], name=a["name"], done=done["id"] if done else None,
-                                done_label=(done.get("milestone") or done["name"]) if done else None,
-                                recurring=recurring))
+            recs = records.get(spec["id"], [])
+            if sum(1 for r in recs if due_range(r["data"].get(a["id"]))) >= 2:
+                du = dict(type=spec["id"], attr=a["id"], name=a["name"], done=done["id"] if done else None,
+                          done_label=(done.get("milestone") or done["name"]) if done else None,
+                          recurring=recurring, follow_up=lexicon.is_follow_up(a["name"]))
+                if p and not recurring:
+                    du.update(_case_life(spec, p, a, recs))
+                out.append(du)
     return out
+
+
+def _case_life(spec, p, a, recs) -> dict:
+    """For a date on a case that is still open ("nachfassen am" on an offer): which status values close
+    the case, how long such a case stays worth chasing, and how far ahead the firm usually sets the date."""
+    st = p.get("status") or {}
+    sattr = next((x for x in spec["attrs"] if x["id"] == st.get("attr")), None)
+    closed = set(st.get("negative") or [])
+    for v in (sattr or {}).get("enum") or []:
+        if fold(str(v)) in lexicon.DONE_STATES or any(lexicon.status_reaches(x["label"], v) for x in p["steps"]):
+            closed.add(v)
+    # an offer holds only as long as an answer can be expected (§ 147 BGB): the cases that were taken were
+    # taken within the usual time to their first step; three times that, at least three months
+    longest = max([x.get("median") or 0 for x in p["steps"]] or [0])
+    offsets = [(dv - sv).days for r in recs
+               if (dv := as_date(r["data"].get(a["id"]))) and (sv := as_date(r["data"].get(p["start"]["attr"])))]
+    offsets = [x for x in offsets if x > 0]
+    # the steps that settle the case: an order that names the offer, or the offer's own "Auftrag" column
+    taken = [dict(type=x["type"], attr=x["rel_attr"], own=x["rel_kind"] == "own_ref", label=x["name"])
+             for step in p["steps"] for x in [step] + step.get("also", [])
+             if x["source"] == "child" and x["rel_kind"] in ("ref", "own_ref")]
+    return dict(status=st.get("attr") if closed else None, closed=sorted(closed), start=p["start"]["attr"],
+                lifetime=int(max(90, 3 * longest)),
+                offset=int(statistics.median(offsets)) if len(offsets) >= 3 else None,
+                negative=(st.get("negative") or [None])[0], taken=taken)
 
 
 def _instance_dates(spec, recs, cand_steps, records, mention_map, start_attr: str | None = None):
@@ -787,7 +816,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                         # finished and not invoiced: money waiting to be asked for – all of it, the oldest first
                         buckets[(st["id"], "ready")].append(dict(rid=r["id"], days=waited, money=money,
                                                                  usual=st["median_days"], late=waited > limit))
-                    elif waited > limit and waited < 1100:  # claims become time-barred after three years
+                    elif waited > limit and waited < 1100 and not optional:
+                        # claims become time-barred after three years; a step most cases never reach (an offer
+                        # that is never ordered) is nothing one waits for
                         buckets[(st["id"], "late")].append(dict(rid=r["id"], days=waited, money=money,
                                                                 usual=st["median_days"]))
                     elif due and (due - today).days <= 3:
@@ -1007,7 +1038,15 @@ def _due_work(model, records, by_id, title, today) -> list[dict]:
         if not spec:
             continue
         party = next((a["id"] for a in spec["attrs"] if a["kind"] == "ref" and not a.get("hidden")), None)
-        items = []
+        proc = next((x for x in model.get("processes", []) if x["type"] == du["type"]), None)
+        closed = set(du.get("closed") or [])
+        settled = set()
+        for x in du.get("taken") or []:
+            if not x["own"]:
+                settled |= {c["data"].get(x["attr"]) for c in records.get(x["type"], [])}
+        own_taken = [x["attr"] for x in du.get("taken") or [] if x["own"]]
+        lead = du.get("offset") or 14  # how far ahead the firm sets the day
+        items, lapsed = [], 0
         for r in records.get(du["type"], []):
             v = r["data"].get(du["attr"])
             rg = due_range(v)
@@ -1017,23 +1056,63 @@ def _due_work(model, records, by_id, title, today) -> list[dict]:
             done = as_date(r["data"].get(du["done"])) if du.get("done") else None
             if done and done >= start - timedelta(days=45):
                 continue  # done for this round (a little early counts)
-            if (start - today).days > (30 if du.get("recurring") else 14):
-                continue  # a maintenance visit is arranged a month ahead
+            if du.get("status") and str(r["data"].get(du["status"])) in closed:
+                continue  # taken or turned down: nobody to call any more
+            if r["id"] in settled or any(r["data"].get(a) not in (None, "") for a in own_taken):
+                continue  # an order names it: taken
+            if (start - today).days > (30 if du.get("recurring") else 0 if du.get("follow_up") else 14):
+                continue  # a maintenance visit is arranged a month ahead; a call is made on the day
+            began = as_date(r["data"].get(du["start"])) if du.get("start") else None
+            if du.get("lifetime") and (today - end).days > du["lifetime"] - lead:
+                lapsed += 1  # months without an answer: lapsed, not a call to make (a day set anew starts afresh)
+                continue
             pv = r["data"].get(party) if party else None
-            items.append(dict(rid=r["id"], title=title(r["id"]), days=(end - today).days, money=None,
-                              due=end.isoformat(), label=str(v) if start != end else None, name=du["name"],
-                              party=title(pv) if isinstance(pv, int) and pv in by_id else None))
+            it = dict(rid=r["id"], title=title(r["id"]), days=(end - today).days, money=None,
+                      due=end.isoformat(), label=str(v) if start != end else None, name=du["name"],
+                      party=title(pv) if isinstance(pv, int) and pv in by_id else None)
+            if du.get("follow_up"):
+                d = it["days"]
+                it["money"] = _money(r, proc) if proc else None  # what the call is worth
+                it["reason"] = ((f"vom {began.strftime('%d.%m.')} · " if began else "")
+                                + ("heute nachfassen" if d == 0 else f"nachfassen seit {-d} {'Tag' if d == -1 else 'Tagen'}"))
+            items.append(it)
         if not items:
             continue
         items.sort(key=lambda x: x["days"])
         late = sum(1 for x in items if x["days"] < 0)
+        if du.get("follow_up"):
+            make = next((x for x in du.get("taken") or [] if not x["own"]), None)
+            action = dict(kind="follow_up", attr=du["attr"], days=du.get("offset") or 14, status=du.get("status"),
+                          negative=du.get("negative"),
+                          create=dict(type=make["type"], attr=make["attr"], label=make["label"]) if make else None)
+            explain = "Nachfassen laut Ihrer Liste – noch keine Zu- oder Absage. "
+            if lapsed:
+                weeks = (du["lifetime"] - lead) // 7
+                explain += (f"{lapsed} ältere {'bleibt' if lapsed == 1 else 'bleiben'} außen vor: "
+                            f"{'sein' if lapsed == 1 else 'ihr'} Termin ist seit über {weeks} Wochen vorbei – nach so "
+                            f"langer Zeit ohne Antwort {'gilt es' if lapsed == 1 else 'gelten sie'} als verlaufen.")
+        else:
+            action = dict(kind="set_date", attr=du["done"], label=du["done_label"]) if du.get("done") else None
+            explain = ((f"{late} davon schon überschritten. " if late else "") + "Termin aus Ihrer Liste"
+                       + ("; mit „✓“ wird er als erledigt eingetragen." if action else "."))
         out.append(dict(id=f"due:{du['type']}:{du['attr']}", type=du["type"], kind="due", severity=2 if late else 1,
-                        title=f"{spec['plural']}: {du['name']} steht an", count=len(items), amount=None,
-                        items=items[:50], step=du.get("done_label"),
-                        action=dict(kind="set_date", attr=du["done"], label=du["done_label"]) if du.get("done") else None,
-                        explain=(f"{late} davon schon überschritten. " if late else "")
-                                + "Termin aus Ihrer Liste; mit „✓“ wird er als erledigt eingetragen."))
+                        title=_due_title(spec["plural"], du), count=len(items), amount=None,
+                        items=items[:50], step=du.get("done_label"), action=action, explain=explain))
     return out
+
+
+def _due_title(plural: str, du: dict) -> str:
+    """'Angebote nachfassen', 'Fahrzeuge: HU fällig', 'Werkzeug: nächste Prüfung steht an'."""
+    name = du["name"].strip()
+    words = name.split()
+    if du.get("follow_up"):
+        verb = [w for w in words if fold(w) not in ("am", "bis", "datum", "termin", "ab")]
+        if len(verb) == 1 and fold(verb[0]).endswith("en"):
+            return f"{plural} {verb[0].lower()}"
+        return f"{plural}: {name}"
+    if any(fold(w) in ("faellig", "due") for w in words):
+        return f"{plural}: {name}"
+    return f"{plural}: {name} steht an"
 
 
 def _money(r, p):

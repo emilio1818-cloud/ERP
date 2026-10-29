@@ -28,6 +28,40 @@ def _book(n=24, start=date(2026, 3, 2)):
     return rows
 
 
+def _pdf_page(lines: list[str]) -> bytes:
+    """A one-page PDF with these lines, one under the other (a scanned-and-recognised letter)."""
+    esc = [x.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)") for x in lines]
+    body = ("BT /F1 10 Tf 50 800 Td " + " ".join(f"({x}) Tj 0 -14 Td" for x in esc) + " ET").encode("cp1252")
+    objs = [b"<< /Type /Catalog /Pages 2 0 R >>", b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R "
+            b"/Resources << /Font << /F1 5 0 R >> >> >>",
+            b"<< /Length %d >>\nstream\n" % len(body) + body + b"\nendstream",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"]
+    out, offs = b"%PDF-1.4\n", []
+    for i, o in enumerate(objs, start=1):
+        offs.append(len(out))
+        out += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1)
+    out += b"".join(b"%010d 00000 n \n" % o for o in offs)
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref)
+    return out
+
+
+def _supplier_invoice(no, day: date, net: float, iban: str, mail="rechnung@gh-nord.example", note=""):
+    tax, gross = round(net * 0.19, 2), round(net * 1.19, 2)
+    return _pdf_page([
+        "Grosshandel Nord GmbH", f"Hafenstr. 5 · 20457 Hamburg · {mail}",
+        "Muster Haustechnik GmbH", "Hauptstr. 1", "33602 Bielefeld", "RECHNUNG",
+        f"Rechnung Nr.: {no}", f"Rechnungsdatum: {day.strftime('%d.%m.%Y')}", "Ihre Kunden-Nr.: 55120",
+        "Kommission: Lager", "Pos Bezeichnung Menge EP GP", f"1 Kupferrohr 15 mm 10 Stk {_eur(net / 10)} {_eur(net)}",
+        f"Warenwert netto {_eur(net)} EUR", f"zzgl. 19 % MwSt. {_eur(tax)} EUR", f"Rechnungsbetrag {_eur(gross)} EUR",
+        f"Zahlbar bis {(day + timedelta(days=10)).strftime('%d.%m.%Y')} abzgl. 2 % Skonto ({_eur(gross * 0.98)} EUR) "
+        f"oder bis {(day + timedelta(days=30)).strftime('%d.%m.%Y')} netto.",
+        "Grosshandel Nord GmbH · Hafenstr. 5 · 20457 Hamburg · USt-IdNr. DE123456789",
+        f"Bankverbindung: IBAN {iban} · BIC COBADEFFXXX {note}"])
+
+
 def _states(rt, inv):
     return {rt.by_id[rid]["data"][inv["key"]]: e for rid, e in rt.ledger.items()}
 
@@ -536,6 +570,67 @@ class CraftFirm(unittest.TestCase):
         self.assertFalse({"AN-26-031", "AN-26-032"} & left)
         self.assertIn("AN-26-031", {x["title"] for g in rt.work(today + timedelta(days=14)) if g["kind"] == "due"
                                     for x in g["items"]})              # back on the list in two weeks
+
+    def test_a_pdf_invoice_reads_like_an_e_invoice(self):
+        from physarum.pdfinvoice import read
+        inv = read("Steinbach IT – Marco Steinbach\nMühlenkamp 31 · 22303 Hamburg · USt-IdNr. DE312345678\n"
+                   "Nordlicht Digital GmbH\nGroßer Burstah 12\n20457 Hamburg\nRechnung Nr. SIT-2026-07 Datum: 04.08.2026\n"
+                   "1. Entwicklung Juli (88,35 Std. à 95,00 EUR) 8.393,14 EUR\nNetto: 8.393,14 EUR\n"
+                   "USt 19 %: 1.594,70 EUR\nGesamtbetrag: 9.987,84 EUR\nZahlbar innerhalb von 10 Tagen ohne Abzug.")
+        self.assertEqual((inv["number"], inv["seller"], inv["buyer"], inv["net"], inv["tax"], inv["gross"], inv["due"],
+                          inv["seller_vat"]),
+                         ("SIT-2026-07", "Steinbach IT – Marco Steinbach", "Nordlicht Digital GmbH", 8393.14, 1594.70,
+                          9987.84, date(2026, 8, 14), "DE312345678"))
+        # a letter about an invoice is no invoice
+        self.assertIsNone(read("Sehr geehrte Damen und Herren,\nzu Ihrer Rechnung Nr. 4471288 über 7.854,00 EUR:\n"
+                               "Gesamtbetrag 7.854,00 EUR haben wir überwiesen."))
+
+    def test_supplier_invoices_from_pdf_paid_twice_received_and_a_fraud(self):
+        from email.message import EmailMessage
+        today = date(2026, 10, 29)
+        good, bad = "DE89370400440532013000", "DE12500105170648489890"
+        rows = _book(24, start=date(2026, 6, 1))
+        bank = [[r[1], r[2], "DE02120300000000202051", f"Rechnung {r[0]} vielen Dank", r[8]] for r in rows]
+        files = []
+        for no, day, net in (("4471001", date(2026, 8, 3), 1000.0), ("4471002", date(2026, 9, 1), 2000.0),
+                             ("4471003", date(2026, 10, 1), 1500.0)):
+            files.append((f"Eingangsrechnungen/RE_{no}.pdf", _supplier_invoice(no, day, net, good)))
+            bank.append([(day + timedelta(days=9)).strftime("%d.%m.%Y"), "GROSSHANDEL NORD", good, f"RG {no} KD 55120",
+                         "-" + _eur(net * 1.19 * 0.98)])
+        late = _supplier_invoice("4471004", date(2026, 10, 5), 800.0, good)       # Skonto gone, due in a week
+        files += [("Eingangsrechnungen/RE_4471004.pdf", late), ("Eingangsrechnungen/Scan_0001.pdf", late + b"\n")]
+        msg = EmailMessage()
+        msg["From"], msg["To"] = "Grosshandel Nord Buchhaltung <buchhaltung@gh-nord-hamburg.example>", "info@muster.example"
+        msg["Subject"], msg["Date"] = "Rechnung 4471005 / neue Bankverbindung", "Tue, 20 Oct 2026 14:02:00 +0200"
+        msg.set_content(f"anbei Rechnung 4471005. Bitte beachten Sie, dass sich unsere Bankverbindung geändert hat: {bad}.")
+        msg.add_attachment(_supplier_invoice("4471005", date(2026, 10, 20), 6600.0, bad, note="NEUE BANKVERBINDUNG"),
+                           maintype="application", subtype="pdf", filename="Rechnung_4471005.pdf")
+        own = _pdf_page(["Muster Haustechnik GmbH", "Hauptstr. 1 · 33602 Bielefeld · info@muster.example", rows[2][2],
+                         "Dorfstr. 3", "33602 Bielefeld", "RECHNUNG", f"Rechnungs-Nr.: {rows[2][0]}",
+                         f"Datum: {rows[2][1]}", f"Gesamtbetrag brutto {rows[2][6]} EUR",
+                         "USt-IdNr. DE987654321 · IBAN DE02120300000000202051"])
+        self.f.feed([("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD, rows)),
+                     ("Umsaetze_Girokonto.csv", csv("Buchungstag;Auftraggeber/Empfänger;IBAN;Verwendungszweck;Betrag", bank)),
+                     (f"Ausgangsrechnungen/{rows[2][0]}.pdf", own), ("Rechnung_4471005.eml", msg.as_bytes())] + files)
+        rt = self.f.rt()
+        inc = _type(rt, "Eingangsrechnung")
+        self.assertTrue(inc["incoming"])
+        key = inc["key"]
+        st = {rt.by_id[r["id"]]["data"][key]: rt.ledger.get(r["id"], {}).get("state") for r in rt.records[inc["id"]]}
+        self.assertEqual(set(st), {"4471001", "4471002", "4471003", "4471004", "4471005"})        # not the firm's own invoice
+        self.assertEqual({k for k, v in st.items() if v == "bezahlt"}, {"4471001", "4471002", "4471003"})
+        work = rt.work(today)
+        risk = next(g for g in work if g["kind"] == "risk")
+        self.assertEqual([x["title"] for x in risk["items"]], ["4471005"])
+        why = risk["items"][0]["reason"]
+        self.assertIn("DE12 5001", why)                                           # an account never paid to
+        self.assertIn("gh-nord-hamburg.example", why)                             # from a look-alike address
+        self.assertIn("geändert", why)                                            # and the mail says so
+        pay = [x for g in work if g["kind"] == "payable" for x in g["items"]]
+        self.assertEqual([x["title"] for x in pay], ["4471004"])                     # the fraud is not on the list to pay
+        self.assertIn("Skonto-Frist 15.10. verpasst", pay[0]["reason"])
+        self.assertIn("zweimal eingegangen (RE_4471004.pdf, Scan_0001.pdf)", pay[0]["reason"])
+        self.assertEqual(pay[0]["party"], "Grosshandel Nord GmbH")
 
 
 if __name__ == "__main__":

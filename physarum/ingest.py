@@ -86,7 +86,8 @@ def decode_text(data: bytes) -> tuple[str, str]:
     return data.decode("utf-8", errors="replace"), "utf-8"
 
 
-def read_file(name: str, data: bytes) -> Digest:
+def read_file(name: str, data: bytes, sender: str | None = None) -> Digest:
+    """`sender`: the address of the mail the file was attached to."""
     ext = PurePath(name).suffix.lower()
     stem = PurePath(name).stem
     d = Digest()
@@ -104,7 +105,7 @@ def read_file(name: str, data: bytes) -> Digest:
         elif ext == ".eml":
             _read_eml(stem, data, d)
         elif ext == ".pdf":
-            _read_pdf(stem, data, d)
+            _read_pdf(stem, data, d, sender)
         elif ext == ".docx":
             _read_docx(stem, data, d)
         elif ext == ".zip":
@@ -879,7 +880,7 @@ def _pdf_attachments(data: bytes, d: Digest):
         pass
 
 
-def _read_pdf(stem: str, data: bytes, d: Digest):
+def _read_pdf(stem: str, data: bytes, d: Digest, sender: str | None = None):
     _pdf_attachments(data, d)
     texts, grids = [], []
     try:
@@ -900,7 +901,17 @@ def _read_pdf(stem: str, data: bytes, d: Digest):
         d.tables.extend(detect_tables(g, f"{stem} Tabelle {i + 1}", {"locale": "de"}))
     text = "\n".join(texts).strip()
     first = next((l.strip() for l in text.splitlines() if l.strip()), stem)
-    d.docs.append(RawDoc("pdf", stem, text, meta={"first_line": first[:120]}))
+    meta = {"first_line": first[:120]}
+    if not any(n.lower().endswith(".xml") for n, _ in d.attachments):  # an e-invoice inside says it better
+        from . import pdfinvoice
+        inv = pdfinvoice.read(text, sender)
+        if inv:
+            head, lines = pdfinvoice.to_tables(inv, stem)
+            d.tables.append(head)
+            if lines is not None:
+                d.tables.append(lines)
+            meta["invoice"] = dict(number=inv["number"], gross=inv["gross"], seller=inv["seller"])
+    d.docs.append(RawDoc("pdf", stem, text, meta=meta))
     if not text:
         d.notes.append(f"{stem}.pdf enthält keinen Text (gescannt?) – aufbewahrt, aber nicht ausgelesen.")
 

@@ -431,7 +431,15 @@ def supplier_items(model: dict, records: dict, outrefs: dict, titles: dict, ledg
     risks, checks = [], []
     per_supplier: dict = {}
     names: dict = {}
+    from .pdfinvoice import _NEW_BANK
+    announces = set()  # a mail or letter that says the account has changed – the classic opening of the fraud
+    incoming_ids = {t["id"] for t, *_ in _incoming(model)}
+    for d in records.get("doc", []):
+        if _NEW_BANK.search(str(d["data"].get("doc_text") or "")):
+            announces |= {to for to, attr, kind, how in outrefs.get(d["id"], []) if to in by_id
+                          and by_id[to]["type"] in incoming_ids}
     for t, party, iban, dattr in _incoming(model):
+        mail = next((a for a in t["attrs"] if a["kind"] == "email"), None)
         for r in records.get(t["id"], []):
             raw = r["data"].get(party["id"])
             pv = _party_key(raw)
@@ -440,29 +448,43 @@ def supplier_items(model: dict, records: dict, outrefs: dict, titles: dict, ledg
             names[pv] = titles.get(raw) if isinstance(raw, int) else raw
             when = as_date(r["data"].get(dattr["id"])) if dattr else None
             iv = re.sub(r"\s+", "", str(r["data"].get(iban["id"]) or "")).upper() if iban else ""
-            per_supplier.setdefault(pv, []).append((when or date.min, r["id"], iv))
+            sender = str(r["data"].get(mail["id"]) or "").casefold() if mail else ""
+            dom = sender.rsplit("@", 1)[1] if "@" in sender else ""
+            per_supplier.setdefault(pv, []).append((when or date.min, r["id"], iv, dom))
     history = sum(1 for v in per_supplier.values() if len(v) >= 2)
     for pv, invs in per_supplier.items():
         invs.sort()
         seen: set = set()
+        seen_dom: set = set()
         paid = paid_to.get(pv, set()) | paid_to.get(_party_key(names.get(pv)), set())
-        for k, (when, rid, iv) in enumerate(invs):
+        for k, (when, rid, iv, dom) in enumerate(invs):
             e = (ledger or {}).get(rid) or {}
             open_ = e.get("state") in (None, "offen", "teilbezahlt") and (e.get("open") is None or e.get("open", 0) > 0.005)
             recent = when != date.min and (today - when).days <= 60
             known = seen | (master_ibans.get(pv, set()) if isinstance(pv, int) else set()) | paid
-            if iv and known and iv not in known and open_ and recent and (pv, iv) not in (reported or set()):
+            reasons = []
+            if iv and known and iv not in known and (pv, iv) not in (reported or set()):
+                reasons.append(f"nennt die Bankverbindung {_fmt_iban(iv)}; frühere Rechnungen und Zahlungen: "
+                               f"{', '.join(_fmt_iban(x) for x in sorted(known)[:2])}")
+            if dom and seen_dom and dom not in seen_dom:
+                close = [x for x in sorted(seen_dom) if jaro_winkler(dom, x) >= 0.85 or x in dom or dom in x]
+                if close:
+                    reasons.append(f"kam von „{dom}“ – ähnlich, aber nicht gleich „{close[0]}“ der früheren Rechnungen")
+            if reasons and rid in announces:
+                reasons.append("dazu die Nachricht, die Bankverbindung habe sich geändert")
+            if reasons and open_ and recent:
                 risks.append(dict(rid=rid, partner=pv if isinstance(pv, int) else None, title=titles.get(rid, "Rechnung"),
-                                  party=names.get(pv),
-                                  reason=f"nennt die Bankverbindung {_fmt_iban(iv)}; frühere Rechnungen und Zahlungen: "
-                                         f"{', '.join(_fmt_iban(x) for x in sorted(known)[:2])}", days=0, money=None))
+                                  party=names.get(pv), reason="; ".join(reasons), days=0, money=e.get("open"),
+                                  iban=iv or None))
             if k == 0 and history >= 3 and open_ and recent and not paid:
                 checks.append(dict(rid=rid, partner=pv if isinstance(pv, int) else None, title=titles.get(rid, "Rechnung"),
                                    party=names.get(pv),
                                    reason="erste Rechnung dieses Lieferanten – vor der ersten Zahlung die Bankverbindung "
                                           "über eine bekannte Telefonnummer bestätigen", days=0, money=None))
-            if iv:
-                seen.add(iv)
+            if iv and not reasons:
+                seen.add(iv)  # an account in doubt is no evidence for the next invoice
+            if dom and not reasons:
+                seen_dom.add(dom)
     for d in records.get("doc", []):
         note = d["data"].get("doc_check")
         if not note:
@@ -476,6 +498,29 @@ def supplier_items(model: dict, records: dict, outrefs: dict, titles: dict, ledg
         checks.append(dict(rid=d["id"], partner=partner, title=titles.get(d["id"], "E-Rechnung"),
                            party=titles.get(partner) if partner else None, reason=note, days=0, money=None))
     return risks, checks
+
+
+def received_twice(model: dict, records: dict, outrefs: dict) -> dict[int, list[str]]:
+    """Supplier invoices that came in as two files (the PDF from the mail and a scan of the printout):
+    the same number and amount – one invoice, to be paid once."""
+    from .pdfinvoice import read
+    incoming = {t["id"] for t, *_ in _incoming(model)}
+    by_id = {r["id"]: r for t in incoming for r in records.get(t, [])}
+    files: dict[int, dict] = {}
+    for d in records.get("doc", []):
+        if str(d["data"].get("doc_kind") or "") != "PDF":
+            continue
+        targets = {to for to, attr, kind, how in outrefs.get(d["id"], []) if to in by_id}
+        if not targets:
+            continue
+        inv = read(str(d["data"].get("doc_text") or ""))
+        if not inv:
+            continue
+        for to in targets:
+            key = (inv["number"], round(inv["gross"], 2))
+            name = str(d["data"].get("doc_file") or d["data"].get("doc_title"))
+            files.setdefault(to, {}).setdefault(key, []).append(name.replace("\\", "/").rsplit("/", 1)[-1])
+    return {rid: sorted(fs) for rid, per in files.items() for fs in per.values() if len(set(fs)) >= 2}
 
 
 def _fmt_iban(s: str) -> str:

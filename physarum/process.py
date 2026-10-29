@@ -95,6 +95,7 @@ def infer_processes(model: dict, records: dict, store=None, today: date | None =
     model["dues"] = _due_specs(model, records)
 
 
+_SUPPLIER = {"lieferant", "kreditor", "rechnungssteller", "supplier", "vendor"}
 _DUE_WORDS = {"naechste", "naechster", "naechstes", "faellig", "faelligkeit", "next", "due", "geplant", "plan",
               "am", "bis", "datum", "spaetestens", "soll"}
 
@@ -140,7 +141,10 @@ def _case_life(spec, p, a, recs) -> dict:
             closed.add(v)
     # an offer holds only as long as an answer can be expected (§ 147 BGB): the cases that were taken were
     # taken within the usual time to their first step; three times that, at least three months
-    longest = max([x.get("median") or 0 for x in p["steps"]] or [0])
+    longest = acc = 0
+    for x in p["steps"]:
+        acc += x.get("median_days") or 0
+        longest = max(longest, acc)
     offsets = [(dv - sv).days for r in recs
                if (dv := as_date(r["data"].get(a["id"]))) and (sv := as_date(r["data"].get(p["start"]["attr"])))]
     offsets = [x for x in offsets if x > 0]
@@ -338,7 +342,11 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
     net, gross = money_attrs(spec)
 
     refs = [a for a in spec["attrs"] if a["kind"] == "ref" and a.get("ref") and a["id"] != spec.get("key")]
-    party = next((a for a in refs if a.get("ref_kind") == "master"), None) or (refs[0] if refs else None)
+    party = next((a for a in refs if a.get("ref_kind") == "master"), None)
+    if party is None and spec.get("incoming"):
+        # a supplier's invoice read from paper: the supplier is a name, the order it names is no party
+        party = next((a for a in spec["attrs"] if a["kind"] == "text" and set(tokens(a["name"])) & _SUPPLIER), None)
+    party = party or (refs[0] if refs else None)
     for st in steps:
         st.pop("median", None)
     return dict(id=f"p_{spec['id']}", type=spec["id"], name=spec["plural"], start=dict(attr=start_attr["id"],
@@ -754,6 +762,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         covered = {(d["type"], d["attr"]) for d in model.get("dues", [])}
         free_dues = [dl for dl in p["deadlines"] if not dl.get("step") and (p["type"], dl["attr"]) not in covered]
         never = _never_reached(spec, recs, p, step_dates, today)
+        skonto = _skonto_attrs(spec)
         # where reaching a step is planned (a planned end for every project that ended), a case
         # without such a date is not waiting for it: "unbefristet"
         planned = {}
@@ -803,6 +812,15 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 due_how = None
                 if dl and not due and ledger is not None and (ledger.get(r["id"]) or {}).get("due_attr") == dl["attr"]:
                     due, due_how = ledger[r["id"]]["due"], ledger[r["id"]]["due_how"]  # reckoned, not in the book
+                entry = (ledger or {}).get(r["id"]) or {}
+                if entry.get("outgoing") and fold(st["label"]) == "bezahlt":
+                    # the firm's own bills: what to pay in the next two weeks, Skonto first
+                    cut = _skonto(r, skonto, entry, today) if skonto else None
+                    if due and ((due - today).days <= 14 or (cut and cut["days"] <= 7)):
+                        buckets[(st["id"], "payable")].append(dict(rid=r["id"], days=(due - today).days, money=money,
+                                                                   due=due.isoformat(), name=dl["name"], due_how=due_how,
+                                                                   reason=cut["text"] if cut else None))
+                    break
                 if due and due < today:
                     buckets[(st["id"], "overdue")].append(dict(rid=r["id"], days=(today - due).days, money=money,
                                                                due=due.isoformat(), paid=paid_part, due_how=due_how))
@@ -828,6 +846,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     continue
                 break
             for dl in free_dues:
+                if skonto and dl["attr"] == skonto["until"]:
+                    continue  # a term of the invoice, shown with it
                 rg = due_range(r["data"].get(dl["attr"]))
                 due = rg[1] if rg else None
                 e = ledger.get(r["id"]) if ledger else None
@@ -840,11 +860,13 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     continue  # the money has gone out already
                 if due and (due - today).days < -30 and not e:
                     continue  # long past, and nothing says whether it happened: history, not work
-                if due and (due - today).days <= 14:
+                cut = _skonto(r, skonto, e, today) if skonto and e and e["outgoing"] else None
+                if due and ((due - today).days <= 14 or (cut and cut["days"] <= 7)):
                     kind = "payable" if e and e["outgoing"] else "due"
                     buckets[(dl["attr"], kind)].append(dict(rid=r["id"], days=(due - today).days,
                                                             money=e["open"] if e else _money(r, p),
-                                                            due=due.isoformat(), name=dl["name"], due_how=due_how))
+                                                            due=due.isoformat(), name=dl["name"], due_how=due_how,
+                                                            reason=cut["text"] if cut else None))
         for (sid, kind), items in buckets.items():
             st = next((s for s in p["steps"] if s["id"] == sid), None)
             items.sort(key=lambda x: (-x["days"] if kind in ("overdue", "late", "ready") else x["days"]))
@@ -854,7 +876,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 r = by_id[x["rid"]]
                 x["title"] = title(x["rid"])
                 pv = r["data"].get(party) if party else None
-                x["party"] = title(pv) if isinstance(pv, int) and pv in by_id else None
+                x["party"] = title(pv) if isinstance(pv, int) and pv in by_id else (pv if isinstance(pv, str) else None)
                 if pending_payments and x["rid"] in pending_payments:
                     x["maybe_paid"] = pending_payments[x["rid"]]  # a transfer without reference fits: do not dun
                 if x["rid"] in draft_of and st and st["source"] == "child":
@@ -881,7 +903,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 head = f"{spec['plural']}: {dname} steht an"
                 sev = 2 if any(x["days"] < 0 for x in items) else 1
             action = None
-            if st and st["source"] == "own":
+            if kind == "payable":
+                pass  # paid is what the bank statement says
+            elif st and st["source"] == "own":
                 action = dict(kind="set_date", attr=st["attr"], label=st["label"])
             elif st and st["source"] == "child":
                 action = dict(kind="create_child", type=st["type"], attr=st["rel_attr"], label=st["name"])
@@ -936,6 +960,22 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                items=checks, action=None,
                                explain="E-Rechnungen, deren Zahlen nicht aufgehen oder denen Pflichtangaben fehlen, "
                                        "und die erste Rechnung eines neuen Lieferanten."))
+        from .reconcile import received_twice
+        twice = received_twice(model, records, outrefs)
+        for g in groups:
+            for x in g["items"] if g["kind"] == "payable" else []:
+                if x["rid"] in twice:
+                    x["reason"] = "; ".join(filter(None, [x.get("reason"), "zweimal eingegangen ("
+                                                          + ", ".join(twice[x["rid"]]) + ") – nur einmal bezahlen"]))
+        risky = {x["rid"] for x in risks}
+        for g in groups:
+            held = [x for x in g["items"] if x["rid"] in risky] if g["kind"] == "payable" else []
+            if held:  # never on the list of what to pay while the account is in doubt
+                g["items"] = [x for x in g["items"] if x["rid"] not in risky]
+                g["count"], g["amount"] = len(g["items"]), round(sum(x["money"] or 0 for x in g["items"]), 2)
+                g["explain"] += (f" {'Eine Rechnung steht' if len(held) == 1 else f'{len(held)} Rechnungen stehen'} "
+                                 f"nicht hier, sondern unter „Vorsicht“.")
+        groups = [g for g in groups if g["count"]]
         if risks:
             groups.append(dict(id="risk:iban", type="doc", kind="risk", severity=3,
                                title="Vorsicht: Bankverbindung oder Absender passen nicht zum Lieferanten",
@@ -1113,6 +1153,34 @@ def _due_title(plural: str, du: dict) -> str:
     if any(fold(w) in ("faellig", "due") for w in words):
         return f"{plural}: {name}"
     return f"{plural}: {name} steht an"
+
+
+def _skonto_attrs(spec) -> dict | None:
+    """"Skonto bis" and "Skonto %" of a supplier's invoice."""
+    until = next((a["id"] for a in spec["attrs"] if a["kind"] in ("date", "datetime") and "skonto" in fold(a["name"])),
+                 None)
+    if not until:
+        return None
+    pct = next((a["id"] for a in spec["attrs"] if a["kind"] in ("percent", "number") and "skonto" in fold(a["name"])),
+               None)
+    return dict(until=until, pct=pct)
+
+
+def _skonto(r, sk, e, today) -> dict | None:
+    """Until when the discount holds, or that it is gone."""
+    until = as_date(r["data"].get(sk["until"]))
+    if not until or not e or e.get("paid", 0) > 0.005:
+        return None
+    pct = r["data"].get(sk["pct"]) if sk.get("pct") else None
+    pct = float(pct) if isinstance(pct, (int, float)) and not isinstance(pct, bool) else None
+    if pct is not None and pct < 1:
+        pct *= 100  # a share, not a percentage
+    if until < today:
+        return dict(days=(until - today).days, text=f"Skonto-Frist {until.strftime('%d.%m.')} verpasst")
+    pct_s = f"{pct:g}".replace(".", ",") + " % " if pct else ""
+    save = f" ({_eur_short(e['open'] * pct / 100)})" if pct and e.get("open") else ""
+    when = "heute" if until == today else f"bis {until.strftime('%d.%m.')}"
+    return dict(days=(until - today).days, text=f"{pct_s}Skonto{save} nur noch {when}")
 
 
 def _money(r, p):

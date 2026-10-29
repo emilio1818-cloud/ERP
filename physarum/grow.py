@@ -52,12 +52,12 @@ def ingest(store: Store, files: list[tuple[str, bytes]], actor: str | None = Non
     """Store originals and digest them into the substrate. Nested files (zip members, e-mail
     attachments) become sources of their own."""
     out = []
-    queue = [(name, data, None) for name, data in files]
+    queue = [(name, data, None, None) for name, data in files]
     guard = 0
     budget = MAX_INGEST_BYTES  # everything unpacked from one drop together (zip in zip in zip)
     while queue and guard < 5000:
         guard += 1
-        name, data, parent = queue.pop(0)
+        name, data, parent, sender = queue.pop(0)
         if parent is not None:
             budget -= len(data)
             if budget < 0:
@@ -71,7 +71,7 @@ def ingest(store: Store, files: list[tuple[str, bytes]], actor: str | None = Non
             out.append(dict(id=known["id"], name=name, new=False))
             continue
         try:
-            d = read_file(name, data)  # parsing happens outside the write lock
+            d = read_file(name, data, sender)  # parsing happens outside the write lock
         except Exception as e:  # noqa: BLE001 - one unreadable file must not stop the others
             from .ingest import Digest
             d = Digest()
@@ -90,8 +90,9 @@ def ingest(store: Store, files: list[tuple[str, bytes]], actor: str | None = Non
                 what.append(f"{len(d.docs)} Dokument(e)")
             progress(f"{name}: " + (", ".join(what) or "kein lesbarer Inhalt"))
         out.append(dict(id=sid, name=name, new=True, tables=len(d.tables), docs=len(d.docs), notes=d.notes))
+        mail_from = next((x.sender for x in d.docs if x.kind == "email"), None)  # an invoice attached to a mail
         for an, ad in d.attachments:
-            queue.append((an, ad, sid))
+            queue.append((an, ad, sid, mail_from))
     return out
 
 
@@ -164,7 +165,8 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         table_time[rt_["id"]] = d.isoformat() if d else (rt_["added_at"] or "")
     cov = dict(rows_in=sum(len(t["rows"]) for t in raw_tables),
                rows_report=sum(len(t["rows"]) for t in raw_tables if (t["meta"] or {}).get("report")))
-    raw = merge_versions([t for t in raw_tables if not (t["meta"] or {}).get("report")])
+    from .pdfinvoice import received_only
+    raw = merge_versions(received_only(store, [t for t in raw_tables if not (t["meta"] or {}).get("report")]))
     cov["rows_versions"] = sum((t.get("versions") or {}).get("dropped", 0) for t in raw)
     del raw_tables
     progress(f"Lese {len(raw)} Tabellen …", 0.05)
@@ -189,10 +191,10 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
                                    newest=newest.isoformat() if newest else None)
         o.asof = (asof or newest).isoformat() if (asof or newest) else None
         st = t["meta"].get("structured")
-        if st == "einvoice-header":
+        if st in ("einvoice-header", "pdf-invoice-header"):
             o.concept, o.file_concept = "rechnung", "rechnung"
             o.name_hint = ("Eingangsrechnung", "Eingangsrechnungen")
-        elif st == "einvoice-lines":
+        elif st in ("einvoice-lines", "pdf-invoice-lines"):
             o.kind_hint = "line"
             o.concept = None
             o.name_hint = ("Eingangsrechnungsposition", "Eingangsrechnungspositionen")
@@ -651,10 +653,11 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
             rid = rid_of.get((id(t), gi))
             if rid is None:
                 continue
-            data, raw = {}, {}
+            data, raw, said = {}, {}, {}
             for aid, v in g.values.items():
                 r = ref_of.get((id(t), aid))
                 if r is not None:
+                    said[aid] = _jsonable(v)  # the words the file used for it
                     ti = r.targets.get(gi)
                     target = rid_of.get((id(r.dst), ti)) if ti is not None else None
                     if target is None:
@@ -677,7 +680,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
                     for aid, vs in g.alts.items()}
             srcs = sorted({tables.get(tl[0], 0) for tl in g.lines})
             _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written,
-                          protected=_live_protect(c, protect.get(t.tid), rid, data, specs.get(t.tid)),
+                          protected=_live_protect(c, protect.get(t.tid), rid, data, specs.get(t.tid)), said=said,
                           status_attr=None if norm_key(data.get((specs.get(t.tid) or {}).get("key")) or "")
                           in cancelled_by_doc.get(t.tid, ()) else status_guard.get(t.tid),
                           src_time=lambda sid, tid: table_time.get(tid) or src_added.get(sid, ""))
@@ -874,7 +877,7 @@ def _same(a, b) -> bool:
 
 
 def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written=None,
-                  protected: set | None = None, src_time=None, status_attr: str | None = None):
+                  protected: set | None = None, src_time=None, status_attr: str | None = None, said: dict | None = None):
     old_meta_json = None
     if getattr(g, "new", False):
         cur, meta = {}, {}
@@ -906,6 +909,11 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
                 continue
             first = prov.get(aid, [[srcs[-1] if srcs else None]])[0][0]
             notes[aid] = f"aus {src_name.get(first, 'neuer Quelle')} übernommen (neuer als die Änderung vom {w[1][:10]})"
+        if isinstance(v, int) and isinstance(cur.get(aid), str) and said and _same(cur.get(aid), said.get(aid)):
+            out[aid] = v  # the same words, now found as a record: a link, not a correction
+            writers[aid] = ["import", ts]
+            changed.append((aid, cur.get(aid), v))
+            continue
         cancels = bool(protected and aid == status_attr and aid in cur and fold(str(v)) in lexicon.NEGATIVE_STATES
                        and fold(str(cur.get(aid))) not in lexicon.NEGATIVE_STATES)
         if protected and aid in protected and aid in cur and not _same(cur.get(aid), v) and not cancels \

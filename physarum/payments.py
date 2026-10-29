@@ -23,6 +23,8 @@ _NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
 EPS = 0.01
 BY_AMOUNT = "Zahlung ohne Nummer – Betrag und Zahler stimmen"        # booked by the growth
 CONFIRMED = "Zuordnung über den Betrag (bestätigt)"                 # confirmed by a person
+CASH_KINDS = {"bar": "Barzahlung", "ueberweisung": "Überweisung", "lastschrift": "Lastschrift", "scheck": "Scheck",
+              "verrechnung": "Verrechnung", "karte": "Kartenzahlung"}
 SKONTO_MAX = 0.031      # up to 3 % less …
 SKONTO_DAYS = 21        # … paid within three weeks of the invoice date
 
@@ -372,6 +374,16 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                                           shared=len(invs) > 1, by_amount=bool(by_amount and (b, i) in by_amount)))
                 left -= take
         _net_overpayments(entries, links, {r["id"]: r["data"].get(key) for r in recs} if key else {}, when_of)
+        # money the owner entered by hand: cash, a cheque, an offset – next to what the bank says
+        for r in recs:
+            e = entries.get(r["id"])
+            for m in ((r.get("meta") or {}).get("cash") or []) if e else []:
+                amount = _num(m.get("amount"))
+                when = as_date(m.get("date"))
+                if amount and when:
+                    e["paid"] += amount
+                    e["payments"].append(dict(rid=None, date=when, amount=round(amount, 2), by_hand=m.get("id"),
+                                              how=f"{CASH_KINDS.get(m.get('how'), 'Zahlung')} (von Hand eingetragen)"))
         # book or manual paid date: paid in full when the bank does not speak
         pool = iban_party = None
         alone = []  # paid by the list, no transfer of their own amount: perhaps one transfer for several

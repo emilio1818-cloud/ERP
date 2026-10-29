@@ -169,7 +169,7 @@
         <div class="q">{{ q.text }}</div>
         <p class="muted" style="font-size:.85rem; margin:.3rem 0">{{ q.detail }}</p>
         <div class="actions">
-          {% for v, label in q.options %}<button class="small {{ 'primary' if loop.first }}" data-post="/fragen/{{ q.id }}" data-body='{"value": "{{ v }}"}' title="{{ consequences.get((q.kind, v), '') }}">{{ label }}</button>{% endfor %}
+          {% for v, label in q.options %}<button class="small {{ 'primary' if q.suggest == v }}" data-post="/fragen/{{ q.id }}" data-body='{"value": "{{ v }}"}' title="{{ consequences.get((q.kind, v), '') }}">{{ label }}</button>{% endfor %}
           <button class="small ghost" data-post="/fragen/{{ q.id }}" data-body='{"value": "unknown"}'>Weiß nicht</button>
           <button class="small ghost" data-post="/fragen/{{ q.id }}" data-body='{"value": "later"}'>Später</button>
         </div>

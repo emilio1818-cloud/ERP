@@ -435,6 +435,38 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         store.event("view", f"type:{spec['id']}" + (f",rel:{rel}" if rel else ""))
         return page(request, "record.html", record_context(rec, spec, request))
 
+    from ..payments import CASH_KINDS
+
+    def _assign_candidates(rid: int, spec: dict, data: dict, alloc: list) -> list[dict] | None:
+        """For a bank line that pays nothing (or not all): the open invoices it may pay, the likeliest first –
+        the same amount, then the same payer."""
+        from ..reconcile import bank_specs
+        from ..text import name_similarity, norm_name
+        b = next((x for x in bank_specs(rt.model) if x["spec"]["id"] == spec["id"]), None)
+        amount = data.get(b["money"]["id"]) if b else None
+        if not b or not isinstance(amount, (int, float)) or isinstance(amount, bool) or abs(amount) < 0.005:
+            return None
+        rest = abs(float(amount)) - sum(x["amount"] for x in alloc)
+        if rest <= 0.005:
+            return None
+        payer = norm_name(data.get(b["name"]["id"])) if b.get("name") and data.get(b["name"]["id"]) else ""
+        out = []
+        for irid, e in rt.ledger.items():
+            if e["state"] not in ("offen", "teilbezahlt") or bool(e.get("outgoing")) != (amount < 0) or e["open"] <= 0.005:
+                continue
+            r = rt.by_id.get(irid)
+            if not r:
+                continue
+            p = next((x for x in rt.model.get("processes", []) if x["type"] == r["type"]), None)
+            pv = r["data"].get(p["party"]) if p and p.get("party") else None
+            who = rt.title(pv) if isinstance(pv, int) and pv in rt.by_id else (pv if isinstance(pv, str) else "")
+            same = name_similarity(payer, norm_name(who)) if payer and who else 0.0
+            out.append((abs(e["open"] - rest) > 0.005, -round(same, 1), abs(e["open"] - rest),
+                        dict(rid=irid, label=f"{rt.title(irid)} · {who or '–'} · offen {views.money(e['open'])}",
+                             exact=abs(e["open"] - rest) <= 0.005)))
+        out.sort(key=lambda x: x[:3])
+        return [x[3] for x in out[:15]]
+
     def record_context(rec: dict, spec: dict, request: Request) -> dict:
         rid = rec["id"]
         data = rec["data"]
@@ -538,6 +570,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         maybe_paid = rt.pending_payments.get(rid) if hasattr(rt, "pending_payments") else None
         pay = rt.ledger.get(rid)
         alloc = [dict(rid=i, amount=a) for i, a in bank_allocations(rt.ledger).get(rid, [])]
+        assign = _assign_candidates(rid, spec, data, alloc)
         inv = billing.is_invoice(spec)
         draft = inv and billing.is_draft(rec)
         meta = rec["meta"] or {}
@@ -573,7 +606,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     effort=effort, owes=owes, own_status=own_status, pay_status=pay_status, status_is_payment=status_is_payment,
                     stale=stale, issued_here=bool(meta.get("issued")), incoming=bool(spec.get("incoming")), **issue_ctx,
                     draft_lines=bool(draft and meta.get("positions") is not None),
-                    maybe_paid=maybe_paid, pay=pay, alloc=alloc, invoice=inv, draft=draft, doc=doc,
+                    maybe_paid=maybe_paid, pay=pay, alloc=alloc, assign=assign, cash_kinds=CASH_KINDS,
+                    invoice=inv, draft=draft, doc=doc,
                     missing=billing.missing_for_issue(rt, spec, rec) if draft else [],
                     company_missing=billing.company_missing(store) if inv else [], conflicts=conflicts,
                     storno_of=meta.get("storno_of"), storno_by=meta.get("storno_by"), imported=imported,
@@ -728,6 +762,44 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         return JSONResponse(dict(reload=True, toast=("Eingetragen: " + ", ".join(names) + f" ({display(when, 'date')})")
                                  if names else "Gespeichert",
                                  undo=dict(url=f"/r/{rid}/rueckgaengig", body=dict(attrs=",".join(changed)))))
+
+    def record_payment(request: Request, form):
+        """Cash, a cheque, an offset, a part payment: what the bank statement does not show."""
+        rid = int(request.path_params["rid"])
+        try:
+            left = ops.record_payment(rt, rid, form.get("amount") or "", form.get("date") or None,
+                                      form.get("how") or "bar", actor(request))
+        except ops.OpError as e:
+            return JSONResponse(dict(error=str(e)))
+        rec = store.record(rid)
+        pid = max(m["id"] for m in (rec["meta"] or {}).get("cash") or [{"id": 0}])
+        return JSONResponse(dict(reload=True, toast="Eingetragen – " + ("damit bezahlt." if left <= 0.005 else
+                                                                         f"noch offen {views.money(left)}."),
+                                 undo=dict(url=f"/r/{rid}/zahlung-entfernen", body=dict(id=str(pid)))))
+
+    def remove_payment(request: Request, form):
+        rid = int(request.path_params["rid"])
+        try:
+            ops.remove_payment(rt, rid, int(form.get("id") or 0), actor(request))
+        except (ops.OpError, ValueError) as e:
+            return JSONResponse(dict(error=str(e)))
+        return JSONResponse(dict(reload=True, toast="Zahlung zurückgenommen."))
+
+    def record_assign(request: Request, form):
+        """A bank line the owner knows better: it pays this invoice."""
+        rid = int(request.path_params["rid"])
+        try:
+            inv = int(form.get("invoice") or 0)
+            grow_needed = ops.assign_payment(rt, rid, inv, actor(request))
+        except (ops.OpError, ValueError) as e:
+            return JSONResponse(dict(error=str(e) if isinstance(e, ops.OpError) else "Bitte eine Rechnung wählen"))
+        if grow_needed:
+            jid = jobs.start("assign", lambda progress: regrow(store, progress, actor(request)), next_url=f"/r/{rid}")
+            return JSONResponse(dict(job=jid))
+        rt.ensure()
+        state = (rt.ledger.get(inv) or {}).get("state")
+        return JSONResponse(dict(reload=True, toast=f"Zugeordnet: {rt.title(inv)}" + (f" – {state}." if state else "."),
+                                 undo=dict(url=f"/r/{inv}/zahlung-loesen", body=dict(bank=str(rid)))))
 
     def record_follow_up(request: Request, form):
         rid = int(request.path_params["rid"])
@@ -1749,6 +1821,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/zahlungsquelle/{sid:int}", formed(payment_source), methods=["POST"]),
         Route("/r/{rid:int}/schritt", formed(record_step), methods=["POST"]),
         Route("/r/{rid:int}/nachfassen", formed(record_follow_up), methods=["POST"]),
+        Route("/r/{rid:int}/zahlung", formed(record_payment), methods=["POST"]),
+        Route("/r/{rid:int}/zahlung-entfernen", formed(remove_payment), methods=["POST"]),
+        Route("/r/{rid:int}/zuordnen", formed(record_assign), methods=["POST"]),
         Route("/r/{rid:int}/notiz", formed(record_note), methods=["POST"]),
         Route("/r/{rid:int}/storno", formed(record_storno), methods=["POST"]),
         Route("/r/{rid:int}/loeschen", formed(record_delete), methods=["POST"]),

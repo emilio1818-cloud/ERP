@@ -593,6 +593,8 @@ def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict,
                                            label="+ Anzahlungsrechnung")
             else:
                 item["reason"] = "keiner Rechnung zugeordnet – wofür war das?"
+            if not item["act"]:
+                item["act"] = dict(href=f"/r/{r['id']}#zuordnen", label="Zuordnen")
             out.append(item)
     out.sort(key=lambda x: -x["money"])
     return out

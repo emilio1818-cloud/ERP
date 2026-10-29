@@ -83,10 +83,9 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
             subj = "same_type|" + pair_subject(*sigs)
             cols_a = [c.name for c in ma.cols][:8]
             cols_b = [c.name for c in mb.cols][:8]
-            na = (ma.name_hint or (None,))[0] or ma.label
-            nb = (mb.name_hint or (None,))[0] or mb.label
             found[subj] = dict(kind="same_type", subject=subj, impact=(ma.n + mb.n) * 0.5,
-                               payload=dict(text=f"Sind „{na}“ aus {ma.label} und „{nb}“ aus {mb.label} dieselbe Art von Dingen?",
+                               payload=dict(text=f"Gehören {_where(ma.label, ma.name_hint)} und {_where(mb.label, mb.name_hint)} "
+                                                 f"in eine Liste – sind es dieselbe Art von Dingen?",
                                             detail=f"Spalten: {', '.join(cols_a)} — bzw. {', '.join(cols_b)}. "
                                                    f"Grund für die Vermutung: {sim['reason']}.",
                                             decision=dict(kind="same_type", subject=pair_subject(*sigs)),
@@ -131,14 +130,15 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
                 if ex_a and ex_b:
                     examples = (f" Zum Beispiel aus „{m['obs']}“: {', '.join(ex_a)} – aus „{m['into']}“: {', '.join(ex_b)}.")
                 found[subj] = dict(kind="confirm_merge", subject=subj, impact=5,
-                                   payload=dict(text=f"Ich habe {n or 'die'} {t['plural']} aus „{m['obs']}“ zu den "
-                                                     f"{dative_plural(t['plural'])} aus „{m['into']}“ gelegt. "
+                                   payload=dict(text=f"Ich habe {n or 'die'} {t['plural']} aus {_where(m['obs'], dative=True)} zu den "
+                                                     f"{dative_plural(t['plural'])} aus {_where(m['into'], dative=True)} gelegt. "
                                                      f"Gehören sie in eine Liste?",
                                                 detail=f"Grund: {m['reason']}; kein Eintrag steht in beiden Dateien – darum frage ich."
                                                        f"{examples} Ja: eine gemeinsame Liste. Nein: zwei getrennte Listen.",
                                                 decision=dict(kind="same_type", subject=None, obs=m["obs"], into=m["into"],
                                                               type=t["id"]),
-                                                options=[["ok", "Ja, passt"], ["split", "Nein, getrennt führen"]]))
+                                                options=[["ok", "Ja, passt"], ["split", "Nein, getrennt führen"]],
+                                                suggest="ok"))  # what is in place already
     existing = {r["subject"]: r for r in c.execute("SELECT * FROM questions").fetchall()}
     for subj, q in found.items():
         if subj in existing:
@@ -184,6 +184,21 @@ def reopen(store: Store, qid: int):
     """Ask again: the answer is forgotten, the question is open."""
     with store.tx() as c:
         c.execute("UPDATE questions SET status='open', answer=NULL, answered_at=NULL, snooze_until=NULL WHERE id=?", (qid,))
+
+
+def _where(label: str, hint=None, dative: bool = False) -> str:
+    """"Stundenzettel_August_2026 › Kortmann" -> "das Blatt „Kortmann“ in Stundenzettel_August_2026" – no
+    internal labels in a question."""
+    what = (hint or (None,))[0] if hint else None
+    if " › " in label:
+        file, sheet = label.split(" › ", 1)
+        sheet = sheet.split(" + ")[-1]
+        if what:
+            return f"die {what} im Blatt „{sheet}“ in {file}"
+        return f"{'dem' if dative else 'das'} Blatt „{sheet}“ in {file}"
+    if what:
+        return f"die {what} aus „{label}“"
+    return f"{'der' if dative else 'die'} Liste „{label}“"
 
 
 def open_questions(store: Store, limit: int | None = None) -> list[dict]:

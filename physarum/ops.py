@@ -568,6 +568,84 @@ def follow_up(rt, rid: int, outcome: str, actor: str, today: date | None = None)
     raise OpError("Unbekannte Antwort")
 
 
+def record_payment(rt, rid: int, amount, when: str | None, how: str, actor: str) -> float:
+    """A payment the bank statement does not show (cash, a cheque, an offset) or a part of one. Returns
+    what is still open."""
+    from .payments import CASH_KINDS
+    rt.ensure()
+    rec = rt.store.record(rid)
+    if not rec or rec["deleted"] or rid not in rt.ledger:
+        raise OpError("Hier lässt sich keine Zahlung eintragen")
+    value = parse_number(amount) if isinstance(amount, str) else amount
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise OpError("Bitte einen Betrag angeben")
+    value = round(float(value), 2)
+    if value <= 0:
+        raise OpError("Der Betrag muss größer als null sein")
+    d = as_date(when) if when else date.today()
+    if not d:
+        raise OpError("Bitte ein Datum angeben")
+    if how not in CASH_KINDS:
+        raise OpError("Unbekannte Zahlungsart")
+    meta = dict(rec["meta"] or {})
+    cash = list(meta.get("cash") or [])
+    entry = dict(id=max([m.get("id", 0) for m in cash] + [0]) + 1, amount=value, date=d.isoformat(), how=how,
+                 by=actor, ts=now_iso())
+    cash.append(entry)
+    meta["cash"] = cash
+    with rt.store.tx() as c:
+        c.execute("UPDATE records SET meta=?, updated_at=? WHERE id=?", (dumps(meta), entry["ts"], rid))
+        c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
+                  (rid, entry["ts"], actor, "edit", None, None, dumps(entry),
+                   f"{CASH_KINDS[how]} über {value:.2f} € vom {d.strftime('%d.%m.%Y')} eingetragen".replace(".", ",", 1)))
+        rt.bump(c)
+    rt.ensure()
+    return rt.ledger.get(rid, {}).get("open", 0.0)
+
+
+def remove_payment(rt, rid: int, pid: int, actor: str):
+    """Take back a payment entered by hand."""
+    rt.ensure()
+    rec = rt.store.record(rid)
+    meta = dict((rec or {}).get("meta") or {})
+    cash = [m for m in meta.get("cash") or []]
+    gone = next((m for m in cash if m.get("id") == pid), None)
+    if not gone:
+        raise OpError("Diese Zahlung gibt es nicht (mehr)")
+    meta["cash"] = [m for m in cash if m is not gone]
+    ts = now_iso()
+    with rt.store.tx() as c:
+        c.execute("UPDATE records SET meta=?, updated_at=? WHERE id=?", (dumps(meta), ts, rid))
+        c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
+                  (rid, ts, actor, "edit", None, dumps(gone), None, "von Hand eingetragene Zahlung zurückgenommen"))
+        rt.bump(c)
+
+
+def assign_payment(rt, bank_rid: int, inv_rid: int, actor: str) -> bool:
+    """The owner knows what a bank line pays: it pays this invoice from now on, also after the next growth.
+    Returns whether a growth is needed (the first such link between the two lists)."""
+    from .grow import match_attr
+    from .payments import CONFIRMED
+    from .questions import _stable_ident
+    rt.ensure()
+    row, inv = rt.by_id.get(bank_rid), rt.by_id.get(inv_rid)
+    if not row or not inv or inv_rid not in rt.ledger:
+        raise OpError("Zahlung oder Rechnung gibt es nicht")
+    attr = match_attr(rt.model, row["type"], inv["type"])
+    with rt.store.tx() as c:
+        bid, iid = _stable_ident(c, row["type"], bank_rid), _stable_ident(c, inv["type"], inv_rid)
+        if not bid or not iid:
+            raise OpError("Diese Zeile lässt sich nicht dauerhaft zuordnen")
+        rt.store.decide("payment_match", f"{row['type']}|{bid}|{inv['type']}|{iid}", "yes", actor, c=c,
+                        note="an der Kontobewegung zugeordnet")
+        c.execute("INSERT OR IGNORE INTO refs(from_id,attr,to_id,kind,how) VALUES(?,?,?,?,?)",
+                  (bank_rid, attr, inv_rid, "mention", CONFIRMED))
+        c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
+                  (inv_rid, now_iso(), actor, "edit", f"Zahlung vom Konto zugeordnet: {rt.title(bank_rid)}"))
+        rt.bump(c)
+    return attr == "match"
+
+
 def paid_by_hand(rt, rid: int, when: str | None, actor: str):
     """Mark an invoice as paid without a bank line (or take that back with when=None)."""
     rt.ensure()

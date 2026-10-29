@@ -858,6 +858,62 @@ class CraftFirm(unittest.TestCase):
         ref = next(a for a in am[0]["attrs"] if a["kind"] == "ref" and a.get("ref") == job["id"])
         self.assertEqual({rt.title(r["data"].get(ref["id"])) for r in rt.records[am[0]["id"]]}, {"A26-028", "A26-003"})
 
+    def test_a_draft_written_here_is_no_copy_from_another_program(self):
+        import re
+        from starlette.testclient import TestClient
+        from physarum.web.app import create_app
+        rows = _book(24)
+        self.f.feed([("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD, rows))])
+        rt = self.f.rt()
+        inv = _type(rt, "Rechnung")
+        c = TestClient(create_app(self.f.dir / "firma"))
+        imported = next(r["id"] for r in rt.records[inv["id"]])
+        self.assertIn("anderen Programm", c.get(f"/r/{imported}/druck").text)   # the book's invoice: a copy
+        form = c.get(f"/t/{inv['id']}/neu").text
+        vals = dict(re.findall(r'name="(a_[^"]+)"[^>]*value="([^"]*)"', form))
+        r = c.post(f"/t/{inv['id']}/neu", data=vals, headers={"origin": "http://testserver"}, follow_redirects=False)
+        draft = int(re.search(r"/r/(\d+)", r.headers["location"]).group(1))
+        page = c.get(f"/r/{draft}/druck").text
+        self.assertIn("Vorschau eines Entwurfs", page)
+        self.assertNotIn("anderen Programm", page)                              # written here, not a copy
+
+    def test_cash_part_payments_and_a_bank_line_the_owner_assigns(self):
+        from starlette.testclient import TestClient
+        from physarum.grow import regrow
+        from physarum.web.app import create_app
+        rows = _book(24, start=date(2026, 6, 1))
+        bank = [[r[1], r[2], f"Rechnung {r[0]}", r[8]] for r in rows[:20]]
+        bank.append(["20.10.2026", "Kunde 4", "Danke für die Arbeiten", rows[22][8]])   # no number: which one?
+        self.f.feed([("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD, rows)), ("Umsaetze.csv", csv(BANK_HEAD, bank))])
+        rt = self.f.rt()
+        inv = _type(rt, "Rechnung")
+        rid = {rt.by_id[r["id"]]["data"][inv["key"]]: r["id"] for r in rt.records[inv["id"]]}
+        c = TestClient(create_app(self.f.dir / "firma"))
+        h = {"origin": "http://testserver"}
+        # a customer pays part in cash at the counter
+        target = rid[rows[21][0]]
+        gross = rt.ledger[target]["gross"]
+        r = c.post(f"/r/{target}/zahlung", data={"amount": "100,00", "date": "2026-10-28", "how": "bar"}, headers=h).json()
+        self.assertIn(f"noch offen", r["toast"])
+        rt = self.f.rt()
+        self.assertEqual(rt.ledger[target]["state"], "teilbezahlt")
+        self.assertAlmostEqual(rt.ledger[target]["open"], gross - 100, places=2)
+        # the bank line without a number: the owner says which invoice it pays – and that holds after growing
+        b = next(x["rid"] for g in rt.work(date(2026, 10, 29)) if g["kind"] == "receipt" for x in g["items"])
+        self.assertIn("Wofür ist diese Zahlung?", c.get(f"/r/{b}").text)
+        r = c.post(f"/r/{b}/zuordnen", data={"invoice": str(rid[rows[22][0]])}, headers=h).json()
+        self.assertTrue(r.get("reload") or r.get("job"), r)
+        regrow(self.f.store)
+        rt = self.f.rt()
+        self.assertEqual(rt.ledger[rid[rows[22][0]]]["state"], "bezahlt")
+        self.assertEqual(rt.ledger[target]["state"], "teilbezahlt")                # the cash stays as well
+        # and both can be taken back
+        pid = rt.ledger[target]["payments"][0]["by_hand"]
+        c.post(f"/r/{target}/zahlung-entfernen", data={"id": str(pid)}, headers=h)
+        c.post(f"/r/{rid[rows[22][0]]}/zahlung-loesen", data={"bank": str(b)}, headers=h)
+        rt = self.f.rt()
+        self.assertEqual((rt.ledger[target]["state"], rt.ledger[rid[rows[22][0]]]["state"]), ("offen", "offen"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -351,7 +351,31 @@ def recipient(rt, party_rid: int | None) -> dict:
     return dict(name=rt.title(cust["id"]), person=role("person"), street=role("street"), zip=role("zip"),
                 city=role("city"), email=role("email"), number=d.get(cs["key"]) if cs.get("key") else None,
                 vat_id=next((str(d[a["id"]]) for a in cs["attrs"] if words(a["name"]) & {"ustid", "ust", "vat"}
-                             and a["kind"] in ("id", "text") and d.get(a["id"])), None))
+                             and a["kind"] in ("id", "text") and d.get(a["id"])), None),
+                salutation=salutation(cs, d, rt.title(cust["id"])))
+
+
+_SALUTE = {"herr": "Sehr geehrter Herr", "hr": "Sehr geehrter Herr", "herrn": "Sehr geehrter Herr",
+           "frau": "Sehr geehrte Frau", "fr": "Sehr geehrte Frau", "familie": "Sehr geehrte Familie",
+           "fam": "Sehr geehrte Familie", "eheleute": "Sehr geehrte Familie"}
+
+
+def salutation(spec: dict, data: dict, name: str) -> str:
+    """"Sehr geehrter Herr Schulze," – only where the customer list says "Herr" (a first name says nothing about
+    how someone wants to be addressed); a firm, or nothing said, is "Damen und Herren"."""
+    anrede = next((str(data[a["id"]]) for a in spec["attrs"] if words(a["name"]) & {"anrede", "salutation", "titel"}
+                   and isinstance(data.get(a["id"]), str)), "")
+    lead = _SALUTE.get(fold(anrede).strip(" ."))
+    if not lead:
+        return "Sehr geehrte Damen und Herren,"
+    surname = next((str(data[a["id"]]) for a in spec["attrs"] if words(a["name"]) & {"nachname", "name1", "familienname",
+                                                                                   "surname", "lastname"}
+                    and isinstance(data.get(a["id"]), str) and data[a["id"]].strip()), None)
+    if not surname:
+        n = name.split(",")[0] if "," in name else name.split()[-1] if name.split() else name
+        surname = n.strip()
+    title = " ".join(w for w in name.split() if fold(w).strip(".") in ("dr", "prof"))
+    return f"{lead} {title + ' ' if title and title not in surname else ''}{surname.strip()},"
 
 
 def draft_positions(rt, rec: dict) -> list[dict]:

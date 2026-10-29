@@ -94,11 +94,29 @@
   <table class="table"><thead><tr><th>Datum</th><th>Art</th><th class="num">Betrag</th></tr></thead><tbody>
     {% for x in pay.payments %}<tr><td>{{ display(x.date.isoformat(), 'date') if x.date else '–' }}</td>
       <td>{% if x.rid %}<a href="/r/{{ x.rid }}">{{ x.how }}{% if x.shared %} (Sammelüberweisung){% endif %}</a>{% else %}{{ x.how }}{% endif %}
-        {% if x.by_amount %}<span class="faint noprint">·</span> <button class="linkish muted small noprint" data-post="/r/{{ rec.id }}/zahlung-loesen" data-body='{"bank": "{{ x.rid }}"}' title="Die Überweisung gehört nicht zu dieser Rechnung">Zuordnung lösen</button>{% endif %}</td>
+        {% if x.by_amount %}<span class="faint noprint">·</span> <button class="linkish muted small noprint" data-post="/r/{{ rec.id }}/zahlung-loesen" data-body='{"bank": "{{ x.rid }}"}' title="Die Überweisung gehört nicht zu dieser Rechnung">Zuordnung lösen</button>{% endif %}
+        {% if x.by_hand %}<span class="faint noprint">·</span> <button class="linkish muted small noprint" data-post="/r/{{ rec.id }}/zahlung-entfernen" data-body='{"id": "{{ x.by_hand }}"}' data-confirm="Diese Zahlung zurücknehmen?">zurücknehmen</button>{% endif %}</td>
       <td class="num">{{ money(x.amount) }}</td></tr>{% endfor %}
   </tbody><tfoot><tr><td colspan="2"><b>Bezahlt</b> von {{ money(pay.gross) }}</td><td class="num"><b>{{ money(pay.paid) }}</b></td></tr>
     {% if pay.open and pay.state not in ('bezahlt', 'storniert') %}<tr><td colspan="2"><b>Noch offen</b></td><td class="num"><b>{{ money(pay.open) }}</b></td></tr>{% endif %}</tfoot></table>
   {% elif pay.state == 'offen' %}<p class="muted">Noch keine Zahlung gefunden.</p>{% endif %}
+  {% if pay.state in ('offen', 'teilbezahlt') and pay.open > 0 %}
+  <form class="step-form row noprint" data-step="/r/{{ rec.id }}/zahlung" style="margin-top:10px; gap:8px; flex-wrap:wrap"
+        title="Was der Kontoauszug nicht zeigt: bar, per Scheck, verrechnet – oder ein Teil davon">
+    <input name="amount" inputmode="decimal" value="{{ '%.2f'|format(pay.open)|replace('.', ',') }}" aria-label="Betrag" style="width:8em">
+    <input type="date" name="date" value="{{ today_iso }}" aria-label="Datum">
+    <select name="how" aria-label="Art">{% for k, label in cash_kinds.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select>
+    <button class="small">Zahlung eintragen</button>
+  </form>{% endif %}
+</section>
+{% endif %}
+{% if assign %}
+<section class="card noprint" aria-label="Zuordnen" id="zuordnen"><h2>Wofür ist diese Zahlung?</h2>
+  <p class="muted">Keine Rechnung nennt sie sicher. Wählen Sie, was sie bezahlt – das gilt auch nach dem nächsten Einwerfen.</p>
+  <form class="step-form row" data-step="/r/{{ rec.id }}/zuordnen" style="gap:8px; flex-wrap:wrap">
+    <select name="invoice" aria-label="Rechnung" style="max-width:100%">{% for c in assign %}<option value="{{ c.rid }}">{{ c.label }}{{ ' (Betrag passt)' if c.exact }}</option>{% endfor %}</select>
+    <button class="small">Zuordnen</button>
+  </form>
 </section>
 {% endif %}
 {% if alloc %}

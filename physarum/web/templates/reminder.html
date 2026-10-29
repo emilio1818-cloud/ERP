@@ -26,7 +26,7 @@ tfoot td{font-weight:700;border-bottom:0}@media print{.noprint{display:none}body
 <div class="meta">{{ today }}{% if addr.number %}<br>Kundennummer {{ addr.number }}{% endif %}</div>
 <h1>{{ title_text }}</h1>
 {% if items %}
-<p>Sehr geehrte Damen und Herren,</p>
+<p>{{ addr.salutation or 'Sehr geehrte Damen und Herren,' }}</p>
 {% if level == 1 %}<p>sicher ist es Ihrer Aufmerksamkeit entgangen: Für die folgenden Rechnungen haben wir noch keine (vollständige) Zahlung erhalten.</p>
 {% elif level == 2 %}<p>auf unsere Zahlungserinnerung haben wir leider noch keine Zahlung erhalten. Folgende Beträge sind weiterhin offen:</p>
 {% else %}<p>trotz Erinnerung und Mahnung sind die folgenden Beträge weiterhin offen. Bitte begleichen Sie sie bis spätestens zehn Tage nach Erhalt dieses Schreibens.</p>{% endif %}

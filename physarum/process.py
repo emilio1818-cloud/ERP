@@ -396,24 +396,12 @@ def _status_for(sa, recs, steps, stage_of, comb) -> dict | None:
             if ok / len(reached) >= 0.9:
                 autos.append(dict(step=st["id"], attr=sa["id"], value=v, ok=ok, n=len(reached),
                                   text=f"Wenn „{st['name']}“ eingetragen wird: {sa['name']} = „{lexicon.show_value(v)}“"))
-    # stale statuses: the status says "not yet" although a linked record says "done"
-    stale = []
-    for i, st in enumerate(steps, start=1):
-        target = [v for v, s in mapping.items() if s == i]
-        if len(target) != 1:
-            continue
-        for r in recs:
-            v = r["data"].get(sa["id"])
-            if v is None or str(v) in negative or mapping.get(str(v), i) >= i:
-                continue
-            if r["id"] in comb[st["id"]] and stage_of[r["id"]] < i:
-                stale.append(dict(rid=r["id"], step=st["id"], value=target[0], was=str(v)))
     # how well the status values predict the stage (1.0 = perfectly)
     total = sum(sum(c.values()) for v, c in by_val.items() if v not in negative)
     purity = sum(max(c.values()) for v, c in by_val.items() if v not in negative) / total if total else 0
     quality = purity * 10 + len(set(mapping.values()))
     return dict(attr=sa["id"], name=sa["name"], map=mapping, negative=negative, initial=initial, autos=autos,
-                stale=stale[:200], _quality=quality)
+                _quality=quality)
 
 
 def _lex_match(due_name: str, label: str) -> bool:

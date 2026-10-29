@@ -22,13 +22,9 @@ from itertools import combinations
 from .billing import is_draft
 from .infer.identity import FREEMAIL
 from .text import fold, jaro_winkler, name_similarity, norm_name, tokens
-from .values import as_date, iban_ok
+from .values import as_date, as_number, iban_ok
 
 IBAN_RE = re.compile(r"\b([A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,4})?)\b")
-
-
-def _num(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 _OUT_WORDS = {"soll", "debit", "ausgabe", "ausgaben", "lastschrift", "belastung", "abgang"}
@@ -46,11 +42,11 @@ def bank_amount(b: dict, data: dict) -> float | None:
     """The signed amount of a bank line: money in is positive, money out negative."""
     if b.get("split"):
         out, inc = b["split"]
-        vo, vi = _num(data.get(out["id"])), _num(data.get(inc["id"]))
+        vo, vi = as_number(data.get(out["id"])), as_number(data.get(inc["id"]))
         if vo is None and vi is None:
             return None
         return round((vi or 0.0) - abs(vo or 0.0), 2)
-    return _num(data.get(b["money"]["id"]))
+    return as_number(data.get(b["money"]["id"]))
 
 
 def bank_specs(model: dict) -> list[dict]:
@@ -149,7 +145,7 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                 continue
             if r["id"] in paid or (sattr and str(r["data"].get(sattr)) in neg):
                 continue
-            g = _num(r["data"].get(p["gross"]))
+            g = as_number(r["data"].get(p["gross"]))
             if g and g > 0:
                 open_inv.append(r)
         by_party: dict[int, list] = {}
@@ -200,7 +196,7 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                 cands = [r for r in cands if (start(r) or date.min) <= when]
                 if not cands:
                     continue
-                gross = {r["id"]: rest.get(r["id"], _num(r["data"].get(p["gross"]))) for r in cands}
+                gross = {r["id"]: rest.get(r["id"], as_number(r["data"].get(p["gross"]))) for r in cands}
                 exact = [r for r in cands if abs(gross[r["id"]] - amount) < 0.005]
                 if len(exact) > 1 and named:
                     exact = [r for r in exact if start(r) in named] or exact  # the date the purpose names decides
@@ -222,7 +218,7 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                         # a collective transfer may also pay an invoice the book already marks as paid
                         both = cands + [r for r in listed_of.get(party, []) if (start(r) or date.min) <= when] \
                             if isinstance(party, int) else cands
-                        gross.update({r["id"]: rest.get(r["id"], _num(r["data"].get(p["gross"]))) for r in both})
+                        gross.update({r["id"]: rest.get(r["id"], as_number(r["data"].get(p["gross"]))) for r in both})
                         pairs = []
                         for i in range(len(both)):
                             for j in range(i + 1, len(both)):
@@ -307,7 +303,7 @@ def _direct_debits(banks, records, open_inv, rest, p, taken) -> list[dict]:
                 if len(topical) >= n:
                     cands = topical
             cands = sorted(cands, key=lambda r: str(r["data"].get(p["start"]["attr"]) or ""), reverse=True)[:40]
-            owed = {r["id"]: rest.get(r["id"], _num(r["data"].get(p["gross"])) or 0.0) for r in cands}
+            owed = {r["id"]: rest.get(r["id"], as_number(r["data"].get(p["gross"])) or 0.0) for r in cands}
             fits = [c for c in combinations(cands, n) if abs(sum(owed[r["id"]] for r in c) - amount) < 0.005]
             if len(fits) != 1:
                 continue

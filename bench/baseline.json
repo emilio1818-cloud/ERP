@@ -1,12 +1,12 @@
 {
  "summary": {
   "money": 0.471,
-  "heute": 0.721,
+  "heute": 0.725,
   "names": 0.48,
-  "schema_questions": 9,
+  "schema_questions": 0,
   "errors": 0,
-  "lines": 18723,
-  "word_rules": 739,
+  "lines": 18496,
+  "word_rules": 733,
   "regexes": 162
  },
  "results": [
@@ -16,8 +16,8 @@
    "deliveries": [
     {
      "types": 14,
-     "questions": 2,
-     "schema_questions": 1,
+     "questions": 1,
+     "schema_questions": 0,
      "heute_groups": 11,
      "heute_items": 18,
      "coverage": 0.9,
@@ -41,6 +41,7 @@
       "A-2026-0181",
       "A-2026-0184"
      ],
+     "over_budget": [],
      "receipts": [],
      "eur_open": 4264.07,
      "score": {
@@ -62,7 +63,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.6,
+     "seconds": 2.5,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -74,8 +75,8 @@
    "deliveries": [
     {
      "types": 15,
-     "questions": 3,
-     "schema_questions": 2,
+     "questions": 1,
+     "schema_questions": 0,
      "heute_groups": 8,
      "heute_items": 290,
      "coverage": 0.81,
@@ -191,6 +192,7 @@
       "A-26-253",
       "A-26-254"
      ],
+     "over_budget": [],
      "receipts": [],
      "eur_open": 46608.93,
      "score": {
@@ -200,7 +202,7 @@
        "fn": 0
       }
      },
-     "seconds": 10.0,
+     "seconds": 10.2,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -264,6 +266,13 @@
       "RE-2026-0431"
      ],
      "unbilled": [],
+     "over_budget": [
+      "P-2025-008",
+      "P-2025-010",
+      "P-2025-020",
+      "P-2025-042",
+      "P-2026-016"
+     ],
      "receipts": [],
      "eur_open": 39949.38,
      "score": {
@@ -280,7 +289,7 @@
        "fn": 0
       }
      },
-     "seconds": 33.6,
+     "seconds": 33.0,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -319,6 +328,13 @@
       "RE-2026-0504"
      ],
      "unbilled": [],
+     "over_budget": [
+      "P-2025-008",
+      "P-2025-010",
+      "P-2025-020",
+      "P-2025-042",
+      "P-2026-016"
+     ],
      "receipts": [],
      "eur_open": 49390.91,
      "score": {
@@ -333,6 +349,11 @@
        "tp": 10,
        "fp": 0,
        "fn": 0
+      },
+      "over_budget": {
+       "tp": 5,
+       "fp": 0,
+       "fn": 1
       }
      },
      "seconds": 36.4,
@@ -347,8 +368,8 @@
    "deliveries": [
     {
      "types": 16,
-     "questions": 4,
-     "schema_questions": 3,
+     "questions": 1,
+     "schema_questions": 0,
      "heute_groups": 11,
      "heute_items": 48,
      "coverage": 0.827,
@@ -380,6 +401,7 @@
       "A26-069",
       "A26-072"
      ],
+     "over_budget": [],
      "receipts": [],
      "eur_open": 18237.08,
      "score": {
@@ -401,7 +423,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.7,
+     "seconds": 2.5,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -439,6 +461,7 @@
       "A26-085",
       "A26-087"
      ],
+     "over_budget": [],
      "receipts": [
       214.2,
       3000.0
@@ -468,7 +491,7 @@
        "fn": 0
       }
      },
-     "seconds": 4.3,
+     "seconds": 4.1,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -512,6 +535,7 @@
       "BR-2026-0637"
      ],
      "unbilled": [],
+     "over_budget": [],
      "receipts": [
       42.0,
       42.0,
@@ -540,7 +564,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.9,
+     "seconds": 1.3,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -552,11 +576,11 @@
    "deliveries": [
     {
      "types": 5,
-     "questions": 1,
-     "schema_questions": 1,
+     "questions": 0,
+     "schema_questions": 0,
      "heute_groups": 7,
      "heute_items": 13,
-     "coverage": 0.884,
+     "coverage": 0.982,
      "open": {
       "RE-2026-100": 1570.0,
       "RE-2026-103": 1737.4,
@@ -579,6 +603,7 @@
       "A-2026-030",
       "A-2026-034"
      ],
+     "over_budget": [],
      "receipts": [
       535.5,
       1737.4,
@@ -604,7 +629,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.4,
+     "seconds": 0.3,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -616,8 +641,8 @@
    "deliveries": [
     {
      "types": 19,
-     "questions": 273,
-     "schema_questions": 7,
+     "questions": 266,
+     "schema_questions": 0,
      "heute_groups": 8,
      "heute_items": 145,
      "coverage": 0.86,
@@ -728,6 +753,7 @@
       "RE2026-097"
      ],
      "unbilled": [],
+     "over_budget": [],
      "receipts": [
       17.8,
       19.4,
@@ -752,14 +778,14 @@
        "fn": 0
       }
      },
-     "seconds": 35.6,
+     "seconds": 35.5,
      "delivery": 1,
      "today": "2026-10-29"
     },
     {
      "types": 19,
-     "questions": 256,
-     "schema_questions": 5,
+     "questions": 251,
+     "schema_questions": 0,
      "heute_groups": 7,
      "heute_items": 153,
      "coverage": 0.863,
@@ -878,6 +904,7 @@
       "RE2026-108"
      ],
      "unbilled": [],
+     "over_budget": [],
      "receipts": [
       11.4,
       25.0,
@@ -906,7 +933,7 @@
        "fn": 0
       }
      },
-     "seconds": 38.2,
+     "seconds": 38.1,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -918,8 +945,8 @@
    "deliveries": [
     {
      "types": 15,
-     "questions": 3,
-     "schema_questions": 2,
+     "questions": 1,
+     "schema_questions": 0,
      "heute_groups": 11,
      "heute_items": 19,
      "coverage": 0.866,
@@ -937,6 +964,7 @@
       "RE-2026-0173"
      ],
      "unbilled": [],
+     "over_budget": [],
      "receipts": [],
      "eur_open": 4264.07,
      "score": {
@@ -958,7 +986,7 @@
        "fn": 4
       }
      },
-     "seconds": 3.0,
+     "seconds": 2.6,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -984,6 +1012,7 @@
       "A-2026-0181",
       "A-2026-0184"
      ],
+     "over_budget": [],
      "receipts": [
       79.93,
       119.41,
@@ -1027,7 +1056,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.6,
+     "seconds": 3.1,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1039,14 +1068,15 @@
    "deliveries": [
     {
      "types": 15,
-     "questions": 2,
-     "schema_questions": 1,
+     "questions": 1,
+     "schema_questions": 0,
      "heute_groups": 10,
      "heute_items": 51,
      "coverage": 0.866,
      "open": {},
      "overdue": [],
      "unbilled": [],
+     "over_budget": [],
      "receipts": [
       79.93,
       119.41,
@@ -1090,7 +1120,7 @@
        "fn": 4
       }
      },
-     "seconds": 3.7,
+     "seconds": 2.5,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1134,6 +1164,7 @@
       "BR-2026-0637"
      ],
      "unbilled": [],
+     "over_budget": [],
      "receipts": [
       42.0,
       42.0,
@@ -1162,7 +1193,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.1,
+     "seconds": 0.7,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1826,6 +1857,7 @@
       "BR-2026-0637"
      ],
      "unbilled": [],
+     "over_budget": [],
      "receipts": [
       42.0,
       42.0,
@@ -2518,6 +2550,7 @@
       "BR-2026-0637"
      ],
      "unbilled": [],
+     "over_budget": [],
      "receipts": [
       42.0,
       42.0,
@@ -2546,7 +2579,7 @@
        "fn": 4
       }
      },
-     "seconds": 1.0,
+     "seconds": 1.1,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2558,11 +2591,11 @@
    "deliveries": [
     {
      "types": 5,
-     "questions": 1,
-     "schema_questions": 1,
+     "questions": 0,
+     "schema_questions": 0,
      "heute_groups": 6,
      "heute_items": 11,
-     "coverage": 0.817,
+     "coverage": 0.908,
      "open": {
       "RE-2026-100": 1570.0,
       "RE-2026-103": 1737.4,
@@ -2582,6 +2615,7 @@
       "RE-2026-108"
      ],
      "unbilled": [],
+     "over_budget": [],
      "receipts": [
       535.5,
       1737.4,
@@ -2607,7 +2641,7 @@
        "fn": 2
       }
      },
-     "seconds": 0.4,
+     "seconds": 0.3,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2655,6 +2689,7 @@
       "A-2026-030",
       "A-2026-034"
      ],
+     "over_budget": [],
      "receipts": [
       535.5,
       1737.4,
@@ -2680,7 +2715,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.3,
+     "seconds": 0.2,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2700,6 +2735,7 @@
      "open": {},
      "overdue": [],
      "unbilled": [],
+     "over_budget": [],
      "receipts": [
       535.5,
       1249.5,

@@ -29,11 +29,11 @@ from .. import ops
 from ..grow import Progress, ingest, record_title, regrow
 from ..process import kpis
 from ..questions import answer as answer_question
-from ..questions import open_questions
+from ..questions import CONSEQUENCES, hints, open_questions
 from ..runtime import Runtime
 from ..store import Store, dumps, loads, now_iso
 from ..text import fold, norm_key, norm_name
-from ..values import as_date, display, event_date
+from ..values import as_date, display, event_date, fmt_number
 from .. import billing, lexicon
 from ..payments import bank_allocations
 from . import views
@@ -135,9 +135,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                        ago=views.ago, days_text=views.days_text, input_value=views.input_value,
                        after_days=views.after_days,
                        title=lambda rid: rt.title(rid), status_class=views.status_class, display=display,
-                       show_value=views.show_value,
+                       show_value=views.show_value, consequences_of=lambda kind, v: CONSEQUENCES.get((kind, v), ""),
                        stale_days=lambda iso: (date.today() - date.fromisoformat(str(iso)[:10])).days if iso else 0)
-    env.filters["de"] = lambda x, d=0: views.display(x, "number") if d == 0 else f"{x:,.{d}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    env.filters["de"] = lambda x, d=0: views.display(x, "number") if d == 0 else fmt_number(x, d)
     env.filters["json"] = lambda x: json.dumps(x, ensure_ascii=False, default=str)
     # VAT rates, highest first; an unclear rate (None) last
     env.filters["by_rate"] = lambda d: sorted((d or {}).items(), key=lambda kv: (kv[0] is None, -(kv[0] or 0)))
@@ -196,7 +196,6 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         summ = store.q1("SELECT summary, created_at FROM models ORDER BY version DESC LIMIT 1")
         summary = loads(summ["summary"]) if summ else {}
         from ..coverage import coverage
-        from ..questions import CONSEQUENCES
         cov = coverage(rt)
         n_files = store.q1("SELECT COUNT(*) n FROM sources WHERE active=1 AND parent_id IS NULL")["n"]
         glance = views.at_a_glance(rt, open_items, n_files)
@@ -223,14 +222,6 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     continue
                 out.append(dict(kind="auto", key=key, text=au["text"], evidence=f"in {au['ok']} von {au['n']} Fällen so",
                                 type=spec))
-            stale = rt.stale.get(p["type"]) if p["type"] in rt.stale else \
-                [s for s in st.get("stale", []) if str(rt.by_id.get(s["rid"], {}).get("data", {}).get(st["attr"])) == s["was"]]
-            if stale:
-                was = " bzw. ".join(f"„{w}“" for w in sorted({x["was"] for x in stale}))
-                out.append(dict(kind="stale", type=spec, n=len(stale),
-                                text=f"{len(stale)} {spec['plural']} sind laut Kontoauszug bezahlt (Betrag geprüft), "
-                                     f"stehen aber noch auf {was}.",
-                                items=stale[:8]))
         return out
 
     def _growth_file_exists() -> bool:
@@ -375,6 +366,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         tid = request.path_params["tid"]
         spec = rt.spec(tid)
         if not spec:
+            now = next((t["id"] for t in rt.model.get("types", []) if tid in (t.get("former") or [])), None)
+            if now:  # two lists became one
+                return RedirectResponse(f"/t/{now}", 303)
             return page(request, "message.html", dict(title="Nicht gefunden", text="Diese Art gibt es nicht."), 404)
         recs, state = filtered(spec, request)
         pins = store.decisions("list_cols").get(tid) or {}
@@ -399,7 +393,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     sums[c["id"]] = round(sum(vals), 2)
         ctx = dict(spec=spec, cols=cols, rows=rows, total=total, page=pg, pages=max(1, (total + per - 1) // per),
                    state=state, facets=views.facets(rt, spec, rt.records.get(tid, [])), sums=sums,
-                   col_ids={c["id"] for c in cols}, lines_of=line_child(spec))
+                   col_ids={c["id"] for c in cols}, lines_of=line_child(spec), hints=hints(store, tid))
         if request.query_params.get("teil"):
             return templates.TemplateResponse(request, "list_rows.html", ctx)
         return page(request, "list.html", ctx)
@@ -604,7 +598,6 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             if a:
                 conflicts.append(dict(attr=a, value=v, source=src_name))
         imported = rec.get("origin") == "import" or any(c["kind"] == "import" for c in changes)
-        stale = next((s for s in (rt.stale or {}).get(spec["id"], []) if s["rid"] == rid), None)
         issue_ctx = {}
         if inv and draft:
             dv = billing.delivery_of(rt, spec, rec)
@@ -627,7 +620,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         status_is_payment = bool(pay_status and own_status and fold(str(own_status)) in _PAY_WORDS)
         return dict(rec=rec, spec=spec, facts=facts, timeline=timeline, related=related, mentions=mentions, notes=notes,
                     effort=effort, owes=owes, own_status=own_status, pay_status=pay_status, status_is_payment=status_is_payment,
-                    stale=stale, issued_here=bool(meta.get("issued")), incoming=bool(spec.get("incoming")), **issue_ctx,
+                    issued_here=bool(meta.get("issued")), incoming=bool(spec.get("incoming")), **issue_ctx,
                     draft_lines=bool(draft and meta.get("positions") is not None),
                     maybe_paid=maybe_paid, pay=pay, alloc=alloc, assign=assign, cash_kinds=CASH_KINDS,
                     invoice=inv, draft=draft, doc=doc,
@@ -838,22 +831,6 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         toast = (f"Wieder vorlegen am {display(rec['data'].get(changed[0]), 'date')}" if form.get("outcome") == "later"
                  else f"{a['name']}: {rec['data'].get(changed[0])}")
         return JSONResponse(dict(reload=True, toast=toast,
-                                 undo=dict(url=f"/r/{rid}/rueckgaengig", body=dict(attrs=",".join(changed)))))
-
-    def record_take_over(request: Request):
-        """One record: take over the payment state the bank statement shows."""
-        rid = int(request.path_params["rid"])
-        rec = rt.by_id.get(rid)
-        if not rec:
-            return JSONResponse(dict(error="Nicht gefunden"))
-        before = dict(rec["data"])
-        n = ops.apply_stale(rt, rec["type"], actor(request), {rid})
-        if not n:
-            return JSONResponse(dict(error="Nichts zu übernehmen – Status und Zahlung passen schon zusammen."))
-        rt.ensure()
-        after = rt.by_id.get(rid, {}).get("data", {})
-        changed = [k for k in after if after.get(k) != before.get(k)]
-        return JSONResponse(dict(reload=True, toast="Übernommen: laut Kontoauszug bezahlt.",
                                  undo=dict(url=f"/r/{rid}/rueckgaengig", body=dict(attrs=",".join(changed)))))
 
     def record_undo(request: Request, form):
@@ -1129,18 +1106,6 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                                f"Firmendaten: {label} geändert"))
         return RedirectResponse(local_path(form.get("back")), 303)
 
-    def stale_preview(request: Request):
-        """Before anything changes: which invoices the bank says are paid, with the evidence."""
-        rt.ensure()
-        tid = request.path_params["tid"]
-        spec = rt.spec(tid)
-        items = []
-        for s0 in rt.stale.get(tid, []):
-            e = rt.ledger.get(s0["rid"])
-            if e:
-                items.append(dict(s0, entry=e))
-        return page(request, "stale.html", dict(spec=spec, items=items))
-
     def api_derive(request: Request):
         """What a new record takes over from the record it refers to (an invoice from its order)."""
         rt.ensure()
@@ -1395,7 +1360,6 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         rt.ensure()
         qs = open_questions(store)
         answered = store.q("SELECT * FROM questions WHERE status='answered' ORDER BY answered_at DESC LIMIT 60")
-        from ..questions import CONSEQUENCES
         return page(request, "questions.html", dict(questions=qs, consequences=CONSEQUENCES,
                                                     answered=[dict(r, payload=loads(r["payload"]), answer=loads(r["answer"]))
                                                               for r in answered]))
@@ -1414,7 +1378,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         kind, payload = q["kind"], loads(q["payload"]) or {}
         res = answer_question(store, qid, value, actor(request))
         if res.get("regrow"):
-            jid = jobs.start("answer", lambda progress: regrow(store, progress, actor(request)), next_url="/fragen")
+            jid = jobs.start("answer", lambda progress: regrow(store, progress, actor(request)),
+                             next_url=local_path(form.get("back"), "/fragen"))
             return JSONResponse(dict(job=jid))
         rt.bump()
         msg = {"later": "Ich frage morgen noch einmal.", "unknown": "In Ordnung, ich lasse es, wie es ist."}.get(value, "Danke, gemerkt.")
@@ -1487,12 +1452,6 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             return JSONResponse(dict(job=jid))
         rt.bump()
         return JSONResponse(dict(toast=f"{n} Zahlungen zugeordnet.", reload=True))
-
-    def apply_stale(request: Request):
-        tid = request.path_params["tid"]
-        n = ops.apply_stale(rt, tid, actor(request))
-        spec = rt.spec(tid) or {}
-        return JSONResponse(dict(toast=f"{n} {spec.get('plural', 'Datensätze')} auf „bezahlt“ gesetzt.", next=f"/t/{tid}"))
 
     # --- organism -------------------------------------------------------------------------------------------
     def organism(request: Request):
@@ -1864,11 +1823,11 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/r/{rid:int}/bezahlt", formed(record_paid), methods=["POST"]),
         Route("/r/{rid:int}/zahlung-loesen", formed(record_unpay), methods=["POST"]),
         Route("/r/{rid:int}/korrektur-gesehen", formed(correction_seen), methods=["POST"]),
-        Route("/r/{rid:int}/uebernehmen", record_take_over, methods=["POST"]),
+
         Route("/r/{rid:int}/einblenden", record_unhide, methods=["POST"]),
         Route("/r/{rid:int}/xrechnung", record_xrechnung),
         Route("/firma", company_page), Route("/firma", formed(company_save), methods=["POST"]),
-        Route("/abgleich/{tid}", stale_preview), Route("/api/ableiten", api_derive),
+        Route("/api/ableiten", api_derive),
         Route("/r/{rid:int}/druck", record_print),
         Route("/r/{rid:int}/erinnerung", record_reminder),
         Route("/mahnung/{pid:int}", reminder_letter),
@@ -1876,7 +1835,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/suche", search_page), Route("/api/suche", api_search), Route("/api/datensatz/{rid:int}", api_record),
         Route("/api/wie-letztes-mal", api_like_last),
         Route("/fragen", questions_page), Route("/fragen/{qid:int}", formed(question_answer), methods=["POST"]),
-        Route("/regel", formed(rule_toggle), methods=["POST"]), Route("/abgleich/{tid}", apply_stale, methods=["POST"]),
+        Route("/regel", formed(rule_toggle), methods=["POST"]),
         Route("/zahlungen/zuordnen", accept_payments, methods=["POST"]),
         Route("/organismus", organism), Route("/organismus/umbenennen", formed(organism_rename), methods=["POST"]),
         Route("/organismus/feld", formed(organism_attr), methods=["POST"]),

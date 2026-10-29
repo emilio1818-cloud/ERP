@@ -12,18 +12,10 @@ from collections import Counter, defaultdict
 from datetime import date, timedelta
 
 from .text import fold, tokens
-from .values import add_months, as_date, interval_months, next_occurrence, parse_duration, parse_period
+from .values import add_months, as_date, as_number, interval_months, next_occurrence, parse_duration, parse_period
 
 NUMERIC = ("number", "money", "percent", "duration")
 NICE = [0.07, 0.19, 0.16, 0.05, 1.07, 1.19, 1.16, 0.5, 2, 3, 4, 5, 6, 10, 12, 20, 24, 25, 30, 50, 60, 100, 1000, 0.01, 0.1]
-
-
-def _num(v):
-    if isinstance(v, bool) or v is None:
-        return None
-    if isinstance(v, (int, float)):
-        return float(v)
-    return None
 
 
 def _close(x: float, y: float) -> bool:
@@ -64,7 +56,7 @@ def find_formulas(spec: dict, recs: list[dict]) -> list[dict]:
     if len(attrs) > _MAX_FORMULA_ATTRS:  # a wide export (a measurement grid, a pivot): look at the money first
         filled = Counter(a["id"] for r in sample for a in attrs if r["data"].get(a["id"]) is not None)
         attrs = sorted(attrs, key=lambda a: (a["kind"] != "money", -filled[a["id"]]))[:_MAX_FORMULA_ATTRS]
-    col = {a["id"]: [_num(r["data"].get(a["id"])) for r in sample] for a in attrs}
+    col = {a["id"]: [as_number(r["data"].get(a["id"])) for r in sample] for a in attrs}
     attrs = _without_twins(attrs, col)
     used_targets = set()
 
@@ -221,14 +213,14 @@ def find_aggregates(model: dict, records: dict) -> list[dict]:
             if not isinstance(p, int):
                 continue
             for a in cattrs:
-                v = _num(r["data"].get(a["id"]))
+                v = as_number(r["data"].get(a["id"]))
                 if v is not None:
                     sums[a["id"]][p] += v
         for pa in [a for a in parent["attrs"] if a["kind"] == "money" and not a.get("constant")]:
             for ca in cattrs:
                 rows = []
                 for r in precs:
-                    pv = _num(r["data"].get(pa["id"]))
+                    pv = as_number(r["data"].get(pa["id"]))
                     if pv is None or r["id"] not in sums[ca["id"]]:
                         continue
                     rows.append((sums[ca["id"]][r["id"]], pv))
@@ -608,7 +600,7 @@ def find_lookups(model: dict, records: dict) -> list[dict]:
                     pairs = []
                     for r in recs:
                         tr = by_id.get(r["data"].get(ref["id"]))
-                        xv, yv = _num(r["data"].get(x["id"])), _num(tr["data"].get(y["id"])) if tr else None
+                        xv, yv = as_number(r["data"].get(x["id"])), as_number(tr["data"].get(y["id"])) if tr else None
                         if xv is not None and yv:
                             pairs.append((yv, xv))
                     if len(pairs) < 10:

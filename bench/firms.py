@@ -2,7 +2,8 @@
 twice, with what a bookkeeper knows to be true on the day of each delivery.
 
 A truth names, per delivery: the open invoices (number → amount still owed), the overdue ones, the
-finished jobs nobody invoiced yet, and money that came in for no invoice. A firm may know only some.
+finished jobs nobody invoiced yet, fixed-price projects well over budget, and money that came in for no
+invoice. A firm may know only some.
 """
 from __future__ import annotations
 

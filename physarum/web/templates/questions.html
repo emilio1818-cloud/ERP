@@ -27,7 +27,7 @@
 {% if answered %}
 <h2 style="margin-top:26px">Beantwortet</h2>
 <p class="muted" style="font-size:.86rem">Eine Antwort lässt sich jederzeit ändern – sie gilt dann ab dem nächsten Wachsen.</p>
-<ul class="history">{% for a in answered %}<li>{{ a.payload.text }} – <b>{{ {'same':'ja','different':'nein','yes':'ja','no':'nein','ok':'passt','split':'getrennt','unknown':'weiß nicht'}.get(a.answer, a.answer) }}</b> <span class="faint">{{ ago(a.answered_at) }}</span>
+<ul class="history">{% for a in answered %}<li>{{ a.payload.text }} – <b>{{ dict(a.payload.options or []).get(a.answer) or {'unknown':'weiß nicht'}.get(a.answer, a.answer) }}</b> <span class="faint">{{ ago(a.answered_at) }}</span>
   <span class="actions" style="display:inline-flex; gap:6px; margin-left:6px">
     {% for v, label in (a.payload.options or []) if v != a.answer %}<button class="small ghost" data-post="/fragen/{{ a.id }}" data-body='{"value": "{{ v }}"}' title="{{ consequences.get((a.kind, v), '') }}" data-confirm="Antwort ändern: {{ label }}? {{ consequences.get((a.kind, v), '') }}">{{ label }}</button>{% endfor %}
     <button class="small ghost" data-post="/fragen/{{ a.id }}" data-body='{"value": "reopen"}'>wieder fragen</button>

@@ -29,7 +29,6 @@ class Runtime:
         self.outrefs: dict[int, list] = {}
         self.pending_payments: dict[int, dict] = {}
         self.ledger: dict[int, dict] = {}
-        self.stale: dict[str, list[dict]] = {}
         self._work = None
         self._work_key = None
         self._net_at = 0.0
@@ -84,7 +83,7 @@ class Runtime:
                             else "Zahlung ohne Nummer – von Ihnen zugeordnet")
                 self.backrefs[row["to_id"]].append((row["from_id"], row["attr"], row["kind"], row["how"]))
                 self.outrefs[row["from_id"]].append((row["to_id"], row["attr"], row["kind"], row["how"]))
-            from .payments import apply_to_records, ledger, mail_sources, stale_statuses
+            from .payments import apply_to_records, ledger, mail_sources
             self.untrusted = mail_sources(self.store)
             try:
                 self.ledger = ledger(self.model, self.records, self.mentions, untrusted=self.untrusted, by_amount=by_amount)
@@ -95,7 +94,6 @@ class Runtime:
             for rid, v in stock_now(self.model, self.records).items():
                 if rid in self.by_id:
                     self.by_id[rid]["data"]["stock_now"] = v
-            self.stale = stale_statuses(self.model, self.records, self.ledger)
             self._mv, self._dv = mv, dv
             self._work = None
 

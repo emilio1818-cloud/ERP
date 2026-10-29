@@ -111,7 +111,6 @@ class DemoCompany(unittest.TestCase):
         self.assertEqual(step["label"], "bezahlt")
         self.assertEqual([x["name"] for x in step.get("also", [])], ["Kontobewegung"])
         self.assertEqual(p["status"]["initial"], "offen")
-        self.assertTrue(p["status"]["stale"])  # paid per bank statement, still "offen" in the book
         order = next(p for p in self.model["processes"] if p["type"] == self.t("Auftrag")["id"])
         self.assertEqual([s["label"] for s in order["steps"]], ["geliefert", "berechnet"])
 
@@ -319,7 +318,7 @@ class WebPages(unittest.TestCase):
         m = Store(self.tmp / "firma").model()
         tids = [t["id"] for t in m["types"]][:6]
         urls = ["/suche?q=%00%27%22<script>", "/suche?q=" + "x" * 5000, "/r/999999", "/t/unknown", "/t/unknown/neu",
-                "/abgleich/unknown", "/api/ableiten?typ=x&attr=y&id=z", "/api/datensatz/abc", "/export/unknown.csv"]
+                "/api/ableiten?typ=x&attr=y&id=z", "/api/datensatz/abc", "/export/unknown.csv"]
         for t in tids:
             urls += [f"/t/{t}?seite=abc&sort=xyz&von=2026-13-45&bis=foo&feld=nope&f_unknown=1",
                      f"/t/{t}?von=9999-12-31&bis=0001-01-01", f"/t/{t}?q=" + "%" * 300,
@@ -329,7 +328,7 @@ class WebPages(unittest.TestCase):
         h = {"origin": "http://testserver", "x-requested-with": "fetch"}
         for u, body in [("/r/999999/schritt", {"attr": "x"}), ("/r/999999/ausstellen", {}), ("/r/999999/storno", {"reason": "x"}),
                         ("/r/999999/loeschen", {"reason": "x"}), ("/r/999999/rueckgaengig", {"attrs": "a1"}),
-                        ("/r/999999/uebernehmen", {}), ("/fragen/999999", {"value": "yes"}), ("/t/unknown/neu", {"a_x": "1"})]:
+                        ("/fragen/999999", {"value": "yes"}), ("/t/unknown/neu", {"a_x": "1"})]:
             self.assertLess(self.c.post(u, data=body, headers=h).status_code, 500, u)
 
     def test_all_pages_render(self):
@@ -343,6 +342,16 @@ class WebPages(unittest.TestCase):
             self.assertEqual(self.c.get(f"/r/{recs[0]['id']}").status_code, 200, t["name"])
             if t["kind"] != "document":
                 self.assertEqual(self.c.get(f"/t/{t['id']}/neu").status_code, 200, t["name"])
+
+    def test_how_the_files_were_read_is_a_hint_not_a_question(self):
+        from physarum.questions import hints, open_questions
+        store = self.app.state.store
+        self.assertFalse([q for q in open_questions(store) if q["kind"] in ("same_type", "relation", "confirm_merge")])
+        h = hints(store)
+        self.assertTrue(h)                                               # two lists of positions, kept apart
+        page = self.c.get(f"/t/{h[0]['types'][0]}").text
+        self.assertIn(h[0]["options"][0][1], page)                       # one button turns it around
+        self.assertNotIn(h[0]["text"].split(":")[0], self.c.get("/").text)
 
     def test_exports(self):
         m = self.app.state.store.model()

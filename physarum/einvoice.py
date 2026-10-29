@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from datetime import date
 
+from .values import fmt_eur
+
 
 def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
@@ -181,10 +183,6 @@ def _cii(r) -> dict:
         syntax="CII", lines=lines)
 
 
-def _eur(x: float) -> str:
-    return f"{x:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
-
-
 def check(inv: dict) -> list[str]:
     """What does not add up in a received e-invoice (the EN 16931 calculation rules a reader can check
     without a schema) and what § 14 UStG requires that is missing. Every finding is a sentence."""
@@ -193,34 +191,34 @@ def check(inv: dict) -> list[str]:
     tot = inv.get("totals") or {}
     lines = [ln.get("total") for ln in inv.get("lines") or [] if ln.get("total") is not None]
     if lines and tot.get("lines") is not None and abs(sum(lines) - tot["lines"]) > tol:
-        out.append(f"Die Positionen ergeben {_eur(sum(lines))}, die Rechnung nennt {_eur(tot['lines'])} als Summe")
+        out.append(f"Die Positionen ergeben {fmt_eur(sum(lines))}, die Rechnung nennt {fmt_eur(tot['lines'])} als Summe")
     for ln in inv.get("lines") or []:
         if None in (ln.get("qty"), ln.get("price"), ln.get("total")) or ln.get("discounted"):
             continue
         per = ln.get("per") or 1.0  # a price per 100 pieces
         if abs(ln["qty"] * ln["price"] / per - ln["total"]) > max(tol, abs(ln["total"]) * 0.0005):
-            out.append(f"Position {ln.get('pos') or '?'}: {ln['qty']:g} × {_eur(ln['price'])}"
-                       f"{'' if per == 1 else f' je {per:g}'} sind nicht {_eur(ln['total'])}")
+            out.append(f"Position {ln.get('pos') or '?'}: {ln['qty']:g} × {fmt_eur(ln['price'])}"
+                       f"{'' if per == 1 else f' je {per:g}'} sind nicht {fmt_eur(ln['total'])}")
             break
     base = tot.get("lines")
     if base is not None and inv.get("net") is not None:
         want = base - (tot.get("allowances") or 0.0) + (tot.get("charges") or 0.0)
         if abs(want - inv["net"]) > tol:
-            out.append(f"Netto {_eur(inv['net'])} passt nicht zu den Positionen abzüglich Rabatten ({_eur(want)})")
+            out.append(f"Netto {fmt_eur(inv['net'])} passt nicht zu den Positionen abzüglich Rabatten ({fmt_eur(want)})")
     incl = tot.get("inclusive")
     if incl is not None and inv.get("net") is not None and inv.get("tax") is not None and abs(inv["net"] + inv["tax"] - incl) > tol:
-        out.append(f"Netto {_eur(inv['net'])} plus Umsatzsteuer {_eur(inv['tax'])} sind nicht {_eur(incl)}")
+        out.append(f"Netto {fmt_eur(inv['net'])} plus Umsatzsteuer {fmt_eur(inv['tax'])} sind nicht {fmt_eur(incl)}")
     if incl is not None and tot.get("payable") is not None:
         want = incl - (tot.get("prepaid") or 0.0) + (tot.get("rounding") or 0.0)
         if abs(want - tot["payable"]) > tol:
-            out.append(f"Zu zahlen sind {_eur(tot['payable'])}, nach Brutto und Anzahlungen wären es {_eur(want)}")
+            out.append(f"Zu zahlen sind {fmt_eur(tot['payable'])}, nach Brutto und Anzahlungen wären es {fmt_eur(want)}")
     subs = inv.get("subtotals") or []
     for st in subs:
         if None not in (st.get("base"), st.get("rate"), st.get("tax")) and abs(st["base"] * st["rate"] / 100 - st["tax"]) > 0.015:
-            out.append(f"{st['rate']:g} % von {_eur(st['base'])} sind nicht {_eur(st['tax'])} Umsatzsteuer")
+            out.append(f"{st['rate']:g} % von {fmt_eur(st['base'])} sind nicht {fmt_eur(st['tax'])} Umsatzsteuer")
     if subs and inv.get("tax") is not None and all(st.get("tax") is not None for st in subs) and \
             abs(sum(st["tax"] for st in subs) - inv["tax"]) > tol:
-        out.append(f"Die Steuer je Satz ergibt {_eur(sum(st['tax'] for st in subs))}, die Rechnung nennt {_eur(inv['tax'])}")
+        out.append(f"Die Steuer je Satz ergibt {fmt_eur(sum(st['tax'] for st in subs))}, die Rechnung nennt {fmt_eur(inv['tax'])}")
     for key, label in (("number", "Rechnungsnummer"), ("date", "Rechnungsdatum"), ("seller", "Name des Lieferanten"),
                        ("buyer", "Empfänger"), ("gross", "Betrag")):
         if inv.get(key) in (None, ""):

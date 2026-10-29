@@ -764,6 +764,11 @@ def fmt_number(x: float, decimals: int = 2) -> str:
     return s.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def fmt_eur(x: float) -> str:
+    """1234.5 -> "1.234,50 €" (and never "-0,00 €")."""
+    return ("-" if round(x, 2) < 0 else "") + fmt_number(abs(x)) + " €"
+
+
 def display(value, kind: str, currency: str | None = None) -> str:
     if value is None or value == "":
         return ""
@@ -793,20 +798,14 @@ def display(value, kind: str, currency: str | None = None) -> str:
     return str(value)
 
 
-def to_json_value(x):
-    """Typed python value -> JSON-storable value."""
-    if isinstance(x, datetime):
-        return x.isoformat(timespec="minutes")
-    if isinstance(x, date):
-        return x.isoformat()
-    if isinstance(x, float) and x.is_integer() and abs(x) < 1e15:
-        return x  # keep floats as floats; JSON handles them
-    return x
-
-
 def _plausible(d: date | None) -> date | None:
     """01.01.0001 and 31.12.9999 are placeholders ("none", "open-ended"), not dates to compute with."""
     return d if d is not None and 1900 <= d.year <= 2200 else None
+
+
+def as_number(v) -> float | None:
+    """A stored number as float; anything else (text, a flag, nothing) is no number."""
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def as_date(x) -> date | None:
@@ -979,18 +978,6 @@ def add_months(d: date, n: int) -> date:
     mo += 1
     last = _month_span(y, mo)[1].day
     return date(y, mo, min(d.day, last))
-
-
-def days_between(a, b) -> int | None:
-    da, db = as_date(a), as_date(b)
-    if da is None or db is None:
-        return None
-    return (db - da).days
-
-
-def add_days(d, n: int):
-    dd = as_date(d)
-    return None if dd is None else dd + timedelta(days=int(n))
 
 
 _ASOF_PATTERNS = [

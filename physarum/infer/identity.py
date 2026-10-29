@@ -767,7 +767,3 @@ def _aliases(t: TypeDraft, groups: list[Group], decisions: dict, log: list | Non
                                 why=["Kurzform"], decided=False))
         out.append(m)
     return out
-
-
-def fold_email(v) -> str:
-    return fold(str(v)).strip()

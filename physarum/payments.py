@@ -16,7 +16,7 @@ from itertools import combinations
 
 from .billing import is_draft
 from .text import fold, name_similarity, norm_key, norm_name, tokens
-from .values import as_date, parse_duration
+from .values import as_date, as_number, fmt_eur, parse_duration
 
 _NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
 
@@ -27,10 +27,6 @@ CASH_KINDS = {"bar": "Barzahlung", "ueberweisung": "Überweisung", "lastschrift"
               "verrechnung": "Verrechnung", "karte": "Kartenzahlung"}
 SKONTO_MAX = 0.031      # up to 3 % less …
 SKONTO_DAYS = 21        # … paid within three weeks of the invoice date
-
-
-def _num(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def invoice_specs(model: dict) -> list[dict]:
@@ -296,13 +292,13 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         for r in recs:
             if is_draft(r):
                 continue  # not issued: nobody owes anything yet
-            g = _num(r["data"].get(p["gross"]))
+            g = as_number(r["data"].get(p["gross"]))
             if g is None:
                 continue
             # a final invoice after down payments: the customer owes what is left ("Zahlbetrag"), not the total
-            owed = _num(r["data"].get(payable)) if payable else None
-            if owed is None and deduct and _num(r["data"].get(deduct)):
-                owed = round(g - abs(_num(r["data"].get(deduct))), 2)
+            owed = as_number(r["data"].get(payable)) if payable else None
+            if owed is None and deduct and as_number(r["data"].get(deduct)):
+                owed = round(g - abs(as_number(r["data"].get(deduct))), 2)
             if owed is not None and 0 <= owed < g - EPS:
                 g = owed
             cancelled = (st.get("attr") and str(r["data"].get(st["attr"])) in negative) or bool((r.get("meta") or {}).get("storno"))
@@ -319,7 +315,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         for inv, (d, total) in _documents(records, by_no).items():
             e = entries.get(inv)
             if e and not e["cancelled"] and abs(total - e["gross"]) > EPS:
-                e["notes"].append(f"Laut PDF {_eur(total)}, im Buch {_eur(e['gross'])} – gezählt wird das PDF, "
+                e["notes"].append(f"Laut PDF {fmt_eur(total)}, im Buch {fmt_eur(e['gross'])} – gezählt wird das PDF, "
                                   f"das hat der Kunde bekommen")
                 e["doc"] = dict(rid=d["id"], total=total, book=e["gross"])
                 e["gross"] = total
@@ -382,7 +378,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         for r in recs:
             e = entries.get(r["id"])
             for m in ((r.get("meta") or {}).get("cash") or []) if e else []:
-                amount = _num(m.get("amount"))
+                amount = as_number(m.get("amount"))
                 when = as_date(m.get("date"))
                 if amount and when:
                     e["paid"] += amount
@@ -436,7 +432,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 e["retention_hint"] = True  # the book says so: "5 % Sicherheitseinbehalt bis Abnahme+5 J."
         for e in entries.values():
             _finish(e)
-            _retained(e, records_gross=_num(by_id[e["rid"]]["data"].get(p["gross"])))
+            _retained(e, records_gross=as_number(by_id[e["rid"]]["data"].get(p["gross"])))
             if bank_from and not own_paid and not st.get("attr") and e["state"] == "offen" and not e["payments"] \
                     and e["due"] and e["due"] < bank_from:
                 # only the bank could say it was paid, and the statement starts after the invoice was due
@@ -459,7 +455,7 @@ def _retained(e: dict, records_gross: float | None):
     if 0 < e["open"] <= 0.1 * full + EPS:
         e["retention"] = e["open"]
         e["notes"] = [n for n in e["notes"] if not n.endswith(" offen")]
-        e["notes"].append(f"{_eur(e['open'])} ({str(round(e['open'] / full * 100, 1)).replace('.', ',')} %) sind "
+        e["notes"].append(f"{fmt_eur(e['open'])} ({str(round(e['open'] / full * 100, 1)).replace('.', ',')} %) sind "
                           f"Sicherheitseinbehalt – fällig erst nach Abnahme und Gewährleistung, nicht anmahnen")
 
 
@@ -698,12 +694,12 @@ def _settle_credits(spec: dict, recs: list[dict], entries: dict, by_no: dict):
         if abs(amount - (inv["gross"] - inv["credit"])) <= EPS and (any(w in words for w in _STORNO_WORDS) or storno_of):
             inv["cancelled"] = True
             inv["notes"].append(f"storniert durch {number or 'Stornobeleg'}")
-            e["notes"].append(f"storniert die Rechnung über {_eur(inv['gross'])}")
+            e["notes"].append(f"storniert die Rechnung über {fmt_eur(inv['gross'])}")
         else:
             inv["credit"] = round(inv["credit"] + amount, 2)
             inv["credits"].append(dict(rid=r["id"], amount=round(amount, 2), number=number))
-            inv["notes"].append(f"Gutschrift {number or ''} über {_eur(amount)} verrechnet".replace("  ", " "))
-            e["notes"].append(f"mit der Rechnung über {_eur(inv['gross'])} verrechnet")
+            inv["notes"].append(f"Gutschrift {number or ''} über {fmt_eur(amount)} verrechnet".replace("  ", " "))
+            e["notes"].append(f"mit der Rechnung über {fmt_eur(inv['gross'])} verrechnet")
 
 
 def _skonto_agreed(model: dict, by_id: dict, p: dict, r: dict) -> bool:
@@ -754,12 +750,12 @@ def _finish(e: dict):
     if e["cancelled"]:
         e["state"] = "storniert"
         if paid > EPS:
-            e["notes"].append(f"Zahlung über {_eur(paid)} auf eine stornierte Rechnung – zurückzahlen oder umbuchen")
+            e["notes"].append(f"Zahlung über {fmt_eur(paid)} auf eine stornierte Rechnung – zurückzahlen oder umbuchen")
         e["open"] = 0.0
         return
     if paid > g + EPS:
         e["state"] = "überzahlt"
-        e["notes"].append(f"{_eur(paid - g)} zu viel gezahlt" +
+        e["notes"].append(f"{fmt_eur(paid - g)} zu viel gezahlt" +
                           (" (doppelt überwiesen)" if _double(pays, g) else ""))
         e["paid_date"] = e["paid_date"] or (pays[-1]["date"] if pays else None)
         return
@@ -769,7 +765,7 @@ def _finish(e: dict):
         return
     if g < -EPS and paid <= EPS:
         e["state"] = "offen"  # a credit note of its own: the firm owes the customer
-        e["notes"].append(f"Gutschrift über {_eur(-g)} – noch mit keiner Rechnung verrechnet und nicht ausgezahlt")
+        e["notes"].append(f"Gutschrift über {fmt_eur(-g)} – noch mit keiner Rechnung verrechnet und nicht ausgezahlt")
         return
     if paid > EPS:
         last = pays[-1]["date"] if pays else None
@@ -777,19 +773,19 @@ def _finish(e: dict):
         timely = last and e["start"] and (last - e["start"]).days <= SKONTO_DAYS
         if share <= SKONTO_MAX and timely and not e.get("skonto_ok"):
             e["state"] = "teilbezahlt"
-            e["notes"].append(f"{str(round(share * 100, 1)).replace('.', ',')} % ({_eur(e['open'])}) abgezogen, ohne dass "
+            e["notes"].append(f"{str(round(share * 100, 1)).replace('.', ',')} % ({fmt_eur(e['open'])}) abgezogen, ohne dass "
                               f"Skonto vereinbart ist – nachfordern oder bewusst ausbuchen")
             return
         if share <= SKONTO_MAX and timely:
             e["state"] = "bezahlt"
             e["skonto"] = round(e["open"], 2)
             e["notes"].append(f"mit {str(round(share * 100, 1)).replace('.', ',')} % Skonto bezahlt "
-                              f"({_eur(e['open'])} weniger; Umsatzsteuer anteilig berichtigen)")
+                              f"({fmt_eur(e['open'])} weniger; Umsatzsteuer anteilig berichtigen)")
             e["open"] = 0.0
             e["paid_date"] = last
             return
         e["state"] = "teilbezahlt"
-        e["notes"].append(f"{_eur(paid)} von {_eur(g)} bezahlt, {_eur(e['open'])} offen")
+        e["notes"].append(f"{fmt_eur(paid)} von {fmt_eur(g)} bezahlt, {fmt_eur(e['open'])} offen")
         return
     if any(x["how"] == "Rückbuchung" for x in e["payments"]):
         e["notes"].append("Zahlung wurde zurückgebucht (Rücklastschrift) – wieder offen")
@@ -799,11 +795,6 @@ def _finish(e: dict):
 def _double(pays, g) -> bool:
     amounts = [round(x["amount"], 2) for x in pays if x["amount"] > 0]
     return len(amounts) >= 2 and sum(1 for a in amounts if abs(a - g) < EPS) >= 2
-
-
-def _eur(x: float) -> str:
-    s = f"{abs(x):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    return ("-" if x < 0 else "") + s + " €"
 
 
 def bank_allocations(entries: dict) -> dict[int, list[tuple[int, float]]]:
@@ -862,30 +853,3 @@ def apply_to_records(model: dict, records: dict, entries: dict, today: date | No
                     state = "überfällig"
                 r["data"][PAY_STATE] = state
                 r["data"][PAY_OPEN] = e["open"]
-
-
-def stale_statuses(model: dict, records: dict, entries: dict) -> dict[str, list[dict]]:
-    """Invoices whose own status still says 'offen' (or 'gemahnt') although the money is in."""
-    out: dict[str, list[dict]] = {}
-    specs = {t["id"]: t for t in model["types"]}
-    for ip in invoice_specs(model):
-        p = ip["p"]
-        st = p.get("status") or {}
-        if not st.get("attr") or not ip["step"]:
-            continue
-        stage = next((i for i, s in enumerate(p["steps"], start=1) if s["id"] == ip["step"]["id"]), None)
-        target = [v for v, s in (st.get("map") or {}).items() if s == stage]
-        if len(target) != 1:
-            continue
-        items = []
-        for r in records.get(p["type"], []):
-            e = entries.get(r["id"])
-            v = r["data"].get(st["attr"])
-            if not e or v is None or str(v) in (st.get("negative") or []):
-                continue
-            if e["state"] in ("bezahlt", "überzahlt") and (st["map"].get(str(v), 0) or 0) < stage:
-                items.append(dict(rid=r["id"], step=ip["step"]["id"], value=target[0], was=str(v),
-                                  when=e["paid_date"].isoformat() if e["paid_date"] else None))
-        if items:
-            out[p["type"]] = items
-    return out

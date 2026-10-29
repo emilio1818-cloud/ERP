@@ -23,7 +23,7 @@ from . import billing
 from .payments import _payable_attrs
 from .store import loads, now_iso
 from .text import norm_name
-from .values import as_date
+from .values import as_date, as_number
 
 DEFAULTS = dict(berater=1001, mandant=1, skr="03", method="soll", fy_start=1)
 
@@ -216,9 +216,9 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
             if not row["groups"] and row["gross"] is not None:
                 warn.append(f"{row['number']}: ohne Netto/USt – nur der Bruttobetrag ist bekannt")
                 row["groups"].append(dict(rate=None, net=row["gross"], tax=0.0))
-            owed = billing._num(rec["data"].get(payable)) if payable else None
-            if owed is None and deduct and billing._num(rec["data"].get(deduct)):
-                owed = round((row["gross"] or 0) - abs(billing._num(rec["data"].get(deduct))), 2)
+            owed = as_number(rec["data"].get(payable)) if payable else None
+            if owed is None and deduct and as_number(rec["data"].get(deduct)):
+                owed = round((row["gross"] or 0) - abs(as_number(rec["data"].get(deduct))), 2)
             if row["gross"] and owed is not None and 0 <= owed < row["gross"] - 0.005:
                 share = owed / row["gross"]  # the down payments were booked with their own invoices
                 for g in row["groups"]:

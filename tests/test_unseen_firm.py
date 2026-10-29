@@ -254,8 +254,8 @@ class UnseenFirm(unittest.TestCase):
     def test_keeping_two_lists_apart_keeps_their_records(self):
         from physarum import ops
         from physarum.grow import regrow
-        from physarum.questions import answer, open_questions
-        # two files of one shape and no known kind: put together on a guess, so Physarum asks
+        from physarum.questions import answer, hints
+        # two files of one shape and no known kind: put together on a guess, shown as a hint that undoes it
         a = [[f"V-2026-{i + 1:03d}", f"Kunde {i % 4}", "Website-Relaunch", f"{i + 1:02d}.03.2026", 5000 + i] for i in range(12)]
         b = [[f"V-2025-{i + 1:03d}", f"Kunde {i % 4}", "Kampagne", f"{i + 1:02d}.03.2025", f"{i + 1:02d}.06.2025",
               3000 + i] for i in range(10)]
@@ -267,7 +267,7 @@ class UnseenFirm(unittest.TestCase):
         self.assertEqual(len(rt.records[pj["id"]]), 22)
         ids = {r["data"][pj["key"]]: r["id"] for r in rt.records[pj["id"]]}
         ops.add_note(rt, ids["V-2026-001"], "Kunde will Termin im April", "Tester")
-        q = next((q for q in open_questions(self.f.store) if q["kind"] == "confirm_merge"), None)
+        q = next((q for q in hints(self.f.store) if q["kind"] == "confirm_merge"), None)
         self.assertIsNotNone(q)
         answer(self.f.store, q["id"], "split", "Tester")
         regrow(self.f.store)

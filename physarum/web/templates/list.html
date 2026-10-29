@@ -18,6 +18,10 @@
     {% for m in spec.members if m.versions and m.versions.vanished %}
       <p class="notice warn" style="margin-top:8px">In der neuesten Fassung von „{{ m.versions.vanished_from }}“ fehlen {{ m.versions.vanished|length }} Einträge, die frühere Fassungen hatten (z. B. {{ m.versions.vanished[:3]|join(', ') }}). Sie bleiben erhalten – bitte prüfen, ob sie im anderen Programm gelöscht wurden.</p>
     {% endfor %}
+    {% for h in hints[:3] %}
+      <p class="notice row between noprint" style="margin-top:8px"><span title="{{ h.detail }}">{{ h.text }}</span>
+        <button class="small ghost" data-post="/fragen/{{ h.id }}" data-body='{"value": "{{ h.options[0][0] }}", "back": "/t/{{ spec.id }}"}' data-confirm="{{ h.options[0][1] }}? {{ consequences_of(h.kind, h.options[0][0]) }}">{{ h.options[0][1] }}</button></p>
+    {% endfor %}
   </div>
   <div class="row noprint">
     <a class="btn ghost" href="/export/{{ spec.id }}.xlsx?{{ keep() }}" title="Als Excel exportieren (mit Ihren Filtern)">Excel</a>

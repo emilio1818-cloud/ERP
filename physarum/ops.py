@@ -16,7 +16,7 @@ from datetime import date, datetime, timedelta
 from . import lexicon
 from .store import dumps, loads, now_iso
 from .text import fold, norm_key, norm_name, tokens
-from .values import _EMAIL, add_months, as_date, iban_ok, interval_months, parse_date, parse_duration, parse_number, period_text
+from .values import _EMAIL, add_months, as_date, as_number, iban_ok, interval_months, parse_date, parse_duration, parse_number, period_text
 
 LOCKED_CONCEPTS = {"rechnung"}
 
@@ -96,20 +96,16 @@ def parse_input(rt, attr: dict, raw):
 
 # --- formulas -------------------------------------------------------------------------------------
 
-def _num(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
-
-
 def eval_formula(rt, f: dict, data: dict):
     op = f["op"]
     try:
         if op in ("mul", "add", "sub"):
-            a, b = (_num(data.get(x)) for x in f["args"])
+            a, b = (as_number(data.get(x)) for x in f["args"])
             if a is None or b is None:
                 return None
             return round(a * b if op == "mul" else a + b if op == "add" else a - b, 2)
         if op == "scale":
-            a = _num(data.get(f["args"][0]))
+            a = as_number(data.get(f["args"][0]))
             return None if a is None else round(a * f["k"], 2)
         if op in ("date_add", "date_default"):
             d = as_date(data.get(f["args"][0]))
@@ -801,65 +797,3 @@ def unhide(rt, rid: int, actor: str):
         c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
                   (rid, ts, actor, "unhide", "wieder eingeblendet"))
         rt.bump(c)
-
-
-def apply_stale(rt, tid: str, actor: str, rids: set | None = None) -> int:
-    """Take over what the money says ("paid according to the bank statement") – in one go,
-    every change in the record's history. With rids: only for these records."""
-    rt.ensure()
-    proc = next((p for p in rt.model.get("processes", []) if p["type"] == tid), None)
-    st = (proc or {}).get("status")
-    items = (getattr(rt, "stale", {}) or {}).get(tid) or (st or {}).get("stale") or []
-    if rids is not None:
-        items = [s for s in items if s["rid"] in rids]
-    if not st or not items:
-        return 0
-    ts = now_iso()
-    n = 0
-    with rt.store.tx() as c:
-        for s in items:
-            row = c.execute("SELECT data, meta FROM records WHERE id=? AND deleted=0", (s["rid"],)).fetchone()
-            if not row:
-                continue
-            data, meta = loads(row["data"]) or {}, loads(row["meta"]) or {}
-            if str(data.get(st["attr"])) != s["was"]:
-                continue
-            step = next((x for x in proc["steps"] if x["id"] == s["step"]), None)
-            own = next((x["attr"] for x in [step] + step.get("also", []) if x["source"] == "own"), None) if step else None
-            changes = [(st["attr"], data.get(st["attr"]), s["value"])]
-            data[st["attr"]] = s["value"]
-            when = s.get("when") or _child_date(rt, step, s["rid"])
-            if own and when and not data.get(own):
-                changes.append((own, None, when))
-                data[own] = when
-            w = meta.setdefault("w", {})
-            for aid, _o, _n in changes:
-                w[aid] = ["auto", ts]
-            c.execute("UPDATE records SET data=?, meta=?, updated_at=? WHERE id=?", (dumps(data), dumps(meta), ts, s["rid"]))
-            c.executemany("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
-                          [(s["rid"], ts, actor, "auto", aid, dumps(o), dumps(nv),
-                            "laut Kontoauszug bezahlt (Abgleich nach Betrag)") for aid, o, nv in changes])
-            n += 1
-        rt.bump(c)
-    return n
-
-
-def _child_date(rt, step, rid) -> str | None:
-    if not step:
-        return None
-    best = None
-    for s in [step] + step.get("also", []):
-        if s["source"] != "child":
-            continue
-        if s["rel_kind"] == "own_ref":
-            own = rt.by_id.get(rid, {}).get("data", {}).get(s["rel_attr"])
-            srcs = [own] if isinstance(own, int) else []
-        elif s["rel_kind"] == "mention":
-            srcs = rt.mentions.get(s["rel_attr"], {}).get(rid, [])
-        else:
-            srcs = [c["id"] for c in rt.records.get(s["type"], []) if c["data"].get(s["rel_attr"]) == rid]
-        for x in srcs:
-            d = as_date(rt.by_id.get(x, {}).get("data", {}).get(s["attr"]))
-            if d and (best is None or d < best):
-                best = d
-    return best.isoformat() if best else None

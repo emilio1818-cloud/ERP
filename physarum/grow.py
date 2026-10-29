@@ -246,6 +246,8 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     cov["lost"] = sorted(lost, key=lambda x: -x["unused"])[:8]
 
     obs_type = {o.oid: t for t in types for o in t.members}
+    for a in asks:  # the lists a hint about two files belongs to
+        a["types"] = list(dict.fromkeys(obs_type[x.oid].tid for x in (a["a"], a["b"]) if x.oid in obs_type))
     rel_dec = store.decisions("relation")
     history: dict = defaultdict(dict)
     for row in store.q("SELECT type, ident, record_id FROM idents WHERE ident LIKE 'n:%' OR ident LIKE 'k:%'"):
@@ -282,7 +284,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         mention_map[r["attr"]][r["to_id"]].append(r["from_id"])
     specs = {t["id"]: t for t in model["types"]}
     titles = record_titles(specs, ((r["id"], t, r["data"]) for t, rs in records.items() for r in rs))
-    from .payments import ledger as pay_ledger, mail_sources, stale_statuses
+    from .payments import ledger as pay_ledger, mail_sources
     led: dict = {}
     untrusted = mail_sources(store)
     _learn(model, "Zahlungen nach Betrag", lambda: led.update(pay_ledger(model, records, mention_map, untrusted=untrusted)))
@@ -299,12 +301,6 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         _learn(model, "Zahlungen nach Betrag", lambda: led.update(pay_ledger(model, records, mention_map, untrusted=untrusted)))
         done = {id(m) for m in booked}
         matches = [m for m in matches if id(m) not in done]
-    if led:
-        stale = stale_statuses(model, records, led)
-        covered = {e["type"] for e in led.values()}
-        for p in model.get("processes", []):
-            if p["type"] in covered and p.get("status"):
-                p["status"]["stale"] = stale.get(p["type"], [])[:200]
     progress(f"{len(booked)} Zahlungen ohne Rechnungsnummer über Betrag und Zahler zugeordnet, "
              f"{len(matches)} zur Bestätigung", 0.92)
 
@@ -429,7 +425,8 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
                                 newest=meta.get("newest"), versions=meta.get("versions")))
         tmodel.append(dict(id=t.tid, name=t.name, plural=t.plural, concept=t.concept, kind=t.kind,
                            key=t.key.aid if t.key else None, title=t.title.aid if t.title else None,
-                           attrs=attrs, members=members, count=len(gs), merge_log=t.merge_log))
+                           attrs=attrs, members=members, count=len(gs), merge_log=t.merge_log,
+                           former=list(getattr(t, "prev_tids", []))))
     by_tid = {t["id"]: t for t in tmodel}
     rmodel = []
     for i, r in enumerate(rels):

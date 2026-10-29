@@ -83,9 +83,6 @@
 {% if maybe_paid %}<div class="notice warn row between" style="margin-bottom:12px"><span>{{ maybe_paid.text }} <a href="/r/{{ maybe_paid.bank }}">Zahlung ansehen</a></span>
   <button class="small primary" data-post="/fragen/{{ maybe_paid.qid }}" data-body='{"value": "yes"}'>Ja, zuordnen</button></div>{% endif %}
 
-{% if stale %}<div class="notice warn row between" style="margin-bottom:12px"><span>Laut Kontoauszug{% if stale.when %} am {{ display(stale.when, 'date') }}{% endif %} voll bezahlt – im Status steht noch „{{ stale.was }}“.</span>
-  <button class="small primary" data-post="/r/{{ rec.id }}/uebernehmen">Als „{{ stale.value }}“ übernehmen</button></div>{% endif %}
-
 {% if pay and not draft %}
 <section class="card" aria-label="Zahlungen">
   <div class="row between"><h2>Zahlungen</h2><span class="pill {{ status_class(pay.state) }}">{{ pay.state }}</span></div>
@@ -169,6 +166,7 @@
         {% if f.calc %}<span class="tag calc" title="{{ a.explain or 'berechnet bzw. automatisch gesetzt' }}">{{ 'aus Zahlungen' if a.virtual and a.virtual.payments else 'errechnet' }}</span>{% endif %}
         {% if f.unlinked %}<span class="tag guess" title="Wert konnte keinem Datensatz zugeordnet werden">nicht verknüpft</span>{% endif %}
         {% if f.alts %}<span class="tag guess" title="Andere Werte in den Quellen: {{ f.alts|join(' | ') }}">abweichend</span>{% endif %}
+        {% if status_is_payment and status_attr and a.id == status_attr.id and show_value(own_status) != pay_status %}<span class="tag guess" title="So steht es in Ihrer Datei. Ob bezahlt ist, sagt der Kontoauszug: {{ pay_status }}.">laut Datei</span>{% endif %}
       </dt>
       <dd class="view-mode">{{ fmt(a, f.value) }}</dd>
       {% if f.shadow %}<dd class="view-mode shadow"><span class="muted">laut „{{ f.shadow.source }}“: {{ fmt(a, f.shadow.value, link=False) }} – Ihre Eingabe gilt</span>

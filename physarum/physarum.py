@@ -341,8 +341,3 @@ def attr_salience(t: dict, a: dict, flux: dict) -> float:
     fill = a.get("fill", 1.0)
     use = flux.get(f"attr:{a['id']}", 0.0)
     return round(base * (0.35 + 0.65 * fill) * (1 + 0.25 * math.log1p(use)), 4)
-
-
-def refresh_salience(model: dict, store):
-    """Cheap re-run used on page loads: usage changes salience without a full regrowth."""
-    grow_network(model, store)

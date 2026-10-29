@@ -14,7 +14,7 @@ from pathlib import Path
 from physarum import ops
 from physarum.demo.generate import generate
 from physarum.grow import ingest, regrow
-from physarum.questions import _rid_for, answer, open_questions
+from physarum.questions import _rid_for, answer, hints, open_questions
 from physarum.runtime import Runtime
 from physarum.store import Store, loads
 
@@ -215,8 +215,8 @@ class DemoDecisions(unittest.TestCase):
         answer(store, q["id"], "same", "Tester")
         self.assertEqual(store.record(rid)["data"][num["id"]], drop)
         # split a structural merge, then grow again
-        split = [q for q in open_questions(store) if q["kind"] == "confirm_merge"]
-        for q in open_questions(store):
+        split = [q for q in hints(store) if q["kind"] == "confirm_merge"]
+        for q in open_questions(store) + hints(store):
             answer(store, q["id"], "split" if q["kind"] == "confirm_merge" else
                    ("different" if q["kind"] == "same_type" else "no"), "Tester")
         regrow(store)

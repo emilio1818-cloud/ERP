@@ -409,10 +409,6 @@ def is_balance_label(value) -> bool:
     return " ".join(tokens(value)) in BALANCE_WORDS
 
 
-def folded_state(v) -> str:
-    return fold(str(v)).strip()
-
-
 FIRST_NAMES = set("""
 anna anne annika antje alexander alexandra andrea andreas angelika anja ansgar anton antonia arne axel barbara bastian
 beate ben benedikt benjamin bernd berit bettina birgit bjoern boris brigitte britta carina carl carla carlotta carolin

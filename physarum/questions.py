@@ -3,6 +3,11 @@
 Where the evidence is weak the system asks, like a new colleague would: few questions,
 each with its reasons, sorted by how much the answer changes. Every answer is stored as a
 decision that all future growth respects, so nothing is asked twice.
+
+Only what the owner knows and Physarum cannot is asked: whether two entries are the same
+customer, whether a transfer pays an invoice. How the files are read (two lists or one, a
+column as text or as a link) Physarum decides itself; such a decision is a hint on the list,
+with one button to turn it around.
 """
 from __future__ import annotations
 
@@ -65,31 +70,32 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
                          records=[m["bank"]] + m["invoices"], exact=m["exact"],
                          decision=dict(kind="payment_match", subject=subj_dec),
                          options=[["yes", "Ja, zuordnen"], ["no", "Nein"]]))
-    tname = {t["id"]: t for t in model["types"]}
-    for a in asks:
+    for a in asks:  # how to read the files: decided, shown as a hint on the list
         if a.get("kind") == "relation":
             r = a["rel"]
             unresolved = list(dict.fromkeys(str(v) for v in r.unresolved.values()))[:5]
             subj = f"relation|{a['key']}"
             found[subj] = dict(kind="relation", subject=subj, impact=len(r.unresolved) + r.hits * (1 - r.inclusion),
-                               payload=dict(text=f"Verweist „{r.attr.name}“ bei {r.src.plural} auf {r.dst.plural}?",
-                                            detail=f"{round(r.inclusion * 100)} % der Werte sind {r.dst.plural}. "
-                                                   f"Nicht gefunden: " + ", ".join(unresolved),
-                                            decision=dict(kind="relation", subject=a["key"]),
-                                            options=[["yes", "Ja, ist ein Verweis"], ["no", "Nein"]]))
+                               status="hint",
+                               payload=dict(text=f"„{r.attr.name}“ ist Text geblieben: nur {round(r.inclusion * 100)} % der "
+                                                 f"Werte sind {r.dst.plural}.",
+                                            detail="Nicht gefunden: " + ", ".join(unresolved),
+                                            decision=dict(kind="relation", subject=a["key"]), types=[r.src.tid],
+                                            options=[["yes", f"Mit {r.dst.plural} verknüpfen"], ["no", "Text lassen"]]))
         else:
             ma, mb, sim = a["a"], a["b"], a["sim"]
             sigs = sorted(a["sig"])
             subj = "same_type|" + pair_subject(*sigs)
             cols_a = [c.name for c in ma.cols][:8]
             cols_b = [c.name for c in mb.cols][:8]
-            found[subj] = dict(kind="same_type", subject=subj, impact=(ma.n + mb.n) * 0.5,
-                               payload=dict(text=f"Sind {_where(ma.label, ma.name_hint)} und {_where(mb.label, mb.name_hint)} "
-                                                 f"dieselbe Art von Dingen – gehören sie in eine Liste?",
-                                            detail=f"Spalten: {', '.join(cols_a)} — bzw. {', '.join(cols_b)}. "
-                                                   f"Grund für die Vermutung: {sim['reason']}.",
+            found[subj] = dict(kind="same_type", subject=subj, impact=(ma.n + mb.n) * 0.5, status="hint",
+                               payload=dict(text=f"Zwei Listen: {_where(ma.label, ma.name_hint)} und "
+                                                 f"{_where(mb.label, mb.name_hint)}.",
+                                            detail=f"Ähnlich, weil: {sim['reason']}. Spalten: {', '.join(cols_a)} — bzw. "
+                                                   f"{', '.join(cols_b)}.",
                                             decision=dict(kind="same_type", subject=pair_subject(*sigs)),
-                                            options=[["same", "Ja, dasselbe"], ["different", "Nein, verschieden"]]))
+                                            types=a.get("types") or [],
+                                            options=[["same", "Zu einer Liste zusammenlegen"], ["different", "Getrennt lassen"]]))
     for q in er:
         t = q["type"]
         ta = q["a"].values.get(t.title.aid) if t.title else None
@@ -115,7 +121,8 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
                                         idents=[sorted(q["a"].idents)[:3], sorted(q["b"].idents)[:3]],
                                         decision=dict(kind="same_record", subject=q["key"]),
                                         options=[["same", "Ja, zusammenführen"], ["different", "Nein, verschieden"]]))
-    # merges that rest on structure only deserve a confirmation
+    # merges that rest on structure only: a hint, so that they can be undone
+    kept = store.decisions("same_type")
     for t in model["types"]:
         for m in t.get("merge_log", []):
             if "Spalten" in (m.get("reason") or "") and "Nummern" not in m["reason"] and "Namen" not in m["reason"]:
@@ -124,35 +131,32 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
                 into = next((x for x in t["members"] if x["label"] == m["into"]), {})
                 if (member.get("source") and member.get("source") == into.get("source")) or t.get("concept"):
                     continue  # one sheet per fitter or per year, two banks' statements: one list by design
+                if member.get("sig") and into.get("sig") and pair_subject(member["sig"], into["sig"]) in kept:
+                    continue  # the owner said so
                 n = member.get("rows")
                 ex_a, ex_b = _member_examples(c, t, member), _member_examples(c, t, into)
                 examples = ""
                 if ex_a and ex_b:
                     examples = (f" Zum Beispiel aus „{m['obs']}“: {', '.join(ex_a)} – aus „{m['into']}“: {', '.join(ex_b)}.")
-                found[subj] = dict(kind="confirm_merge", subject=subj, impact=5,
-                                   payload=dict(text=f"Ich habe {n or 'die'} {t['plural']} aus {_where(m['obs'], dative=True)} zu den "
-                                                     f"{dative_plural(t['plural'])} aus {_where(m['into'], dative=True)} gelegt. "
-                                                     f"Gehören sie in eine Liste?",
-                                                detail=f"Grund: {m['reason']}; kein Eintrag steht in beiden Dateien – darum frage ich."
-                                                       f"{examples} Ja: eine gemeinsame Liste. Nein: zwei getrennte Listen.",
+                found[subj] = dict(kind="confirm_merge", subject=subj, impact=5, status="hint",
+                                   payload=dict(text=f"{n or 'Die'} {t['plural']} aus {_where(m['obs'], dative=True)} stehen mit den "
+                                                     f"{dative_plural(t['plural'])} aus {_where(m['into'], dative=True)} in einer Liste.",
+                                                detail=f"Grund: {m['reason']}; kein Eintrag steht in beiden Dateien.{examples}",
                                                 decision=dict(kind="same_type", subject=None, obs=m["obs"], into=m["into"],
-                                                              type=t["id"]),
-                                                options=[["ok", "Ja, passt"], ["split", "Nein, getrennt führen"]],
-                                                suggest="ok"))  # what is in place already
+                                                              type=t["id"]), types=[t["id"]],
+                                                options=[["split", "Getrennt führen"], ["ok", "Zusammen lassen"]]))
     existing = {r["subject"]: r for r in c.execute("SELECT * FROM questions").fetchall()}
     for subj, q in found.items():
+        status = q.get("status", "open")
         if subj in existing:
-            if existing[subj]["status"] == "obsolete":
-                c.execute("UPDATE questions SET status='open', payload=?, impact=? WHERE subject=?",
-                          (dumps(q["payload"]), q["impact"], subj))
-            elif existing[subj]["status"] == "open":
-                c.execute("UPDATE questions SET payload=?, impact=? WHERE subject=?",
-                          (dumps(q["payload"]), q["impact"], subj))
+            if existing[subj]["status"] in ("obsolete", "open", "hint"):  # an old question about the files is a hint now
+                c.execute("UPDATE questions SET status=?, payload=?, impact=? WHERE subject=?",
+                          (status, dumps(q["payload"]), q["impact"], subj))
             continue
         c.execute("INSERT INTO questions(kind,subject,payload,impact,status,created_at) VALUES(?,?,?,?,?,?)",
-                  (q["kind"], subj, dumps(q["payload"]), q["impact"], "open", ts))
+                  (q["kind"], subj, dumps(q["payload"]), q["impact"], status, ts))
     for subj, r in existing.items():
-        if r["status"] == "open" and subj not in found:
+        if r["status"] in ("open", "hint") and subj not in found:
             c.execute("UPDATE questions SET status='obsolete' WHERE subject=?", (subj,))
     return sum(1 for _ in c.execute("SELECT 1 FROM questions WHERE status='open'").fetchall())
 
@@ -169,11 +173,11 @@ def _stable_ident(c, tid: str, rid: int) -> str | None:
 CONSEQUENCES = {
     ("same_record", "same"): "Aus zwei Einträgen wird einer – Aufträge, Rechnungen und Notizen beider hängen dann daran.",
     ("same_record", "different"): "Beide bleiben getrennt; diese Frage kommt nicht wieder.",
-    ("same_type", "same"): "Beide Listen werden eine Art von Dingen.",
-    ("same_type", "different"): "Zwei getrennte Arten mit eigener Liste.",
+    ("same_type", "same"): "Beide werden eine Liste.",
+    ("same_type", "different"): "Zwei getrennte Listen.",
     ("confirm_merge", "ok"): "Bleibt eine gemeinsame Liste.",
-    ("confirm_merge", "split"): "Wird beim nächsten Wachsen eine eigene Liste (Name lässt sich ändern).",
-    ("relation", "yes"): "Die Werte werden zu Verweisen: man kann hin- und herspringen.",
+    ("confirm_merge", "split"): "Wird eine eigene Liste (der Name lässt sich ändern).",
+    ("relation", "yes"): "Die Werte werden zu Verknüpfungen: man kann hin- und herspringen.",
     ("relation", "no"): "Die Spalte bleibt einfacher Text.",
     ("payment_match", "yes"): "Die Zahlung gilt für diese Rechnung(en) – sie werden bezahlt bzw. teilbezahlt.",
     ("payment_match", "no"): "Die Zahlung bleibt ohne Rechnung; die Rechnung bleibt offen.",
@@ -181,9 +185,10 @@ CONSEQUENCES = {
 
 
 def reopen(store: Store, qid: int):
-    """Ask again: the answer is forgotten, the question is open."""
+    """Ask again: the answer is forgotten, the question is open (a hint is a hint again)."""
     with store.tx() as c:
-        c.execute("UPDATE questions SET status='open', answer=NULL, answered_at=NULL, snooze_until=NULL WHERE id=?", (qid,))
+        c.execute("UPDATE questions SET status=CASE WHEN kind IN ('same_type', 'relation', 'confirm_merge') THEN 'hint' "
+                  "ELSE 'open' END, answer=NULL, answered_at=NULL, snooze_until=NULL WHERE id=?", (qid,))
 
 
 def _where(label: str, hint=None, dative: bool = False) -> str:
@@ -200,6 +205,13 @@ def _where(label: str, hint=None, dative: bool = False) -> str:
     if what:
         return f"{'den' if dative else 'die'} {what} aus „{label}“"
     return f"{'der' if dative else 'die'} Liste „{label}“"
+
+
+def hints(store: Store, tid: str | None = None) -> list[dict]:
+    """How Physarum read the files where it could have read them otherwise – per list."""
+    out = [dict(id=r["id"], kind=r["kind"], subject=r["subject"], **loads(r["payload"]))
+           for r in store.q("SELECT * FROM questions WHERE status='hint' ORDER BY impact DESC, id")]
+    return [h for h in out if tid is None or tid in (h.get("types") or [])]
 
 
 def open_questions(store: Store, limit: int | None = None) -> list[dict]:
@@ -266,14 +278,11 @@ def answer(store: Store, qid: int, value: str, actor: str | None = None) -> dict
                     result["merged"] = (keep, drop)
                     store.kv_set("data_version", (store.kv_get("data_version", 0) or 0) + 1, c)
         elif kind == "confirm_merge":
-            if value == "split":
-                t = next((t for t in (store.model() or {}).get("types", []) if t["id"] == dec.get("type")), None)
-                if t:
-                    sig_obs = next((m["sig"] for m in t["members"] if m["label"] == dec.get("obs")), None)
-                    sig_into = next((m["sig"] for m in t["members"] if m["label"] == dec.get("into")), None)
-                    if sig_obs and sig_into:
-                        store.decide("same_type", pair_subject(sig_obs, sig_into), "different", actor, c=c)
-                        result["regrow"] = True
+            sig = {m["label"]: m.get("sig") for t in (store.model() or {}).get("types", []) for m in t["members"]}
+            pair = (sig.get(dec.get("obs")), sig.get(dec.get("into")))
+            if all(pair) and (value == "split" or store.decisions("same_type").get(pair_subject(*pair))):
+                store.decide("same_type", pair_subject(*pair), "different" if value == "split" else "same", actor, c=c)
+                result["regrow"] = True
         c.execute("UPDATE questions SET status='answered', answer=?, answered_at=? WHERE id=?",
                   (dumps(value), now_iso(), qid))
     return result

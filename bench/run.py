@@ -59,17 +59,18 @@ def _cell(sc: dict | None) -> str:
 
 
 def table(results: list[dict]) -> str:
-    rows = ["| Firma | Variante | Lfg. | offen tp/fp/fn | € offen (Wahrheit) | überfällig | nicht berechnet | Geld ohne Rechnung"
-            " | Heute | Fragen (Schema) | s |", "|" + "---|" * 11]
+    rows = ["| Firma | Variante | Lfg. | offen tp/fp/fn | € offen (Wahrheit) | überfällig | nicht berechnet | über Budget"
+            " | Geld ohne Rechnung | Heute | Fragen (Schema) | s |", "|" + "---|" * 12]
     for r in sorted(results, key=lambda r: (r["firm"], r.get("variant", ""))):
         if r.get("error"):
-            rows.append(f"| {r['firm']} | {r['variant']} | FEHLER: {r['error'][-120:]!r} |" + " |" * 8)
+            rows.append(f"| {r['firm']} | {r['variant']} | FEHLER: {r['error'][-120:]!r} |" + " |" * 9)
             continue
         for d in r["deliveries"]:
             s = d["score"]
             eur = f"{d['eur_open']:,.2f}".replace(",", " ") + (f" ({s['open']['eur_truth']:,.2f})".replace(",", " ") if "open" in s else "")
             rows.append(f"| {r['firm']} | {r['variant']} | {d['delivery']} | {_cell(s.get('open'))} | {eur} | "
-                        f"{_cell(s.get('overdue'))} | {_cell(s.get('unbilled'))} | {_cell(s.get('receipts'))} | "
+                        f"{_cell(s.get('overdue'))} | {_cell(s.get('unbilled'))} | {_cell(s.get('over_budget'))} | "
+                        f"{_cell(s.get('receipts'))} | "
                         f"{d['heute_items']} | {d['questions']} ({d['schema_questions']}) | {d['seconds']} |")
     return "\n".join(rows)
 

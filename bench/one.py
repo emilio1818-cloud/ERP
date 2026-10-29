@@ -40,19 +40,21 @@ def measure(rt: Runtime, truth: dict, today) -> dict:
     work = rt.work(today)
     overdue = {keyed[x["rid"]] for g in work if g["kind"] == "overdue" for x in g["items"] if x.get("rid") in keyed}
     unbilled = {str(x["title"]) for g in work if g["kind"] == "ready" for x in g["items"]}
+    over_budget = {str(x["title"]) for g in work if g["kind"] == "budget" for x in g["items"]}
     receipts = sorted(round(x["money"], 2) for g in work if g["kind"] == "receipt" for x in g["items"] if x.get("money"))
     qs = rt.store.q("SELECT kind FROM questions WHERE status='open'")
     out = dict(types=len(rt.model["types"]), questions=len(qs), schema_questions=sum(1 for q in qs if q["kind"] in SCHEMA),
                heute_groups=len(work), heute_items=sum(g["count"] for g in work if g.get("severity", 2) >= 2),
                coverage=round(coverage(rt).get("score", 0), 3), open=open_, overdue=sorted(overdue),
-               unbilled=sorted(unbilled), receipts=receipts, eur_open=round(sum(open_.values()), 2))
+               unbilled=sorted(unbilled), over_budget=sorted(over_budget), receipts=receipts,
+               eur_open=round(sum(open_.values()), 2))
     score = {}
     if truth.get("open") is not None:
         want = truth["open"]
         score["open"] = _score(set(open_), set(want))
         score["open"]["amount_ok"] = sum(1 for k, v in want.items() if v is not None and k in open_ and abs(open_[k] - v) <= 0.01)
         score["open"]["eur_truth"] = round(truth.get("open_total") or sum(v or 0 for v in want.values()), 2)
-    for k in ("overdue", "unbilled"):
+    for k in ("overdue", "unbilled", "over_budget"):
         if truth.get(k) is not None:
             score[k] = _score(set(out[k]), set(truth[k]))
     if truth.get("receipts") is not None:

@@ -43,7 +43,7 @@ Das Ergebnis ist die Seite **Heute**:
 - knapper Bestand und Reichweite;
 - Kunden, die ungewöhnlich lange nichts bestellt haben.
 
-Dazu kommen ein paar Fragen und Vorschläge („Trampelpfade“), etwa „15 Rechnungen sind laut Kontoauszug schon bezahlt, stehen aber noch auf offen – abgleichen?“. Gefragt wird nur, was die Inhaberin entscheiden muss.
+Dazu kommen ein paar Fragen und Vorschläge („Trampelpfade“), etwa „Wenn „geliefert“ eingetragen wird: Status = „geliefert“ – ab jetzt automatisch?“. Gefragt wird nur, was die Inhaberin entscheiden muss. Ob eine Rechnung bezahlt ist, sagt allein der Kontoauszug; die Status-Spalte Ihrer Datei steht daneben als „laut Datei“.
 
 ## Prinzipien
 
@@ -52,7 +52,7 @@ Dazu kommen ein paar Fragen und Vorschläge („Trampelpfade“), etwa „15 Rec
 3. **Kompression als Bauplan (MDL):** Ein neuer Begriff entsteht nur, wenn er mehr Wiederholung spart, als er Komplexität kostet.
 4. **Fluss als Relevanz (Physarum nach Tero et al. 2010):** Kirchhoff-Fluss auf dem Typen-Graphen und Anpassung der Leitfähigkeit; Nutzung fließt mit ein. Navigation, Spalten und Reihenfolgen folgen der Leitfähigkeit, mit Hysterese, damit nichts herumspringt.
 5. **Prozesse aus Zeitstempeln, Arbeit aus Abweichungen.**
-6. **Fragen statt Konfigurieren:** wenige Fragen mit Begründung, sortiert nach Wirkung.
+6. **Fragen statt Konfigurieren:** wenige Fragen mit Begründung, sortiert nach Wirkung, und nur zu dem, was die Inhaberin weiß. Wie die Dateien zu lesen sind, entscheidet Physarum selbst; die Entscheidung steht als umkehrbarer Hinweis an der Liste.
 7. **Fester Kern:** Ausgestellte Rechnungen sind festgeschrieben (nur Storno), Datensätze mit Verweisen sind nicht löschbar, Regeln wirken nur nach Zustimmung.
 
 Der vollständige Gedankengang mit der kritischen Prüfung der Grundidee und den Einwänden der unabhängigen Reviews steht in [docs/KONZEPT.md](docs/KONZEPT.md).

@@ -20,7 +20,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from . import lexicon
 from .store import dumps, loads, now_iso
 from .text import fold, norm_key, tokens
-from .values import as_date, parse_duration
+from .values import as_date, as_number, fmt_eur, parse_duration
 
 LOCKED_CONCEPTS = {"rechnung"}
 TAX_WORDS = {"mwst", "ust", "umsatzsteuer", "mehrwertsteuer", "steuer", "vat", "tax", "steuersatz"}
@@ -29,10 +29,6 @@ _NUM = re.compile(r"^(?P<pre>.*?)(?P<num>\d+)$")
 
 class BillingError(Exception):
     pass
-
-
-def _num(v):
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
 def _d(v) -> Decimal | None:
@@ -170,9 +166,9 @@ def positions(rt, rec: dict) -> list[dict]:
         if ln["data"].get(lt["attr"]) != owner["id"]:
             continue
         d = ln["data"]
-        q = _num(d.get(qty["id"])) if qty else None
-        p = _num(d.get(price["id"])) if price else None
-        t = _num(d.get(total["id"])) if total else None
+        q = as_number(d.get(qty["id"])) if qty else None
+        p = as_number(d.get(price["id"])) if price else None
+        t = as_number(d.get(total["id"])) if total else None
         if t is None and q is not None and p is not None:
             t = round(q * p, 2)
         art = rt.by_id.get(d.get(item["id"])) if item else None
@@ -182,7 +178,7 @@ def positions(rt, rec: dict) -> list[dict]:
         if art:
             aspec = rt.spec(art["type"])
             ra = next((a for a in aspec["attrs"] if a["kind"] == "percent" and words(a["name"]) & TAX_WORDS), None)
-            rate = _num(art["data"].get(ra["id"])) if ra else None
+            rate = as_number(art["data"].get(ra["id"])) if ra else None
             name = rt.title(art["id"])
             if aspec.get("key") and aspec["key"] != aspec.get("title"):
                 sku = art["data"].get(aspec["key"])
@@ -253,8 +249,8 @@ def derive(rt, spec: dict, data: dict) -> tuple[dict, list[str]]:
         if lp.get("kind") == "copy":
             if v is not None:
                 out[lp["attr"]] = v
-        elif _num(v) is not None:
-            out[lp["attr"]] = round(_num(v) * lp.get("k", 1), 2)
+        elif as_number(v) is not None:
+            out[lp["attr"]] = round(as_number(v) * lp.get("k", 1), 2)
     if is_invoice(spec):
         mf = money_fields(spec)
         rec = dict(id=-1, type=spec["id"], data=dict(data, **out), meta={})
@@ -265,17 +261,13 @@ def derive(rt, spec: dict, data: dict) -> tuple[dict, list[str]]:
             if mf["gross"]:
                 out[mf["gross"]["id"]] = t["gross"]
             why.append("MwSt nach den Steuersätzen der Artikel: " +
-                       ", ".join(f"{_pct(g['rate'])} auf {_eur(g['net'])}" for g in t["groups"]))
+                       ", ".join(f"{_pct(g['rate'])} auf {fmt_eur(g['net'])}" for g in t["groups"]))
     return out, why
 
 
 def _pct(r: float) -> str:
     x = r * 100 if r <= 1 else r
     return (f"{x:.0f}" if abs(x - round(x)) < 0.01 else f"{x:.1f}".replace(".", ",")) + " %"
-
-
-def _eur(x: float) -> str:
-    return f"{x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " €"
 
 
 # --- numbers ------------------------------------------------------------------------------------------------
@@ -332,28 +324,12 @@ def missing_for_issue(rt, spec: dict, rec: dict) -> list[str]:
     if party and not isinstance(d.get(party["id"]), int):
         out.append(party["name"])
     mf = money_fields(spec)
-    amount = _num(d.get(mf["gross"]["id"])) if mf["gross"] else None
+    amount = as_number(d.get(mf["gross"]["id"])) if mf["gross"] else None
     if amount is None and mf["net"]:
-        amount = _num(d.get(mf["net"]["id"]))
+        amount = as_number(d.get(mf["net"]["id"]))
     if not amount or amount <= 0:
         out.append((mf["net"] or mf["gross"] or {"name": "Betrag"})["name"])
     return out
-
-
-def issue_warnings(rt, spec: dict, rec: dict) -> list[str]:
-    """What the invoice may lack without blocking it: above 250 € gross (§ 33 UStDV) the
-    customer's full address belongs on it."""
-    party = party_attr(rt, spec)
-    mf = money_fields(spec)
-    gross = _num(rec["data"].get(mf["gross"]["id"])) if mf["gross"] else None
-    if not party or not isinstance(rec["data"].get(party["id"]), int) or gross is None or gross <= 250:
-        return []
-    b = recipient(rt, rec["data"][party["id"]])
-    lack = [n for k, n in (("street", "Straße"), ("zip", "PLZ"), ("city", "Ort")) if not b.get(k)]
-    if not lack:
-        return []
-    return [f"Bei {rt.title(rec['data'][party['id']])} fehlt noch {', '.join(lack)}. Über 250 € gehört die vollständige "
-            f"Anschrift des Kunden auf die Rechnung (§ 14 UStG) – bitte beim Kunden ergänzen."]
 
 
 def recipient(rt, party_rid: int | None) -> dict:
@@ -596,8 +572,8 @@ def issue(rt, rid: int, actor: str, today: date | None = None, delivery=None, de
         mf = money_fields(spec)
         if mf["tax"]:
             data[mf["tax"]["id"]] = 0.0
-        if mf["gross"] and mf["net"] and _num(data.get(mf["net"]["id"])) is not None:
-            data[mf["gross"]["id"]] = _num(data.get(mf["net"]["id"]))
+        if mf["gross"] and mf["net"] and as_number(data.get(mf["net"]["id"])) is not None:
+            data[mf["gross"]["id"]] = as_number(data.get(mf["net"]["id"]))
     due = None
     if proc and proc.get("deadlines"):
         due_attr = proc["deadlines"][0]["attr"]
@@ -779,8 +755,8 @@ def cancel(rt, rid: int, reason: str, actor: str, today: date | None = None, ren
     if not totals:
         mf = money_fields(spec)
         for k in ("net", "tax", "gross"):
-            if mf[k] and _num(data.get(mf[k]["id"])) is not None:
-                new[mf[k]["id"]] = -_num(data.get(mf[k]["id"]))
+            if mf[k] and as_number(data.get(mf[k]["id"])) is not None:
+                new[mf[k]["id"]] = -as_number(data.get(mf[k]["id"]))
     da = date_attr(rt, spec)
     if da:
         new[da] = today.isoformat()
@@ -927,9 +903,9 @@ def document(rt, rec: dict) -> dict:
     copy = not issued_here and not is_draft(rec)
     party = party_attr(rt, spec)
     buyer = meta.get("recipient") if issued_here else recipient(rt, d.get(party["id"]) if party else None)
-    net = _num(d.get(mf["net"]["id"])) if mf["net"] else None
-    tax = _num(d.get(mf["tax"]["id"])) if mf["tax"] else None
-    gross = _num(d.get(mf["gross"]["id"])) if mf["gross"] else None
+    net = as_number(d.get(mf["net"]["id"])) if mf["net"] else None
+    tax = as_number(d.get(mf["tax"]["id"])) if mf["tax"] else None
+    gross = as_number(d.get(mf["gross"]["id"])) if mf["gross"] else None
     if copy:
         # the figures of the book, not lines rebuilt from today's articles
         rate = round(tax / net, 4) if net and tax is not None else None

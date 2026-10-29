@@ -22,7 +22,8 @@ python bench/run.py --save       # das Ergebnis wird die neue Basis (bench/basel
 | shop | Online-Händler, Review 6, zwei Lieferungen (`gen/shop/`) | Auszahlungen, Erstattungen, Größen, B2B-Rechnungen |
 
 Gemessen wird je Lieferung: offene Posten (richtig/zu viel/fehlend, Euro), überfällige Rechnungen,
-fertige Aufträge ohne Rechnung, Geld ohne Rechnung, Einträge auf Heute, Fragen (davon zum Datenmodell).
+fertige Aufträge ohne Rechnung, Festpreis-Projekte deutlich über Budget, Geld ohne Rechnung, Einträge auf
+Heute, Fragen (davon zum Datenmodell).
 Dazu, was der Code kostet: Zeilen, Wort-Regeln, reguläre Ausdrücke.
 
 Die Regel: Ein Fund wird nur behoben, wenn die Lösung auf mindestens zwei Firmen greift und keine

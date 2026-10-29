@@ -185,18 +185,12 @@
       <p class="muted" style="font-size:.85rem">Was in Ihren Daten immer wieder gleich passiert. Physarum übernimmt es nur, wenn Sie zustimmen.</p>
       {% for s in suggestions %}
       <div class="question" data-remove>
-        {% if s.kind == 'auto' %}
-          <div class="q">{{ s.type.plural }}: {{ s.text }}</div>
-          <p class="muted" style="font-size:.85rem; margin:.3rem 0">Bisher {{ s.evidence }}.</p>
-          <div class="actions">
-            <button class="small primary" data-post="/regel" data-body='{"key": "{{ s.key }}", "value": "on"}'>Ab jetzt automatisch</button>
-            <button class="small ghost" data-post="/regel" data-body='{"key": "{{ s.key }}", "value": "off"}'>Nein danke</button>
-          </div>
-        {% else %}
-          <div class="q">{{ s.text }}</div>
-          <p class="muted" style="font-size:.85rem; margin:.3rem 0">Z. B. {% for it in s['items'][:3] %}<a href="/r/{{ it.rid }}">{{ title(it.rid) }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>
-          <div class="actions"><a class="btn small primary" href="/abgleich/{{ s.type.id }}">Ansehen und übernehmen ({{ s.n }})</a></div>
-        {% endif %}
+        <div class="q">{{ s.type.plural }}: {{ s.text }}</div>
+        <p class="muted" style="font-size:.85rem; margin:.3rem 0">Bisher {{ s.evidence }}.</p>
+        <div class="actions">
+          <button class="small primary" data-post="/regel" data-body='{"key": "{{ s.key }}", "value": "on"}'>Ab jetzt automatisch</button>
+          <button class="small ghost" data-post="/regel" data-body='{"key": "{{ s.key }}", "value": "off"}'>Nein danke</button>
+        </div>
       </div>
       {% endfor %}
     </div>

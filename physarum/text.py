@@ -256,10 +256,3 @@ def singular_de(word: str) -> str:
 
 def capitalize_first(s: str) -> str:
     return s[:1].upper() + s[1:] if s else s
-
-
-def human_join(items: list[str], last: str = "und") -> str:
-    items = [i for i in items if i]
-    if len(items) <= 1:
-        return "".join(items)
-    return ", ".join(items[:-1]) + f" {last} " + items[-1]

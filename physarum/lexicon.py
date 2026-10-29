@@ -468,9 +468,9 @@ def specific_name(text: str, concept: str) -> tuple[str, str] | None:
         if c != concept or rest:
             continue  # concept not at the end of the word (rest is e.g. "liste")
         head = {fold(CONCEPTS[c]["sg"]), fold(CONCEPTS[c]["pl"])}
-        terms = [t for t in CONCEPTS[c]["terms"] if f.endswith(t) and (t in head or t[:5] == fold(CONCEPTS[c]["sg"])[:5])]
+        terms = [t for t in CONCEPTS[c]["terms"] if f.endswith(t) and t in head]
         if not terms:
-            continue  # "Volksbank" ends with a synonym ("bank"), not with the thing itself
+            continue  # "Volksbank" or "Geschäftskonto" ends with a related word ("bank", "konto"), not the thing
         term = min(terms, key=len)  # the base word ("vertraege"), not the compound listed as a synonym
         if len(f) - len(term) < 3:
             continue

@@ -92,9 +92,13 @@ def build_protos(t: TypeDraft) -> list[Proto]:
 
 
 def _key_shape(k: str) -> str:
+    """How a number is built, not how long its parts are: "LP-TB 412" and "SO-TB 77" are both A-A9 (two
+    plates), "K-1001" and "10001" are not (a new numbering)."""
     out = []
     for ch in str(k):
-        out.append("9" if ch.isdigit() else "A" if ch.isalpha() else ch)
+        c = "9" if ch.isdigit() else "A" if ch.isalpha() else ch
+        if not out or out[-1] != c or c not in "9A":
+            out.append(c)
     return "".join(out)
 
 
@@ -533,6 +537,8 @@ def _evidence(t: TypeDraft, a: Group, b: Group) -> tuple[list[str], list[str]]:
                 con.append(f"verschiedene {attr.name} ({va} / {vb})")
             else:
                 pro.append(f"alte und neue {attr.name} ({va} / {vb})")
+        elif attr.kind == "id" and norm_key(va) != norm_key(vb):
+            con.append(f"verschiedene {attr.name} ({va} / {vb})")  # another number of theirs: the car of another customer
     return sorted(set(pro)), sorted(set(con))
 
 

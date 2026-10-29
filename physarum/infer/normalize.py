@@ -236,6 +236,10 @@ def _party_concept(o: Obs, x: Col, deps: list[Col]) -> str | None:
         return "kontakt"  # people with an e-mail address who belong to a firm: contacts, whoever exported them
     if x.prof.concept:
         return x.prof.concept
+    vals = [str(v) for v in x.values if v not in (None, "")]
+    if heading_name(x.name) and any(y.kind == "id" and y.prof.concept for y in deps) and vals and \
+            sum(any(ch.isdigit() for ch in v) for v in vals) >= 0.8 * len(vals):
+        return None  # codes ("LP-TB 412") with the owner's number beside them: plates, not customers
     for y in deps:
         if y.role in ("name", "person") and y.prof.concept:
             return y.prof.concept

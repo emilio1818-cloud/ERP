@@ -242,6 +242,58 @@ class PlainNumbers(unittest.TestCase):
         self.assertNotIn(self.no[1], self.overdue)
 
 
+class Workshop(unittest.TestCase):
+    """An order book of a workshop: the invoice the day the car is done, its number in "Rg." – or a word
+    ("Kulanz") where nothing is invoiced; the cars of two customers called Thomas Becker stay two."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="physarum-shop-"))
+        orders = ["Auftrag;Annahme;Kd.-Nr.;Kunde;Kennzeichen;Fahrzeug;fertig am;Status;Rg."]
+        inv = ["Rg-Nr.;Datum;Kd-Nr.;Auftr.;Brutto;fällig"]
+        start = TODAY - timedelta(days=80)
+        cls.unbilled = set()
+        cars = [(10133, "Becker, Th.", "LP-TB 412", "Opel Astra"), (10541, "Becker, Th.", "SO-TB 77", "VW Touran")] + \
+            [(10200 + 17 * k, f"{n}, {v}.", f"LP-{v}{n[0]} {100 + 7 * k}", "Ford Fiesta")
+             for k, (n, v) in enumerate([("Kaya", "P"), ("Wolf", "J"), ("Meyer", "A"), ("Brune", "R"), ("Lange", "M"),
+                                         ("Pohl", "D"), ("Vogt", "K"), ("Albers", "F")])]
+        for i in range(40):
+            d = start + timedelta(days=2 * i)
+            no, order = 41001 + i, f"26-{700 + i:04d}"
+            kd, who, plate, car = cars[i % len(cars)]
+            rg = str(no)
+            if i in (11, 17):
+                rg = ""                               # done, nobody wrote the invoice
+                cls.unbilled.add(order)
+            elif i == 13:
+                rg = "Kulanz"                         # done for free: decided, nothing to invoice
+            done = d + timedelta(days=i % 3)
+            orders.append(f"{order};{de(d)};{kd};{who};{plate};{car};{de(done)};fertig;{rg}")
+            if rg.isdigit():
+                inv.append(f"{no};{de(done)};{kd};{order};{eur(100.0 + 7 * i)};{de(done + timedelta(days=14))}")
+        files = {"Auftragsbuch.csv": orders, "Rechnungsbuch.csv": inv}
+        for n, rows in files.items():
+            (cls.tmp / n).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        cls.store = Store(cls.tmp / "firma")
+        ingest(cls.store, [(n, (cls.tmp / n).read_bytes()) for n in files], "T")
+        regrow(cls.store)
+        cls.rt = Runtime(cls.store)
+        cls.rt.ensure()
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_done_without_an_invoice_is_money_waiting(self):
+        ready = {x["title"] for g in self.rt.work(TODAY) if g["kind"] == "ready" for x in g["items"]}
+        self.assertEqual(ready, self.unbilled)                                # not the one done "Kulanz"
+
+    def test_two_customers_of_one_name_stay_two(self):
+        beckers = {r["id"] for t in self.rt.model["types"] if t["kind"] == "master"
+                   for r in self.rt.records[t["id"]] if "Becker" in self.rt.title(r["id"])}
+        self.assertEqual(len(beckers), 2)                                     # 10133 and 10541, two cars
+
+
 class MoneyBack(unittest.TestCase):
     """Money that goes back: a refund leaves the invoice settled, a returned debit opens it again – also
     when the debit it returns was one of a collective one; a deduction is skonto where the terms grant it,

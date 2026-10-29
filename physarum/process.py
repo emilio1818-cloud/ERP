@@ -1089,6 +1089,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                         break  # the rest is a retention until the warranty ends: nothing to chase
                     money = e["open"]  # only what is still missing
                     paid_part = e["paid"] if e["paid"] > 0.005 else None
+                # invoiced the day the job is done, as most cases are (a web order is its own receipt)
+                billing = st.get("source") == "child" and fold(st["label"]) == BILLED and st.get("median_days") == 0 \
+                    and (st.get("share") or 1) >= 0.5
                 dl = due_by_step.get(st["id"])
                 due = as_date(r["data"].get(dl["attr"])) if dl else None
                 due_how = None
@@ -1108,17 +1111,22 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 if due and due < today:
                     buckets[(st["id"], "overdue")].append(dict(rid=r["id"], days=(today - due).days, money=money,
                                                                due=due.isoformat(), paid=paid_part, due_how=due_how))
-                elif st.get("p80_days") is not None and st.get("n", 0) >= 5 and (st.get("median_days") or 0) > 0 and \
+                elif st.get("p80_days") is not None and st.get("n", 0) >= 5 and \
+                        ((st.get("median_days") or 0) > 0 or billing) and \
                         not (st["id"] in planned and r["data"].get(planned[st["id"]]) is None) and \
                         not any((st["id"], a, str(r["data"].get(a))) in never for a in never_attrs(never)):
                     waited = (today - last).days
                     limit = max(st["p80_days"] * 1.25, (st["median_days"] or 0) + 2, 2)
-                    if reached and st.get("source") == "child" and fold(st["label"]) == BILLED and 0 <= waited < 1100:
+                    # a word where the invoice's number goes ("Kulanz", "intern"): decided, nothing to invoice
+                    decided = any(((r.get("meta") or {}).get("raw") or {}).get(x["rel_attr"]) not in (None, "")
+                                  for x in [st] + st.get("also", []) if x.get("rel_kind") == "own_ref")
+                    if reached and st.get("source") == "child" and fold(st["label"]) == BILLED and not decided \
+                            and 0 <= waited < 1100:
                         # finished and not invoiced: money waiting to be asked for – all of it, the oldest first
                         buckets[(st["id"], "ready")].append(dict(
                             rid=r["id"], days=waited, money=money, usual=st["median_days"], late=waited > limit,
                             reason=f"{title(gone[1])} storniert, noch keine neue" if gone else None))
-                    elif waited > limit and waited < 1100 and not optional:
+                    elif waited > limit and waited < 1100 and not optional and not decided:
                         # claims become time-barred after three years; a step most cases never reach (an offer
                         # that is never ordered) is nothing one waits for
                         buckets[(st["id"], "late")].append(dict(rid=r["id"], days=waited, money=money,

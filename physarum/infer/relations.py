@@ -289,10 +289,19 @@ def _vias(d: TypeDraft, alt: dict | None = None) -> list[tuple[str, AttrDraft]]:
     return out
 
 
-def _eligible(t: TypeDraft, a: AttrDraft) -> bool:
-    if a.kind not in ("id", "text", "email"):
+def _numbers_of_others(a: AttrDraft) -> bool:
+    """Whole numbers of four digits and more, hardly ever twice ("Rg." 31076 in an order book): perhaps the
+    numbers of other records – no amounts, no counts."""
+    if a.kind != "number" or not a.rep.prof.integer or a.role in ("money", "percent"):
         return False
-    if a.role not in REF_ROLES:
+    nums = [x for x in a.rep.values if isinstance(x, (int, float)) and not isinstance(x, bool)]
+    return len(nums) >= 5 and min(nums) >= 1000 and len(set(nums)) >= 0.9 * len(nums)
+
+
+def _eligible(t: TypeDraft, a: AttrDraft) -> bool:
+    if a.kind not in ("id", "text", "email") and not _numbers_of_others(a):
+        return False
+    if a.role not in REF_ROLES and a.kind != "number":
         return False
     if a is t.key and t.kind != "line":
         return False

@@ -58,6 +58,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
     banks = _bank_types(model)
     by_id = {r["id"]: r for rs in records.values() for r in rs}
     out: dict[int, dict] = {}
+    claimed: set[int] = set()  # bank lines given to an invoice by amount, so no second one takes them
     for ip in invoice_specs(model):
         p, spec, step = ip["p"], ip["spec"], ip["step"]
         recs = records.get(p["type"], [])
@@ -167,6 +168,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                                           shared=len(invs) > 1))
                 left -= take
         # book or manual paid date: paid in full when the bank does not speak
+        pool = None
         for r in recs:
             e = entries.get(r["id"])
             if not e or e["payments"]:
@@ -179,9 +181,19 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             ds = [as_date(r["data"].get(a)) for a in own_paid]
             ds = [d for d in ds if d]
             if ds:
-                e["paid"] = e["gross"]
+                owed = round(e["gross"] - e["credit"], 2)
+                e["paid"] = owed
                 w = ((r.get("meta") or {}).get("w") or {}).get(own_paid[0]) or ["import"]
-                e["payments"].append(dict(rid=None, date=min(ds), amount=e["gross"],
+                if w[0] != "user" and owed > EPS:
+                    if pool is None:
+                        pool = _bank_pool(model, banks, records, by_id, set(links) | claimed, ip["outgoing"])
+                    hit = _listed_payment(model, pool, owed, min(ds), r, p, spec, by_id)
+                    if hit:
+                        claimed.add(hit["rid"])
+                        e["payments"].append(dict(rid=hit["rid"], date=hit["date"], amount=owed,
+                                                  how="Zahlung ohne Nummer – Betrag, Zahler und Tag passen zur Liste"))
+                        continue
+                e["payments"].append(dict(rid=None, date=min(ds), amount=owed,
                                           how="von Hand eingetragen" if w[0] == "user" else "laut Liste bezahlt"))
         for e in entries.values():
             _finish(e)
@@ -190,6 +202,47 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
 
 
 _STORNO_WORDS = ("storno", "storniert", "stornierung", "stornorechnung", "cancel")
+
+
+def _bank_pool(model, banks, records, by_id, taken: set, outgoing: bool) -> dict:
+    """Bank lines that name no invoice, by amount: candidates for payments the list knows."""
+    from .reconcile import bank_amount
+    pool: dict[float, list] = defaultdict(list)
+    for btid, b in banks.items():
+        for row in records.get(btid, []):
+            if row["id"] in taken:
+                continue
+            amt = bank_amount(b, row["data"])
+            value = (-1.0 if outgoing else 1.0) * amt if amt is not None else None
+            when = as_date(row["data"].get(b["date"]["id"]))
+            if not value or value <= 0 or not when:
+                continue
+            pv = row["data"].get(b["party"]["id"]) if b.get("party") else None
+            name = _title_of(model, by_id.get(pv), by_id) if isinstance(pv, int) else \
+                str(row["data"].get(b["name"]["id"]) or "") if b.get("name") else ""
+            pool[round(value, 2)].append(dict(rid=row["id"], date=when, party=pv if isinstance(pv, int) else None,
+                                              name=norm_name(name)))
+    return pool
+
+
+def _listed_payment(model, pool, owed, paid_on, r, p, spec, by_id) -> dict | None:
+    """The invoice book says "bezahlt am 13.01."; on the statement, the same customer transferred
+    exactly that amount within a few days, without a number: that is the payment."""
+    cands = [x for x in pool.get(round(owed, 2), []) if abs((x["date"] - paid_on).days) <= 7]
+    if not cands:
+        return None
+    party = r["data"].get(p.get("party")) if p.get("party") else None
+    cust = norm_name(_title_of(model, by_id.get(party), by_id)) if isinstance(party, int) else ""
+    fit = [x for x in cands if (x["party"] is not None and x["party"] == party) or
+           (cust and x["name"] and name_similarity(cust, x["name"]) >= 0.6)]
+    if not fit:
+        return None
+    fit.sort(key=lambda x: abs((x["date"] - paid_on).days))
+    if len(fit) > 1 and abs((fit[0]["date"] - paid_on).days) == abs((fit[1]["date"] - paid_on).days):
+        return None  # two equal transfers on the same day: the list cannot tell which
+    hit = fit[0]
+    pool[round(owed, 2)].remove(hit)
+    return hit
 
 
 def _title_of(model: dict, rec: dict | None, by_id: dict | None = None, depth: int = 0) -> str:

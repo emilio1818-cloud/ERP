@@ -116,6 +116,7 @@
         {% set d = (k.current - k.previous_mtd) / k.previous_mtd * 100 %}
         <div class="delta {{ 'muted' }}">{{ '+' if d >= 0 }}{{ '%.0f'|format(d) }} % ggü. Vormonat bis zum {{ k.day }}. ({{ money(k.previous_mtd, k.currency) }})</div>
       {% endif %}
+      {% if k.asof %}<div class="delta muted">Die Liste reicht bis {{ display(k.asof, 'date') }} – neuere {{ k.name }} fehlen noch</div>{% endif %}
       {{ spark(k.series) }}
     </a>
     {% endif %}

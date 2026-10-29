@@ -487,6 +487,41 @@ def stock_now(model: dict, records: dict, today: date | None = None) -> dict[int
 
 # --- runtime: what needs to be done today ---------------------------------------------------------------
 
+def _never_reached(spec: dict, recs: list[dict], p: dict, step_dates: dict, today: date) -> set:
+    """(step, attr, value): cases of this kind never take this step. Maintenance contracts do not
+    end like a website relaunch; waiting for their end is no delay."""
+    out = set()
+    status = (p.get("status") or {}).get("attr")
+    cats = [a["id"] for a in spec["attrs"] if a.get("enum") and 2 <= len(a["enum"]) <= 12 and a["id"] != status
+            and a["kind"] == "text" and a.get("role") in ("category", None) and not a.get("virtual")]
+    for st in p["steps"]:
+        if st.get("p80_days") is None:
+            continue
+        horizon = today - timedelta(days=int(st["p80_days"] * 1.25) + 2)
+        done = step_dates.get(st["id"], {})
+        for a in cats:
+            old, did = Counter(), Counter()
+            for r in recs:
+                v = r["data"].get(a)
+                start = as_date(r["data"].get(p["start"]["attr"]))
+                if v is None or not start or start > horizon:
+                    continue
+                old[str(v)] += 1
+                if done.get(r["id"]):
+                    did[str(v)] += 1
+            total_old, total_did = sum(old.values()), sum(did.values())
+            share = total_did / total_old if total_old else 0
+            for v, n in old.items():
+                # (almost) never, while the rest mostly does: it is not their way
+                if n >= 5 and total_did >= 5 and (did[v] <= 0.05 * n or (did[v] <= 0.2 * n and did[v] / n <= share / 3)):
+                    out.add((st["id"], a, v))
+    return out
+
+
+def never_attrs(never: set) -> set:
+    return {a for _s, a, _v in never}
+
+
 def compute_work(model: dict, records: dict, mention_refs: dict, today: date | None = None,
                  outrefs: dict | None = None, titles_in: dict | None = None,
                  pending_payments: dict | None = None, ledger: dict | None = None) -> list[dict]:
@@ -578,6 +613,14 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         due_by_step = {dl["step"]: dl for dl in p["deadlines"] if dl.get("step")}
         covered = {(d["type"], d["attr"]) for d in model.get("dues", [])}
         free_dues = [dl for dl in p["deadlines"] if not dl.get("step") and (p["type"], dl["attr"]) not in covered]
+        never = _never_reached(spec, recs, p, step_dates, today)
+        # where reaching a step is planned (a planned end for every project that ended), a case
+        # without such a date is not waiting for it: "unbefristet"
+        planned = {}
+        for sid, dl in due_by_step.items():
+            reached = [r for r in recs if step_dates.get(sid, {}).get(r["id"])]
+            if len(reached) >= 5 and sum(1 for r in reached if r["data"].get(dl["attr"]) is not None) >= 0.7 * len(reached):
+                planned[sid] = dl["attr"]
         buckets = defaultdict(list)
         for r in recs:
             if sattr and str(r["data"].get(sattr)) in negative:
@@ -614,7 +657,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 if due and due < today:
                     buckets[(st["id"], "overdue")].append(dict(rid=r["id"], days=(today - due).days, money=money,
                                                                due=due.isoformat(), paid=paid_part))
-                elif st.get("p80_days") is not None and st.get("n", 0) >= 5:
+                elif st.get("p80_days") is not None and st.get("n", 0) >= 5 and (st.get("median_days") or 0) > 0 and \
+                        not (st["id"] in planned and r["data"].get(planned[st["id"]]) is None) and \
+                        not any((st["id"], a, str(r["data"].get(a))) in never for a in never_attrs(never)):
                     waited = (today - last).days
                     limit = max(st["p80_days"] * 1.25, (st["median_days"] or 0) + 2, 2)
                     if waited > limit and waited < 1100:  # claims become time-barred after three years
@@ -632,6 +677,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 e = ledger.get(r["id"]) if ledger else None
                 if e and e["state"] in ("bezahlt", "überzahlt", "storniert", "verrechnet"):
                     continue  # the money has gone out already
+                if due and (due - today).days < -30 and not e:
+                    continue  # long past, and nothing says whether it happened: history, not work
                 if due and (due - today).days <= 14:
                     kind = "payable" if e and e["outgoing"] else "due"
                     buckets[(dl["attr"], kind)].append(dict(rid=r["id"], days=(due - today).days,
@@ -813,6 +860,27 @@ def _threshold_work(model, records, title) -> list[dict]:
     return out
 
 
+_EXIT_WORDS = {"austritt", "ausgeschieden", "ausscheiden", "kuendigung", "gekuendigt", "inaktiv", "ende", "bis",
+               "exit", "terminated", "termination", "end"}
+
+
+def _inactive(spec: dict, rec: dict, today: date) -> bool:
+    """Someone who left the firm, a customer who cancelled: their silence is no news."""
+    if (rec.get("meta") or {}).get("vanished"):
+        return True
+    for a in spec.get("attrs", []):
+        v = rec["data"].get(a["id"])
+        if v is None:
+            continue
+        if a["kind"] in ("date", "datetime") and set(tokens(a["name"])) & _EXIT_WORDS:
+            d = as_date(v)
+            if d and d <= today:
+                return True
+        if a.get("role") == "status" and fold(str(v)) in lexicon.NEGATIVE_STATES:
+            return True
+    return False
+
+
 def _rhythm_work(model, records, by_id, title, today) -> list[dict]:
     out = []
     specs = {t["id"]: t for t in model["types"]}
@@ -824,9 +892,10 @@ def _rhythm_work(model, records, by_id, title, today) -> list[dict]:
             if isinstance(t, int) and d:
                 per[t].append(d)
         items = []
+        dspec = specs.get(rh["dst"]) or {}
         for target, ds in per.items():
             ds = sorted(set(ds))
-            if len(ds) < 4 or target not in by_id:
+            if len(ds) < 4 or target not in by_id or _inactive(dspec, by_id[target], today):
                 continue
             gaps = [(b - a).days for a, b in zip(ds, ds[1:]) if (b - a).days > 0]
             if len(gaps) < 3:
@@ -921,9 +990,7 @@ def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
                                 salience=spec.get("salience", 0), recurring=True, n=n_run,
                                 date_attr=p["start"]["attr"], month_end=None))
             continue
-        months = defaultdict(float)
-        prev_mtd = 0.0
-        py, pm = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
+        valid = []
         for r in recs:
             if sattr and str(r["data"].get(sattr)) in negative:
                 continue
@@ -932,13 +999,22 @@ def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
             d = as_date(r["data"].get(p["start"]["attr"]))
             v = r["data"].get(aid) if aid else None
             if d and isinstance(v, (int, float)):
-                months[(d.year, d.month)] += float(v)
-                if (d.year, d.month) == (py, pm) and d.day <= today.day:
-                    prev_mtd += float(v)
-        if not months:
+                valid.append((d, float(v)))
+        if not valid:
             continue
+        # a list that ends before this month (delivered on 15.09.) is not "−100 %" in October:
+        # its months are compared as of its own last day
+        latest = max(d for d, _ in valid)
+        ref = latest if latest < date(today.year, today.month, 1) else today
+        months = defaultdict(float)
+        prev_mtd = 0.0
+        py, pm = (ref.year, ref.month - 1) if ref.month > 1 else (ref.year - 1, 12)
+        for d, v in valid:
+            months[(d.year, d.month)] += v
+            if (d.year, d.month) == (py, pm) and d.day <= ref.day:
+                prev_mtd += v
         series = []
-        y, m = today.year, today.month
+        y, m = ref.year, ref.month
         for _ in range(13):
             series.append(dict(month=f"{y}-{m:02d}", value=round(months.get((y, m), 0.0), 2)))
             m -= 1
@@ -949,12 +1025,13 @@ def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
         # same day-of-month progress last month, for a fair comparison
         prev_full = series[-2]["value"]
         import calendar
-        last = calendar.monthrange(today.year, today.month)[1]
+        last = calendar.monthrange(ref.year, ref.month)[1]
         out.append(dict(type=p["type"], name=spec["plural"], attr=aid, attr_name=aspec["name"], series=series,
-                        current=cur, previous=prev_full, previous_mtd=round(prev_mtd, 2), day=today.day,
+                        current=cur, previous=prev_full, previous_mtd=round(prev_mtd, 2), day=ref.day,
                         currency=aspec.get("currency") or "EUR", concept=spec.get("concept"),
                         salience=spec.get("salience", 0), date_attr=p["start"]["attr"],
-                        month_end=f"{today.year}-{today.month:02d}-{last:02d}"))
+                        month_end=f"{ref.year}-{ref.month:02d}-{last:02d}",
+                        asof=ref.isoformat() if ref != today else None))
     return out
 
 

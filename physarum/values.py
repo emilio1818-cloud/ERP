@@ -615,7 +615,7 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
             if p.role is None:
                 p.role = "category"
     if kind in ("date", "datetime"):
-        p.milestone = lexicon.milestone_label(name)
+        p.milestone = lexicon.milestone_label(name) if not set(tokens(name)) & _PLANNED else None
     return p
 
 
@@ -671,6 +671,10 @@ def _parse_as(kind: str, v, p: Profile):
     return v
 
 
+_PLANNED = {"geplant", "geplante", "geplanter", "geplantes", "plan", "planned", "voraussichtlich", "soll", "ziel",
+            "target", "expected", "estimated", "planende", "planstart"}
+
+
 def _decide_role(p: Profile, hrole: str | None) -> str | None:
     k = p.kind
     by_kind = {"email": "email", "phone": "phone", "url": "url", "iban": "iban", "zip": "zip",
@@ -678,7 +682,9 @@ def _decide_role(p: Profile, hrole: str | None) -> str | None:
     if k in by_kind:
         return by_kind[k]
     if k in ("date", "datetime"):
-        return "due" if hrole == "due" else "date"
+        if hrole == "due" or set(tokens(p.name)) & _PLANNED:
+            return "due"  # "Ende (geplant)": a date to keep, not one that happened
+        return "date"
     if k == "money":
         return "money"
     if k == "number":

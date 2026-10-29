@@ -191,8 +191,15 @@ NONREF_SUFFIXES = ("gruppe", "typ", "art", "kategorie", "segment", "klasse", "st
                    "kosten", "betrag", "menge", "zeit", "tage", "frist", "termin", "bestand")
 
 
+# words that end with a concept but mean something else ("Abrechnung" is how a project is billed)
+_FALSE_COMPOUNDS = {"abrechnung", "abrechnungen", "abrechnungsart", "verrechnung", "berechnung", "umrechnung",
+                    "nachberechnung", "einrechnung", "hochrechnung", "gegenrechnung"}
+
+
 def _compound_concept(tok: str) -> tuple[str | None, str]:
     """Split a (possibly compound) token into (concept, rest). Rightmost concept term wins."""
+    if tok in _FALSE_COMPOUNDS:
+        return None, tok
     best: tuple[int, int, str] | None = None  # (end position, length, concept)
     for c, spec in CONCEPTS.items():
         for term in spec["terms"]:

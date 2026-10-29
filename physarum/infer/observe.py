@@ -155,6 +155,23 @@ def _add_embedded_keys(cols: list[Col]):
         cols.insert(cols.index(c), Col(name=name, prof=prof, values=list(prof.values), keys=keys, origin=c.origin))
 
 
+_FROM = {"von", "ab", "from", "start", "beginn", "seit"}
+_TO = {"bis", "to", "until", "ende", "end"}
+_DEADLINE = {"faellig", "faelligkeit", "frist", "deadline", "termin", "due", "zahlbar"}
+from ..values import _PLANNED  # noqa: E402 - "Ende (geplant)" stays a date to keep
+
+
+def _period_ends(cols: list[Col]):
+    """'von … bis' (an absence, a contract term): the end of a period, not a deadline to watch."""
+    if not any(c.kind in ("date", "datetime") and set(tokens(c.name)) & _FROM for c in cols):
+        return
+    for c in cols:
+        toks = set(tokens(c.name))
+        if c.kind in ("date", "datetime") and c.role == "due" and toks & _TO and not toks & _DEADLINE and \
+                not toks & _PLANNED:
+            c.prof.role = "date"
+
+
 def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list[Profile],
                    lines: list[tuple[int, int]] | list[int], source_id: int = 0, tables: list[int] | None = None,
                    sig_label: str | None = None) -> Obs:
@@ -177,6 +194,7 @@ def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list
             keys.append(k)
         cols.append(Col(name=name, prof=prof, values=list(prof.values), keys=keys, origin=(table_id, j)))
     _add_embedded_keys(cols)
+    _period_ends(cols)
     _full_name(cols, table_id)
     lines = [l if isinstance(l, tuple) else (table_id, l) for l in lines]
     n = len(lines)

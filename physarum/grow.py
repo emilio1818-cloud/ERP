@@ -5,6 +5,7 @@ every run respects.
 """
 from __future__ import annotations
 
+import re
 import time
 from collections import Counter, defaultdict
 from datetime import date, datetime
@@ -491,6 +492,10 @@ def _carry_forward(store: Store, model: dict):
 LOCKED_CONCEPTS = {"rechnung"}
 
 
+_PAYMENT_WORDS = {"offen", "offener", "offene", "rest", "restbetrag", "bezahlt", "gezahlt", "zahlung", "zahlungen",
+                  "saldo", "mahnstufe", "gemahnt", "paid", "outstanding", "balance", "zahlungseingang"}
+
+
 def protected_attrs(spec: dict) -> set:
     """What an issued document fixes: numbers, amounts, parties and its own dates (not payment
     or delivery milestones, status or notes)."""
@@ -500,6 +505,8 @@ def protected_attrs(spec: dict) -> set:
     for a in spec["attrs"]:
         if a.get("virtual"):
             continue
+        if set(tokens(a["name"])) & _PAYMENT_WORDS:
+            continue  # "Offener Betrag", "Bezahlt am": the course of the payment, not the document
         if a["kind"] in ("money", "number", "percent", "id", "ref", "iban"):
             out.add(a["id"])
         elif a["kind"] in ("date", "datetime") and not a.get("milestone"):
@@ -520,6 +527,8 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     protect = {t.tid: protected_attrs(specs[t.tid]) for t in types if t.tid in specs}
     status_guard = {t.tid: next((a["id"] for a in specs[t.tid]["attrs"] if a.get("role") == "status"), None)
                     for t in types if t.tid in specs and protect.get(t.tid)}
+    cancelled_by_doc = {t.tid: _cancelled_numbers(specs[t.tid], groups[id(t)]) for t in types
+                        if t.tid in specs and protect.get(t.tid)}
     src_added = {r["id"]: r["added_at"] for r in store.sources(active_only=False)}
     src_name = {r["id"]: r["name"] for r in store.sources(active_only=False)}
     tables = {r["id"]: r["source_id"] for r in c.execute("SELECT id, source_id FROM raw_tables").fetchall()}
@@ -607,7 +616,8 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
             srcs = sorted({tables.get(tl[0], 0) for tl in g.lines})
             _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, ts, actor, stats, written,
                           protected=_live_protect(c, protect.get(t.tid), rid, data, specs.get(t.tid)),
-                          status_attr=status_guard.get(t.tid),
+                          status_attr=None if norm_key(data.get((specs.get(t.tid) or {}).get("key")) or "")
+                          in cancelled_by_doc.get(t.tid, ()) else status_guard.get(t.tid),
                           src_time=lambda sid, tid: table_time.get(tid) or src_added.get(sid, ""))
             stats["records"] += 1
 
@@ -696,6 +706,25 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     c.executemany("INSERT OR IGNORE INTO refs(from_id,attr,to_id,kind,how) VALUES(?,?,?,?,?)", batch)
     _reindex(c, model, live)
     return stats
+
+
+_NUMBER_IN_TEXT = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
+
+
+def _cancelled_numbers(spec: dict, groups: list) -> set:
+    """Invoice numbers a cancellation document of the same list names ("Stornorechnung zu RE-2026-0463"):
+    their status may say "storniert" – the storno document is there."""
+    money = [a["id"] for a in spec["attrs"] if a["kind"] == "money"]
+    texts = [a["id"] for a in spec["attrs"] if a["kind"] == "text"]
+    out = set()
+    for g in groups:
+        if not any(isinstance(g.values.get(m), (int, float)) and g.values[m] < 0 for m in money):
+            continue
+        words = " ".join(str(g.values.get(a) or "") for a in texts)
+        if "storn" not in fold(words) and "cancel" not in fold(words):
+            continue
+        out.update(norm_key(tok) for tok in _NUMBER_IN_TEXT.findall(words[:500]))
+    return out
 
 
 def _live_protect(c, protected: set | None, rid: int, data: dict, spec: dict | None) -> set | None:

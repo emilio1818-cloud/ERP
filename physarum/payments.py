@@ -16,7 +16,7 @@ from itertools import combinations
 
 from .billing import is_draft
 from .lexicon import NEGATIVE_STATES
-from .text import fold, name_similarity, norm_key, norm_name, tokens
+from .text import counts_up, fold, name_similarity, norm_key, norm_name, tokens
 from .values import as_date, as_number, fmt_eur, parse_duration, skonto_terms
 
 _NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
@@ -246,6 +246,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
     def debit(row) -> bool:  # the line carries a creditor id: a direct debit, or its return
         return any(isinstance(v, str) and _CREDITOR_ID.search(v) for v in row["data"].values())
     knows_debits = {tid for tid in banks if any(debit(row) for row in records.get(tid, []))}
+    zips = {norm_key(r["data"][a["id"]]) for t in model["types"] for a in t["attrs"] if a["kind"] == "zip"
+            for r in records.get(t["id"], []) if r["data"].get(a["id"]) is not None}  # postcodes, not invoices
     for ip in invoice_specs(model):
         p, spec, step = ip["p"], ip["spec"], ip["step"]
         recs = records.get(p["type"], [])
@@ -277,10 +279,11 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         # last growth) are not in the text index of the files
         key = spec.get("key")
         by_no = {}
-        for r in recs:
-            k = norm_key(r["data"].get(key)) if key and r["data"].get(key) is not None else ""
-            if len(k) >= 6 or (len(k) >= 5 and not k.isdigit()):
-                by_no.setdefault(k, []).append(r["id"])
+        nos = {r["id"]: norm_key(r["data"].get(key)) for r in recs if key and r["data"].get(key) is not None}
+        plain = counts_up(nos.values())  # "31076": short, but one of a range that counts up
+        for rid, k in nos.items():
+            if len(k) >= 6 or (len(k) >= 5 and ((plain and k not in zips) or not k.isdigit())):
+                by_no.setdefault(k, []).append(rid)
         by_no = {k: v[0] for k, v in by_no.items() if len(v) == 1}
         loose = _loose_numbers(by_no)
         if by_no:

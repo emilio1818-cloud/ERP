@@ -297,8 +297,8 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
         if len(deltas) < max(3, 0.03 * len(starts)):
             continue
         after = sum(1 for x in deltas if x >= -1) / len(deltas)
-        if after < 0.8:
-            continue
+        if after < 0.8 or (max(deltas) <= 0 and min(deltas) < 0):
+            continue  # never after the start, now and then before: where a case came from (its order), no step
         if sum(1 for x in deltas if x == 0) / len(deltas) >= 0.9 and st["source"] == "own":
             continue  # "Valutadatum" next to "Buchungstag": the same moment, not a step
         st["median"] = statistics.median(deltas)

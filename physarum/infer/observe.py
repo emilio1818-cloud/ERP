@@ -251,6 +251,12 @@ def _full_name(cols: list[Col], table_id: int):
     one field. A combined name lets both meet."""
     first = next((c for c in cols if c.kind == "text" and set(tokens(c.name)) & _FIRST), None)
     last = next((c for c in cols if c.kind == "text" and set(tokens(c.name)) & _LAST and c is not first), None)
+    plain = next((c for c in cols if c.kind == "text" and fold(c.name) == "name"), None)
+    if first and not last and plain:
+        # "Name" next to "Vorname" is the surname – where it does not hold the first name already
+        both = [(fold(str(a)), fold(str(b))) for a, b in zip(first.values, plain.values) if a and b]
+        if both and sum(1 for a, b in both if a not in b) >= 0.8 * len(both):
+            last, plain.name = plain, "Nachname"
     if not first or not last or any(fold(c.name) == "name" for c in cols):
         return
     vals = []

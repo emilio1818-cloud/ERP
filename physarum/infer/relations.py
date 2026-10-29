@@ -14,7 +14,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 from .. import lexicon
-from ..text import fold, name_similarity, norm_key, norm_name, tokens
+from ..text import counts_up, fold, name_similarity, norm_key, norm_name, tokens
 from .identity import FREEMAIL, Group, _part_of, _same_word, _within
 from .unify import AttrDraft, TypeDraft
 
@@ -762,6 +762,9 @@ class MentionIndex:
         self.names: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
         self.emails: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
         self.domains: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
+        # a five-digit number that is a postcode in the firm's own data stands in addresses, not for a record
+        self.zips = {_compact(str(g.values[a.aid])) for t in types for a in t.attrs if a.kind == "zip"
+                     for g in groups[id(t)] if g.values.get(a.aid) is not None}
         for t in types:
             if t.kind == "line":
                 continue
@@ -769,7 +772,8 @@ class MentionIndex:
             key = t.key
             if key is not None and key.kind == "id":
                 keys = [(i, g.values.get(key.aid)) for i, g in enumerate(gs) if g.values.get(key.aid) is not None]
-                if keys and sum(distinctive(str(k)) for _, k in keys) >= 0.8 * len(keys):
+                if keys and (sum(distinctive(str(k)) for _, k in keys) >= 0.8 * len(keys) or
+                             counts_up([_compact(str(k)) for _, k in keys])):
                     dig_count = Counter(re.sub(r"\D", "", str(k)) for _, k in keys)
                     for i, k in keys:
                         self.compact[_compact(str(k))].append((t, i))
@@ -815,7 +819,7 @@ class MentionIndex:
         for c, prev in cands:
             cc = _compact(c)
             hit = False
-            if len(cc) >= 5:
+            if len(cc) >= 5 and not (len(cc) == 5 and cc in self.zips):
                 for t, gi in self.compact.get(cc, []):
                     found[(id(t), gi)] = (t, gi, "Nummer")
                     hit = True

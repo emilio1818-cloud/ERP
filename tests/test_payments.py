@@ -174,6 +174,74 @@ class OtherHeadings(unittest.TestCase):
         self.assertEqual({k for k, v in other.items() if v == "bezahlt"}, {f"{i + 1:03d}" for i in range(10)})
 
 
+class PlainNumbers(unittest.TestCase):
+    """A workshop numbers its invoices 31001, 31002, …: "Rg 31076" in a purpose is that invoice, though the
+    number is short. Cash at the counter goes by the book; a sale without an order is overdue all the
+    same; the customer list keeps the surname as "Name" next to "Vorname"."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="physarum-plain-"))
+        people = [("Hoffmann", "Sabine"), ("Ahlke", "Jan"), ("Kaya", "Peter"), ("Wolf", "Jan"), ("Meyer", "Ayse")]
+        kunden = ["KdNr;Name;Vorname;PLZ;Ort"] + [f"{10100 + 37 * i};{n};{v};5955{i};Lippstadt"
+                                                  for i, (n, v) in enumerate(people)]
+        orders = ["Auftrag;Annahme;Kd.-Nr.;Arbeiten"]
+        inv = ["Rg-Nr.;Datum;Kd-Nr.;Auftr.;Brutto;Zahlart;fällig;bez. am"]
+        bank = ["Buchungstag;Auftraggeber;Verwendungszweck;Betrag"]
+        start = TODAY - timedelta(days=90)
+        cls.no = {}
+        for i in range(30):
+            d = start + timedelta(days=2 * i)
+            no, g, (n, v) = 31001 + i, round(80.0 + 13.5 * i, 2), people[i % 5]
+            kd = 10100 + 37 * (i % 5)
+            order = f"26-{500 + i:04d}" if i % 3 else ""     # every third a sale at the counter, no order
+            if order:
+                orders.append(f"{order};{de(d - timedelta(days=i % 2))};{kd};Inspektion")
+            cash = i % 2 == 0 and i < 26
+            # the book: cash the day of the sale, transfers ticked off until a few weeks ago
+            paid = de(d) if cash else de(d + timedelta(days=6)) if i < 12 else ""
+            if not cash and i < 26:
+                bank.append(f"{de(d + timedelta(days=6))};{v} {n};Rg {no};{eur(g)}")
+            if i == 27:  # by transfer, the number not given: who paid and how much tell
+                bank.append(f"{de(d + timedelta(days=5))};{v.upper()} {n.upper()};Inspektion Werkstatt;{eur(g)}")
+            inv.append(f"{no};{de(d)};{kd};{order};{eur(g)};{'bar' if cash else 'Überw.'};"
+                       f"{'' if cash else de(d + timedelta(days=14))};{paid}")
+            cls.no[i] = str(no)
+        files = {"Kunden.csv": kunden, "Auftragsbuch.csv": orders, "Rechnungsbuch.csv": inv, "Konto.csv": bank}
+        for n, rows in files.items():
+            (cls.tmp / n).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        cls.store = Store(cls.tmp / "firma")
+        ingest(cls.store, [(n, (cls.tmp / n).read_bytes()) for n in files], "T")
+        regrow(cls.store)
+        cls.rt = Runtime(cls.store)
+        cls.rt.ensure()
+        spec = next(t for t in cls.rt.model["types"] if t.get("concept") == "rechnung")
+        cls.by_no = {str(r["data"][spec["key"]]): cls.rt.ledger.get(r["id"]) for r in cls.rt.records[spec["id"]]}
+        cls.overdue = {cls.rt.title(x["rid"]) for g in cls.rt.work(TODAY) if g["kind"] == "overdue" for x in g["items"]}
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_a_short_number_in_the_purpose_pays_its_invoice(self):
+        e = self.by_no[self.no[1]]
+        self.assertEqual(e["state"], "bezahlt")
+        self.assertTrue(any(x.get("rid") for x in e["payments"]))            # by the bank line, not by the book
+
+    def test_cash_at_the_counter_is_paid_by_the_book(self):
+        self.assertEqual(self.by_no[self.no[0]]["state"], "bezahlt")
+
+    def test_surname_and_first_name_make_the_payer(self):
+        self.assertEqual(self.by_no[self.no[27]]["state"], "bezahlt")        # "SABINE HOFFMANN" paid, no number
+        kunde = next(t for t in self.rt.model["types"] if t.get("concept") == "kunde")
+        self.assertIn("Sabine Hoffmann", {self.rt.title(r["id"]) for r in self.rt.records[kunde["id"]]})
+
+    def test_unpaid_is_overdue_with_or_without_an_order(self):
+        self.assertIn(self.no[26], self.overdue)                              # an order's invoice (26 % 3 != 0)
+        self.assertIn(self.no[29], self.overdue)                              # a sale at the counter, no order
+        self.assertNotIn(self.no[1], self.overdue)
+
+
 class MoneyBack(unittest.TestCase):
     """Money that goes back: a refund leaves the invoice settled, a returned debit opens it again – also
     when the debit it returns was one of a collective one; a deduction is skonto where the terms grant it,

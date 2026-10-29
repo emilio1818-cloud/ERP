@@ -59,6 +59,14 @@ _LAST_FIRST = re.compile(r"^\s*([a-z][a-z\-]+(?:\s[a-z][a-z\-]+)?)\s*,\s*([a-z][
 _STREET_WORDS = {"str", "strasse", "weg", "platz", "allee", "ring", "gasse", "damm", "ufer", "chaussee"}
 
 
+def counts_up(keys) -> bool:
+    """Numbers of five digits that count up – 31001, 31002, … as a firm numbers its invoices – mean that
+    list wherever they stand, short as they are: "Rg 31076" is the invoice, not a postcode or a customer
+    (those do not fill a range)."""
+    nums = sorted({int(k) for k in keys if isinstance(k, str) and len(k) == 5 and k.isdigit()})
+    return len(nums) >= 20 and nums[-1] - nums[0] < 2 * len(nums)
+
+
 def norm_name(v) -> str:
     """Normalise a company or person name: fold, drop legal forms and punctuation."""
     if v is None:

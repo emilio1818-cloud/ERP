@@ -351,6 +351,10 @@ def risk_items(model: dict, records: dict, outrefs: dict, titles: dict) -> list[
                 e = str(r["data"].get(a) or "").casefold()
                 if "@" in e and e.rsplit("@", 1)[1] not in FREEMAIL:
                     domains.setdefault(r["id"], set()).add(e.rsplit("@", 1)[1])
+    # whom the firm pays: only their accounts can be swapped on it (a customer's letter names the firm's own)
+    payees = {r["id"] for t in model["types"] if t.get("concept") == "lieferant" for r in records.get(t["id"], [])}
+    for t, sup, _iban, _when in _incoming(model):
+        payees |= {v for r in records.get(t["id"], []) if isinstance(v := r["data"].get(sup["id"]), int)}
     for b in bank_specs(model):
         if not b["iban"] or not b["party"]:
             continue
@@ -359,6 +363,8 @@ def risk_items(model: dict, records: dict, outrefs: dict, titles: dict) -> list[
             iv = row["data"].get(b["iban"]["id"])
             if isinstance(pv, int) and iv:
                 known.setdefault(pv, set()).add(str(iv))
+                if (bank_amount(b, row["data"]) or 0) < 0:
+                    payees.add(pv)
     out = []
     for d in records.get("doc", []):
         text = f"{d['data'].get('doc_title') or ''}\n{d['data'].get('doc_text') or ''}"
@@ -371,7 +377,7 @@ def risk_items(model: dict, records: dict, outrefs: dict, titles: dict) -> list[
         sdom = m.group(1).lower() if m else None
         for t in targets:
             reasons = []
-            unknown = sorted(x for x in found if known.get(t) and x not in known[t])
+            unknown = sorted(x for x in found if t in payees and known.get(t) and x not in known[t])
             if unknown:
                 reasons.append(f"nennt die Bankverbindung {_fmt_iban(unknown[0])}, an die bisher nie gezahlt wurde "
                                f"(bekannt: {', '.join(_fmt_iban(x) for x in sorted(known[t])[:2])})")
@@ -569,9 +575,16 @@ def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict,
                 suppliers[norm_name(name)] = name
     inv = next((t for t in model["types"] if t.get("concept") == "rechnung" and not t.get("incoming")), None)
 
+    def who_of(b, r):  # as written, or the partner the name column links to
+        if b["name"]:
+            return r["data"].get(b["name"]["id"])
+        v = r["data"].get(b["party"]["id"]) if b["party"] else None
+        return titles.get(v) if isinstance(v, int) else (((r.get("meta") or {}).get("raw") or {}).get(b["party"]["id"])
+                                                         if b["party"] else None)
+
     def payer(b, r):
         iv = re.sub(r"\s+", "", str(r["data"].get(b["iban"]["id"]) or "")).upper() if b["iban"] else ""
-        who = r["data"].get(b["name"]["id"]) if b["name"] else None
+        who = who_of(b, r)
         return iv if len(iv) >= 15 else norm_name(str(who)) if who else ""
 
     days_of, paying = defaultdict(set), set()  # payer -> days money came in; payers whose money paid invoices
@@ -594,7 +607,7 @@ def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict,
                     or (today - when).days > days or when > today or r["id"] in used or r["id"] in (pending or ()):
                 continue
             text = str(r["data"].get(b["text"]["id"]) or "") if b["text"] else ""
-            who = r["data"].get(b["name"]["id"]) if b["name"] else None
+            who = who_of(b, r)
             if any(w in fold(text) for w in _OWN_MOVES):
                 continue  # money moved between the firm's own accounts
             if payer(b, r) in regular:

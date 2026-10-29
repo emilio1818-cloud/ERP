@@ -48,10 +48,31 @@ def _label_of(attr: dict) -> str:
 
 
 def _primary_date(spec: dict) -> dict | None:
+    """The date a record's life starts with (learned by `_first_date`), else the fullest date column."""
     cands = [a for a in spec["attrs"] if a["kind"] in ("date", "datetime") and a.get("role") != "due" and not a.get("hidden")]
     if not cands:
         return None
-    return max(cands, key=lambda a: (a.get("fill", 0), -len(a["name"])))
+    learned = next((a for a in cands if a["id"] == spec.get("first_date")), None)
+    return learned or max(cands, key=lambda a: (a.get("fill", 0), -len(a["name"])))
+
+
+def _first_date(spec: dict, recs: list[dict]) -> str | None:
+    """Of the fullest date columns, the one the others follow: an invoice list in which every invoice is paid has
+    "Bezahlt am" as full as "Rechnungsdatum" – the invoice date still comes first."""
+    cands = [a for a in spec["attrs"] if a["kind"] in ("date", "datetime") and a.get("role") != "due" and not a.get("hidden")]
+    top = max((a.get("fill", 0) for a in cands), default=0)
+    full = [a for a in cands if a.get("fill", 0) >= top - 0.05]
+    if len(full) < 2:
+        return None
+
+    def first_in(a) -> int:
+        n = 0
+        for r in recs[:2000]:
+            v = as_date(r["data"].get(a["id"]))
+            if v and all(v <= w for b in full if b is not a for w in [as_date(r["data"].get(b["id"]))] if w):
+                n += 1
+        return n
+    return max(full, key=lambda a: (first_in(a), a.get("fill", 0), -len(a["name"])))["id"]
 
 
 def money_attrs(spec: dict) -> tuple[dict | None, dict | None]:
@@ -74,6 +95,8 @@ def infer_processes(model: dict, records: dict, store=None, today: date | None =
     if store is not None:
         for r in store.q("SELECT from_id, attr, to_id FROM refs WHERE kind='mention' AND attr!='doc'"):
             mention_map[r["attr"]][r["to_id"]].append(r["from_id"])
+    for spec in model["types"]:
+        spec["first_date"] = _first_date(spec, records.get(spec["id"], [])) if spec["kind"] == "transaction" else None
     children = defaultdict(list)  # dst type -> [(rel, src spec, child date attr)]
     for rel in model["relations"]:
         src, dst = specs.get(rel["src"]), specs.get(rel["dst"])
@@ -846,12 +869,13 @@ def value_chains(model: dict, records: dict, mention_refs: dict, ledger: dict | 
         return cache[p["type"]]
 
     def link(p):
-        """The step at which the case goes on in a record of its own – the firm's invoice first; a supplier's
-        invoice for a project is a cost, not the way to the money."""
-        cands = [st for st in p["steps"] if st["source"] == "child" and st.get("rel_kind") in ("ref", "own_ref")
+        """The step at which the case goes on in a record of its own – its invoice first, also where the invoice
+        only names it ("P-2025-008" in the text); a supplier's invoice for a project is a cost, not the way to
+        the money, and a ticket is no step towards it."""
+        cands = [st for st in p["steps"] if st["source"] == "child" and st.get("rel_kind") in ("ref", "own_ref", "mention")
                  and st.get("type") in procs and st["type"] != p["type"] and not specs[st["type"]].get("incoming")]
-        return min(cands, key=lambda st: (specs[st["type"]].get("concept") != "rechnung", -(st.get("share") or 0)),
-                   default=None)
+        return min(cands, key=lambda st: (fold(st["label"]) != BILLED, st.get("rel_kind") == "mention",
+                                          -(st.get("share") or 0)), default=None)
 
     def regular(st, lnk):
         return st is lnk or (st.get("share") or 1) >= 0.5  # time sheets for a tenth of the jobs are no milestone
@@ -864,6 +888,12 @@ def value_chains(model: dict, records: dict, mention_refs: dict, ledger: dict | 
                 c = by_id.get(by_id[rid]["data"].get(st["rel_attr"]))
                 if c and c["type"] == st["type"] and not void(c) and not is_draft(c):
                     out.add(c["id"])
+        elif st["rel_kind"] == "mention":
+            for rid in rids:
+                for cid in (mention_refs.get(st["rel_attr"]) or {}).get(rid, []):
+                    c = by_id.get(cid)
+                    if c and c["type"] == st["type"] and not void(c) and not is_draft(c):
+                        out.add(cid)
         else:
             for c in records.get(st["type"], []):
                 if c["data"].get(st["rel_attr"]) in rids and not void(c) and not is_draft(c):
@@ -892,15 +922,20 @@ def value_chains(model: dict, records: dict, mention_refs: dict, ledger: dict | 
             path, rids = [start], {r["id"]}
             for p, upto, st in hops:
                 d = dates_of(p)
+                kids = children(st, rids) if st else set()
+                if len(kids) > 2:
+                    kids = set()  # billed month by month: a running case, no way to one payment
                 for s in upto:
                     got = [d.get(s["id"], {}).get(x) for x in rids] if rids else [None]
-                    # the order is invoiced with its first invoice, paid when the last one is paid
                     if s is st:
-                        path.append(min([g for g in got if g], default=None))
+                        # invoiced with the last invoice (a down payment is billed before the work is done),
+                        # paid when the last one is paid
+                        nxt = procs[st["type"]]["start"]["attr"]
+                        path.append(max((as_date(by_id[c]["data"].get(nxt)) for c in kids), default=None) if kids else None)
                     else:
                         path.append(max(got) if got and all(got) else None)
-                if st:
-                    rids = children(st, rids)
+                rids = kids
+            path += [None] * (len(nodes) - len(path))
             paths.append(path)
         if len(paths) < 5:
             continue

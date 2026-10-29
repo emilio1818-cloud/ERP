@@ -302,5 +302,51 @@ class WhoPaid(unittest.TestCase):
         self.assertEqual(self.rt.ledger[self.inv[self.no["Müller, Hans (Vellmar)"]]["id"]]["state"], "bezahlt")
 
 
+class UntilTheMoney(unittest.TestCase):
+    """A project is billed where its invoice names it in the text ("Anzahlung P-2026-003"); the chain goes from
+    the project to the money, invoiced with the last invoice (the down payment comes before the work is done),
+    and a project billed month by month is a running case, not a way to one payment."""
+
+    def test_the_chain_follows_an_invoice_that_names_the_project(self):
+        tmp = Path(tempfile.mkdtemp(prefix="physarum-chain-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        start = TODAY - timedelta(days=300)
+        proj = ["Projekt-Nr;Kunde;Projekt;Start"]
+        inv = ["Rechnungsnr;Rechnungsdatum;Kunde;Leistung;Brutto;Fällig am;Bezahlt am"]
+        bank = ["Buchungstag;Verwendungszweck;Zahlungspartner;Betrag"]
+        n = 0
+        for i in range(14):
+            d = start + timedelta(days=17 * i)
+            pno, cust = f"P-{d.year}-{i + 1:03d}", ["Agentur Kai", "Hotel Möwe", "Café Linde", "Kanzlei Lotse"][i % 4]
+            proj.append(f"{pno};{cust};Website {i + 1};{de(d)}")
+            bills = [(d + timedelta(days=2), "Anzahlung"), (d + timedelta(days=50), "Schlussrechnung")]
+            if i == 13:
+                bills = [(d + timedelta(days=30 * k), f"Betreuung Monat {k + 1}") for k in range(4)]
+            for when, what in bills:
+                if when + timedelta(days=12) > TODAY:
+                    continue
+                n += 1
+                no = f"RE-{when.year}-{n:04d}"
+                paid = when + timedelta(days=12)
+                inv.append(f"{no};{de(when)};{cust};{what} {pno};{eur(500.0 + n)};{de(when + timedelta(days=14))};{de(paid)}")
+                bank.append(f"{de(paid)};{no};{cust};{eur(500.0 + n)}")
+            bank.append(f"{de(d + timedelta(days=1))};Miete Büro;Immobilien Kuhn GbR;-{eur(1200.0)}")
+        for name, rows in (("Projekte.csv", proj), ("Rechnungen.csv", inv), ("Konto.csv", bank)):
+            (tmp / name).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        store = Store(tmp / "firma")
+        ingest(store, [(n_, (tmp / n_).read_bytes()) for n_ in ("Projekte.csv", "Rechnungen.csv", "Konto.csv")], "T")
+        regrow(store)
+        rt = Runtime(store)
+        rt.ensure()
+        from physarum.process import value_chains
+        chains = value_chains(rt.model, rt.records, rt.mentions, rt.ledger, TODAY)
+        c = next((c for c in chains if rt.spec(c["type"])["name"] == "Projekt"), None)
+        self.assertIsNotNone(c, [x["nodes"] for x in chains])
+        self.assertEqual(c["nodes"][-2:], ["berechnet", "bezahlt"])
+        seg = {(s["frm"], s["to"]): s for s in c["segments"]}
+        self.assertAlmostEqual(seg[("berechnet", "bezahlt")]["median"], 12, delta=1)  # the money, not the work
+        self.assertLess(seg[("berechnet", "bezahlt")]["n"], c["n"])               # the monthly one is left out
+
+
 if __name__ == "__main__":
     unittest.main()

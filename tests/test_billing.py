@@ -238,6 +238,61 @@ class InvoiceFromOrder(unittest.TestCase):
         self.assertTrue(waiting and all(x.get("draft") == rid for x in waiting))  # open the draft, not a second one
         self.assertTrue(self.rt.title(rid).startswith("Entwurf"))
 
+    def test_the_tax_advisor_gets_one_booking_per_invoice_and_rate(self):
+        import hashlib
+        import io
+        import zipfile
+        from datetime import date
+        from physarum import taxexport
+        inv = self.spec("Rechnung")
+        art = self.rt.records[self.spec("Artikel")["id"]]
+        rate = self.attr(self.spec("Artikel"), "MwSt")["id"]
+        coffee = next(r for r in art if r["data"].get(rate) in (0.07, 7))
+        rid = ops.create(self.rt, inv["id"], {self.attr(inv, "Kunde")["id"]:
+                                              str(self.rt.records[self.spec("Kunde")["id"]][5]["id"])}, "Test")
+        billing.set_positions(self.rt, rid, [dict(text="Hafenmischung 1 kg", qty="4", price="18,50", rate="7"),
+                                             dict(text="Barista-Schulung", qty="2", unit="Std", price="85,00", rate="19")], "Test")
+        number = billing.issue(self.rt, rid, "Test", delivery=date.today().isoformat())
+        _, rid2, number2 = self.issued([(coffee["id"], 3)])
+        billing.cancel(self.rt, rid2, "Falscher Kunde", "Test")
+        self.rt.ensure()
+        von, bis, label = taxexport.period("monat", date.today().year, date.today().month)
+        content, data = taxexport.build(self.rt, von, bis, label, "Test")
+        z = zipfile.ZipFile(io.BytesIO(content))
+        stapel = z.read(next(n for n in z.namelist() if n.startswith("EXTF"))).decode("cp1252").split("\r\n")
+        head = stapel[0].split(";")
+        self.assertEqual(head[:5], ['"EXTF"', "700", "21", '"Buchungsstapel"', "9"])
+        self.assertEqual(head[14:16], [von.strftime("%Y%m%d"), bis.strftime("%Y%m%d")])
+        self.assertEqual(len(stapel[1].split(";")), 116)
+        mine = [r.split(";") for r in stapel[2:] if f'"{number}"' in r]
+        self.assertEqual(sorted(r[7] for r in mine), ["8300", "8400"])          # 7 % and 19 % on their own accounts
+        self.assertEqual({r[1] for r in mine}, {'"S"'})
+        self.assertEqual(sorted(r[0] for r in mine), ["202,30", "79,18"])        # 2 × 85 € + 19 %, 4 × 18,50 € + 7 %
+        storno = [r.split(";") for r in stapel[2:] if r and r.split(";")[1] == '"H"']
+        self.assertTrue(storno)                                                   # the cancellation, the other way round
+        self.assertTrue(all(len(r.split(";")) == 116 for r in stapel[2:] if r))
+        ust = z.read(next(n for n in z.namelist() if n.startswith("Umsatzsteuer"))).decode("utf-8-sig")
+        self.assertIn("Umsätze 19 %", ust)
+        self.assertIn("Umsätze 7 %", ust)
+        proto = z.read("Pruefprotokoll.txt").decode()
+        for name in z.namelist():
+            if name != "Pruefprotokoll.txt":
+                self.assertIn(f"{hashlib.sha256(z.read(name)).hexdigest()}  {name}", proto)
+        self.assertIn("unverändert", proto)
+        # the same customer keeps its debtor number from one export to the next
+        again = taxexport.collect(self.rt, von, bis)
+        self.assertEqual({r["number"]: r["account"] for r in data["out"]}, {r["number"]: r["account"] for r in again["out"]})
+
+    def test_cells_that_would_run_as_formulas_in_excel_are_defused(self):
+        from physarum.taxexport import _csv
+        text = _csv([["=HYPERLINK(\"http://x\")", "-12,50", "+49 40 123", "@SUM(A1)", "Kunde"]]).decode("utf-8-sig")
+        self.assertIn("'=HYPERLINK", text)
+        self.assertFalse(any(cell.lstrip('"').startswith(("=", "@")) for cell in text.strip().split(";")))
+        self.assertIn(";-12,50;", text)                                           # a negative amount stays a number
+        self.assertIn(";'+49 40 123;", text)
+        self.assertIn(";'@SUM(A1);", text)
+
+
 class NewBookAfterIssuing(unittest.TestCase):
     """The accountant exports the invoice book again – with a changed amount, a missing row and a
     number that was meanwhile issued here. Issued invoices stay as issued, and Heute says what differs."""
@@ -295,6 +350,33 @@ class NewBookAfterIssuing(unittest.TestCase):
             self.assertIn(by_no[gone_no][0]["id"], {rid for rid, _ in reasons})
             self.assertIn(mine, {rid for rid, _ in reasons})
             self.assertNotEqual(billing.next_free_number(rt, inv), number)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+class SealedLog(unittest.TestCase):
+    def test_the_change_log_cannot_be_rewritten_and_tampering_shows(self):
+        import sqlite3
+        tmp = Path(tempfile.mkdtemp(prefix="physarum-seal-"))
+        try:
+            st = Store(tmp)
+            with st.tx() as c:
+                for i in range(4):
+                    c.execute("INSERT INTO changes(record_id, ts, actor, kind, note) VALUES(?,?,?,?,?)",
+                              (i, "2026-10-29T10:00:00", "Anna", "edit", f"Eintrag {i}"))
+            ok = st.verify_chain()
+            self.assertTrue(ok["ok"])
+            self.assertEqual(ok["n"], 4)
+            for sql in ("UPDATE changes SET note='anders' WHERE id=2", "DELETE FROM changes WHERE id=2"):
+                with self.assertRaises(sqlite3.Error):
+                    with st.tx() as c:
+                        c.execute(sql)
+            c = st.conn()
+            c.execute("DROP TRIGGER changes_keep")                                 # at the database, past the app
+            c.execute("UPDATE changes SET note='anders' WHERE id=3")
+            bad = st.verify_chain()
+            self.assertFalse(bad["ok"])
+            self.assertEqual(bad["broken_at"], 3)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

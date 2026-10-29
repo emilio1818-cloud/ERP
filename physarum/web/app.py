@@ -11,7 +11,7 @@ import threading
 import traceback
 import zipfile
 from collections import Counter, defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from markupsafe import Markup
@@ -1545,6 +1545,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                         headers={"Content-Disposition": _attachment(f'{spec["plural"]}.xlsx')})
 
     def export_backup(request: Request):
+        store.event("backup", None, dict(by=actor(request)))
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
             tmp = Path(tempfile.mkdtemp())
@@ -1561,15 +1562,74 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         return Response(buf.getvalue(), media_type="application/zip",
                         headers={"Content-Disposition": f'attachment; filename="physarum-sicherung-{date.today().isoformat()}.zip"'})
 
-    def procedure_doc(request: Request):
+    # --- for the tax advisor ------------------------------------------------------------------------------
+    def _tax_period(params):
+        from .. import taxexport
+        today = date.today()
+        prev = today.replace(day=1) - timedelta(days=1)
+        art = params.get("art") or "monat"
+        try:
+            jahr = int(params.get("jahr") or (prev.year if art == "monat" else today.year))
+            nr = int(params.get("nr") or (prev.month if art == "monat" else (today.month - 1) // 3 + 1))
+        except ValueError:
+            jahr, nr = prev.year, prev.month
+        if art not in ("monat", "quartal", "jahr"):
+            art = "monat"
+        von, bis, label = taxexport.period(art, jahr, nr)
+        return art, jahr, nr, von, bis, label
+
+    def tax_page(request: Request):
+        from .. import taxexport
         rt.ensure()
-        decisions = store.q("SELECT * FROM decisions ORDER BY ts")
+        art, jahr, nr, von, bis, label = _tax_period(request.query_params)
+        data = taxexport.collect(rt, von, bis) if rt.model else None
+        return page(request, "taxadvisor.html", dict(art=art, jahr=jahr, nr=nr, label=label, data=data,
+                                                     cfg=taxexport.settings(store), exports=store.kv_get("tax_exports") or [],
+                                                     years=list(range(date.today().year, date.today().year - 6, -1))))
+
+    def tax_settings(request: Request, form):
+        from .. import taxexport
+        taxexport.save_settings(store, form)
+        back = "/steuerberatung?" + "&".join(f"{k}={form.get(k)}" for k in ("art", "nr", "jahr") if form.get(k))
+        return RedirectResponse(back, 303)
+
+    def tax_download(request: Request, form):
+        from .. import taxexport
+        rt.ensure()
+        art, jahr, nr, von, bis, label = _tax_period(form)
+        content, data = taxexport.build(rt, von, bis, label, actor(request))
+        store.event("tax_export", None, dict(label=label, out=len(data["out"]), inc=len(data["inc"])))
+        name = f"Steuerberatung_{label.replace('/', '-')}.zip"
+        return Response(content, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+    def procedure_doc(request: Request):
+        from .. import procedure
+        rt.ensure()
+        with store.tx():
+            pass  # seal what is not sealed yet, then check the whole chain
+        chain = store.verify_chain()
         srcs = store.sources(active_only=False)
         versions = store.models()
-        nchanges = store.q1("SELECT COUNT(*) AS n FROM changes")["n"]
         by_kind = {r["kind"]: r["n"] for r in store.q("SELECT kind, COUNT(*) AS n FROM changes GROUP BY kind")}
-        return page(request, "procedure.html", dict(decisions=decisions, srcs=srcs, versions=versions, nchanges=nchanges,
-                                                    by_kind=by_kind, learned=learned_items() if rt.model else []))
+        actors = [r["actor"] for r in store.q("SELECT actor, COUNT(*) n FROM changes WHERE actor IS NOT NULL AND actor NOT IN "
+                                                "('import', 'Physarum', 'Test') GROUP BY actor ORDER BY n DESC LIMIT 12")]
+        kinds = [dict(plural=t["plural"], n=len(rt.records.get(t["id"], []))) for t in (rt.model or {}).get("types", [])
+                 if t["kind"] in ("master", "transaction") and rt.records.get(t["id"])]
+        kinds.sort(key=lambda k: -k["n"])
+        quality = []
+        for t in (rt.model or {}).get("types", []):
+            for iss in (t.get("numbering") or {}).get("issues", []):
+                quality.append(dict(type=t["plural"], text=f"{iss['count']} {'Lücke(n)' if iss['kind'] == 'gap' else 'doppelte Nummer(n)'}"
+                                                           + (f" ({iss['year']})" if iss.get("year") else "")))
+        issued = store.q1("SELECT COUNT(*) n FROM changes WHERE kind='issue'")["n"]
+        store.flush_events()
+        last_backup = next((e["ts"] for e in store.q("SELECT ts FROM events WHERE kind='backup' ORDER BY id DESC LIMIT 1")), None)
+        return page(request, "procedure.html", dict(decisions=procedure.decisions(rt) if rt.model else [], srcs=srcs,
+                                                    versions=versions, by_kind=by_kind, chain=chain, actors=actors,
+                                                    kinds=kinds[:8], quality=quality, issued=issued,
+                                                    firm=billing.company(store).get("name"), last_backup=last_backup,
+                                                    exports=store.kv_get("tax_exports") or [],
+                                                    learned=learned_items() if rt.model else []))
 
     def set_name(request: Request, form):
         resp = RedirectResponse(request.headers.get("referer") or "/", 303)
@@ -1624,6 +1684,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/quellen/{sid:int}/datei", source_file),
         Route("/export/{tid}.csv", export_csv), Route("/export/{tid}.xlsx", export_xlsx),
         Route("/sicherung.zip", export_backup), Route("/verfahrensdoku", procedure_doc),
+        Route("/steuerberatung", tax_page), Route("/steuerberatung/einstellungen", formed(tax_settings), methods=["POST"]),
+        Route("/steuerberatung/export", formed(tax_download), methods=["POST"]),
         Route("/ich", formed(set_name), methods=["POST"]),
         Mount("/static", StaticFiles(directory=str(HERE / "static")), name="static"),
     ]

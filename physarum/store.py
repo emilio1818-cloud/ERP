@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS refs(from_id INTEGER NOT NULL, attr TEXT NOT NULL, to
 CREATE INDEX IF NOT EXISTS refs_to ON refs(to_id);
 CREATE TABLE IF NOT EXISTS changes(
   id INTEGER PRIMARY KEY, record_id INTEGER NOT NULL, ts TEXT NOT NULL, actor TEXT, kind TEXT NOT NULL,
-  attr TEXT, old TEXT, new TEXT, source_id INTEGER, note TEXT);
+  attr TEXT, old TEXT, new TEXT, source_id INTEGER, note TEXT, chain TEXT);
 CREATE INDEX IF NOT EXISTS changes_record ON changes(record_id);
 CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY, record_id INTEGER NOT NULL, ts TEXT NOT NULL,
   actor TEXT, text TEXT NOT NULL);
@@ -79,6 +79,27 @@ CREATE TRIGGER IF NOT EXISTS archive_stay BEFORE DELETE ON archive BEGIN
 CREATE VIRTUAL TABLE IF NOT EXISTS search USING fts5(body, record_id UNINDEXED, type UNINDEXED,
   tokenize='unicode61 remove_diacritics 2');
 """
+
+# The log only grows. Each entry is sealed once with the hash of everything before it (GoBD: changes must
+# stay recognisable); nothing in the app can rewrite or delete an entry.
+TRIGGERS = """
+CREATE TRIGGER IF NOT EXISTS changes_keep BEFORE UPDATE ON changes
+  WHEN OLD.chain IS NOT NULL OR NEW.id IS NOT OLD.id OR NEW.record_id IS NOT OLD.record_id OR NEW.ts IS NOT OLD.ts
+    OR NEW.actor IS NOT OLD.actor OR NEW.kind IS NOT OLD.kind OR NEW.attr IS NOT OLD.attr OR NEW.old IS NOT OLD.old
+    OR NEW.new IS NOT OLD.new OR NEW.source_id IS NOT OLD.source_id OR NEW.note IS NOT OLD.note
+BEGIN SELECT RAISE(ABORT, 'das Änderungsprotokoll ist unveränderlich'); END;
+CREATE TRIGGER IF NOT EXISTS changes_stay BEFORE DELETE ON changes BEGIN
+  SELECT RAISE(ABORT, 'Einträge des Änderungsprotokolls werden nicht gelöscht'); END;
+"""
+
+_CHAIN_COLS = "id, record_id, ts, actor, kind, attr, old, new, source_id, note"
+
+
+def chain_hash(prev: str, row) -> str:
+    """The seal of one log entry: its content and the seal before it."""
+    body = json.dumps([row["id"], row["record_id"], row["ts"], row["actor"], row["kind"], row["attr"], row["old"],
+                       row["new"], row["source_id"], row["note"]], ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256((prev + "\n" + body).encode("utf-8")).hexdigest()
 
 
 def pair_subject(a: str, b: str) -> str:
@@ -145,7 +166,11 @@ class Store:
         self._events: list[tuple] = []
         self._ev_lock = threading.Lock()
         with self.write_lock:
-            self.conn().executescript(SCHEMA)
+            c = self.conn()
+            c.executescript(SCHEMA)
+            if "chain" not in {r["name"] for r in c.execute("PRAGMA table_info(changes)")}:
+                c.execute("ALTER TABLE changes ADD COLUMN chain TEXT")  # a firm folder from before the seal
+            c.executescript(TRIGGERS)
 
     # --- connections -----------------------------------------------------------------------
     def conn(self) -> sqlite3.Connection:
@@ -166,10 +191,36 @@ class Store:
             c.execute("BEGIN IMMEDIATE")
             try:
                 yield c
+                self.seal(c)
                 c.execute("COMMIT")
             except BaseException:
                 c.execute("ROLLBACK")
                 raise
+
+    def seal(self, c) -> None:
+        """Seal the log entries written since the last seal, in order."""
+        last = c.execute("SELECT id, chain FROM changes WHERE chain IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
+        upto, prev = (last["id"], last["chain"]) if last else (0, "")
+        rows = c.execute(f"SELECT {_CHAIN_COLS} FROM changes WHERE id > ? AND chain IS NULL ORDER BY id", (upto,)).fetchall()
+        if not rows:
+            return
+        out = []
+        for r in rows:
+            prev = chain_hash(prev, r)
+            out.append((prev, r["id"]))
+        c.executemany("UPDATE changes SET chain=? WHERE id=?", out)
+
+    def verify_chain(self) -> dict:
+        """Recompute every seal. A changed or removed entry breaks the chain from there on."""
+        prev, n, last_ts = "", 0, None
+        for r in self.conn().execute(f"SELECT {_CHAIN_COLS}, chain FROM changes ORDER BY id"):
+            if r["chain"] is None:
+                break  # written, not yet sealed (a transaction still running)
+            want = chain_hash(prev, r)
+            if want != r["chain"]:
+                return dict(ok=False, n=n, broken_at=r["id"], ts=r["ts"], head=prev)
+            prev, n, last_ts = want, n + 1, r["ts"]
+        return dict(ok=True, n=n, head=prev, ts=last_ts)
 
     def q(self, sql: str, args=()) -> list[sqlite3.Row]:
         return self.conn().execute(sql, args).fetchall()

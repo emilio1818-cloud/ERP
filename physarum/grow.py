@@ -311,10 +311,24 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         prev = store.model()
         summary = _growth_summary(prev, model, stats, log, time.time() - t0)
         model["log"] = log[-400:]
+        _owner_names(store, model)
         store.save_model(model, summary, c)
         store.kv_set("dirty", False, c)
     progress(f"Fertig in {time.time() - t0:.1f} s. {nq} offene Fragen.", 1.0)
     return summary
+
+
+def _owner_names(store, model: dict) -> None:
+    """The owner can rename and hide while Physarum grows: the model this growth leaves keeps it."""
+    types, attrs, hide = store.decisions("rename_type"), store.decisions("rename_attr"), store.decisions("hide_attr")
+    for t in model["types"]:
+        if t["id"] in types:
+            t["name"], t["plural"] = types[t["id"]].get("name", t["name"]), types[t["id"]].get("plural", t["plural"])
+        for a in t["attrs"]:
+            if a["id"] in attrs:
+                a["name"] = attrs[a["id"]]
+            if a["id"] in hide:
+                a["hidden"] = bool(hide[a["id"]])
 
 
 def _named_by_money(model: dict, renamed: dict):
@@ -438,7 +452,8 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
                 r, b = d
                 spec["derived"] = dict(via=r.attr.aid, attr=b.aid)
             residual = all(col.residual for _, col in a.cols)
-            spec["hidden"] = bool(spec["constant"] or d or hidden_dec.get(a.aid) or residual)
+            # the owner's "ausblenden" and "einblenden" win over the guess
+            spec["hidden"] = bool(hidden_dec[a.aid]) if a.aid in hidden_dec else bool(spec["constant"] or d or residual)
             if residual:
                 spec["residual"] = True
             if a.aid in rename_attr:

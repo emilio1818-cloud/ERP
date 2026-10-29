@@ -759,6 +759,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         except ops.OpError as e:
             rt.ensure()
             rec = store.record(rid)
+            if not rec:
+                return not_found(request)
             spec = rt.spec(rec["type"])
             ctx = record_context(rec, spec, request)
             ctx["error"] = str(e)
@@ -925,7 +927,10 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
 
     def record_unhide(request: Request):
         rid = int(request.path_params["rid"])
-        ops.unhide(rt, rid, actor(request))
+        try:
+            ops.unhide(rt, rid, actor(request))
+        except ops.OpError as e:
+            return JSONResponse(dict(error=str(e)), status_code=404)
         return JSONResponse(dict(next=f"/r/{rid}", toast="Wieder eingeblendet."))
 
     def record_xrechnung(request: Request):
@@ -962,6 +967,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
 
     def record_note(request: Request, form):
         rid = int(request.path_params["rid"])
+        if not store.record(rid):
+            return not_found(request)
         ops.add_note(rt, rid, form.get("text"), actor(request))
         return RedirectResponse(f"/r/{rid}#notizen", 303)
 
@@ -1292,8 +1299,11 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
     def api_like_last(request: Request):
         rt.ensure()
         tid = request.query_params.get("typ")
-        party = int(request.query_params.get("partei") or 0)
+        party = request.query_params.get("partei") or ""
+        party = int(party) if party.isdigit() else 0
         spec = rt.spec(tid)
+        if not spec:
+            return JSONResponse(dict(lines=[]))
         line = line_child(spec)
         pattr = next((a["id"] for a in spec["attrs"] if a["kind"] == "ref" and party in rt.by_id and
                       rt.by_id[party]["type"] in (a.get("refs") or [a.get("ref")])), None)
@@ -1433,6 +1443,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
     def rule_toggle(request: Request, form):
         key = form.get("key")
         val = form.get("value")
+        if not key:
+            return JSONResponse(dict(error="Welche Regel?"), status_code=400)
         with store.tx() as c:
             store.decide("auto", key, val, actor(request), c=c)
         return JSONResponse(dict(toast="Regel eingeschaltet. Sie wirkt ab jetzt bei jeder Eingabe." if val == "on" else "Gut, ich schlage das nicht mehr vor.",
@@ -1545,6 +1557,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
 
     def organism_relation(request: Request, form):
         key = form.get("key")
+        if not key:
+            return JSONResponse(dict(error="Welcher Verweis?"), status_code=400)
         with store.tx() as c:
             store.decide("relation", key, "no", actor(request), c=c)
         jid = jobs.start("relation", lambda progress: regrow(store, progress, actor(request)), next_url="/organismus")
@@ -1601,6 +1615,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
 
     def source_remove(request: Request):
         sid = int(request.path_params["sid"])
+        if not store.q1("SELECT id FROM sources WHERE id=?", (sid,)):
+            return JSONResponse(dict(error="Diese Datei gibt es nicht.", ok=False), status_code=404)
         blocked = locked_in_sources(store.descendants(sid))
         if blocked:
             return JSONResponse(dict(error=f"Diese Datei enthält {blocked} ausgestellte Rechnung(en). Belege lassen sich "
@@ -1612,6 +1628,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
 
     def source_restore(request: Request):
         sid = int(request.path_params["sid"])
+        if not store.q1("SELECT id FROM sources WHERE id=?", (sid,)):
+            return JSONResponse(dict(error="Diese Datei gibt es nicht.", ok=False), status_code=404)
         with store.tx() as c:
             store.set_active(sid, True, c)
         jid = jobs.start("restore", lambda progress: regrow(store, progress, actor(request)), next_url="/quellen")
@@ -1723,6 +1741,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             nr = int(params.get("nr") or (prev.month if art == "monat" else (today.month - 1) // 3 + 1))
         except ValueError:
             jahr, nr = prev.year, prev.month
+        jahr = min(max(jahr, 2000), today.year + 1)
         if art not in ("monat", "quartal", "jahr"):
             art = "monat"
         von, bis, label = taxexport.period(art, jahr, nr)

@@ -90,7 +90,10 @@ e2e/screens.cjs    Playwright-Rundgang mit Screenshots
 python -m unittest discover -s tests -t .
 node e2e/screens.cjs http://127.0.0.1:8000 docs/screenshots   # bei laufendem Server, leere Firma
 node e2e/flow.cjs http://127.0.0.1:8000                       # Alltag: Rechnung, Zahlung, Mahnung
+python bench/run.py                                           # der Prüfstand, gut 2 Minuten
 ```
+
+Der **Prüfstand** (`bench/`, siehe [bench/README.md](bench/README.md)) ist der Maßstab jeder Änderung: sieben Firmen, die unabhängige Prüfer gebaut haben, wachsen an ihrem Liefertag und werden gegen das gemessen, was an diesem Tag wahr ist – offene Posten, überfällige Rechnungen, fertige Aufträge ohne Rechnung. Die kleinen Firmen laufen zusätzlich unter neutralen Dateinamen und anderen Spaltenüberschriften. Eine neue Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
 
 ## Rechnungen, Geld und Steuerberatung
 
@@ -105,5 +108,6 @@ node e2e/flow.cjs http://127.0.0.1:8000                       # Alltag: Rechnung
 
 - Rechnungs-PDFs werden ausgelesen, Mails nach ihrem Anliegen eingeordnet (Bestellung, Anfrage, Bitte, Reklamation, Kündigung, „schon bezahlt“, neue Bankverbindung). Anderer Freitext wird **verknüpft und durchsuchbar**, aber nicht inhaltlich in Datensätze zerlegt; dafür wäre ein optionaler Sprachmodell-Baustein der nächste Schritt (Vorschlag → Prüfung durch Invarianten → Mensch). Scans ohne Textebene werden aufbewahrt, aber nicht gelesen.
 - Keine Finanzbuchhaltung: Physarum liefert der Steuerberatung Buchungsstapel und Belege, bucht aber keine Aufwandskonten und erstellt keine Umsatzsteuer-Voranmeldung. Der DATEV-Export folgt dem veröffentlichten Format, ein Probe-Import bei der Steuerberatung gehört dazu.
+- Bezahlt ist, was der Kontoauszug sagt. Abrechnungen von Zahlungsanbietern (Klarna, PayPal, Stripe) zählen noch nicht als Nachweis für die einzelne Bestellung; bei einem Online-Shop bleiben so Bestellungen offen, die der Anbieter schon ausgezahlt hat.
 - Noch keine Benutzerrechte (der Name steht im Protokoll); gedacht für einen Rechner im Büro.
 - Heuristiken können irren. Deshalb ist alles erklärt („Wie Physarum Ihre Firma sieht“), korrigierbar und umkehrbar – auch Zusammenführungen auf Vermutung („Wieder trennen“) –, und die Originale bleiben unangetastet.

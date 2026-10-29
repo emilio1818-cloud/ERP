@@ -1234,7 +1234,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
     if ledger:
         from .payments import problems
         dunned = {x["rid"] for g in groups if g["kind"] == "overdue" for x in g["items"]}
-        bad = [e for e in problems(ledger) if e["rid"] not in dunned]  # overdue says it already, with the reason
+        bad = [e for e in problems(ledger, today) if e["rid"] not in dunned]  # overdue says it, with the reason
         if bad:
             items = []
             for e in sorted(bad, key=lambda e: (e["state"] != "überzahlt", -abs(e["open"]))):

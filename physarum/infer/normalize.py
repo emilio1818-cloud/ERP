@@ -35,7 +35,7 @@ def _groups(col: Col) -> dict[str, list[int]]:
     return g
 
 
-def depends(groups: dict[str, list[int]], col: Col, n_groups_total: int) -> tuple[bool, float]:
+def depends(groups: dict[str, list[int]], col: Col, n_groups_total: int) -> tuple[bool | None, float]:
     """Is `col` (almost) functionally determined by the grouping?
 
     Base-rate aware: a column that is "bezahlt" in 90 % of all rows looks consistent
@@ -64,9 +64,13 @@ def depends(groups: dict[str, list[int]], col: Col, n_groups_total: int) -> tupl
         if total - agree > budget:
             return False, agree / total  # clearly not a dependency: stop early
     if multi == 0:
-        # header fields filled only on the first row of each group (shop exports)
-        ok = filled_groups >= 0.5 * n_groups_total and col.filled <= 1.05 * n_groups_total and multi == 0
-        return ok, 1.0 if ok else 0.0
+        # header fields filled only on the first row of each group (shop exports); a rare one
+        # ("Cancelled at" on one order in seventy) is None: the caller sees where it stands
+        if col.filled > 1.05 * n_groups_total:
+            return False, 0.0
+        if filled_groups >= 0.5 * n_groups_total:
+            return True, 1.0
+        return (None, 1.0) if filled_groups >= 2 else (False, 0.0)
     cons = agree / total
     present = [k for k in col.keys if k is not None]
     base = Counter(present).most_common(1)[0][1] / len(present) if present else 1.0
@@ -133,7 +137,7 @@ def candidate_extractions(o: Obs) -> list[dict]:
         transactional = o.kind_hint in ("line", "header") or any(
             c.kind in ("date", "datetime") or c.role == "quantity" for c in o.cols)
         party = not _is_header(o, x, [c for c in o.cols if c is not x], groups)
-        deps = []
+        deps, rare = [], []
         for y in o.cols:
             if y is x or y.name in link_cols or y.is_constant():
                 continue
@@ -145,6 +149,14 @@ def candidate_extractions(o: Obs) -> list[dict]:
             ok, cons = depends(groups, y, g)
             if ok:
                 deps.append((y, cons))
+            elif ok is None:
+                rare.append(y)
+        # a rare value that stands only where the header stands belongs to the header (the header: the
+        # order's fields, filled on its first line, not on every line)
+        heads = [y for y, _ in deps if sum(1 for k in y.keys if k is not None) < 0.9 * filled]
+        head_rows = {i for y in heads for i, k in enumerate(y.keys) if k is not None}
+        if heads:
+            deps += [(y, 1.0) for y in rare if all(i in head_rows for i, k in enumerate(y.keys) if k is not None)]
         if not deps:
             continue
         dep_cols = [y for y, _ in deps]

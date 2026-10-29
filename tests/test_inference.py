@@ -47,6 +47,22 @@ class TestNormalize(unittest.TestCase):
         self.assertIn("Einzelpreis", [c.name for c in lines.cols])  # the price stays a fact of the sale
         self.assertEqual(len(lines.links), 2)
 
+    def test_a_rare_header_value_stays_with_the_order(self):
+        # a shop export: the order's fields on its first line only; "Storniert am" on two orders of forty.
+        # The newer export repeats the last ten orders, and one of them was cancelled since
+        cols = ["Bestellung", "Erstellt am", "Gesamt", "Storniert am", "Artikel", "Menge"]
+        rows = []
+        for k, o in enumerate(list(range(40)) + list(range(30, 40))):
+            cancelled = (o == 7) or (o == 37 and k >= 40)
+            for j in range(1 + o % 3):
+                head = j == 0
+                rows.append([f"#{1000 + o}", f"{1 + o % 28:02d}.03.2026" if head else "", 30.0 + o if head else "",
+                             f"{o % 28 + 1:02d}.04.2026" if head and cancelled else "",
+                             ["Schlauch", "Mantel", "Kette"][(o + j) % 3], 1 + j])
+        parts = normalize(obs(1, "Bestellungen", cols, rows))
+        header = next(p for p in parts if p.kind_hint == "header")
+        self.assertIn("Storniert am", [c.name for c in header.cols])
+
     def test_no_extraction_without_repetition(self):
         cols = ["Kd-Nr", "Firma", "Ort"]
         rows = [[f"K-{i}", f"Firma {i}", "Hamburg" if i % 2 else "Kiel"] for i in range(30)]

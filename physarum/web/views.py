@@ -354,3 +354,41 @@ def process_svg(rt, p: dict, open_counts: dict, w: int = 860) -> Markup:
         parts.append(f'<text x="{xs[i]:.0f}" y="{y + 58}" text-anchor="middle">{escape(labels[i])}</text>')
     parts.append("</svg>")
     return Markup("".join(parts))
+
+
+def at_a_glance(rt, open_items: dict | None, n_files: int) -> str:
+    """The firm in one plain paragraph: what there is, since when, how fast money comes in."""
+    from ..values import as_date
+    m = rt.model or {}
+    procs = {p["type"]: p for p in m.get("processes", [])}
+    kinds = [t for t in m.get("types", []) if t["kind"] in ("master", "transaction") and rt.records.get(t["id"])
+             and (t.get("concept") or "") not in ("kontakt", "zeiteintrag", "kontobewegung")]
+    kinds.sort(key=lambda t: -(t.get("salience") or 0))
+    kinds = kinds[:5]
+    kinds.sort(key=lambda t: (t["kind"] != "master", -(t.get("salience") or 0)))  # who first, then what happens
+    parts = []
+    for t in kinds:
+        n = len(rt.records[t["id"]])
+        txt = f"{display(n, 'number')} {t['plural'] if n != 1 else t['name']}"
+        p = procs.get(t["id"])
+        if p and t["kind"] == "transaction":
+            ds = [as_date(r["data"].get(p["start"]["attr"])) for r in rt.records[t["id"]]]
+            ds = [d for d in ds if d]
+            if ds:
+                first = min(ds)
+                txt += f" seit {MONTHS[first.month - 1]} {first.year}"
+        parts.append(txt)
+    if not parts:
+        return ""
+    out = f"In {display(n_files, 'number')} {'Datei' if n_files == 1 else 'Dateien'} steckt Ihre Firma: " + \
+        (", ".join(parts[:-1]) + " und " + parts[-1] if len(parts) > 1 else parts[0]) + "."
+    inv = next((p for p in m.get("processes", []) if p.get("gross") and p.get("party")
+                and (rt.spec(p["type"]) or {}).get("concept") == "rechnung" and not (rt.spec(p["type"]) or {}).get("incoming")), None)
+    paid = next((s for s in (inv or {}).get("steps", []) if s.get("label") == "bezahlt" and s.get("median_days")), None)
+    if paid:
+        out += f" Rechnungen werden meist nach {round(paid['median_days'])} Tagen bezahlt"
+        out += (f"; offen sind {display(open_items['n'] + open_items.get('partial', 0), 'number')} über "
+                f"{money(open_items['amount'])}." if open_items else ".")
+    elif open_items:
+        out += f" Offen sind {display(open_items['n'] + open_items.get('partial', 0), 'number')} Rechnungen über {money(open_items['amount'])}."
+    return out

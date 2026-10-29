@@ -193,8 +193,9 @@
 
     {% if summary %}
     <div class="card">
-      <h2>Zuletzt gewachsen</h2>
-      <p class="muted" style="font-size:.88rem; margin:0">{{ ago(grown_at) }}: {{ summary.types }} Arten von Dingen, {{ summary.relations }} Verbindungen{% if summary.stats %}, {{ summary.stats.records|de }} Datensätze{% endif %}.
+      <h2>Ihre Firma auf einen Blick</h2>
+      {% if glance %}<p style="margin:0 0 .5rem">{{ glance }}</p>{% endif %}
+      <p class="muted" style="font-size:.82rem; margin:0">Zuletzt gewachsen {{ ago(grown_at) }}: {{ summary.types }} Arten von Dingen, {{ summary.relations }} Verbindungen{% if summary.stats %}, {{ summary.stats.records|de }} Datensätze{% endif %}.
       {% if summary.first %}<br>Das war das erste Wachstum aus {{ summary.stats.records|de if summary.stats else '' }} Datensätzen.{% endif %}
       {% if summary.new_types %}<br>Neu: {% for t in model.types if t.plural in summary.new_types %}<a href="/t/{{ t.id }}"><b>{{ t.plural }}</b></a>{{ ', ' if not loop.last }}{% endfor %}{% endif %}
       {% if summary.new_attrs %}<br>Neue Felder: {{ summary.new_attrs[:6]|join(', ') }}{% endif %}</p>

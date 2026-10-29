@@ -182,7 +182,10 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         from ..coverage import coverage
         from ..questions import CONSEQUENCES
         cov = coverage(rt)
+        n_files = store.q1("SELECT COUNT(*) n FROM sources WHERE active=1 AND parent_id IS NULL")["n"]
+        glance = views.at_a_glance(rt, open_items, n_files)
         return page(request, "home.html", dict(work=work[:40], more_work=max(0, min(len(work), 40) - 10), kpis=ks[:4], cov=cov,
+                                               glance=glance,
                                                consequences=CONSEQUENCES,
                                                questions=qs, suggestions=sugg, quality=quality, summary=summary,
                                                payments=payments, pay_exact=len(pay_exact),

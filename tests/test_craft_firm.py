@@ -826,6 +826,38 @@ class CraftFirm(unittest.TestCase):
         self.assertEqual(got[3000.0]["act"]["label"], "+ Anzahlungsrechnung")
         self.assertIn("Grosshandel Nord GmbH (Lieferant)", got[214.2]["reason"])
 
+    def test_a_measurement_belongs_to_its_job(self):
+        import io
+        import openpyxl
+        jobs = [[f"A26-{i:03d}", f"{(i % 27) + 1:02d}.0{(i % 8) + 2}.2026", f"Kunde {i % 6}", "Bad", "9000"]
+                for i in range(1, 31)]
+
+        def sheet(title, head, rows, preamble):
+            wb = openpyxl.Workbook()
+            wb.active.title = title
+            for p in preamble:
+                wb.active.append(p)
+            wb.active.append(head)
+            for r in rows:
+                wb.active.append(r)
+            buf = io.BytesIO()
+            wb.save(buf)
+            return buf.getvalue()
+        one = sheet("Aufmaß", ["Pos.", "Art.-Nr.", "Bezeichnung", "Menge", "Einheit", "EP netto", "GP netto"],
+                    [[i + 1, None, f"Leistung {i}", 2, "Stk", 100.0 + i, 2 * (100.0 + i)] for i in range(8)],
+                    [["Aufmaß / Materialliste"], ["Auftrag:", "A26-028"], ["Kunde:", "Kunde 3"], []])
+        two = sheet("Schlussaufmaß", ["Pos.", "Bezeichnung", "Menge", "Einheit", "EP", "GP"],
+                    [[i + 1, f"Wohnung {i}", 1, "psch", 5000.0 + i, 5000.0 + i] for i in range(6)],
+                    [["Schlussaufmaß BV Lindenstraße 14"], ["Bauherr: Kunde 1"], []])
+        self.f.feed([("Auftragsbuch.csv", csv("Auftr.-Nr.;Datum;Kunde;Leistung;Wert", jobs)),
+                     ("Aufmass_A26-028_Schulze_Bad.xlsx", one), ("Aufmass_A26-003_BV_Lindenstrasse_Schlussaufmass.xlsx", two)])
+        rt = self.f.rt()
+        am = [t for t in rt.model["types"] if t.get("concept") == "aufmass"]
+        self.assertEqual([(t["name"], len(rt.records[t["id"]])) for t in am], [("Aufmaßposition", 14)])  # one list
+        job = _type(rt, "Auftrag")
+        ref = next(a for a in am[0]["attrs"] if a["kind"] == "ref" and a.get("ref") == job["id"])
+        self.assertEqual({rt.title(r["data"].get(ref["id"])) for r in rt.records[am[0]["id"]]}, {"A26-028", "A26-003"})
+
 
 if __name__ == "__main__":
     unittest.main()

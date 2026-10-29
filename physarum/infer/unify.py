@@ -61,7 +61,7 @@ def _norm_header(c: Col) -> str:
 
 # words that decorate a header without changing what it holds ("Billable Amount (EUR)" is "Amount")
 _DECORATION = {"billable", "abrechenbar", "abrechenbare", "eur", "euro", "chf", "usd", "h", "std", "decimal", "dezimal",
-               "in", "hours", "stunden"}
+               "in", "hours", "stunden", "netto"}  # "EP netto" is the "EP" of a list that only knows net prices
 
 
 # milestones said in other words: "erledigt" in last year's sheet is "fertig am" in this year's

@@ -359,9 +359,11 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
         for a in t.attrs:
             if (id(t), id(a)) in taken or not _eligible(t, a):
                 continue
-            n_distinct = len({norm_key(v) for _, v in values_of(t, a)})
-            if n_distinct < 2:
-                continue
+            distinct = {norm_key(v) for _, v in values_of(t, a)}
+            n_distinct = len(distinct)
+            if n_distinct < 2 and not (n_distinct == 1 and a.kind == "id" and distinctive(next(iter(distinct)))
+                                       and len(values_of(t, a)) == len(groups[id(t)])):
+                continue  # one value everywhere: only a number of one other thing ("Auftrag: A26-028") can say where
             best = None
             name_cands = []  # (type, rel) by name against master data, for payees that can be several things
             for d in types:

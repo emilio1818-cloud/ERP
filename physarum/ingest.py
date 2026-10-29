@@ -204,6 +204,38 @@ _ABOUT_NAMES = {"mitarbeiter": "Mitarbeiter", "mitarbeiterin": "Mitarbeiter", "m
                 "name": "Mitarbeiter"}
 
 
+_CONTEXT_KEYS = {"auftrag": "Auftrag", "auftragsnr": "Auftrag", "auftragsnummer": "Auftrag", "kommission": "Auftrag",
+                 "projekt": "Projekt", "projektnr": "Projekt", "bauvorhaben": "Objekt", "bv": "Objekt",
+                 "objekt": "Objekt", "baustelle": "Objekt", "kunde": "Kunde", "bauherr": "Kunde", "auftraggeber": "Kunde"}
+_CONTEXT = re.compile(r"^\s*([A-Za-zÄÖÜäöüß.\- ]{2,20}?)\s*:\s*(\S.{0,80}?)\s*$")
+_REF_TOKEN = re.compile(r"(?<![A-Za-z0-9])([A-Za-z]{1,4}\d{2}-\d{2,5}|[A-Za-z]{1,4}-\d{2,4}-\d{2,5})(?![A-Za-z0-9])")
+
+
+def _context(rows, pending_title, name: str) -> dict[str, str]:
+    """What a sheet is about, written above it ("Auftrag: A26-028", "Bauherr: Lindemann Wohnbau GmbH") – a
+    measurement or a material list of one job. Without it, the number in the file name ("Aufmass_A26-003_…")."""
+    out: dict[str, str] = {}
+    for _, r in rows:
+        cells = [v for v in r if v is not None and str(v).strip()]
+        pairs = []
+        for i, v in enumerate(cells):
+            sv = str(v).strip()
+            m = _CONTEXT.match(sv)
+            if m:
+                pairs.append((m.group(1), m.group(2)))
+            elif sv.endswith(":") and i + 1 < len(cells) and not str(cells[i + 1]).strip().endswith(":"):
+                pairs.append((sv[:-1], str(cells[i + 1]).strip()))
+        for k, v in pairs:
+            label = _CONTEXT_KEYS.get(fold(k).replace(" ", "").replace(".", "").replace("-", ""))
+            if label and v:
+                out.setdefault(label, v)
+    if not out.get("Auftrag") and not out.get("Projekt"):
+        m = _REF_TOKEN.search(name.replace("_", " "))
+        if m:
+            out["Bezug"] = m.group(1)
+    return out
+
+
 def _about(rows, pending_title) -> dict[str, str]:
     """Cells above a table that say whom it is about ("Mitarbeiter: Jens Kortmann", "Pers.-Nr. 103")."""
     out: dict[str, str] = {}
@@ -636,6 +668,9 @@ def _block_to_table(block, name, meta, pending_title) -> RawTable | None:
         data_rows = block[best_i + 1:]
     # "Mitarbeiter: Jens Kortmann · Pers.-Nr. 103" above a time sheet: who every row is about
     about = _about(block[:best_i] if best_i else [], pending_title)
+    # "Auftrag: A26-028" above a measurement: what job every position belongs to
+    context = _context(block[:best_i] if best_i else [], pending_title, name) \
+        if lexicon.concept_of(f"{name} {' '.join(str(x) for x in title_lines)}") == "aufmass" else {}
     # data rows: sections, sums, repeated headers
     norm_header = [str(h).strip().lower() if h is not None else None for h in header]
     rows, lines, sections, totals = [], [], [], 0
@@ -677,6 +712,13 @@ def _block_to_table(block, name, meta, pending_title) -> RawTable | None:
             header = list(header) + [ref]
             width += 1
             rows = [r + [about[ref]] for r in rows]
+    if context:
+        have = {fold(str(h or "")).strip() for h in header}
+        for label, v in context.items():
+            if fold(label) not in have:
+                header = list(header) + [label]
+                width += 1
+                rows = [r + [v] for r in rows]
     # column names
     names, seen = [], Counter()
     keep = []

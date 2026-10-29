@@ -35,6 +35,13 @@ CONCEPTS: dict[str, dict] = {
     "rechnung": dict(sg="Rechnung", pl="Rechnungen", stem="Rechnungs", kind="transaction", party="kunde",
                      terms=["rechnung", "rechnungen", "rechnungs", "renr", "rechnungsnr", "invoice", "invoices",
                             "faktura", "fakturen", "ausgangsrechnung", "ausgangsrechnungen"]),
+    # the measured work of a job, position by position: what the final invoice is made from
+    "aufmass": dict(sg="Aufmaßposition", pl="Aufmaßpositionen", stem="Aufmaß", kind="transaction", party="auftrag",
+                    terms=["aufmass", "aufmasse", "aufmasses", "schlussaufmass", "aufmassblatt", "massenermittlung",
+                           "aufmassliste"],
+                    # each row is a position: a "Schlussaufmaß" file holds Aufmaßpositionen
+                    names={w: ("Aufmaßposition", "Aufmaßpositionen") for w in ("aufmass", "schlussaufmass",
+                                                                               "aufmassblatt", "aufmassliste")}),
     "lieferschein": dict(sg="Lieferschein", pl="Lieferscheine", stem="Lieferschein", kind="transaction",
                          party="kunde",
                          terms=["lieferschein", "lieferscheine", "lieferung", "lieferungen", "delivery", "deliveries",

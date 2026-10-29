@@ -20,6 +20,7 @@ from .text import counts_up, fold, name_similarity, norm_key, norm_name, tokens
 from .values import as_date, as_number, fmt_eur, parse_duration, skonto_terms
 
 _NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
+_GLUED = re.compile(r"(?<=[A-Za-z.])\d{5}$")
 _CREDITOR_ID = re.compile(r"\b[A-Z]{2}\d{2}ZZZ[A-Z0-9]{8,28}\b")  # SEPA creditor id: on a debit and on its return
 
 EPS = 0.01
@@ -72,6 +73,30 @@ def _payable_attrs(spec: dict, p: dict) -> tuple[str | None, str | None]:
         elif toks & _DEDUCT_WORDS and deduct is None:
             deduct = a["id"]
     return payable, deduct
+
+
+def _received_attr(spec: dict, p: dict, recs: list[dict], own_paid: list[str]) -> str | None:
+    """The book's "erhalten" column, by what it holds: the gross where the book has the invoice as paid,
+    less or nothing where it has not – not a second gross, not the net."""
+    if not own_paid:
+        return None
+    for a in spec["attrs"]:
+        if a["kind"] != "money" or a.get("virtual") or a["id"] in (p.get("gross"), p.get("net")):
+            continue
+        paid = unpaid = ok_paid = ok_unpaid = 0
+        for r in recs:
+            g, v = as_number(r["data"].get(p["gross"])), as_number(r["data"].get(a["id"]))
+            if not g or g <= EPS:
+                continue
+            if any(as_date(r["data"].get(x)) for x in own_paid):
+                paid += 1
+                ok_paid += v is not None and abs(v - g) <= 0.03 * g + EPS  # in full, or less a skonto
+            else:
+                unpaid += 1
+                ok_unpaid += v is None or v < g - EPS
+        if paid >= 5 and unpaid >= 3 and ok_paid >= 0.8 * paid and ok_unpaid >= 0.8 * unpaid:
+            return a["id"]
+    return None
 
 
 _SPACED_NUMBER = re.compile(r"(?<![\w.])(?:[A-Za-z]{1,4}\.?[\s\-/]*)?(?:19|20)\d{2}[\s\-/.]{0,2}\d{3,6}(?![\w])")
@@ -294,7 +319,10 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                         v = b["data"].get(aid)
                         if not isinstance(v, str):
                             continue
-                        found = [by_no.get(norm_key(tok)) for tok in _NUMBER_TOKEN.findall(v[:2000])]
+                        toks = _NUMBER_TOKEN.findall(v[:2000])
+                        found = [by_no.get(norm_key(tok)) for tok in toks]
+                        if plain:  # "Rg.Nr.31098": the number glued to its word
+                            found += [by_no.get(m.group(0)) for tok in toks if (m := _GLUED.search(tok))]
                         if not any(i is not None for i in found):
                             found = [loose.get(_digits(m.group(0))) for m in _SPACED_NUMBER.finditer(v[:2000])]
                         for inv in found:
@@ -339,6 +367,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 e["doc"] = dict(rid=d["id"], total=total, book=e["gross"])
                 e["gross"] = total
         _settle_credits(spec, recs, entries, by_no)
+        received = _received_attr(spec, p, recs, own_paid)
+        got = {r["id"]: v for r in recs if received and (v := as_number(r["data"].get(received)))}
         swapped = _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, ip["outgoing"])
         # allocate every bank row over the invoices it names, in the order the money moved:
         # oldest invoice first, whatever is left stays with the last one
@@ -391,8 +421,11 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                     e["payments"].append(dict(rid=b, date=when, amount=-round(take, 2), how=how))
                     left -= take
                 continue
+            book = None
             if len(invs) > 1:
                 invs = _fitting(invs, entries, value)
+                if all(i in got for i in invs) and abs(sum(got[i] for i in invs) - value) <= EPS:
+                    book = got  # one transfer for several: the book says how much went to each
             if any(_RETENTION.search(str(row["data"].get(a["id"]) or "")) for a in bs["spec"]["attrs"] if a["kind"] == "text"):
                 for i in invs:
                     entries[i]["retention_hint"] = True  # "abzgl. 5% Sicherheitseinbehalt"
@@ -400,7 +433,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             for k, i in enumerate(invs):
                 e = entries[i]
                 need = max(e["gross"] - e["credit"] - e["paid"], 0.0)
-                take = left if k == len(invs) - 1 else min(left, need)
+                take = left if k == len(invs) - 1 else book[i] if book else min(left, need)
                 if take <= 0 and k != len(invs) - 1:
                     continue
                 e["paid"] += take
@@ -418,6 +451,18 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                     e["paid"] += amount
                     e["payments"].append(dict(rid=None, date=when, amount=round(amount, 2), by_hand=m.get("id"),
                                               how=f"{CASH_KINDS.get(m.get('how'), 'Zahlung')} (von Hand eingetragen)"))
+        # the book's "erhalten": what came in at the counter (cash, card) next to what the bank shows
+        for r in recs:
+            e = entries.get(r["id"])
+            v = got.get(r["id"]) if e else None
+            if not v:
+                continue
+            bank = sum(x["amount"] for x in e["payments"] if x["amount"] > 0)
+            ds = [d for a in own_paid if (d := as_date(r["data"].get(a)))]
+            if v > bank + EPS and (bank > EPS or not ds):  # paid in the book's words: the paid date says it already
+                e["paid"] += round(v - bank, 2)
+                e["payments"].append(dict(rid=None, date=min(ds) if ds else e["start"], amount=round(v - bank, 2),
+                                          how="laut Buch erhalten (bar oder Karte)"))
         # book or manual paid date: paid in full when the bank does not speak
         pool = iban_party = None
         alone = []  # paid by the list, no transfer of their own amount: perhaps one transfer for several

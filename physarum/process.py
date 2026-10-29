@@ -96,8 +96,18 @@ def money_attrs(spec: dict, recs: list[dict] | None = None) -> tuple[dict | None
         if share[gross["id"]] >= 0.9:
             rest = [a for a in ms if a is not gross]
             fill = lambda a: sum(1 for r in recs if isinstance(r["data"].get(a["id"]), (int, float)))
-            net = max(rest, key=lambda a: (share[a["id"]] + fill(a) / len(recs), -ms.index(a)), default=gross)
+
+            def taxed(a) -> float:  # the gross over it is a tax rate (1,19 · 1,07) – not the same amount again
+                n = k = 0
+                for r in recs:
+                    g, v = r["data"].get(gross["id"]), r["data"].get(a["id"])
+                    if isinstance(g, (int, float)) and isinstance(v, (int, float)) and v > 0:
+                        n, k = n + 1, k + (1.05 <= g / v <= 1.25)
+                return k / n if n else 0.0
             named = next((a for a in rest if set(tokens(a["name"])) & {"netto", "net"}), None)
+            # no amount the gross is taxed on (only "Offen", "erhalten"): the net is not in the list
+            net = max([a for a in rest if taxed(a) >= 0.6], key=lambda a: (share[a["id"]] + fill(a) / len(recs),
+                                                                         -ms.index(a)), default=gross)
             return named or net, gross
     net = next((a for a in ms if "netto" in tokens(a["name"]) or "net" in tokens(a["name"])), None)
     gross = next((a for a in ms if set(tokens(a["name"])) & {"brutto", "gesamt", "total", "summe", "betrag", "gross"}), None)

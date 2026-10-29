@@ -750,6 +750,7 @@ def d_plural(t: TypeDraft) -> str:
 # --- mentions in free text ---------------------------------------------------------------------
 
 _TOKEN = re.compile(r"[A-Za-zÄÖÜäöüß#]*[\-./]?\d[\w\-./]*")
+_GLUED = re.compile(r"(?<=[a-z])\d{5}$")
 _LONG_WORD = 200
 
 
@@ -779,7 +780,7 @@ class MentionIndex:
                 continue
             gs = groups[id(t)]
             key = t.key
-            if key is not None and key.kind == "id":
+            if key is not None and key.kind in ("id", "text"):  # a code written as text: "LP-PN 88"
                 keys = [(i, g.values.get(key.aid)) for i, g in enumerate(gs) if g.values.get(key.aid) is not None]
                 if keys and (sum(distinctive(str(k)) for _, k in keys) >= 0.8 * len(keys) or
                              counts_up([_compact(str(k)) for _, k in keys])):
@@ -825,13 +826,18 @@ class MentionIndex:
                 cands.append((tok, prev))
             if i + 1 < len(words) and len(words[i + 1]) <= _LONG_WORD:
                 cands.append((w + words[i + 1], prev))
+                if i + 2 < len(words) and max(len(w), len(words[i + 1]), len(words[i + 2])) <= 4:
+                    cands.append((w + words[i + 1] + words[i + 2], prev))  # a plate in three parts: "LP PN 88"
         for c, prev in cands:
             cc = _compact(c)
             hit = False
-            if len(cc) >= 5 and not (len(cc) == 5 and cc in self.zips):
-                for t, gi in self.compact.get(cc, []):
-                    found[(id(t), gi)] = (t, gi, "Nummer")
-                    hit = True
+            # "Rg.Nr.31098", "RE31098": a short plain number glued to its word
+            tail = m.group(0) if (m := _GLUED.search(cc)) and m.group(0) != cc else None
+            for k in (cc, tail):
+                if k and len(k) >= 5 and not (len(k) == 5 and k in self.zips):
+                    for t, gi in self.compact.get(k, []):
+                        found[(id(t), gi)] = (t, gi, "Nummer")
+                        hit = True
             if hit or any(ch.isalpha() for ch in cc):
                 continue
             dg = re.sub(r"\D", "", c)

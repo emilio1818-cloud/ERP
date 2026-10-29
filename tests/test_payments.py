@@ -186,7 +186,7 @@ class PlainNumbers(unittest.TestCase):
         kunden = ["KdNr;Name;Vorname;PLZ;Ort"] + [f"{10100 + 37 * i};{n};{v};5955{i};Lippstadt"
                                                   for i, (n, v) in enumerate(people)]
         orders = ["Auftrag;Annahme;Kd.-Nr.;Arbeiten"]
-        inv = ["Rg-Nr.;Datum;Kd-Nr.;Auftr.;Brutto;Zahlart;fällig;bez. am"]
+        inv = ["Rg-Nr.;Datum;Kd-Nr.;Kennz.;Auftr.;Brutto;Zahlart;fällig;bez. am;Betrag erh."]
         bank = ["Buchungstag;Auftraggeber;Verwendungszweck;Betrag"]
         start = TODAY - timedelta(days=90)
         cls.no = {}
@@ -200,12 +200,19 @@ class PlainNumbers(unittest.TestCase):
             cash = i % 2 == 0 and i < 26
             # the book: cash the day of the sale, transfers ticked off until a few weeks ago
             paid = de(d) if cash else de(d + timedelta(days=6)) if i < 12 else ""
-            if not cash and i < 26:
+            got = eur(g) if paid else ""
+            plate = f"LP-{v[0]}{n[0]} {100 + 7 * (i % 5) + (i // 5) % 2}"  # two cars each, in for this and that
+            if not cash and i < 26 and i != 21:
                 bank.append(f"{de(d + timedelta(days=6))};{v} {n};Rg {no};{eur(g)}")
+            if i == 21:  # the insurer pays, the deductible was paid by card at the counter: the book has both
+                bank.append(f"{de(d + timedelta(days=9))};Kreis-Versicherung;Schaden Rg {no};{eur(g - 150.0)}")
+                got = eur(g)
             if i == 27:  # by transfer, the number not given: who paid and how much tell
                 bank.append(f"{de(d + timedelta(days=5))};{v.upper()} {n.upper()};Inspektion Werkstatt;{eur(g)}")
-            inv.append(f"{no};{de(d)};{kd};{order};{eur(g)};{'bar' if cash else 'Überw.'};"
-                       f"{'' if cash else de(d + timedelta(days=14))};{paid}")
+            if i == 28:  # 40 € down at the counter, the rest still to come
+                got = eur(40.0)
+            inv.append(f"{no};{de(d)};{kd};{plate};{order};{eur(g)};{'bar' if cash else 'Überw.'};"
+                       f"{'' if cash else de(d + timedelta(days=14))};{paid};{got}")
             cls.no[i] = str(no)
         files = {"Kunden.csv": kunden, "Auftragsbuch.csv": orders, "Rechnungsbuch.csv": inv, "Konto.csv": bank}
         for n, rows in files.items():
@@ -235,6 +242,12 @@ class PlainNumbers(unittest.TestCase):
         self.assertEqual(self.by_no[self.no[27]]["state"], "bezahlt")        # "SABINE HOFFMANN" paid, no number
         kunde = next(t for t in self.rt.model["types"] if t.get("concept") == "kunde")
         self.assertIn("Sabine Hoffmann", {self.rt.title(r["id"]) for r in self.rt.records[kunde["id"]]})
+
+    def test_the_book_says_what_came_in_at_the_counter(self):
+        self.assertEqual(self.by_no[self.no[21]]["state"], "bezahlt")        # insurer by bank, deductible by card
+        e = self.by_no[self.no[28]]
+        self.assertEqual(e["state"], "teilbezahlt")
+        self.assertAlmostEqual(e["open"], e["gross"] - 40.0, places=2)
 
     def test_unpaid_is_overdue_with_or_without_an_order(self):
         self.assertIn(self.no[26], self.overdue)                              # an order's invoice (26 % 3 != 0)

@@ -115,10 +115,16 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
     procs = invoice_processes(model)
     if not banks or not procs:
         return out
-    linked_bank = set()
+    inv_types = {ip["p"]["type"] for ip in procs}
+    type_of = {r["id"]: tid for tid, rs in records.items() for r in rs}
+    linked_bank, about = set(), defaultdict(set)  # rows that name an invoice; what the others name
     for attr, m in mentions.items():
         for dst, srcs in m.items():
-            linked_bank.update(srcs)
+            if type_of.get(dst) in inv_types:
+                linked_bank.update(srcs)
+            else:
+                for s in srcs:
+                    about[s].add(dst)
     specs = {t["id"]: t for t in model["types"]}
     for ip in procs:
         p, step = ip["p"], ip["step"]
@@ -195,6 +201,9 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                         if not cands:  # the invoice names someone in no list: "Fischer, Jan und Petra" pays "Fam. Fischer"
                             cands = [r for r in open_inv if not isinstance(r["data"].get(p["party"]), int) and
                                      _named_alike(payer, ((r.get("meta") or {}).get("raw") or {}).get(p["party"]))]
+                if not cands and about.get(row["id"]):
+                    # the purpose names what an invoice was for – the car "LP-PN 88", the order –, not who pays
+                    cands = [r for r in open_inv if about[row["id"]] & {v for v in r["data"].values() if isinstance(v, int)}]
                 text = " ".join(str(row["data"].get(a["id"]) or "") for a in b["spec"]["attrs"] if a["kind"] == "text")
                 named = {as_date(m) for m in _INVOICE_OF.findall(text)} - {None}
                 if not cands and named:

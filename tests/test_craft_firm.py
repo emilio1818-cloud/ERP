@@ -53,6 +53,17 @@ class CraftFirm(unittest.TestCase):
         self.assertEqual(e["state"], "bezahlt")
         self.assertAlmostEqual(e["open"], 0.0, places=2)
 
+    def test_vat_is_a_legal_rate_of_the_net_amount(self):
+        rows = _book()
+        rows.append(["SR-2026-001", "20.05.2026", "Kunde 1", "Schlussrechnung", "10000,00", "1900,00", "11900,00",
+                     "8000,00", "3900,00", "03.06.2026"])
+        self.f.feed([("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD, rows))])
+        rt = self.f.rt()
+        texts = {f["text"] for f in _type(rt, "Rechnung").get("formulas") or []}
+        self.assertIn("Brutto = Netto + USt", texts)
+        self.assertIn("USt = Netto × 0,19", texts)
+        self.assertFalse([t for t in texts if "Zahlbetrag" in t or "0,1597" in t or "5,26" in t], texts)
+
     def test_an_invoice_without_due_date_is_due_by_the_customers_term(self):
         cust_head = "Kunde;Straße;Ort;Zahlungsziel"
         custs = [[f"Kunde {i}", f"Weg {i}", "Bielefeld", "14 Tage" if i % 2 else "30 Tage"] for i in range(5)]

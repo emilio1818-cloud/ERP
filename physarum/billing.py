@@ -371,6 +371,15 @@ def apply_totals(spec: dict, data: dict, pos: list[dict]) -> dict | None:
     for k in ("net", "tax", "gross"):
         if mf[k]:
             data[mf[k]["id"]] = t[k]
+    from .payments import _DEDUCT_WORDS, _PAYABLE_WORDS
+    deduct = next((a for a in spec["attrs"] if a["kind"] == "money" and not a.get("virtual")
+                   and set(tokens(a["name"])) & _DEDUCT_WORDS), None)
+    for a in spec["attrs"]:
+        if a["kind"] == "money" and not a.get("virtual") and set(tokens(a["name"])) & _PAYABLE_WORDS:
+            # "Zahlbetrag": what the customer pays – the total less down payments already invoiced
+            less = data.get(deduct["id"]) if deduct else None
+            less = abs(float(less)) if isinstance(less, (int, float)) and not isinstance(less, bool) else 0.0
+            data[a["id"]] = round(t["gross"] - less, 2)
     return t
 
 

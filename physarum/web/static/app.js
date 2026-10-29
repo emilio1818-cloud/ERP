@@ -172,15 +172,20 @@
   const fmt = (x) => (Math.round(x * 100) / 100).toFixed(2).replace(".", ",");
   function runFormulas(scope, formulas, lookups) {
     const val = (aid) => { const el = scope.querySelector(`[data-attr="${aid}"]`); return el ? el.value : null; };
+    const byHand = (aid) => { const el = scope.querySelector(`[data-attr="${aid}"]`); return !!(el && el.dataset.touched); };
+    let args = [];
     const set = (aid, v) => {
       const el = scope.querySelector(`[data-attr="${aid}"]`);
       if (!el || el.dataset.touched) return;
+      // a value the page brought along (from the order, the last time) stays until one of its inputs is changed
+      if (el.dataset.prefilled && !args.some(byHand)) return;
       el.value = v;
       el.closest(".field, td") && el.closest(".field, td").classList.add("computed");
     };
     for (let pass = 0; pass < 3; pass++) {
       for (const f of formulas) {
         const a = f.args || [];
+        args = a.concat(f.ref ? [f.ref] : []);
         if (["mul", "add", "sub"].includes(f.op)) {
           const x = num(val(a[0])), y = num(val(a[1]));
           if (x === null || y === null) continue;
@@ -201,6 +206,7 @@
     }
   }
   $$("form[data-formulas]").forEach((form) => {
+    $$("[data-attr]", form).forEach((el) => { if (el.value && el.type !== "hidden") el.dataset.prefilled = "1"; });
     const formulas = JSON.parse(form.dataset.formulas || "[]");
     const lineFormulas = JSON.parse(form.dataset.lineFormulas || "[]");
     const lookups = {};

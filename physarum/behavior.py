@@ -65,6 +65,7 @@ def find_formulas(spec: dict, recs: list[dict]) -> list[dict]:
         filled = Counter(a["id"] for r in sample for a in attrs if r["data"].get(a["id"]) is not None)
         attrs = sorted(attrs, key=lambda a: (a["kind"] != "money", -filled[a["id"]]))[:_MAX_FORMULA_ATTRS]
     col = {a["id"]: [_num(r["data"].get(a["id"])) for r in sample] for a in attrs}
+    attrs = _without_twins(attrs, col)
     used_targets = set()
 
     def rows_for(*ids):
@@ -150,6 +151,8 @@ def find_formulas(spec: dict, recs: list[dict]) -> list[dict]:
             if k in (0, 1):
                 continue
             ok, n = _holds(rows, lambda x: x * k)
+            if (_tax_like(c) and not (k in _VAT_RATES and not _total_like(a))) or _tax_like(a):
+                continue  # VAT is a legal rate of the net amount, not "Zahlbetrag × 0,1597" or "Netto = USt × 5,26"
             if accept(cid, ok, n):
                 out.append(dict(attr=cid, op="scale", args=[a["id"]], k=k, ok=ok, n=n,
                                 text=f"{c['name']} = {a['name']} × {_fmt_k(k)}"))
@@ -159,6 +162,37 @@ def find_formulas(spec: dict, recs: list[dict]) -> list[dict]:
     for f in out:
         f["share"] = round(f["ok"] / f["n"], 4)
     return out
+
+
+_VAT_RATES = {0.19, 0.07, 0.16, 0.05}
+_TAX_WORDS = {"ust", "mwst", "umsatzsteuer", "mehrwertsteuer", "vat", "tax", "steuer", "steuerbetrag"}
+_TOTAL_WORDS = {"brutto", "gesamt", "total", "summe", "gesamtpreis", "betrag", "zahlbetrag", "endbetrag", "gross"}
+
+
+def _tax_like(a: dict) -> bool:
+    return bool(set(tokens(a["name"])) & _TAX_WORDS)
+
+
+def _total_like(a: dict) -> bool:
+    return bool(set(tokens(a["name"])) & _TOTAL_WORDS)
+
+
+def _without_twins(attrs: list[dict], col: dict) -> list[dict]:
+    """Two columns that say the same in nearly every row ("Zahlbetrag" is "Brutto" unless down payments
+    were deducted) are one quantity for the arithmetic: the formulas are learned on the one that names
+    the total, else on the first. Otherwise "USt = Zahlbetrag × 0,1597" would be learned."""
+    drop = set()
+    for i, a in enumerate(attrs):
+        for b in attrs[i + 1:]:
+            if a["id"] in drop or b["id"] in drop:
+                continue
+            pairs = [(x, y) for x, y in zip(col[a["id"]], col[b["id"]]) if x is not None and y is not None]
+            if len(pairs) < 8 or sum(1 for x, y in pairs if _close(x, y)) < 0.9 * len(pairs):
+                continue
+            keep_b = ("brutto" in tokens(b["name"]) or _total_like(b) and not _total_like(a)) and \
+                "brutto" not in tokens(a["name"])
+            drop.add(a["id"] if keep_b else b["id"])
+    return [a for a in attrs if a["id"] not in drop]
 
 
 def _fmt_k(k: float) -> str:

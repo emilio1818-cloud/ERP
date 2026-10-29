@@ -14,7 +14,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 from .. import lexicon
-from ..text import fold, name_similarity, norm_key, norm_name
+from ..text import fold, name_similarity, norm_key, norm_name, tokens
 from .identity import FREEMAIL, Group
 from .unify import AttrDraft, TypeDraft
 
@@ -258,11 +258,127 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
                 r.kind = "parent" if t.kind == "line" and r.dst.kind == "transaction" else "ref"
                 rels.append(r)
                 taken.add((id(t), id(a)))
+    rels += _composite_refs(types, groups, rels, taken)
     if log is not None:
         for r in rels:
             log.append(dict(kind="relation", src=r.src.name, attr=r.attr.name, dst=r.dst.name, via=r.via,
                             inclusion=round(r.inclusion, 2), structural=r.structural, unresolved=len(r.unresolved)))
     return rels
+
+
+_STOP = {"gmbh", "mbh", "ag", "kg", "ug", "ek", "co", "und", "der", "die", "das", "e", "v", "gbr", "ohg", "eg"}
+_END_WORDS = {"ende", "end", "bis", "abgeschlossen", "beendet"}
+
+
+def _ctoks(v) -> list[str]:
+    return [t for t in tokens(str(v)) if len(t) >= 2 and t not in _STOP and not t.isdigit()]
+
+
+def _tok_match(e: str, pool: set) -> bool:
+    for p in pool:
+        if e == p or (len(e) >= 3 and p.startswith(e)) or (len(p) >= 4 and e.startswith(p)):
+            return True
+    return False
+
+
+def _composite_index(d: TypeDraft, r0: RelDraft | None, groups: dict, as_date) -> list[tuple]:
+    """Per record: the words of its kind of work, of its customer (as resolved and as written), its time."""
+    parties = [r0.attr] if r0 is not None else [x for x in d.attrs if x.kind == "text" and x.concept in ("kunde", "lieferant")]
+    if not parties:
+        return []
+    words = [x for x in d.attrs if x.kind == "text" and x not in parties and x is not d.key and x.role != "notes"]
+    dstart = next((x for x in d.attrs if x.kind in ("date", "datetime")), None)
+    dends = [x for x in d.attrs if x.kind in ("date", "datetime") and
+             (set(tokens(x.name)) & _END_WORDS or x.role == "due")]
+    entries = []
+    for gi, g in enumerate(groups[id(d)]):
+        party = set()
+        for x in parties:
+            party |= set(_ctoks(g.values.get(x.aid) or ""))
+        ti = r0.targets.get(gi) if r0 is not None else None
+        if ti is not None:
+            party |= set(_ctoks(groups[id(r0.dst)][ti].values.get(r0.dst.title.aid) or ""))
+        if not party:
+            continue
+        pool = set()
+        for c in words:
+            pool |= set(_ctoks(g.values.get(c.aid) or ""))
+        start = as_date(g.values.get(dstart.aid)) if dstart else None
+        ends = [as_date(g.values.get(x.aid)) for x in dends]
+        ends = [x for x in ends if x]
+        entries.append((gi, pool - party, party, start, max(ends) if ends else None))
+    return entries
+
+
+def _composite_refs(types: list[TypeDraft], groups: dict, rels: list[RelDraft], taken: set) -> list[RelDraft]:
+    """A freelancer writes "Elbkind Relaunch" or "Relaunch Tidenhub": the customer and the kind of
+    work of one project. Where such names pick out exactly one project (at the time of the entry),
+    they refer to it."""
+    from datetime import timedelta
+    from ..values import as_date
+    party_of = {}
+    for r in rels:
+        if r.kind == "ref" and r.dst.kind == "master" and r.dst.title is not None and id(r.src) not in party_of:
+            party_of[id(r.src)] = r
+    out = []
+    index: dict[int, list] = {}
+    for t in types:
+        if t.kind in ("master", "line"):
+            continue
+        tdate = next((x for x in t.attrs if x.kind in ("date", "datetime")), None)
+        for a in t.attrs:
+            if (id(t), id(a)) in taken or a.kind != "text" or a.role not in ("name", None, "category"):
+                continue
+            vals = [(i, g.values.get(a.aid)) for i, g in enumerate(groups[id(t)]) if isinstance(g.values.get(a.aid), str)]
+            distinct = {v for _, v in vals}
+            if len(vals) < 10 or len(distinct) < 3 or len(distinct) > 2000:
+                continue
+            vtoks = {v: _ctoks(v) for v in distinct}
+            if sum(1 for v in distinct if len(vtoks[v]) >= 2) < 0.6 * len(distinct):
+                continue  # single words are names or categories, not "customer + kind of work"
+            best = None
+            for d in types:
+                r0 = party_of.get(id(d))
+                if d is t or d.kind == "line" or len(groups[id(d)]) > 3000:
+                    continue
+                if id(d) not in index:
+                    index[id(d)] = _composite_index(d, r0, groups, as_date)
+                entries = index[id(d)]
+                if len(entries) < 3:
+                    continue
+                cache = {}
+                for v in distinct:
+                    et = vtoks[v]
+                    cache[v] = [x for x in entries if all(_tok_match(e, x[1] | x[2]) for e in et)
+                                and any(_tok_match(e, x[2]) for e in et) and any(_tok_match(e, x[1]) for e in et)] \
+                        if len(et) >= 2 else []
+                if sum(1 for v in distinct if cache[v]) < 0.6 * len(distinct):
+                    continue  # most names pick out nothing here: not this kind of reference
+                targets, hit_vals = {}, set()
+                for gi, v in vals:
+                    cands = cache[v]
+                    if len(cands) > 1 and tdate is not None:
+                        when = as_date(groups[id(t)][gi].values.get(tdate.aid))
+                        if when:
+                            cands = [x for x in cands if (x[3] is None or x[3] - timedelta(days=14) <= when)
+                                     and (x[4] is None or when <= x[4] + timedelta(days=45))]
+                    if len(cands) == 1:
+                        targets[gi] = cands[0][0]
+                        hit_vals.add(v)
+                cov, inc = len(targets) / len(vals), len(hit_vals) / len(distinct)
+                if cov >= 0.6 and inc >= 0.6 and (best is None or cov > best[0]):
+                    best = (cov, d, targets, inc)
+            if best:
+                cov, d, targets, inc = best
+                r = RelDraft(src=t, attr=a, dst=d, via="c", kind="ref", inclusion=inc,
+                             coverage=len(targets) / max(1, len(groups[id(t)])), hits=len(targets), fuzzy=len(targets),
+                             evidence=f"{round(inc * 100)} % der Namen in „{a.name}“ nennen Kunde und Art "
+                                      f"genau eines Eintrags von {d_plural(d)}")
+                r.targets = targets
+                r.unresolved = {gi: v for gi, v in vals if gi not in targets}
+                out.append(r)
+                taken.add((id(t), id(a)))
+    return out
 
 
 def d_plural(t: TypeDraft) -> str:

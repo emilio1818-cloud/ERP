@@ -9,7 +9,7 @@
   {%- elif g.kind == 'threshold' -%}Bestand {{ it.value|de }} · mindestens {{ it.min|de }}
   {%- elif g.kind == 'rhythm' -%}seit {{ days_text(it.days) }} nichts <span class="faint">(sonst alle {{ it.usual }} Tage)</span>
   {%- elif g.kind == 'reach' -%}reicht noch ca. {{ it.days }} Tage <span class="faint">({{ it.per_week|de(1) }} pro Woche)</span>
-  {%- elif g.kind in ('risk', 'payment', 'integrity', 'draft') -%}{{ it.reason }}
+  {%- elif g.kind in ('risk', 'payment', 'integrity', 'draft', 'budget') -%}{{ it.reason }}
   {%- endif -%}
 {%- endmacro %}
 {% block content %}

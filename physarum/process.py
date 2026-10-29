@@ -770,8 +770,87 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
     groups += _threshold_work(model, records, title)
     groups += _rhythm_work(model, records, by_id, title, today)
     groups += _reach_work(model, records, by_id, title, today)
+    groups += _budget_work(model, records, mention_refs, title)
     groups.sort(key=lambda g: (-g["severity"], -(g["amount"] or 0), -g["count"]))
     return groups
+
+
+_RUNNING = {"retainer", "monatlich", "monthly", "laufend", "recurring", "abo", "abonnement", "subscription",
+            "monatspauschale", "pauschale", "wiederkehrend"}
+_BUDGET_WORDS = {"budget", "festpreis", "auftragswert", "kostenrahmen", "angebotssumme", "projektbudget",
+                 "pauschalpreis", "auftragssumme"}
+_RATE_WORDS = {"rate", "satz", "stundensatz", "preis", "einzelpreis", "stueckpreis", "tarif"}
+
+
+def _budget_work(model, records, mention_refs, title) -> list[dict]:
+    """A fixed budget and the work booked on it: more than a fifth over is worth a look while
+    there is still time (and a lesson for the next quote when it is too late)."""
+    specs = {t["id"]: t for t in model["types"]}
+    out = []
+    for spec in model["types"]:
+        budget = next((a for a in spec["attrs"] if a["kind"] == "money" and not a.get("hidden") and
+                       not a.get("virtual") and set(tokens(a["name"])) & _BUDGET_WORDS), None)
+        if not budget:
+            continue
+        recs = records.get(spec["id"], [])
+        effort = defaultdict(float)
+        sources = []
+        invoices = defaultdict(int)
+        for rel in model["relations"]:
+            src = specs.get(rel["src"])
+            if not src or rel["dst"] != spec["id"] or src["kind"] != "transaction":
+                continue
+            if src.get("concept") == "rechnung" and src.get("incoming"):
+                continue  # a freelancer's invoice is a cost of the project, not how it is billed
+            if src.get("concept") == "rechnung":
+                # how often the thing is invoiced: a retainer every month, a fixed price once or twice
+                if rel["kind"] == "mention":
+                    for to, frm in mention_refs.get(rel["attr"], {}).items():
+                        invoices[to] += len(frm)
+                else:
+                    for r in records.get(src["id"], []):
+                        if isinstance(r["data"].get(rel["attr"]), int):
+                            invoices[r["data"][rel["attr"]]] += 1
+                continue
+            if src.get("concept") != "zeiteintrag" or rel["kind"] not in ("ref", "parent"):
+                continue
+            vals = [a["id"] for a in src["attrs"] if a["kind"] == "money" and not a.get("virtual")
+                    and not set(tokens(a["name"])) & _RATE_WORDS]
+            if not vals:
+                continue
+            sources.append(src["plural"])
+            for r in records.get(src["id"], []):
+                to = r["data"].get(rel["attr"])
+                v = next((r["data"][a] for a in vals if isinstance(r["data"].get(a), (int, float))), None)
+                if isinstance(to, int) and v:
+                    effort[to] += float(v)
+        if not effort:
+            continue
+        cats = [a["id"] for a in spec["attrs"] if a["kind"] == "text" and a.get("enum")]
+        items = []
+        for r in recs:
+            b = r["data"].get(budget["id"])
+            e = effort.get(r["id"], 0.0)
+            if not isinstance(b, (int, float)) or b <= 0 or e <= 1.2 * b or invoices.get(r["id"], 0) > 2:
+                continue
+            if any(set(tokens(str(r["data"].get(a) or ""))) & _RUNNING for a in cats):
+                continue  # a retainer's budget is per month
+            items.append(dict(rid=r["id"], title=title(r["id"]), money=round(e - b, 2), days=0,
+                              reason=f"Aufwand {_eur_short(e)} bei {budget['name']} {_eur_short(b)} "
+                                     f"({round(e / b * 100)} %)"))
+        if items:
+            items.sort(key=lambda x: -x["money"])
+            out.append(dict(id=f"budget:{spec['id']}", type=spec["id"], kind="budget", severity=2,
+                            title=f"{spec['plural']} deutlich über {budget['name']}", count=len(items),
+                            amount=round(sum(x["money"] for x in items), 2), items=items[:30], action=None,
+                            explain=f"Summe der {' und '.join(dict.fromkeys(sources))} je {spec['name']} verglichen mit "
+                                    f"„{budget['name']}“ – ab 120 %. Laufend abgerechnete (mehr als zwei Rechnungen) "
+                                    f"bleiben außen vor."))
+    return out
+
+
+def _eur_short(x: float) -> str:
+    return f"{x:,.0f} €".replace(",", ".")
 
 
 def _due_work(model, records, by_id, title, today) -> list[dict]:

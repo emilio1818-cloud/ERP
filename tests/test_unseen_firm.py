@@ -210,6 +210,46 @@ class UnseenFirm(unittest.TestCase):
         self.assertEqual(len(rt.records[kt["id"]]), 25)
         self.assertEqual(sorted(r["data"][kt["key"]] for r in gone), ["9023", "9024"])
 
+    def test_fixed_budget_overrun_and_freelancer_names(self):
+        kunden = ["Elbkind Spielwaren GmbH", "Tidenhub Meerestechnik GmbH", "Baumschule Kruse GmbH", "Hansen Bau GmbH",
+                  "Kröger Haustechnik GmbH"]
+        projects = []
+        for i in range(1, 11):
+            k = kunden[i % 5]
+            short = k.split()[0]
+            art = ["Website-Relaunch", "Wartung & Hosting"][i % 2]
+            projects.append([f"P-2026-{i:03d}", short, art, art, "Festpreis" if i % 2 == 0 else "Retainer",
+                             f"{i:02d}.03.2026", "8000" if i % 2 == 0 else "250"])
+        self.f.feed([("Kunden.csv", csv("Kundennr;Firma;Ort", [[f"K-{100 + i}", k, "Hamburg"] for i, k in enumerate(kunden)])),
+                     ("Projektliste.csv", csv("Projekt-Nr.;Kunde;Projekt;Art;Abrechnung;Start;Budget", projects))])
+        entries, sheet = [], []
+        for k in range(120):
+            i = k % 10 + 1
+            amount = "950,00" if i == 2 else "150,00"  # P-2026-002: 12 x 950 = 11.400 on a budget of 8.000
+            entries.append([f"P-2026-{i:03d} Projekt", "anna@agentur.de",
+                            (date(2026, 3, 15) + timedelta(days=k % 60)).strftime("%d.%m.%Y"), "2,0", amount])
+            p = projects[i - 1]
+            name = f"{p[1]} {'Relaunch' if 'Relaunch' in p[2] else 'Wartung'}" if k % 2 else \
+                f"{'Relaunch' if 'Relaunch' in p[2] else 'Wartung'} {p[1]}"
+            sheet.append([(date(2026, 3, 15) + timedelta(days=k % 60)).strftime("%d.%m.%Y"), name, "Entwicklung", "1,5"])
+        self.f.feed([("time_entries.csv", csv("Project;Email;Date;Duration (h);Amount (EUR)", entries)),
+                     ("Stundenzettel_Steinbach.csv", csv("Datum;Projekt;Tätigkeit;Stunden", sheet))])
+        rt = self.f.rt()
+        pj = _type(rt, "Projekt")
+        work = rt.work(date(2026, 6, 1))
+        over = next(g for g in work if g["kind"] == "budget")
+        self.assertEqual([it["title"] for it in over["items"]], ["P-2026-002"])  # retainers are left out
+        sz = _type(rt, "Stundenzettel")
+        ref = next(a for a in sz["attrs"] if a["kind"] == "ref" and a.get("ref") == pj["id"])
+        linked = [r for r in rt.records[sz["id"]] if isinstance(r["data"].get(ref["id"]), int)]
+        self.assertGreaterEqual(len(linked), 0.9 * len(rt.records[sz["id"]]))
+        by_no = {r["id"]: r["data"][pj["key"]] for r in rt.records[pj["id"]]}
+        for r in linked:  # "Elbkind Relaunch" and "Wartung Tidenhub" name the right project
+            name = r["data"][next(a["id"] for a in sz["attrs"] if a["name"] == "Projekt")]
+            no = by_no[r["data"][ref["id"]]]
+            p = projects[int(no[-3:]) - 1]
+            self.assertIn(p[1], str(rt.title(r["data"][ref["id"]])) + " " + no + " " + p[1])
+
     def test_a_note_is_a_document_not_a_table(self):
         self.f.feed([("LIESMICH.txt", "Export aus Toggl + alter Kundenstamm (WaWi 2014), erstellt 02.07.2025 von J. P.\n"
                                       "Toggl wurde zum 30.06.2025 gekündigt, ab 01.07. Clockify.\n"),

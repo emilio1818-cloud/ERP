@@ -189,6 +189,69 @@ class CraftFirm(unittest.TestCase):
         self.assertEqual(rt.by_id[paid["rid"]]["data"]["pay_state"], "überfällig")  # and stays so
         self.assertNotIn(paid["rid"], rt.payment_proposals())                  # without asking again
 
+    def test_the_bank_says_more_than_the_numbers(self):
+        from tests.test_unseen_firm import _pdf
+        from physarum import dunning
+        today = date.today()
+        head = "KDNR;ANREDE;NAME1;NAME2;BEMERKUNG"
+        custs = [["1001", "Herr", "Brockmann", "Wolfgang", ""], ["1002", "Frau", "Kemper", "Ingrid", "Wartung per Lastschrift"],
+                 ["1007", "Herr", "Hoffmann", "Ralf", "Wartung per Lastschrift"], ["1012", "Herr", "Schulze", "Gerd", ""],
+                 ["1022", "Firma", "Bäckerei Heitbrink GmbH", "", ""], ["1024", "Firma", "Kita Sonnenschein e.V.", "", ""],
+                 ["1026", "Firma", "Lindemann Wohnbau GmbH", "", ""], ["1032", "Firma", "Metzgerei Brüggemann", "", ""]]
+        d = lambda n: (today - timedelta(days=n)).strftime("%d.%m.%Y")
+        book = [  # number, date, customer, subject, net, gross, down payments, payable, due (VAT goes in below)
+            ["RE-2026-0068", d(100), "1001", "Heizungsreparatur", "250,00", "297,50", "", "297,50", d(86)],
+            ["RE-2026-0077", d(90), "1022", "Backofen-Abluft", "540,00", "642,60", "", "642,60", d(76)],
+            ["RE-2026-0087", d(80), "1032", "Kühlraum Kondensatleitung", "1250,00", "1487,50", "", "1487,50", d(66)],
+            ["RE-2026-0094", d(60), "1024", "Sanitär Krippe", "900,00", "1071,00", "", "1071,00", d(46)],
+            ["RE-2026-0096", d(55), "1001", "Thermostatventile", "450,00", "535,50", "", "535,50", d(41)],
+            ["RE-2026-0113", d(28), "1012", "Wartung lt. Vertrag WV-0102", "250,00", "297,50", "", "297,50", d(14)],
+            ["RE-2026-0116", d(22), "1002", "Wartung lt. Vertrag WV-0101", "200,00", "238,00", "", "238,00", d(8)],
+            ["RE-2026-0117", d(20), "1007", "Wartung lt. Vertrag WV-0110", "240,00", "285,60", "", "285,60", d(6)],
+            ["RE-2026-0120", d(18), "1012", "Austausch Küchenarmatur", "300,00", "357,00", "", "357,00", d(4)],
+            ["SR-2026-002", d(17), "1026", "Schlussrechnung BV Lindenstraße 14", "88240,00", "105005,60", "83300,00",
+             "21705,60", d(1)]]
+        for i in range(14):  # an ordinary rest of the year, paid with their numbers
+            book.append([f"RE-2026-{i + 1:04d}", d(200 - 5 * i), custs[i % 8][0], f"Arbeiten {i}", f"{100 + i},00",
+                         _eur((100 + i) * 1.19), "", _eur((100 + i) * 1.19), d(186 - 5 * i)])
+        for r in book:
+            net, gross = (float(x.replace(",", ".")) for x in (r[4], r[5]))
+            r.insert(5, _eur(gross - net))
+        bank = [[r[1], "Kunde", r[0], r[8]] for r in book[10:]]
+        bank += [[d(85), "WOLFGANG BROCKMANN", "RE-2026-0068", "297,50"],
+                 [d(78), "Brockmann, Wolfgang", "RE-2026-0068 Heizungsreparatur", "297,50"],          # twice
+                 [d(40), "Brockmann, Wolfgang", "RE-2026-0096 abzgl. Doppelzahlung (RE-2026-0068)", "238,00"],
+                 [d(50), "BAECKEREI HEITBRINK GMBH", "Rechnung RE-2026-0094 Heitbrink", "642,60"],    # wrong number
+                 [d(45), "KITA SONNENSCHEIN E.V.", "RE-2026-0094 Kita", "1071,00"],
+                 [d(66), "METZGEREI BRUEGGEMANN", "RE-2026-0087", "1433,95"],                          # as the PDF says
+                 [d(10), "LINDEMANN WOHNBAU GMBH", "SR-2026-002 abzgl. 5% Sicherheitseinbehalt", "16455,32"],
+                 [d(5), "WIESNER HAUSTECHNIK GMBH", f"SEPA-LASTSCHRIFT-SAMMLER 3 POSTEN EINREICHUNG {d(8)} WARTUNG",
+                  "821,10"]]
+        self.f.feed([("Kundenstamm_alt.csv", csv(head, custs)),
+                     ("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD.replace(";Kunde;", ";Kd.-Nr.;"), book)),
+                     ("Umsaetze_Girokonto.csv", csv(BANK_HEAD, bank)),
+                     ("Ausgangsrechnungen_PDF/RE-2026-0087.pdf",
+                      _pdf("RECHNUNG RE-2026-0087) Tj 0 -16 Td (Summe netto 1.205,00 EUR) Tj 0 -16 Td "
+                           "(Gesamtbetrag brutto 1.433,95 EUR"))])
+        rt = self.f.rt()
+        inv = _type(rt, "Rechnung")
+        e = _states(rt, inv)
+        self.assertEqual(e["RE-2026-0077"]["state"], "bezahlt")     # Heitbrink's money, the Kita's number
+        self.assertEqual(e["RE-2026-0094"]["state"], "bezahlt")     # … so the Kita is not paid twice
+        self.assertEqual((e["RE-2026-0068"]["state"], e["RE-2026-0096"]["state"]), ("bezahlt", "bezahlt"))  # netted
+        self.assertEqual({e[n]["state"] for n in ("RE-2026-0113", "RE-2026-0116", "RE-2026-0117")}, {"bezahlt"})
+        self.assertEqual(e["RE-2026-0120"]["state"], "offen")       # not in the collection
+        sr = e["SR-2026-002"]
+        self.assertAlmostEqual(sr["retention"], 5250.28, places=2)
+        overdue = {x["rid"] for g in rt.work() if g["kind"] in ("overdue", "due") for x in g["items"]}
+        self.assertNotIn(sr["rid"], overdue)                        # a retention is not chased
+        party = next(a["id"] for a in inv["attrs"] if a["kind"] == "ref")
+        self.assertEqual(dunning.overdue_of(rt, rt.by_id[sr["rid"]]["data"][party], inv["id"]), [])
+        self.assertAlmostEqual(e["RE-2026-0087"]["gross"], 1433.95, places=2)   # the PDF the customer got
+        self.assertEqual(e["RE-2026-0087"]["state"], "bezahlt")
+        g = next(g for g in rt.work() if g["kind"] == "integrity")
+        self.assertTrue(any(x["rid"] == e["RE-2026-0087"]["rid"] and "PDF" in x["reason"] for x in g["items"]))
+
 
 if __name__ == "__main__":
     unittest.main()

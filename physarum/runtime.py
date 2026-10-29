@@ -260,6 +260,22 @@ class Runtime:
                         items.append(dict(rid=r["id"], title=self.title(r["id"]), days=0, money=None, party=None,
                                           reason=f"„{src}“ nennt für {a['name']} einen anderen Wert – nicht übernommen, "
                                                  f"die Rechnung ist festgeschrieben", sev=3))
+                for aid, (was, now, src, when) in (meta.get("corrected") or {}).items():
+                    a = next((x for x in spec["attrs"] if x["id"] == aid), None)
+                    if a:
+                        from .values import display
+                        items.append(dict(rid=r["id"], title=self.title(r["id"]), days=0, money=None, party=None,
+                                          reason=f"{a['name']} nach der Ausstellung geändert: {display(was, a['kind'])} → "
+                                                 f"{display(now, a['kind'])} laut „{src}“ – im anderen Programm korrigiert?",
+                                          sev=2, seen=f"/r/{r['id']}/korrektur-gesehen"))
+                        break
+                e = self.ledger.get(r["id"])
+                if e and e.get("doc") and not meta.get("corrected"):
+                    from .values import display
+                    items.append(dict(rid=r["id"], title=self.title(r["id"]), days=0, money=e["open"], party=None,
+                                      reason=f"Das PDF nennt {display(e['doc']['total'], 'money')}, das Rechnungsbuch "
+                                             f"{display(e['doc']['book'], 'money')} – gezählt wird das PDF, das hat der "
+                                             f"Kunde bekommen. Bitte das Buch berichtigen.", sev=2))
                 if key and r["data"].get(key) is not None:
                     by_number[(r["data"].get(party) if party else None, norm_key(r["data"][key]))].append(r)
                 if r["id"] in gone:

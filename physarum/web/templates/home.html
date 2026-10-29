@@ -73,6 +73,8 @@
             {% elif g.kind == 'mail' %}
               {% if it.act %}<a class="btn small" href="{{ it.act.href }}">{{ it.act.label }}</a>{% endif %}
               <button class="small ghost" data-post="/post/{{ it.rid }}/erledigt" title="Diese Mail ist beantwortet oder erledigt">✓ Erledigt</button>
+            {% elif it.seen %}
+              <button class="small ghost" data-post="{{ it.seen }}" title="Die Änderung ist bekannt und richtig">✓ Gesehen</button>
             {% endif %}
             </span>
           </li>

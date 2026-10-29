@@ -295,7 +295,8 @@ class InvoiceFromOrder(unittest.TestCase):
 
 class NewBookAfterIssuing(unittest.TestCase):
     """The accountant exports the invoice book again – with a changed amount, a missing row and a
-    number that was meanwhile issued here. Issued invoices stay as issued, and Heute says what differs."""
+    number that was meanwhile issued here. What was issued here stays as issued; what the other
+    program issued follows its newest list, logged; Heute says what differs."""
 
     def test_issued_invoices_are_not_changed_and_differences_are_shown(self):
         import time
@@ -339,8 +340,13 @@ class NewBookAfterIssuing(unittest.TestCase):
             for r in rt.records[inv["id"]]:
                 by_no.setdefault(r["data"].get(inv["key"]), []).append(r)
             ch = by_no[changed_no][0]
-            self.assertAlmostEqual(ch["data"][net["id"]], float(old.replace(".", "").replace(",", ".")), places=2)
-            self.assertIn(net["id"], ch["meta"].get("conflicts") or {})          # recorded, not applied
+            # issued by the other program: its newest list corrects it – taken over, logged, shown
+            self.assertAlmostEqual(ch["data"][net["id"]], 999.99, places=2)
+            was, now, _src, _when = ch["meta"]["corrected"][net["id"]]
+            self.assertAlmostEqual(was, float(old.replace(".", "").replace(",", ".")), places=2)
+            self.assertAlmostEqual(now, 999.99, places=2)
+            self.assertTrue(store.q1("SELECT 1 FROM changes WHERE record_id=? AND attr=? AND note LIKE "
+                                     "'nach der Ausstellung geändert%'", (ch["id"], net["id"])))
             self.assertIn(gone_no, by_no)                                        # an issued invoice is never removed
             self.assertEqual(rt.by_id[mine]["data"][net["id"]], my_net)          # the one issued here is untouched
             # the file's twin does not become a second invoice with the issued number (it would be dunned) …
@@ -350,6 +356,16 @@ class NewBookAfterIssuing(unittest.TestCase):
             group = next(g for g in rt.work() if g["kind"] == "integrity")       # … and all of it is on Heute
             reasons = {(x["rid"], x["reason"].split(" ")[0]) for x in group["items"]}
             self.assertIn(ch["id"], {rid for rid, _ in reasons})
+            seen = next(x for x in group["items"] if x["rid"] == ch["id"])
+            self.assertIn("nach der Ausstellung geändert", seen["reason"])
+            from starlette.testclient import TestClient
+            from physarum.web.app import create_app
+            r = TestClient(create_app(tmp / "firma")).post(seen["seen"], headers={"origin": "http://testserver"})
+            self.assertEqual(r.status_code, 200, r.text)
+            rt = Runtime(store)
+            rt.ensure()
+            group = next(g for g in rt.work() if g["kind"] == "integrity")
+            self.assertNotIn(ch["id"], {x["rid"] for x in group["items"]})   # seen: off Heute
             self.assertIn(by_no[gone_no][0]["id"], {rid for rid, _ in reasons})
             self.assertTrue(any(rid == mine and "andere Rechnung" in x["reason"] for x in group["items"]
                                 for rid in [x["rid"]]))

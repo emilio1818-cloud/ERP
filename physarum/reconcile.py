@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from datetime import date
+from itertools import combinations
 
 from .billing import is_draft
 from .infer.identity import FREEMAIL
@@ -130,12 +131,17 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
         neg = set((p.get("status") or {}).get("negative") or [])
         sattr = (p.get("status") or {}).get("attr")
         open_inv = []
+        listed = []  # paid by the book's date alone: the bank line that paid them may be a collection
         rest = {}
         for r in records.get(p["type"], []):
             if is_draft(r):
                 continue
             if ledger is not None and r["id"] in ledger:
                 e = ledger[r["id"]]
+                if e["state"] == "bezahlt" and e["payments"] and all(x["rid"] is None and x["how"] == "laut Liste bezahlt"
+                                                                     for x in e["payments"]):
+                    listed.append(r)
+                    rest[r["id"]] = e["gross"] - e["credit"]
                 if e["state"] not in ("offen", "teilbezahlt") or e["open"] <= 0.005:
                     continue
                 rest[r["id"]] = e["open"]
@@ -151,6 +157,8 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
             pv = r["data"].get(p["party"])
             if isinstance(pv, int):
                 by_party.setdefault(pv, []).append(r)
+        if not outgoing:
+            out.extend(_direct_debits(banks, records, open_inv + listed, rest, p, linked_bank | skip))
         for b in banks:
             for row in records.get(b["spec"]["id"], []):
                 if row["id"] in linked_bank or row["id"] in skip:
@@ -202,6 +210,53 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
     for m in out:
         if per_bank[m["bank"]] > 1 or any(per_inv[i] > 1 for i in m["invoices"]):
             m["sure"] = False
+    return out
+
+
+_COLLECTION = re.compile(r"lastschrift|sammler|sammel-?ls|einreichung|einzug", re.I)
+_POSTEN = re.compile(r"\b(\d{1,2})\s*(?:posten|pos\.|positionen|lastschriften)\b", re.I)
+_SUBMITTED = re.compile(r"einreichung\s*(?:vom\s*)?(\d{1,2}\.\d{1,2}\.\d{2,4})", re.I)
+_BOILER = {"sepa", "lastschrift", "sammler", "sammel", "posten", "einreichung", "gutschrift", "eingang", "vom", "ls",
+           "basis", "core", "firmen", "einzug", "lastschriften", "gesamt", "summe"}
+
+
+def _direct_debits(banks, records, open_inv, rest, p, taken) -> list[dict]:
+    """The firm's own direct debits come back as one credit: "SEPA-LASTSCHRIFT-SAMMLER 3 POSTEN
+    EINREICHUNG 16.10.2026 WARTUNG". The open invoices it collected are the only N of them, dated
+    before the submission, whose amounts add up to the cent – preferably those whose text shares the
+    credit's words ("Wartung")."""
+    out = []
+    for b in banks:
+        for row in records.get(b["spec"]["id"], []):
+            if row["id"] in taken:
+                continue
+            text = " ".join(str(row["data"].get(a["id"]) or "") for a in b["spec"]["attrs"] if a["kind"] == "text")
+            m = _POSTEN.search(text)
+            if not m or not _COLLECTION.search(text):
+                continue
+            n = int(m.group(1))
+            amount = bank_amount(b, row["data"])
+            when = as_date(row["data"].get(b["date"]["id"]))
+            if not (2 <= n <= 5) or not amount or amount <= 0 or not when:
+                continue
+            sub = _SUBMITTED.search(text)
+            until = (as_date(sub.group(1)) if sub else None) or when
+            cands = [r for r in open_inv if (as_date(r["data"].get(p["start"]["attr"])) or date.max) <= until
+                     and (until - as_date(r["data"].get(p["start"]["attr"]))).days <= 90]
+            words = {w for w in tokens(text) if len(w) >= 4 and not w.isdigit() and w not in _BOILER}
+            if words:
+                topical = [r for r in cands if words & set(tokens(" ".join(str(v) for v in r["data"].values()
+                                                                           if isinstance(v, str))))]
+                if len(topical) >= n:
+                    cands = topical
+            cands = sorted(cands, key=lambda r: str(r["data"].get(p["start"]["attr"]) or ""), reverse=True)[:40]
+            owed = {r["id"]: rest.get(r["id"], _num(r["data"].get(p["gross"])) or 0.0) for r in cands}
+            fits = [c for c in combinations(cands, n) if abs(sum(owed[r["id"]] for r in c) - amount) < 0.005]
+            if len(fits) != 1:
+                continue
+            out.append(dict(bank=row["id"], bank_type=b["spec"]["id"], invoices=[r["id"] for r in fits[0]],
+                            invoice_type=p["type"], amount=amount, when=when.isoformat(), exact=True, sure=True,
+                            how=f"Sammel-Lastschrift: {n} Posten, die Summe stimmt auf den Cent", payer=None))
     return out
 
 

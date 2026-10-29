@@ -807,6 +807,21 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             rt.bump(c)
         return JSONResponse(dict(reload=True, toast="Gelöst – die Überweisung gehört zu keiner Rechnung, die Rechnung ist wieder offen."))
 
+    def correction_seen(request: Request, form):
+        """The owner has seen that an invoice of the other program was corrected after it was issued."""
+        rid = int(request.path_params["rid"])
+        with store.tx() as c:
+            row = c.execute("SELECT meta FROM records WHERE id=?", (rid,)).fetchone()
+            meta = loads(row["meta"]) if row else None
+            if not meta or not meta.get("corrected"):
+                return JSONResponse(dict(error="Hier gibt es keine Korrektur zu bestätigen."), status_code=404)
+            meta.pop("corrected")
+            c.execute("UPDATE records SET meta=? WHERE id=?", (dumps(meta), rid))
+            c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
+                      (rid, now_iso(), actor(request), "note", "Korrektur nach der Ausstellung zur Kenntnis genommen"))
+            rt.bump(c)
+        return JSONResponse(dict(reload=True, toast="Vermerkt."))
+
     def record_positions(request: Request, form):
         rid = int(request.path_params["rid"])
         rows = defaultdict(dict)
@@ -1723,6 +1738,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/r/{rid:int}/positionen", formed(record_positions), methods=["POST"]),
         Route("/r/{rid:int}/bezahlt", formed(record_paid), methods=["POST"]),
         Route("/r/{rid:int}/zahlung-loesen", formed(record_unpay), methods=["POST"]),
+        Route("/r/{rid:int}/korrektur-gesehen", formed(correction_seen), methods=["POST"]),
         Route("/r/{rid:int}/uebernehmen", record_take_over, methods=["POST"]),
         Route("/r/{rid:int}/einblenden", record_unhide, methods=["POST"]),
         Route("/r/{rid:int}/xrechnung", record_xrechnung),

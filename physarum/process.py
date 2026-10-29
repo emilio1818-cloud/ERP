@@ -734,6 +734,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         for r in recs:
             if sattr and str(r["data"].get(sattr)) in negative:
                 continue
+            if ledger is not None and (ledger.get(r["id"]) or {}).get("state") == "storniert":
+                continue  # cancelled by a credit note: nothing to wait for
             if any(str(r["data"].get(a)) in vals for a, vals in other_neg):
                 continue
             start = as_date(r["data"].get(p["start"]["attr"]))
@@ -759,6 +761,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 paid_part = None
                 if ledger is not None and r["id"] in ledger and fold(st["label"]) == "bezahlt":
                     e = ledger[r["id"]]
+                    if e.get("retention"):
+                        break  # the rest is a retention until the warranty ends: nothing to chase
                     money = e["open"]  # only what is still missing
                     paid_part = e["paid"] if e["paid"] > 0.005 else None
                 dl = due_by_step.get(st["id"])
@@ -787,6 +791,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 rg = due_range(r["data"].get(dl["attr"]))
                 due = rg[1] if rg else None
                 e = ledger.get(r["id"]) if ledger else None
+                if e and e.get("retention"):
+                    continue
                 due_how = None
                 if not due and e and e.get("due_attr") == dl["attr"]:
                     due, due_how = e["due"], e["due_how"]  # reckoned, not in the book

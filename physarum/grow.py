@@ -908,6 +908,22 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
             notes[aid] = f"aus {src_name.get(first, 'neuer Quelle')} übernommen (neuer als die Änderung vom {w[1][:10]})"
         cancels = bool(protected and aid == status_attr and aid in cur and fold(str(v)) in lexicon.NEGATIVE_STATES
                        and fold(str(cur.get(aid))) not in lexicon.NEGATIVE_STATES)
+        if protected and aid in protected and aid in cur and not _same(cur.get(aid), v) and not cancels \
+                and not meta.get("issued"):
+            # issued in another program: its newest list speaks for it (a typo corrected there) –
+            # taken over, logged, and shown on Heute until someone has seen it
+            first = prov.get(aid, [[srcs[-1] if srcs else None]])[0][0]
+            src = src_name.get(first, "neuer Quelle")
+            corrected = meta.setdefault("corrected", {})
+            was = corrected.get(aid, [_jsonable(cur.get(aid))])[0]
+            corrected[aid] = [was, _jsonable(v), src, ts[:10]]
+            notes[aid] = f"nach der Ausstellung geändert laut {src} – im anderen Programm korrigiert?"
+            stats.setdefault("corrections", []).append((rid, aid))
+            conflicts.pop(aid, None)
+            changed.append((aid, cur.get(aid), v))
+            out[aid] = v
+            writers[aid] = ["import", ts]
+            continue
         if (protected and aid in protected and aid in cur and not _same(cur.get(aid), v)) or cancels:
             # an issued document never changes silently: the deviation is shown, not applied
             first = prov.get(aid, [[srcs[-1] if srcs else None]])[0][0]

@@ -130,6 +130,44 @@ def estimate_due(rule: dict, r: dict, by_id: dict) -> tuple[date, str] | None:
     return start + timedelta(days=LEGAL_TERM), "spätestens 30 Tage nach Rechnungsdatum (§ 286 BGB)"
 
 
+_AMOUNT = r"(-?\d{1,3}(?:\.\d{3})*,\d{2}|-?\d+,\d{2})\s*(?:€|eur)?\s*$"
+_OWED_LINE = re.compile(r"\b(restforderung|zahlbetrag|zu zahlen|restbetrag|offener betrag|noch zu zahlen)\b[^\n]*?" + _AMOUNT,
+                        re.I | re.M)
+_GROSS_LINE = re.compile(r"\b(gesamtbetrag(?: brutto)?|rechnungsbetrag|summe brutto|bruttobetrag|endbetrag|gesamt brutto"
+                         r"|brutto)\b[^\n]*?" + _AMOUNT, re.I | re.M)
+
+
+def document_total(text: str | None) -> float | None:
+    """What an invoice document asks for: the remainder after down payments, else the gross total."""
+    if not text:
+        return None
+    for rx in (_OWED_LINE, _GROSS_LINE):
+        hits = rx.findall(text[:20000])
+        if hits:
+            v = hits[-1][1].replace(".", "").replace(",", ".")
+            try:
+                return round(float(v), 2)
+            except ValueError:
+                return None
+    return None
+
+
+def _documents(records: dict, by_no: dict) -> dict[int, tuple[dict, float]]:
+    """The PDF of an invoice ("RE-2026-0087.pdf", the one the customer got) and its total."""
+    out = {}
+    for d in records.get("doc", []):
+        data = d["data"]
+        if str(data.get("doc_kind") or "") != "PDF":
+            continue
+        inv = by_no.get(norm_key(str(data.get("doc_title") or "")))
+        if inv is None:
+            continue
+        total = document_total(data.get("doc_text"))
+        if total is not None and total > 0:
+            out[inv] = (d, total)
+    return out
+
+
 def mail_sources(store) -> set[int]:
     """Files that came inside a mail (an attachment, a ZIP in a mail): a list somebody else made. A
     customer's "Zahlungsnachweis" there names invoice numbers too – but money counts only from the
@@ -250,6 +288,14 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                                     outgoing=ip["outgoing"], skonto_ok=_skonto_agreed(model, by_id, p, r),
                                     credit=0.0, credits=[], credit_to=None, due=due, due_how=due_how,
                                     due_attr=rule["attr"] if rule else None)
+        # the PDF the customer got says what is owed when the book says something else (a typo in the list)
+        for inv, (d, total) in _documents(records, by_no).items():
+            e = entries.get(inv)
+            if e and not e["cancelled"] and abs(total - e["gross"]) > EPS:
+                e["notes"].append(f"Laut PDF {_eur(total)}, im Buch {_eur(e['gross'])} – gezählt wird das PDF, "
+                                  f"das hat der Kunde bekommen")
+                e["doc"] = dict(rid=d["id"], total=total, book=e["gross"])
+                e["gross"] = total
         _settle_credits(spec, recs, entries, by_no)
         swapped = _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, ip["outgoing"])
         # allocate every bank row over the invoices it names, in the order the money moved:
@@ -274,7 +320,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             invs.sort(key=lambda i: (entries[i]["start"] or date.min, i))
             how = "Rückbuchung" if value < 0 else "Zahlung"
             if b in swapped:
-                how = f"Zahlung (Zahlendreher: der Zweck nennt {swapped[b]})"
+                how = swapped[b]
             elif by_amount and all((b, i) in by_amount for i in invs):
                 how = by_amount[(b, invs[0])]
             if value < 0:
@@ -290,6 +336,9 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 continue
             if len(invs) > 1:
                 invs = _fitting(invs, entries, value)
+            if any(_RETENTION.search(str(row["data"].get(a["id"]) or "")) for a in bs["spec"]["attrs"] if a["kind"] == "text"):
+                for i in invs:
+                    entries[i]["retention_hint"] = True  # "abzgl. 5% Sicherheitseinbehalt"
             left = value
             for k, i in enumerate(invs):
                 e = entries[i]
@@ -301,6 +350,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 e["payments"].append(dict(rid=b, date=when, amount=round(take, 2), how=how,
                                           shared=len(invs) > 1, by_amount=bool(by_amount and (b, i) in by_amount)))
                 left -= take
+        _net_overpayments(entries, links, {r["id"]: r["data"].get(key) for r in recs} if key else {}, when_of)
         # book or manual paid date: paid in full when the bank does not speak
         pool = None
         for r in recs:
@@ -329,10 +379,56 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                         continue
                 e["payments"].append(dict(rid=None, date=min(ds), amount=owed,
                                           how="von Hand eingetragen" if w[0] == "user" else "laut Liste bezahlt"))
+        notes_of = [a["id"] for a in spec["attrs"] if a["kind"] == "text" and a.get("role") in ("notes", None)]
+        for r in recs:
+            e = entries.get(r["id"])
+            if e and any(_RETENTION.search(str(r["data"].get(a) or "")) for a in notes_of):
+                e["retention_hint"] = True  # the book says so: "5 % Sicherheitseinbehalt bis Abnahme+5 J."
         for e in entries.values():
             _finish(e)
+            _retained(e, records_gross=_num(by_id[e["rid"]]["data"].get(p["gross"])))
             out[e["rid"]] = e
     return out
+
+
+_RETENTION = re.compile(r"(sicherheits|gewaehrleistungs|gewährleistungs)?einbehalt", re.I)
+
+
+def _retained(e: dict, records_gross: float | None):
+    """A final invoice paid but for a retention (5 % "Sicherheitseinbehalt" until the warranty ends): the
+    rest is owed later, not overdue – nobody dunns it."""
+    if not e.pop("retention_hint", False) or e["state"] != "teilbezahlt":
+        return
+    full = records_gross or e["gross"]
+    if 0 < e["open"] <= 0.1 * full + EPS:
+        e["retention"] = e["open"]
+        e["notes"] = [n for n in e["notes"] if not n.endswith(" offen")]
+        e["notes"].append(f"{_eur(e['open'])} ({str(round(e['open'] / full * 100, 1)).replace('.', ',')} %) sind "
+                          f"Sicherheitseinbehalt – fällig erst nach Abnahme und Gewährleistung, nicht anmahnen")
+
+
+def _net_overpayments(entries: dict, links: dict, number: dict, when_of):
+    """'RE-2026-0096 abzgl. Doppelzahlung vom 04.08. (RE-2026-0068)': a transfer that names an invoice paid
+    twice and one still open nets the surplus of the first with the remainder of the second."""
+    def owed(i):
+        return entries[i]["gross"] - entries[i]["credit"]
+    for b, invs in links.items():
+        invs = [i for i in invs if i in entries and not entries[i]["cancelled"]]
+        if len(invs) < 2:
+            continue
+        for a in [i for i in invs if entries[i]["paid"] - owed(i) > EPS]:
+            surplus = round(entries[a]["paid"] - owed(a), 2)
+            s = next((i for i in invs if i != a and abs(owed(i) - entries[i]["paid"] - surplus) <= EPS), None)
+            if s is None:
+                continue
+            when = when_of(b)
+            when = None if when == date.min else when
+            entries[a]["paid"] -= surplus
+            entries[a]["payments"].append(dict(rid=None, date=when, amount=-surplus,
+                                               how=f"Überzahlung verrechnet mit {number.get(s) or 'einer anderen Rechnung'}"))
+            entries[s]["paid"] += surplus
+            entries[s]["payments"].append(dict(rid=None, date=when, amount=surplus,
+                                               how=f"Überzahlung von {number.get(a) or 'einer anderen Rechnung'} verrechnet"))
 
 
 _STORNO_WORDS = ("storno", "storniert", "stornierung", "stornorechnung", "cancel")
@@ -406,8 +502,9 @@ def _transposed(a: str, b: str) -> bool:
 
 def _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, outgoing) -> dict[int, str]:
     """A transfer that names an invoice of another customer, with an amount that does not fit it,
-    while the payer has an open invoice over exactly that amount whose number has two digits
-    swapped: the payer mistyped. The money goes to the invoice it was meant for."""
+    while the payer has an open invoice over exactly that amount – the one whose number has two
+    digits swapped, or the only one: the payer mistyped. The money goes to the invoice it was meant
+    for. Returns {bank rid: how the payment reads}."""
     from .reconcile import bank_amount
     key, party = spec.get("key"), p.get("party")
     if not key:
@@ -421,7 +518,8 @@ def _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, outg
             return _title_of(model, by_id.get(v), by_id)
         return next((str(r["data"][a]) for a in names if isinstance(r["data"].get(a), str)), "")
     out = {}
-    for b, invs in links.items():
+    named = {i for invs in links.values() for i in invs}
+    for b, invs in list(links.items()):
         if len(invs) != 1 or invs[0] not in entries or invs[0] not in by_rid:
             continue
         e, inv = entries[invs[0]], by_rid[invs[0]]
@@ -441,14 +539,21 @@ def _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, outg
         if not payer or not cust or name_similarity(payer, cust) >= 0.6:
             continue  # the customer itself pays: a partial payment, not a typo
         number = str(inv["data"].get(key) or "")
-        alts = [r for r in recs if r["id"] != inv["id"] and r["id"] in entries and r["data"].get(key) is not None
-                and _transposed(str(r["data"][key]), number)
+        fits = [r for r in recs if r["id"] != inv["id"] and r["id"] in entries and r["data"].get(key) is not None
+                and not entries[r["id"]]["cancelled"] and r["id"] not in named
                 and abs(entries[r["id"]]["gross"] - entries[r["id"]]["credit"] - value) <= EPS
                 and name_similarity(payer, norm_name(customer(r))) >= 0.6]
-        if len(alts) == 1:
-            links[b] = [alts[0]["id"]]
-            out[b] = number
-            entries[alts[0]["id"]]["notes"].append(f"Zahlung mit Zahlendreher im Zweck ({number}) – Kunde und Betrag passen hierher")
+        swapped = [r for r in fits if _transposed(str(r["data"][key]), number)]
+        if len(swapped) == 1:
+            links[b] = [swapped[0]["id"]]
+            out[b] = f"Zahlung (Zahlendreher: der Zweck nennt {number})"
+            entries[swapped[0]["id"]]["notes"].append(f"Zahlung mit Zahlendreher im Zweck ({number}) – Kunde und Betrag passen hierher")
+        elif len(fits) == 1:
+            links[b] = [fits[0]["id"]]
+            out[b] = f"Zahlung (der Zweck nennt {number}, eine Rechnung an {customer(inv) or 'jemand anderen'})"
+            entries[fits[0]["id"]]["notes"].append(
+                f"Zahlung mit falscher Nummer im Zweck ({number} ist eine Rechnung an {customer(inv) or 'jemand anderen'}) "
+                f"– Zahler und Betrag passen hierher")
     return out
 
 

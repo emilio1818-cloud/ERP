@@ -52,6 +52,25 @@ def _bank_types(model: dict) -> dict:
     return {b["spec"]["id"]: b for b in bank_specs(model)}
 
 
+_PAYABLE_WORDS = {"zahlbetrag", "zahlbar", "restbetrag", "payable"}
+_DEDUCT_WORDS = {"abschlag", "abschlaege", "abschlagszahlung", "abschlagszahlungen", "anzahlung", "anzahlungen",
+                 "vorauszahlung", "vorauszahlungen", "abzueglich", "abzgl"}
+
+
+def _payable_attrs(spec: dict, p: dict) -> tuple[str | None, str | None]:
+    """The amount actually asked for, and the down payments deducted from the total."""
+    payable = deduct = None
+    for a in spec["attrs"]:
+        if a["kind"] != "money" or a.get("virtual") or a["id"] == p.get("gross"):
+            continue
+        toks = set(tokens(a["name"]))
+        if toks & _PAYABLE_WORDS and not toks & {"offen", "offener"} and payable is None:
+            payable = a["id"]
+        elif toks & _DEDUCT_WORDS and deduct is None:
+            deduct = a["id"]
+    return payable, deduct
+
+
 def mail_sources(store) -> set[int]:
     """Files that came inside a mail (an attachment, a ZIP in a mail): a list somebody else made. A
     customer's "Zahlungsnachweis" there names invoice numbers too – but money counts only from the
@@ -147,12 +166,19 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                             if inv is not None and inv not in links[b["id"]]:
                                 links[b["id"]].append(inv)
         entries = {}
+        payable, deduct = _payable_attrs(spec, p)
         for r in recs:
             if is_draft(r):
                 continue  # not issued: nobody owes anything yet
             g = _num(r["data"].get(p["gross"]))
             if g is None:
                 continue
+            # a final invoice after down payments: the customer owes what is left ("Zahlbetrag"), not the total
+            owed = _num(r["data"].get(payable)) if payable else None
+            if owed is None and deduct and _num(r["data"].get(deduct)):
+                owed = round(g - abs(_num(r["data"].get(deduct))), 2)
+            if owed is not None and 0 <= owed < g - EPS:
+                g = owed
             cancelled = (st.get("attr") and str(r["data"].get(st["attr"])) in negative) or bool((r.get("meta") or {}).get("storno"))
             entries[r["id"]] = dict(rid=r["id"], gross=round(g, 2), paid=0.0, payments=[], notes=[], cancelled=cancelled,
                                     start=as_date(r["data"].get(p["start"]["attr"])), type=p["type"],

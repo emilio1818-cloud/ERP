@@ -10,12 +10,28 @@ from __future__ import annotations
 from collections import Counter
 
 from .lexicon import dative_plural
+from .text import fold
 from .store import loads
 
 # business cases that have a course (ordered, delivered, invoiced, paid); bank rows and time sheets are facts
-_NO_COURSE = {"kontobewegung", "zahlung", "stundenzettel", "zeiterfassung", "dokument", "termin"}
+_NO_COURSE = {"kontobewegung", "zahlung", "stundenzettel", "zeiterfassung", "zeiteintrag", "abwesenheit", "dokument",
+              "termin"}
+# a bank line's counterparty need not be a known customer (rent, leasing, the tax office)
+_FREE_REFS = {"kontobewegung", "zahlung", "dokument"}
+_BULK = ("no-reply", "noreply", "newsletter", "news@", "mailer-daemon", "notifications@", "marketing@")
 
 WEIGHTS = dict(rows=0.25, refs=0.3, docs=0.15, processes=0.2, answers=0.1)
+
+# a time entry on "Intern – Teammeeting" names no project: internal work is a category, not a missing record
+_INTERNAL = ("intern", "internal", "allgemein", "verwaltung", "buero", "orga", "organisation", "overhead",
+             "gemeinkosten", "nicht abrechenbar", "non billable", "non-billable", "urlaub", "krank", "feiertag")
+
+
+def _internal(examples: Counter) -> bool:
+    vals = [fold(v) for v in examples]
+    if not vals or len(vals) > 12 or sum(examples.values()) < 3 * len(vals):
+        return False
+    return all(any(v.startswith(w) or f" {w}" in v or f"{w} " in v for w in _INTERNAL) for v in vals)
 
 
 def coverage(rt) -> dict:
@@ -40,8 +56,8 @@ def coverage(rt) -> dict:
     # 2. references that found their target
     total = ok = 0
     for spec in m["types"]:
-        if (spec.get("concept") or "") in _NO_COURSE:
-            continue  # a bank line's counterparty need not be a known customer (rent, leasing, the tax office)
+        if (spec.get("concept") or "") in _FREE_REFS:
+            continue
         refs = [a for a in spec["attrs"] if a["kind"] == "ref" and not a.get("hidden")]
         if not refs:
             continue
@@ -57,6 +73,8 @@ def coverage(rt) -> dict:
                     if raw not in (None, ""):
                         n_raw += 1
                         examples[str(raw)] += 1
+            if n_raw and _internal(examples):
+                n_raw = 0  # internal work, not a gap
             total += n_ok + n_raw
             ok += n_ok
             if n_raw:
@@ -72,7 +90,9 @@ def coverage(rt) -> dict:
                              detail=f"{ok:,} von {total:,} Verweisen".replace(",", "."))
 
     # 3. documents that belong to something
-    docs = rt.records.get("doc", [])
+    # newsletters and notes about the files belong to no business case and are no gap
+    docs = [d for d in rt.records.get("doc", []) if str(d["data"].get("doc_kind") or "") != "Text"
+            and not any(w in fold(str(d["data"].get("doc_from") or "")) for w in _BULK)]
     if docs:
         linked = sum(1 for d in docs if rt.outrefs.get(d["id"]))
         parts["docs"] = dict(label="Dokumente einem Vorgang zugeordnet", value=linked / len(docs),

@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 from .. import lexicon
 from ..text import fold, name_similarity, norm_key, norm_name, tokens
-from .identity import FREEMAIL, Group, _within
+from .identity import FREEMAIL, Group, _part_of, _same_word, _within
 from .unify import AttrDraft, TypeDraft
 
 REF_ROLES = {"id", "name", "person", None, "email"}
@@ -329,9 +329,12 @@ def _ctoks(v) -> list[str]:
     return [t for t in tokens(str(v)) if len(t) >= 2 and t not in _STOP and not t.isdigit()]
 
 
-def _tok_match(e: str, pool: set) -> bool:
+def _tok_match(e: str, pool: set, parts: bool = False) -> bool:
+    """A word of a written name in a record's words: the same word, inflected ("Elbkinds"), or – for the
+    kind of work, not for names – a part of a compound ("Shop" in "Onlineshop"). "Alsterblick" is not
+    "Alster"."""
     for p in pool:
-        if e == p or (len(e) >= 3 and p.startswith(e)) or (len(p) >= 4 and e.startswith(p)):
+        if _same_word(e, p) or (parts and _part_of(e, p)):
             return True
     return False
 
@@ -404,8 +407,8 @@ def _composite_refs(types: list[TypeDraft], groups: dict, rels: list[RelDraft], 
                 cache = {}
                 for v in distinct:
                     et = vtoks[v]
-                    cache[v] = [x for x in entries if all(_tok_match(e, x[1] | x[2]) for e in et)
-                                and any(_tok_match(e, x[2]) for e in et) and any(_tok_match(e, x[1]) for e in et)] \
+                    cache[v] = [x for x in entries if all(_tok_match(e, x[2]) or _tok_match(e, x[1], parts=True) for e in et)
+                                and any(_tok_match(e, x[2]) for e in et) and any(_tok_match(e, x[1], parts=True) for e in et)] \
                         if len(et) >= 2 else []
                 if sum(1 for v in distinct if cache[v]) < 0.6 * len(distinct):
                     continue  # most names pick out nothing here: not this kind of reference
@@ -417,6 +420,9 @@ def _composite_refs(types: list[TypeDraft], groups: dict, rels: list[RelDraft], 
                         if when:
                             cands = [x for x in cands if (x[3] is None or x[3] - timedelta(days=14) <= when)
                                      and (x[4] is None or when <= x[4] + timedelta(days=45))]
+                            dated = [x for x in cands if x[3] is not None]
+                            if len(cands) > 1 and len(dated) == 1:
+                                cands = dated  # the project that ran then, not one that only has a name
                     if len(cands) == 1:
                         targets[gi] = cands[0][0]
                         hit_vals.add(v)

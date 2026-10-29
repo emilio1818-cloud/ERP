@@ -220,9 +220,12 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     ent_dec = store.decisions("same_record")
     questions: list[dict] = []
     groups: dict[int, list[Group]] = {}
+    stale = {}
+    for t in raw:
+        stale.update(t.get("stale") or {})
     for t in types:
         protos = build_protos(t)
-        groups[id(t)] = resolve(t, protos, ent_dec, questions, log)
+        groups[id(t)] = resolve(t, protos, ent_dec, questions, log, stale=stale)
     progress("Dubletten geprüft", 0.5)
     # the reward: how much of what came in is now part of the firm's picture
     used = {tuple(tl) for gs in groups.values() for g in gs for tl in g.lines}
@@ -614,9 +617,14 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
                 c.execute("SELECT ident, record_id FROM idents WHERE type=?", (DOC_TYPE,)).fetchall()}
     per_source = Counter()
     src_sha = {r["id"]: r["sha256"] for r in store.sources(active_only=False)}
+    done = {}
     for d in docs:
         per_source[d["source_id"]] += 1
         ident = f"d:{src_sha.get(d['source_id'], '')[:16]}:{per_source[d['source_id']]}"
+        if ident in done:  # the same file twice (as a file and as a mail attachment): one document
+            done[ident].append(d["source_id"])
+            continue
+        done[ident] = [d["source_id"]]
         data = {"doc_title": d["title"], "doc_kind": DOC_KIND_LABEL.get(d["kind"], d["kind"]), "doc_from": d["sender"],
                 "doc_to": d["recipients"], "doc_date": (d["date"] or "")[:16] or None, "doc_text": d["body"],
                 "doc_file": d["source_name"]}
@@ -797,6 +805,10 @@ def _write_import(c, rid, data, raw, prov, alts, srcs, g, src_added, src_name, t
             changed.append((aid, cur[aid], None))
             out.pop(aid)
     meta.update(w=writers, prov=prov, alts=alts, raw=raw, src=srcs, fuzzy=g.fuzzy or None)
+    if getattr(g, "vanished", None):
+        meta["vanished"] = g.vanished
+    else:
+        meta.pop("vanished", None)
     if conflicts:
         meta["conflicts"] = conflicts
     else:

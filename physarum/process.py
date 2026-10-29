@@ -570,7 +570,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             if ledger is not None and fold(st["label"]) == "bezahlt" and any(rid in ledger for rid in rid_set):
                 # paid is what the money says, not what a purpose names
                 d = {rid: e["paid_date"] or start_of(rid) for rid, e in ledger.items()
-                     if rid in rid_set and e["state"] in ("bezahlt", "überzahlt")}
+                     if rid in rid_set and e["state"] in ("bezahlt", "überzahlt", "verrechnet")}
             step_dates[st["id"]] = d
         negative = set((p.get("status") or {}).get("negative") or [])
         sattr = (p.get("status") or {}).get("attr")
@@ -630,7 +630,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 rg = due_range(r["data"].get(dl["attr"]))
                 due = rg[1] if rg else None
                 e = ledger.get(r["id"]) if ledger else None
-                if e and e["state"] in ("bezahlt", "überzahlt", "storniert"):
+                if e and e["state"] in ("bezahlt", "überzahlt", "storniert", "verrechnet"):
                     continue  # the money has gone out already
                 if due and (due - today).days <= 14:
                     kind = "payable" if e and e["outgoing"] else "due"

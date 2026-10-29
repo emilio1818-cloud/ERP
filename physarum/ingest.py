@@ -244,7 +244,19 @@ def _kv_blocks(text: str) -> RawTable | None:
                     meta={"format": "Schlüssel: Wert", "title": " · ".join(titles)[:300], "locale": "de"})
 
 
+def _prose(text: str) -> bool:
+    """A note or a read-me: sentences, not rows."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return False
+    sentences = sum(1 for ln in lines if len(ln.split()) >= 6 and ln[-1] in ".!?:")
+    return len(lines) <= 2 and sentences >= 1 or sentences >= 0.5 * len(lines)
+
+
 def _read_text(stem: str, text: str, enc: str, ext: str, d: Digest):
+    if _prose(text):
+        d.docs.append(RawDoc("text", stem, text.strip()))
+        return
     delim = _sniff_delimiter(text) if ext != ".md" else None
     if delim:
         grid = list(csv.reader(io.StringIO(text), delimiter=delim))

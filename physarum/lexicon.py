@@ -13,7 +13,7 @@ from .text import fold, tokens
 CONCEPTS: dict[str, dict] = {
     "kunde": dict(sg="Kunde", pl="Kunden", stem="Kunden", kind="master",
                   terms=["kunde", "kunden", "kdnr", "kundennr", "kundennummer", "customer", "customers", "client",
-                         "clients", "debitor", "debitoren", "kaeufer", "buyer", "abnehmer", "billing", "crm",
+                         "clients", "debitor", "debitoren", "kaeufer", "buyer", "abnehmer", "billing",
                          "auftraggeber", "mandant", "mandanten", "account", "accounts"]),
     "lieferant": dict(sg="Lieferant", pl="Lieferanten", stem="Lieferanten", kind="master",
                       terms=["lieferant", "lieferanten", "liefnr", "supplier", "suppliers", "vendor", "vendors",
@@ -52,7 +52,7 @@ CONCEPTS: dict[str, dict] = {
     "vertrag": dict(sg="Vertrag", pl="Verträge", stem="Vertrags", kind="transaction", party="kunde",
                     terms=["vertrag", "vertraege", "contract", "contracts", "abo", "abos", "subscription",
                            "subscriptions", "wartungsvertrag", "wartungsvertraege"]),
-    "kontakt": dict(sg="Kontakt", pl="Kontakte", stem="Kontakt", kind="master",
+    "kontakt": dict(sg="Kontakt", pl="Kontakte", stem="Kontakt", kind="master", party="kunde",
                     terms=["kontakt", "kontakte", "contact", "contacts", "ansprechpartner", "adressen", "adresse",
                            "adressbuch"]),
     "termin": dict(sg="Termin", pl="Termine", stem="Termin", kind="transaction",
@@ -63,7 +63,26 @@ CONCEPTS: dict[str, dict] = {
                    terms=["ticket", "tickets", "reklamation", "reklamationen", "anfrage", "anfragen", "support"]),
     "dokument": dict(sg="Dokument", pl="Dokumente", stem="Dokument", kind="document",
                      terms=["dokument", "dokumente", "document", "documents"]),
+    "zeiteintrag": dict(sg="Zeiteintrag", pl="Zeiteinträge", stem="Zeit", kind="transaction", party="projekt",
+                        names={"stundenzettel": ("Stundenzettel", "Stundenzettel"),
+                               "stundennachweis": ("Stundennachweis", "Stundennachweise"),
+                               "stundennachweise": ("Stundennachweis", "Stundennachweise")},
+                        terms=["zeiteintrag", "zeiteintraege", "zeiterfassung", "stundenzettel", "stundennachweis",
+                               "stundennachweise", "timesheet", "timesheets", "zeitbuchung", "zeitbuchungen",
+                               "stundenbuchung", "stundenbuchungen", "stundenerfassung"]),
+    "verkaufschance": dict(sg="Verkaufschance", pl="Verkaufschancen", stem="Verkaufschancen", kind="transaction",
+                           party="kunde", terms=["verkaufschance", "verkaufschancen", "deal", "deals", "opportunity",
+                                                 "opportunities", "pipeline"]),
+    "abwesenheit": dict(sg="Abwesenheit", pl="Abwesenheiten", stem="Abwesenheits", kind="transaction",
+                        party="mitarbeiter", terms=["abwesenheit", "abwesenheiten", "urlaub", "urlaube", "urlaubsplan",
+                                                    "fehlzeiten", "absence", "absences", "krankmeldungen"]),
 }
+# terms that only count as whole words ("deal" is not in "Idealo")
+_EXACT_TERMS = {"deal", "deals", "urlaub"}
+# two-word names of a concept ("time entries", "time report")
+CONCEPT_PHRASES = {"time entries": "zeiteintrag", "time entry": "zeiteintrag", "time report": "zeiteintrag",
+                   "time tracking": "zeiteintrag", "time sheet": "zeiteintrag", "time sheets": "zeiteintrag",
+                   "time logs": "zeiteintrag", "time log": "zeiteintrag"}
 
 # words that describe the container, not the content ("Kundenliste" is about Kunden)
 CONTAINER_WORDS = {
@@ -93,7 +112,8 @@ ROLE_TERMS: dict[str, list[str]] = {
     "money": ["betrag", "summe", "preis", "price", "amount", "total", "gesamt", "netto", "brutto", "umsatz", "wert",
               "kosten", "cost", "costs", "eur", "euro", "honorar", "pauschale", "gebuehr", "fee", "subtotal",
               "shipping", "versandkosten", "rabattbetrag", "lohn", "gehalt", "vk", "ek", "listenpreis", "einzelpreis",
-              "stueckpreis", "gesamtpreis", "monatspauschale", "saldo", "offen", "rest"],
+              "stueckpreis", "gesamtpreis", "monatspauschale", "saldo", "offen", "rest",
+              "soll", "haben", "debit", "credit", "einnahme", "einnahmen", "ausgabe", "ausgaben"],
     "quantity": ["menge", "anzahl", "stueck", "stk", "qty", "quantity", "anz", "kg", "liter", "stunden", "std",
                  "hours", "saecke", "sack", "kartons", "einheiten", "bestand", "mindestbestand", "meldebestand",
                  "lagerbestand", "units", "pieces", "wochenstunden"],
@@ -176,7 +196,7 @@ def _compound_concept(tok: str) -> tuple[str | None, str]:
     best: tuple[int, int, str] | None = None  # (end position, length, concept)
     for c, spec in CONCEPTS.items():
         for term in spec["terms"]:
-            if len(term) < 4:
+            if len(term) < 4 or term in _EXACT_TERMS:
                 if tok == term:
                     cand = (len(tok), len(term), c)
                     best = max(best, cand) if best else cand
@@ -196,6 +216,9 @@ def _compound_concept(tok: str) -> tuple[str | None, str]:
 def concepts_in_tokens(toks: list[str]) -> list[tuple[int, str]]:
     hits = []
     for i, t in enumerate(toks):
+        if i + 1 < len(toks) and f"{t} {toks[i + 1]}" in CONCEPT_PHRASES:
+            hits.append((i, CONCEPT_PHRASES[f"{t} {toks[i + 1]}"]))
+            continue
         if t in CONTAINER_WORDS or t.isdigit():
             continue
         c, _rest = _compound_concept(t)
@@ -400,6 +423,10 @@ def specific_name(text: str, concept: str) -> tuple[str, str] | None:
     from .text import plural_de, singular_de
 
     words = [w for w in _re.split(r"[^A-Za-zÄÖÜäöüß]+", str(text)) if w]
+    own = CONCEPTS.get(concept, {}).get("names") or {}
+    for w in words:
+        if fold(w) in own:
+            return own[fold(w)]  # the firm's own word for it ("Stundenzettel", not "Zeiteintrag")
     for w in words:
         f = fold(w)
         c, rest = _compound_concept(f)

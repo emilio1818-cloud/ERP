@@ -285,6 +285,53 @@ def parse_duration(v) -> int | None:
     return n * (7 if unit == "w" else 30 if unit == "m" else 1)
 
 
+_HM = re.compile(r"^(\d{1,3}):([0-5]\d)(?::([0-5]\d)(?:[.,]\d+)?)?$")
+_UNIT_H = re.compile(r"^([\d.,]+)\s*(?:h|std\.?|stunden?|hrs?\.?|hours?)$", re.I)
+_UNIT_M = re.compile(r"^([\d.,]+)\s*(?:m|min\.?|minuten?|mins?|minutes?)$", re.I)
+_H_AND_M = re.compile(r"^(\d{1,3})\s*(?:h|std\.?|stunden?)\s*(\d{1,2})\s*(?:m|min\.?|minuten?)?$", re.I)
+_HOUR_WORDS = {"stunden", "std", "hours", "hrs", "dauer", "duration", "arbeitszeit", "zeitaufwand", "aufwand",
+               "iststunden", "sollstunden", "hour"}
+
+
+def hour_header(name: str) -> bool:
+    """'Stunden', 'Dauer', 'Duration (h)', 'Std.', 'Zeit (h)': a column of working hours."""
+    toks = tokens(name, camel=False)
+    phrase = " ".join(toks)
+    return bool(set(toks) & _HOUR_WORDS) or ("h" in toks and len(toks) >= 2) or \
+        any(t.endswith("stunden") for t in toks) or "time spent" in phrase or "spent time" in phrase or \
+        "time logged" in phrase
+
+
+def parse_hours(v, locale: str | None = "de") -> float | None:
+    """Working hours however they were typed: 1,5 · 1.5 · 1:30 · 01:30:00 · 1,35 h · 2 Std · 90 min · 1h 30m."""
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v) if 0 <= v < 1000 else None
+    if isinstance(v, timedelta):
+        return round(v.total_seconds() / 3600, 4)
+    if isinstance(v, dtime):
+        return round(v.hour + v.minute / 60 + v.second / 3600, 4)
+    if not isinstance(v, str):
+        return None
+    s = v.strip()
+    m = _HM.match(s)
+    if m:
+        return round(int(m.group(1)) + int(m.group(2)) / 60 + int(m.group(3) or 0) / 3600, 4)
+    m = _H_AND_M.match(s)
+    if m:
+        return round(int(m.group(1)) + int(m.group(2)) / 60, 4)
+    m = _UNIT_H.match(s)
+    if m:
+        return parse_number(m.group(1), locale)
+    m = _UNIT_M.match(s)
+    if m:
+        x = parse_number(m.group(1), locale)
+        return None if x is None else round(x / 60, 4)
+    x = parse_number(s, locale)
+    return x if x is None or 0 <= x < 1000 else None
+
+
 def parse_bool(v) -> bool | None:
     if isinstance(v, bool):
         return v
@@ -319,6 +366,7 @@ class Profile:
     milestone: str | None = None
     unparsed: int = 0
     integer: bool = False
+    hours: bool = False  # working hours, read from 1:30 and "1,5 h" as well
 
     @property
     def fill(self) -> float:
@@ -425,6 +473,11 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
                 kind = "text"
 
     # header-driven refinements -------------------------------------------------------
+    if kind in ("number", "text", "time") and hrole not in ("duration", "date", "due") and hour_header(name):
+        mixed = [v for v in present[:3000]]
+        if share(lambda x: parse_hours(x, p.locale) is not None, mixed) >= 0.9:
+            kind, p.hours = "number", True
+            hrole = "quantity"
     if kind == "number" and hrole == "duration":
         kind = "duration"
     if kind in ("number", "text") and hrole == "zip":
@@ -598,7 +651,7 @@ def _parse_as(kind: str, v, p: Profile):
     if kind in ("date", "datetime"):
         return parse_date(v, p.date_order)
     if kind in ("number", "money"):
-        return parse_number(v, p.locale)
+        return parse_hours(v, p.locale) if p.hours else parse_number(v, p.locale)
     if kind == "percent":
         if isinstance(v, str):
             x = parse_percent(v, p.locale)

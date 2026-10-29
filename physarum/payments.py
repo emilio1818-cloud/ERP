@@ -15,7 +15,7 @@ from datetime import date, timedelta
 from itertools import combinations
 
 from .billing import is_draft
-from .text import fold, norm_key
+from .text import fold, name_similarity, norm_key, norm_name
 from .values import as_date
 
 _NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
@@ -53,6 +53,7 @@ def _bank_types(model: dict) -> dict:
 
 def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = None) -> dict:
     """{invoice rid: entry}. An entry has gross, paid, open, state, paid_date, payments, notes."""
+    from .reconcile import bank_amount
     today = today or date.today()
     banks = _bank_types(model)
     by_id = {r["id"]: r for rs in records.values() for r in rs}
@@ -100,7 +101,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                         v = b["data"].get(aid)
                         if not isinstance(v, str):
                             continue
-                        for tok in _NUMBER_TOKEN.findall(v):
+                        for tok in _NUMBER_TOKEN.findall(v[:2000]):
                             inv = by_no.get(norm_key(tok))
                             if inv is not None and inv not in links[b["id"]]:
                                 links[b["id"]].append(inv)
@@ -114,7 +115,10 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             cancelled = (st.get("attr") and str(r["data"].get(st["attr"])) in negative) or bool((r.get("meta") or {}).get("storno"))
             entries[r["id"]] = dict(rid=r["id"], gross=round(g, 2), paid=0.0, payments=[], notes=[], cancelled=cancelled,
                                     start=as_date(r["data"].get(p["start"]["attr"])), type=p["type"],
-                                    outgoing=ip["outgoing"], skonto_ok=_skonto_agreed(model, by_id, p, r))
+                                    outgoing=ip["outgoing"], skonto_ok=_skonto_agreed(model, by_id, p, r),
+                                    credit=0.0, credits=[], credit_to=None)
+        _settle_credits(spec, recs, entries, by_no)
+        swapped = _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, ip["outgoing"])
         # allocate every bank row over the invoices it names, in the order the money moved:
         # oldest invoice first, whatever is left stays with the last one
         def when_of(b):
@@ -125,17 +129,19 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             invs = links[b]
             row = by_id[b]
             bs = banks[row["type"]]
-            amt = _num(row["data"].get(bs["money"]["id"]))
+            amt = bank_amount(bs, row["data"])
             when = as_date(row["data"].get(bs["date"]["id"]))
             if amt is None:
                 continue
-            invs = [i for i in invs if i in entries]
+            invs = [i for i in invs if i in entries and not entries[i]["credit_to"]]
             if not invs:
                 continue
             sign = -1.0 if ip["outgoing"] else 1.0
             value = sign * amt  # positive: money towards the invoice; negative: money back (chargeback)
             invs.sort(key=lambda i: (entries[i]["start"] or date.min, i))
             how = "Rückbuchung" if value < 0 else "Zahlung"
+            if b in swapped:
+                how = f"Zahlung (Zahlendreher: der Zweck nennt {swapped[b]})"
             if value < 0:
                 # a chargeback undoes what was paid on the invoice(s) it names
                 left = -value
@@ -152,7 +158,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             left = value
             for k, i in enumerate(invs):
                 e = entries[i]
-                need = max(e["gross"] - e["paid"], 0.0)
+                need = max(e["gross"] - e["credit"] - e["paid"], 0.0)
                 take = left if k == len(invs) - 1 else min(left, need)
                 if take <= 0 and k != len(invs) - 1:
                     continue
@@ -183,6 +189,116 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
     return out
 
 
+_STORNO_WORDS = ("storno", "storniert", "stornierung", "stornorechnung", "cancel")
+
+
+def _title_of(model: dict, rec: dict | None, by_id: dict | None = None, depth: int = 0) -> str:
+    """A record's name for comparing payers: its title, the name it points to, or its first name-like text."""
+    if not rec:
+        return ""
+    spec = next((t for t in model["types"] if t["id"] == rec["type"]), None) or {}
+    v = rec["data"].get(spec.get("title")) if spec.get("title") else None
+    if isinstance(v, int) and not isinstance(v, bool):
+        return _title_of(model, (by_id or {}).get(v), by_id, depth + 1) if depth < 2 else ""
+    if isinstance(v, str) and v.strip():
+        return v
+    for a in spec.get("attrs", []):
+        w = rec["data"].get(a["id"])
+        if a.get("role") in ("name", "person") and isinstance(w, str) and w.strip():
+            return w
+    return next((w for w in rec["data"].values() if isinstance(w, str) and len(w) > 3 and not w[:1].isdigit()), "")
+
+
+def _transposed(a: str, b: str) -> bool:
+    """RE-2026-0120 for RE-2026-0102: the same digits, two of them swapped."""
+    da, db = re.sub(r"\D", "", a), re.sub(r"\D", "", b)
+    if len(da) != len(db) or da == db or sorted(da) != sorted(db) or re.sub(r"\d", "", a) != re.sub(r"\d", "", b):
+        return False
+    return sum(1 for x, y in zip(da, db) if x != y) == 2
+
+
+def _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, outgoing) -> dict[int, str]:
+    """A transfer that names an invoice of another customer, with an amount that does not fit it,
+    while the payer has an open invoice over exactly that amount whose number has two digits
+    swapped: the payer mistyped. The money goes to the invoice it was meant for."""
+    from .reconcile import bank_amount
+    key, party = spec.get("key"), p.get("party")
+    if not key or not party:
+        return {}
+    by_rid = {r["id"]: r for r in recs}
+    out = {}
+    for b, invs in links.items():
+        if len(invs) != 1 or invs[0] not in entries or invs[0] not in by_rid:
+            continue
+        e, inv = entries[invs[0]], by_rid[invs[0]]
+        row = by_id.get(b)
+        bs = banks.get(row["type"]) if row else None
+        if not bs or e["credit_to"]:
+            continue
+        amt = bank_amount(bs, row["data"])
+        value = (-1.0 if outgoing else 1.0) * amt if amt is not None else None
+        if not value or value <= 0 or abs(value - (e["gross"] - e["credit"])) <= EPS:
+            continue
+        pv = row["data"].get(bs["party"]["id"]) if bs.get("party") else None
+        payer = _title_of(model, by_id.get(pv), by_id) if isinstance(pv, int) else \
+            str(row["data"].get(bs["name"]["id"]) or "") if bs.get("name") else ""
+        payer = norm_name(payer)
+        cust = norm_name(_title_of(model, by_id.get(inv["data"].get(party)), by_id))
+        if not payer or not cust or name_similarity(payer, cust) >= 0.6:
+            continue  # the customer itself pays: a partial payment, not a typo
+        number = str(inv["data"].get(key) or "")
+        alts = [r for r in recs if r["id"] != inv["id"] and r["id"] in entries and r["data"].get(key) is not None
+                and _transposed(str(r["data"][key]), number)
+                and abs(entries[r["id"]]["gross"] - entries[r["id"]]["credit"] - value) <= EPS
+                and name_similarity(payer, norm_name(_title_of(model, by_id.get(r["data"].get(party)), by_id))) >= 0.6]
+        if len(alts) == 1:
+            links[b] = [alts[0]["id"]]
+            out[b] = number
+            entries[alts[0]["id"]]["notes"].append(f"Zahlung mit Zahlendreher im Zweck ({number}) – Kunde und Betrag passen hierher")
+    return out
+
+
+def _settle_credits(spec: dict, recs: list[dict], entries: dict, by_no: dict):
+    """A credit note or a cancellation document is no debt of its own: it settles the invoice it
+    names ("Gutschrift zu RE-2026-0098", "Stornorechnung zu RE-2026-0463"). A cancellation over the
+    whole amount cancels the invoice; a credit note lowers what the customer still owes."""
+    key = spec.get("key")
+    texts = [a["id"] for a in spec["attrs"] if a["kind"] in ("text", "id") and a["id"] != key and not a.get("virtual")]
+    for r in recs:
+        e = entries.get(r["id"])
+        if not e or e["gross"] >= -EPS:
+            continue
+        named = []
+        storno_of = (r.get("meta") or {}).get("storno_of")
+        if isinstance(storno_of, int) and storno_of in entries:
+            named.append(storno_of)
+        words = ""
+        for aid in texts:
+            v = r["data"].get(aid)
+            if not isinstance(v, str):
+                continue
+            words += " " + fold(v)
+            for tok in _NUMBER_TOKEN.findall(v[:500]):
+                i = by_no.get(norm_key(tok))
+                if i is not None and i != r["id"] and i in entries and i not in named and entries[i]["gross"] > EPS:
+                    named.append(i)
+        if len(named) != 1:
+            continue
+        inv = entries[named[0]]
+        amount = -e["gross"]
+        number = r["data"].get(key) if key else None
+        e["credit_to"] = inv["rid"]
+        if abs(amount - (inv["gross"] - inv["credit"])) <= EPS and (any(w in words for w in _STORNO_WORDS) or storno_of):
+            inv["cancelled"] = True
+            inv["notes"].append(f"storniert durch {number or 'Stornobeleg'}")
+            e["notes"].append(f"storniert die Rechnung über {_eur(inv['gross'])}")
+        else:
+            inv["credit"] = round(inv["credit"] + amount, 2)
+            inv["credits"].append(dict(rid=r["id"], amount=round(amount, 2), number=number))
+            inv["notes"].append(f"Gutschrift {number or ''} über {_eur(amount)} verrechnet".replace("  ", " "))
+            e["notes"].append(f"mit der Rechnung über {_eur(inv['gross'])} verrechnet")
+
+
 def _skonto_agreed(model: dict, by_id: dict, p: dict, r: dict) -> bool:
     """Skonto only where the firm grants it: a skonto column of the invoice or of its customer."""
     specs = {t["id"]: t for t in model["types"]}
@@ -200,7 +316,7 @@ def _skonto_agreed(model: dict, by_id: dict, p: dict, r: dict) -> bool:
 def _fitting(invs: list[int], entries: dict, value: float) -> list[int]:
     """A transfer that names several invoices pays those whose open amounts it matches exactly;
     otherwise the oldest first."""
-    open_ = {i: round(entries[i]["gross"] - entries[i]["paid"], 2) for i in invs}
+    open_ = {i: round(entries[i]["gross"] - entries[i]["credit"] - entries[i]["paid"], 2) for i in invs}
     if len(invs) <= 10:
         for n in range(1, len(invs) + 1):
             for combo in combinations(invs, n):
@@ -210,7 +326,12 @@ def _fitting(invs: list[int], entries: dict, value: float) -> list[int]:
 
 
 def _finish(e: dict):
-    g, paid = e["gross"], round(e["paid"], 2)
+    if e.get("credit_to"):
+        e["paid"] = round(e["paid"], 2)
+        e["open"], e["paid_date"], e["skonto"] = 0.0, None, None
+        e["state"] = "verrechnet"  # a credit note or cancellation document, settled with its invoice
+        return
+    g, paid = round(e["gross"] - e.get("credit", 0.0), 2), round(e["paid"], 2)  # what is owed after credit notes
     e["paid"] = paid
     e["open"] = round(g - max(paid, 0.0), 2)
     pays = sorted([x for x in e["payments"] if x["date"]], key=lambda x: x["date"])
@@ -236,8 +357,12 @@ def _finish(e: dict):
         e["paid_date"] = e["paid_date"] or (pays[-1]["date"] if pays else None)
         return
     if e["open"] <= EPS:
-        e["state"] = "bezahlt"
+        e["state"] = "verrechnet" if paid <= EPS and e.get("credit") else "bezahlt"
         e["open"] = 0.0
+        return
+    if g < -EPS and paid <= EPS:
+        e["state"] = "offen"  # a credit note of its own: the firm owes the customer
+        e["notes"].append(f"Gutschrift über {_eur(-g)} – noch mit keiner Rechnung verrechnet und nicht ausgezahlt")
         return
     if paid > EPS:
         last = pays[-1]["date"] if pays else None
@@ -295,7 +420,7 @@ def problems(entries: dict) -> list[dict]:
 
 
 PAY_STATE, PAY_OPEN = "pay_state", "pay_open"
-STATES = ["offen", "teilbezahlt", "bezahlt", "überzahlt", "storniert"]
+STATES = ["offen", "teilbezahlt", "bezahlt", "überzahlt", "storniert", "verrechnet"]
 
 
 def apply_to_records(model: dict, records: dict, entries: dict):

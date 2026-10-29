@@ -103,11 +103,19 @@ def _mode_value(col: Col, idxs: list[int]):
 
 
 def candidate_extractions(o: Obs) -> list[dict]:
+    if (o.concept or o.file_concept) == "kontobewegung":
+        # whoever paid or was paid – customers, suppliers, staff, the tax office – is no kind of
+        # thing of its own; the names are matched against the firm's lists instead
+        return []
     link_cols = {c for c, _ in o.links}
+    own = o.col(o.key) if o.key else None
+    own_concept = own.prof.concept if own is not None and own.distinct >= 0.95 * max(own.filled, 1) else None
     out = []
     for x in o.cols:
         if x.name in link_cols or x.name == o.key and o.n == x.filled == x.distinct:
             continue
+        if own_concept and x is not own and x.prof.concept == own_concept:
+            continue  # "Projekt" next to a unique "Projekt-Nr.": the rows are these things themselves
         if x.role in NEVER_DETERMINANT or (x.role not in ENTITY_ROLES and x.kind != "id"):
             continue
         if x.kind not in ("id", "text", "email"):
@@ -121,7 +129,7 @@ def candidate_extractions(o: Obs) -> list[dict]:
             continue
         transactional = o.kind_hint in ("line", "header") or any(
             c.kind in ("date", "datetime") or c.role == "quantity" for c in o.cols)
-        party = not _is_header(o, x, [c for c in o.cols if c is not x])
+        party = not _is_header(o, x, [c for c in o.cols if c is not x], groups)
         deps = []
         for y in o.cols:
             if y is x or y.name in link_cols or y.is_constant():
@@ -159,7 +167,26 @@ def candidate_extractions(o: Obs) -> list[dict]:
     return out
 
 
-def _is_header(o: Obs, x: Col, deps: list[Col]) -> bool:
+def _own_events(o: Obs, x: Col, groups: dict[str, list[int]] | None) -> bool:
+    """Rows that each happened on their own day (time entries of a project, bookings of an order)
+    are events that refer to X – not the lines of a document X."""
+    if not groups:
+        return False
+    multi = [idxs for idxs in groups.values() if len(idxs) >= 2]
+    if not multi:
+        return False
+    for c in o.cols:
+        if c is x or c.kind not in ("date", "datetime") or c.filled < 0.5 * o.n:
+            continue
+        varied = sum(1 for idxs in multi if len({c.keys[i] for i in idxs if c.keys[i] is not None}) > 1)
+        if varied >= 0.3 * len(multi):
+            return True
+    return False
+
+
+def _is_header(o: Obs, x: Col, deps: list[Col], groups: dict[str, list[int]] | None = None) -> bool:
+    if _own_events(o, x, groups):
+        return False
     if x.prof.concept and lexicon.CONCEPTS[x.prof.concept]["kind"] == "transaction":
         return True
     has_date = any(y.kind in ("date", "datetime") for y in deps)
@@ -172,7 +199,18 @@ def _is_header(o: Obs, x: Col, deps: list[Col]) -> bool:
     return False
 
 
+def _people(c: Col | None) -> bool:
+    vals = [v for v in c.values if isinstance(v, str)][:300] if c is not None else []
+    return bool(vals) and sum(1 for v in vals if lexicon.looks_like_person(v)) >= 0.6 * len(vals)
+
+
 def _party_concept(o: Obs, x: Col, deps: list[Col]) -> str | None:
+    cols = [x] + deps
+    title = next((y for y in cols if y.kind == "text" and y.role in ("name", "person")), None)
+    org = next((y for y in cols if y is not title and y.kind == "text" and y.role == "name" and not _people(y)), None)
+    if title is not None and (title.role == "person" or _people(title)) and org is not None and \
+            any(y.kind == "email" for y in cols):
+        return "kontakt"  # people with an e-mail address who belong to a firm: contacts, whoever exported them
     if x.prof.concept:
         return x.prof.concept
     for y in deps:
@@ -189,7 +227,7 @@ def extract(o: Obs, e: dict) -> tuple[Obs, Obs]:
     deps: list[Col] = e["deps"]
     groups: dict[str, list[int]] = e["groups"]
     order = sorted(groups, key=lambda k: min(groups[k]))
-    header = _is_header(o, x, deps)
+    header = _is_header(o, x, deps, groups)
     pcols = []
     for c in [x] + deps:
         keys, vals = [], []

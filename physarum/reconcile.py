@@ -28,13 +28,37 @@ def _num(v):
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
 
+_OUT_WORDS = {"soll", "debit", "ausgabe", "ausgaben", "lastschrift", "belastung", "abgang"}
+_IN_WORDS = {"haben", "credit", "einnahme", "einnahmen", "gutschrift", "eingang", "zugang"}
+
+
+def _split_amount(money: list[dict]) -> tuple[dict, dict] | None:
+    """Statements with two amount columns, 'Soll' and 'Haben' (debit and credit), instead of one signed amount."""
+    out = next((a for a in money if set(tokens(a["name"])) & _OUT_WORDS), None)
+    inc = next((a for a in money if set(tokens(a["name"])) & _IN_WORDS), None)
+    return (out, inc) if out and inc and out is not inc else None
+
+
+def bank_amount(b: dict, data: dict) -> float | None:
+    """The signed amount of a bank line: money in is positive, money out negative."""
+    if b.get("split"):
+        out, inc = b["split"]
+        vo, vi = _num(data.get(out["id"])), _num(data.get(inc["id"]))
+        if vo is None and vi is None:
+            return None
+        return round((vi or 0.0) - abs(vo or 0.0), 2)
+    return _num(data.get(b["money"]["id"]))
+
+
 def bank_specs(model: dict) -> list[dict]:
     out = []
     for t in model["types"]:
         if t["kind"] != "transaction":
             continue
         iban = next((a for a in t["attrs"] if a["kind"] == "iban" and not a.get("hidden")), None)
-        money = next((a for a in t["attrs"] if a["kind"] == "money" and not a.get("hidden")), None)
+        moneys = [a for a in t["attrs"] if a["kind"] == "money" and not a.get("hidden")]
+        money = moneys[0] if moneys else None
+        split = _split_amount(moneys)
         date_a = next((a for a in t["attrs"] if a["kind"] in ("date", "datetime") and not a.get("hidden")), None)
         purpose = any(set(tokens(a["name"])) & {"verwendungszweck", "zweck", "buchungstext", "purpose"} for a in t["attrs"])
         if t.get("concept") == "kontobewegung" or (iban and money and date_a) or (purpose and money and date_a):
@@ -42,7 +66,8 @@ def bank_specs(model: dict) -> list[dict]:
                 party = next((a for a in t["attrs"] if a["kind"] == "ref"), None)
                 text = next((a for a in t["attrs"] if a.get("role") == "notes" and not a.get("hidden")), None)
                 name = next((a for a in t["attrs"] if a.get("role") in ("name", "person") and a["kind"] == "text"), None)
-                out.append(dict(spec=t, money=money, date=date_a, party=party, iban=iban, text=text, name=name))
+                out.append(dict(spec=t, money=split[1] if split else money, split=split, date=date_a, party=party,
+                                iban=iban, text=text, name=name))
     return out
 
 
@@ -128,7 +153,7 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
             for row in records.get(b["spec"]["id"], []):
                 if row["id"] in linked_bank:
                     continue
-                amount = _num(row["data"].get(b["money"]["id"]))
+                amount = bank_amount(b, row["data"])
                 when = as_date(row["data"].get(b["date"]["id"]))
                 if not amount or not when or (amount < 0) != outgoing:
                     continue

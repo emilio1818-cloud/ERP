@@ -52,12 +52,18 @@ def _nice(k: float) -> float:
     return round(k, 4)
 
 
+_MAX_FORMULA_ATTRS = 16
+
+
 def find_formulas(spec: dict, recs: list[dict]) -> list[dict]:
     attrs = [a for a in spec["attrs"] if a["kind"] in NUMERIC and not a.get("constant")]
     out = []
     if len(recs) < 8 or len(attrs) < 2:
         return out
     sample = recs[:800]
+    if len(attrs) > _MAX_FORMULA_ATTRS:  # a wide export (a measurement grid, a pivot): look at the money first
+        filled = Counter(a["id"] for r in sample for a in attrs if r["data"].get(a["id"]) is not None)
+        attrs = sorted(attrs, key=lambda a: (a["kind"] != "money", -filled[a["id"]]))[:_MAX_FORMULA_ATTRS]
     col = {a["id"]: [_num(r["data"].get(a["id"])) for r in sample] for a in attrs}
     used_targets = set()
 

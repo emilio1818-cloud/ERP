@@ -43,6 +43,7 @@ class Group:
     lines: list = field(default_factory=list)      # all (table_id, line)
     merges: list = field(default_factory=list)     # explanations for merged identities
     fuzzy: bool = False
+    vanished: str | None = None                    # the newest version of its list no longer has it
 
     def first(self, aid):
         return self.values.get(aid)
@@ -106,7 +107,11 @@ def _content_hash(p: Proto) -> str:
 
 
 def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
-            questions: list | None = None, log: list | None = None) -> list[Group]:
+            questions: list | None = None, log: list | None = None, stale: dict | None = None) -> list[Group]:
+    """`stale`: rows of older versions that the newest version of their list no longer contains,
+    (table id, line) -> that version's file. A thing found elsewhere too has moved (a project from
+    "Aktiv" to "Abgeschlossen"): its old row no longer speaks. A thing found nowhere else is kept
+    and marked – deleted in the other program?"""
     decisions = decisions or {}
     n = len(protos)
     uf = UF(n)
@@ -206,6 +211,13 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
     for i in range(n):
         groups_idx[uf.find(i)].append(i)
     groups = [Group(protos=[protos[i] for i in idxs]) for _, idxs in sorted(groups_idx.items())]
+    if stale:
+        for g in groups:
+            old = [p for p in g.protos if p.prov and all(tuple(x) in stale for x in p.prov)]
+            if old and len(old) < len(g.protos):
+                g.protos = [p for p in g.protos if not any(p is o for o in old)]
+            elif old:
+                g.vanished = stale[tuple(old[0].prov[0])]
     link_aids, pos_aids = _line_attrs(t) if t.kind == "line" else ({}, {})
     for g in groups:
         _merge_values(t, g)

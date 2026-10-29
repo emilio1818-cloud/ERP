@@ -272,6 +272,7 @@ def d_plural(t: TypeDraft) -> str:
 # --- mentions in free text ---------------------------------------------------------------------
 
 _TOKEN = re.compile(r"[A-Za-zÄÖÜäöüß#]*[\-./]?\d[\w\-./]*")
+_LONG_WORD = 200
 
 
 def _compact(s: str) -> str:
@@ -335,10 +336,12 @@ class MentionIndex:
         words = text.split()
         cands = []
         for i, w in enumerate(words):
+            if len(w) > _LONG_WORD:
+                continue  # no number is that long – and scanning it would take forever
             prev = words[i - 1] if i else ""
             for tok in _TOKEN.findall(w):
                 cands.append((tok, prev))
-            if i + 1 < len(words):
+            if i + 1 < len(words) and len(words[i + 1]) <= _LONG_WORD:
                 cands.append((w + words[i + 1], prev))
         for c, prev in cands:
             cc = _compact(c)

@@ -5,6 +5,7 @@ normalisation may split it into several (e.g. order headers, order lines, custom
 """
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -108,6 +109,52 @@ def match_key(prof: Profile, value) -> str | None:
     return norm_key(value) or None
 
 
+_EMBEDDED = re.compile(r"(?<![\w-])([A-Za-z]{1,5}[-/]\d{2,6}(?:[-/]\d{2,6})*|[A-Za-z]{1,5}\d{4,})(?![\w-])")
+
+
+def _shape(tok: str) -> str:
+    return re.sub(r"[A-Za-z]", "A", re.sub(r"\d", "9", tok))
+
+
+def _embedded_key(c: Col) -> list | None:
+    """'P-2026-013 Website-Relaunch' and 'Website-Relaunch Elbe Logistik (P-2025-008)': the number
+    inside the name is what identifies the thing; two tools write the same project differently."""
+    if c.kind != "text" or c.role not in ("name", None):
+        return None
+    filled = [v for v in c.values if isinstance(v, str) and v.strip()]
+    if len(filled) < 5:
+        return None
+    found = []
+    for v in c.values:
+        toks = _EMBEDDED.findall(v) if isinstance(v, str) and len(v) <= 200 else []
+        found.append(toks[0] if len(toks) == 1 and toks[0] != v.strip() else None)
+    hits = [t for t in found if t]
+    if len(hits) < 0.6 * len(filled):
+        return None
+    shape, n = Counter(_shape(t) for t in hits).most_common(1)[0]
+    if n < 0.9 * len(hits) or sum(ch == "9" for ch in shape) < 3:
+        return None
+    return [t if t and _shape(t) == shape else None for t in found]
+
+
+def _add_embedded_keys(cols: list[Col]):
+    from ..values import profile_column
+    for c in list(cols):
+        toks = _embedded_key(c)
+        if not toks:
+            continue
+        concept = lexicon.header_concept(c.name)
+        name = f"{lexicon.CONCEPTS[concept]['sg']}-Nr." if concept else f"{display_header(c.name)}-Nr."
+        if any(x.name == name or x.kind == "id" and x.prof.concept and x.prof.concept == concept for x in cols):
+            continue
+        prof = profile_column(name, toks)
+        if prof.kind not in ("id", "text"):
+            continue
+        prof.kind, prof.role = "id", "id"
+        keys = [match_key(prof, v) for v in prof.values]
+        cols.insert(cols.index(c), Col(name=name, prof=prof, values=list(prof.values), keys=keys, origin=c.origin))
+
+
 def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list[Profile],
                    lines: list[tuple[int, int]] | list[int], source_id: int = 0, tables: list[int] | None = None,
                    sig_label: str | None = None) -> Obs:
@@ -129,16 +176,18 @@ def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list
                     pass
             keys.append(k)
         cols.append(Col(name=name, prof=prof, values=list(prof.values), keys=keys, origin=(table_id, j)))
+    _add_embedded_keys(cols)
     _full_name(cols, table_id)
     lines = [l if isinstance(l, tuple) else (table_id, l) for l in lines]
     n = len(lines)
     stem = label.split(" › ")[0]
     sheet = label.split(" › ")[1] if " › " in label else ""
     part = None
-    if lexicon.json_path(stem):
+    if lexicon.json_path(stem) or ("." in stem and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{2,}", stem.rsplit(".", 1)[1])
+                                   and not stem.rsplit(".", 1)[1].isdigit()):
         stem, part = stem.rsplit(".", 1)  # nested export: "Termine_Export.appointments"
     if part is not None:
-        concept = lexicon.concept_of(part)
+        concept = lexicon.concept_of(part) or lexicon.concept_of(stem)
     else:
         concept = (lexicon.concept_of(sheet) if sheet else None) or lexicon.concept_of(stem)
     o = Obs(oid=f"T{table_id}", table_id=table_id, label=label, file_concept=concept,

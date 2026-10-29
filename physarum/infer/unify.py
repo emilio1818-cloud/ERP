@@ -174,6 +174,11 @@ def obs_similarity(a: Obs, b: Obs) -> dict:
         same_concept = False
     kinds = {lexicon.CONCEPTS[c]["kind"] for c in (ca, cb) if c in lexicon.CONCEPTS}
     kind_conflict = conflict and len(kinds) == 2  # master data next to business cases
+    for x, y in ((a, b), (b, a)):
+        if x.kind_hint == "party" and y.kind_hint != "party" and y.concept in lexicon.CONCEPTS and \
+                lexicon.CONCEPTS[y.concept]["kind"] == "transaction" and x.concept != y.concept:
+            conflict = kind_conflict = True  # whoever is named in rows is no more bank lines or invoices
+            same_concept = False
     decision, reason = "no", ""
     if ident >= 0.5 and cont >= 0.3 and not kind_conflict:
         # (a customer list whose names fill the "Kunde" column of an invoice book is what the
@@ -398,16 +403,41 @@ def _finish(t: TypeDraft):
         a.slug = slug(a.name)
 
 
+def _nested_parts(label: str) -> list[str]:
+    """The path inside a nested export: 'export_2026-09-15.tickets.time_entries' -> ['tickets', 'time_entries']."""
+    import re as _re
+    stem = label.split(" › ")[0]
+    parts = stem.split(".")
+    out = []
+    for p in reversed(parts[1:]):
+        if not _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{2,}", p) or p.isdigit():
+            break
+        out.insert(0, p)
+    return out
+
+
 def _dedupe_names(types: list[TypeDraft]):
     by_name: dict[str, list[TypeDraft]] = {}
     for t in types:
         by_name.setdefault(fold(t.name), []).append(t)
+    def depth(t: TypeDraft) -> int:  # "export.tickets.time_entries" lies deeper than "export.tickets"
+        return min(len(_nested_parts(m.sig_label or m.label)) for m in t.members)
+
     for group in by_name.values():
         if len(group) < 2:
             continue
-        group.sort(key=lambda t: -sum(m.n for m in t.members))
+        # the main list keeps the plain name; a list nested inside another never takes it, even
+        # when a new delivery makes it longer
+        group.sort(key=lambda t: (all(m.extracted_from for m in t.members), depth(t), -sum(m.n for m in t.members),
+                                  min(fold(m.sig_label or m.label) for m in t.members)))
         for i, t in enumerate(group[1:], start=2):
-            label = t.members[0].label
+            label = t.members[0].sig_label or t.members[0].label
+            parts = _nested_parts(label)
+            parent = lexicon.concept_of(parts[-2]) if len(parts) >= 2 else None
+            if parent:
+                pl = lexicon.CONCEPTS[parent]["pl"]
+                t.name, t.plural = f"{t.name} ({pl})", f"{t.plural} ({pl})"  # "Zeiteinträge (Tickets)"
+                continue
             stem = clean_stem(label)
             if fold(stem) in (fold(t.name), fold(t.plural)) or not stem:
                 # "Rechnungen_2024" next to "Rechnungen": the year tells them apart, not the word

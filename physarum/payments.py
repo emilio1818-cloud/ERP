@@ -30,7 +30,8 @@ SKONTO_DAYS = 21        # … paid within three weeks of the invoice date
 
 
 def invoice_specs(model: dict) -> list[dict]:
-    """Processes that end in being paid: they have an amount, a party and a step 'bezahlt'."""
+    """Processes that end in being paid: they have an amount, a party and a step the money settles
+    (the bank names them), or a day by which they are to be paid."""
     specs = {t["id"]: t for t in model["types"]}
     out = []
     for p in model.get("processes", []):
@@ -41,7 +42,7 @@ def invoice_specs(model: dict) -> list[dict]:
         party_attr = next((a for a in spec["attrs"] if a["id"] == p.get("party")), {}) if p.get("party") else {}
         # a supplier's invoice is paid by money going out – whether or not the supplier is a list of its own
         outgoing = bool(spec.get("incoming")) or (specs.get(party_attr.get("ref")) or {}).get("concept") == "lieferant"
-        if step is None and not any(fold(d.get("name") or "").startswith("faellig") for d in p.get("deadlines", [])):
+        if step is None and not _pay_deadline(p):
             continue
         out.append(dict(p=p, spec=spec, step=step, outgoing=outgoing))
     return out
@@ -89,10 +90,14 @@ def _loose_numbers(by_no: dict) -> dict[str, int]:
     return {d: v[0] for d, v in seen.items() if len(v) == 1}
 
 
-def due_attr(p: dict) -> str | None:
+def _pay_deadline(p: dict) -> dict | None:
     """The deadline by which an invoice is to be paid ("fällig am", "zahlbar bis")."""
-    dl = next((d for d in p.get("deadlines", []) if fold(d.get("name") or "").startswith(("faellig", "zahlbar", "due"))),
-              None) or (p.get("deadlines") or [None])[0]
+    return next((d for d in p.get("deadlines", []) if fold(d.get("name") or "").startswith(("faellig", "zahlbar", "due"))),
+                None)
+
+
+def due_attr(p: dict) -> str | None:
+    dl = _pay_deadline(p) or (p.get("deadlines") or [None])[0]
     return dl["attr"] if dl else None
 
 

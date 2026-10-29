@@ -27,6 +27,8 @@ PARTICIPLES = {"geliefert", "bezahlt", "versendet", "berechnet", "eingegangen", 
                "gewartet", "beendet", "ausgetreten"}
 CHILD_LABEL = {"rechnung": "berechnet", "kontobewegung": "bezahlt", "zahlung": "bezahlt", "lieferschein": "geliefert",
                "auftrag": "beauftragt", "einkauf": "bestellt"}
+PAID = "bezahlt"  # the step the money settles: named by Physarum, the firm's heading stays the column's name
+BILLED = "berechnet"  # the step an invoice settles
 
 
 def _pct(vals: list[float], q: float) -> float:
@@ -80,6 +82,8 @@ def infer_processes(model: dict, records: dict, store=None, today: date | None =
         pd = _primary_date(src)
         if pd:
             children[dst["id"]].append((rel, src, pd))
+    from .reconcile import bank_specs
+    banks = {b["spec"]["id"] for b in bank_specs(model)}  # by their columns, whatever the file is called
     model["processes"] = []
     for spec in model["types"]:
         if spec["kind"] not in ("transaction",):
@@ -87,10 +91,17 @@ def infer_processes(model: dict, records: dict, store=None, today: date | None =
         recs = records.get(spec["id"], [])
         if len(recs) < 2:
             continue
-        p = _infer_one(spec, recs, children.get(spec["id"], []), records, mention_map, by_id, today, specs)
+        p = _infer_one(spec, recs, children.get(spec["id"], []), records, mention_map, by_id, today, specs, banks)
         if p:
             spec["process"] = p["id"]
             model["processes"].append(p)
+    # a child the bank pays is an invoice: what points to it is "berechnet" by it, whatever its file is called
+    from .payments import invoice_specs
+    billing = {ip["spec"]["id"] for ip in invoice_specs(model) if not ip["outgoing"]}
+    for p in model["processes"]:
+        for st in p["steps"]:
+            if st["source"] == "child" and st.get("type") in billing and st["type"] != p["type"]:
+                st["label"], st["phrase"] = BILLED, f"noch nicht {BILLED}"
     model["rhythms"] = _rhythm_specs(model, records)
     model["reach"] = _reach_specs(model, records)
     model["dues"] = _due_specs(model, records)
@@ -205,8 +216,10 @@ def _instance_dates(spec, recs, cand_steps, records, mention_map, start_attr: st
     return out
 
 
-def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: dict | None = None) -> dict | None:
+def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: dict | None = None,
+               banks: set | None = None) -> dict | None:
     specs_of = specs_of or {}
+    banks = banks or set()
     start_attr = _primary_date(spec)
     if not start_attr:
         return None
@@ -216,8 +229,9 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
                 and not lexicon.is_unnamed(a["name"]):  # a date without a heading is no milestone anyone could name
             cand.append(dict(id=f"s_{a['id']}", source="own", attr=a["id"], label=_label_of(a), name=a["name"]))
     for rel, src, pd in kids:
-        # a supplier's invoice for a project is a cost of it, not its billing
-        lab = src["name"] if src.get("incoming") else CHILD_LABEL.get(src.get("concept") or "", src["name"])
+        # a supplier's invoice for a project is a cost of it, not its billing; a bank line that names it, its payment
+        lab = src["name"] if src.get("incoming") else PAID if src["id"] in banks else \
+            CHILD_LABEL.get(src.get("concept") or "", src["name"])
         cand.append(dict(id=f"c_{rel['id']}", source="child", type=src["id"], rel=rel["id"], rel_attr=rel["attr"],
                          rel_kind=rel["kind"], attr=pd["id"], label=lab, name=src["name"], child_plural=src["plural"]))
     for a in spec["attrs"]:
@@ -265,14 +279,18 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
                 # book's own "bezahlt am" next to the bank's transfer – even where their dates never overlap
                 twin = m
                 break
-            if len(both) < 3:
+            # the book's own date that agrees with the bank's transfers is the date of payment, whatever its heading
+            paying = m["source"] == "own" and st.get("type") in banks
+            if len(both) < (2 if paying else 3):
                 continue
             near = sum(1 for k in both if abs((a[k] - b[k]).days) <= 3) / len(both)
             same = sum(1 for k in both if a[k] == b[k]) / len(both)
-            if (fold(m["label"]) == fold(st["label"]) and near >= 0.8) or (same >= 0.9 and len(both) >= 10):
+            if ((fold(m["label"]) == fold(st["label"]) or paying) and near >= 0.8) or (same >= 0.9 and len(both) >= 10):
                 twin = m
                 break
         if twin:
+            if st.get("type") in banks:
+                twin["label"] = PAID  # what the money says, not what the column is called
             twin.setdefault("also", []).append(st)
             w0, w1 = twin["window"], st["window"]
             twin["window"] = [min(w0[0], w1[0]), max(w0[1], w1[1])]
@@ -1036,8 +1054,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                         not any((st["id"], a, str(r["data"].get(a))) in never for a in never_attrs(never)):
                     waited = (today - last).days
                     limit = max(st["p80_days"] * 1.25, (st["median_days"] or 0) + 2, 2)
-                    if reached and st.get("source") == "child" and \
-                            (specs.get(st.get("type")) or {}).get("concept") == "rechnung" and 0 <= waited < 1100:
+                    if reached and st.get("source") == "child" and fold(st["label"]) == BILLED and 0 <= waited < 1100:
                         # finished and not invoiced: money waiting to be asked for – all of it, the oldest first
                         buckets[(st["id"], "ready")].append(dict(
                             rid=r["id"], days=waited, money=money, usual=st["median_days"], late=waited > limit,

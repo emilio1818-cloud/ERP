@@ -113,6 +113,7 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - **Bis das Geld da ist.** Die Abläufe einzelner Listen werden verkettet, wo der Schritt der einen ein Datensatz der anderen ist (der Auftrag ist „berechnet“, sobald seine Rechnung existiert, die dann „bezahlt“ wird). So entsteht ohne Konfiguration die Kette vom Auftrag bis zum Geld mit ihrer üblichen Dauer und dem Abschnitt, in dem am längsten gewartet wird.
 - **Physarum-Dynamik auf dem Datenmodell.** Das Tero-Modell (Kirchhoff-Fluss plus Leitfähigkeitsanpassung) läuft auf dem Graphen der Datentypen, Nutzungsfluss kommt hinzu. Das Ergebnis ist ein selbstorganisiertes „Rückgrat“, das Navigation, Spalten und Reihenfolgen bestimmt.
 - **Der Kontoauszug schließt Rechnungen von selbst.** Verweise werden auch in Freitext gefunden, etwa „RE-2026-0412“ im Verwendungszweck.
+- **Bezahlt ist, was das Geld sagt, nicht wie die Spalte heißt.** Der Kontoauszug wird an seinen Spalten erkannt (IBAN oder Verwendungszweck, Betrag, Buchungstag), nicht am Dateinamen. Ein Schritt, den Kontobuchungen belegen, ist „bezahlt“. Eine eigene Datumsspalte, die mit diesen Buchungen übereinstimmt, ist das Zahldatum, ob sie „Bezahlt am“ heißt oder „Ausgeglichen am“. Eine Liste, die der Kontoauszug bezahlt, ist eine Rechnung, und was auf sie verweist, ist „berechnet“. Der Prüfstand rechnet dieselben Firmen unter anderen Datei- und Spaltennamen; die offenen Posten bleiben gleich.
 - **Formeln werden entdeckt, nicht programmiert.**
 - **Fragen nach Informationswert.** Statt eines Einrichtungsassistenten kommen die drei Fragen, deren Antwort am meisten klärt.
 
@@ -122,6 +123,7 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - Physarum ist die **operative** Schicht und keine Finanzbuchhaltung. Die Steuerberatung bekommt einen DATEV-Buchungsstapel der Ausgangsrechnungen, die Bücher und die Belege; Aufwandskonten und Voranmeldung bleiben bei ihr.
 - Mehrbenutzerbetrieb und Rechte sind nur rudimentär vorhanden (Name im Änderungsprotokoll).
 - Heuristiken irren. Deshalb ist alles erklärbar, korrigierbar und umkehrbar, und die Originaldaten bleiben unangetastet.
+- Ein Kontoauszug, der nur Zahlungseingänge auf Rechnungen enthält und dessen Verwendungszweck nur die Rechnungsnummer nennt, sieht unter einem neutralen Dateinamen aus wie eine zweite Fassung des Rechnungsbuchs und wird mit ihm zu einer Liste. Echte Auszüge mit Miete, Löhnen und Lastschriften trennt Physarum richtig.
 
 ## 8. Was die unabhängigen Reviews verändert haben
 

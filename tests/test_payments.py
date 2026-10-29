@@ -130,5 +130,46 @@ class Payments(unittest.TestCase):
         self.assertFalse(paid_rids & {x["rid"] for x in overdue})      # nobody gets dunned for paid money
 
 
+class OtherHeadings(unittest.TestCase):
+    """Paid is what the money says, whatever the columns and files are called: the book's own date that
+    agrees with the bank's transfers is the date of payment."""
+
+    def grow(self, head: str, names: tuple[str, str]) -> dict:
+        tmp = Path(tempfile.mkdtemp(prefix="physarum-names-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        start = TODAY - timedelta(days=160)
+        inv, bank = [head], ["Buchungstag;Verwendungszweck;Zahlungspartner;Betrag"]
+        for i in range(12):
+            d = start + timedelta(days=12 * i)
+            gross = 119.0 + 11 * i
+            no, cust = f"B-{d.year}-{i + 1:03d}", ["Café Linde", "Hotel Möwe", "Bistro Anker"][i % 3]
+            paid = d + timedelta(days=9)
+            book = de(paid) if i < 8 else ""        # 0–3 before the statement, 4–7 in both, 8–9 bank only
+            if 4 <= i < 10:
+                bank.append(f"{de(paid + timedelta(days=i % 2))};Rechnung {no} vielen Dank;{cust};{eur(gross)}")
+            if i >= 4:  # a statement also holds what the firm pays
+                bank.append(f"{de(d + timedelta(days=1))};Miete Laden Monat {d.month};Immobilien Kuhn GbR;-{eur(950.0)}")
+            inv.append(f"{no};{de(d)};{cust};{eur(gross)};{de(d + timedelta(days=14))};{book}")
+        (tmp / names[0]).write_text("\n".join(inv) + "\n", encoding="utf-8")
+        (tmp / names[1]).write_text("\n".join(bank) + "\n", encoding="utf-8")
+        store = Store(tmp / "firma")
+        ingest(store, [(n, (tmp / n).read_bytes()) for n in names], "T")
+        regrow(store)
+        rt = Runtime(store)
+        rt.ensure()
+        spec = next(t for t in rt.model["types"] if any(str(r["data"].get(t.get("key"))).startswith("B-")
+                                                        for r in rt.records.get(t["id"], [])))
+        proc = next(p for p in rt.model["processes"] if p["type"] == spec["id"])
+        self.assertIn("bezahlt", [s["label"] for s in proc["steps"]])
+        return {r["data"][spec["key"]][-3:]: rt.ledger[r["id"]]["state"] for r in rt.records[spec["id"]]}
+
+    def test_same_money_under_other_names(self):
+        usual = self.grow("Rechnungsnr;Rechnungsdatum;Kunde;Brutto;Fällig am;Bezahlt am", ("Rechnungen.csv", "Konto.csv"))
+        other = self.grow("Beleg;Belegdatum;Empfänger;Bruttobetrag;Zahlbar bis;Ausgeglichen am",
+                          ("export (1).csv", "export (2).csv"))
+        self.assertEqual(usual, other)
+        self.assertEqual({k for k, v in other.items() if v == "bezahlt"}, {f"{i + 1:03d}" for i in range(10)})
+
+
 if __name__ == "__main__":
     unittest.main()

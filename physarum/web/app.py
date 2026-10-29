@@ -675,11 +675,15 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                             when, via = d, x
             dl = due_by_step.get(st["id"])
             due = as_date(data.get(dl["attr"])) if dl else None
+            due_how = None
+            e = rt.ledger.get(rec["id"])
+            if dl and not due and e and e.get("due_attr") == dl["attr"]:
+                due, due_how = e["due"], e["due_how"]  # the book has no due date: reckoned, and said so
             sattr = (proc.get("status") or {}).get("attr")
             by_status = not when and fold(st["label"]) != "bezahlt" and sattr and lexicon.status_reaches(st["label"], data.get(sattr))
             late = (not when) and not by_status and due and due < today
             item = dict(label=st["label"], date=when, done=bool(when) or bool(by_status), via=via, due=due, late=late, step=st,
-                        usual=st.get("median_days"), by_status=by_status)
+                        usual=st.get("median_days"), by_status=by_status, due_how=due_how)
             if (st.get("share") or 1) < 0.5 and not item["done"] and not due:
                 continue  # most cases go without it (a ticket, a supplier's invoice): no step to wait for
             if not when and not by_status and nxt is None:

@@ -10,13 +10,13 @@ an invoice is open – list, record, today's work, key figures – reads this le
 from __future__ import annotations
 
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import date, timedelta
 from itertools import combinations
 
 from .billing import is_draft
 from .text import fold, name_similarity, norm_key, norm_name, tokens
-from .values import as_date
+from .values import as_date, parse_duration
 
 _NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
 
@@ -69,6 +69,63 @@ def _payable_attrs(spec: dict, p: dict) -> tuple[str | None, str | None]:
         elif toks & _DEDUCT_WORDS and deduct is None:
             deduct = a["id"]
     return payable, deduct
+
+
+def due_attr(p: dict) -> str | None:
+    """The deadline by which an invoice is to be paid ("fällig am", "zahlbar bis")."""
+    dl = next((d for d in p.get("deadlines", []) if fold(d.get("name") or "").startswith(("faellig", "zahlbar", "due"))),
+              None) or (p.get("deadlines") or [None])[0]
+    return dl["attr"] if dl else None
+
+
+LEGAL_TERM = 30  # § 286 Abs. 3 BGB: in default 30 days after the invoice at the latest
+
+
+def _due_rule(spec: dict, p: dict, recs: list[dict]) -> dict | None:
+    """How a due date is reckoned where the book leaves it out: the firm's own rule (invoice date
+    plus the customer's payment term), else its usual term, else the 30 days of § 286 BGB."""
+    da = due_attr(p)
+    if not da:
+        return None
+    f = next((f for f in spec.get("formulas") or [] if f["attr"] == da
+              and f["op"] in ("date_add", "date_default", "date_add_ref")), None)
+    c = Counter()
+    for r in recs:
+        a, b = as_date(r["data"].get(p["start"]["attr"])), as_date(r["data"].get(da))
+        if a and b and 0 <= (b - a).days <= 120:
+            c[(b - a).days] += 1
+    usual = None
+    if c:
+        k, n = c.most_common(1)[0]
+        if n >= 5 and n >= 0.5 * sum(c.values()):
+            usual = k
+    names = {a["id"]: a["name"] for a in spec["attrs"]}
+    return dict(attr=da, formula=f, usual=usual, start=p["start"]["attr"], base_name=names.get((f or {}).get("args", [None])[0]))
+
+
+def _days_text(n: int) -> str:
+    return "1 Tag" if n == 1 else f"{n} Tage"
+
+
+def estimate_due(rule: dict, r: dict, by_id: dict) -> tuple[date, str] | None:
+    """(due date, how it was reckoned) for an invoice whose book has no due date."""
+    data = r["data"]
+    f = rule["formula"]
+    if f:
+        base = as_date(data.get(f["args"][0]))
+        if base and f["op"] == "date_add_ref":
+            target = by_id.get(data.get(f["ref"]))
+            n = parse_duration(target["data"].get(f["ref_attr"])) if target else None
+            if n is not None and 0 <= n <= 365:
+                return base + timedelta(days=int(n)), f"{_days_text(int(n))} Zahlungsziel des Kunden"
+        elif base and f["op"] in ("date_add", "date_default"):
+            return base + timedelta(days=int(f["days"])), f"{_days_text(int(f['days']))} nach {rule['base_name'] or 'Rechnungsdatum'}"
+    start = as_date(data.get(rule["start"]))
+    if not start:
+        return None
+    if rule["usual"] is not None:
+        return start + timedelta(days=rule["usual"]), f"üblich {_days_text(rule['usual'])} nach Rechnungsdatum"
+    return start + timedelta(days=LEGAL_TERM), "spätestens 30 Tage nach Rechnungsdatum (§ 286 BGB)"
 
 
 def mail_sources(store) -> set[int]:
@@ -167,6 +224,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                                 links[b["id"]].append(inv)
         entries = {}
         payable, deduct = _payable_attrs(spec, p)
+        rule = _due_rule(spec, p, recs)
         for r in recs:
             if is_draft(r):
                 continue  # not issued: nobody owes anything yet
@@ -180,10 +238,15 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             if owed is not None and 0 <= owed < g - EPS:
                 g = owed
             cancelled = (st.get("attr") and str(r["data"].get(st["attr"])) in negative) or bool((r.get("meta") or {}).get("storno"))
+            # the book leaves the due date out now and then: reckoned the way the firm does it, and said so
+            due, due_how = (as_date(r["data"].get(rule["attr"])) if rule else None), None
+            if rule and not due:
+                due, due_how = estimate_due(rule, r, by_id) or (None, None)
             entries[r["id"]] = dict(rid=r["id"], gross=round(g, 2), paid=0.0, payments=[], notes=[], cancelled=cancelled,
                                     start=as_date(r["data"].get(p["start"]["attr"])), type=p["type"],
                                     outgoing=ip["outgoing"], skonto_ok=_skonto_agreed(model, by_id, p, r),
-                                    credit=0.0, credits=[], credit_to=None)
+                                    credit=0.0, credits=[], credit_to=None, due=due, due_how=due_how,
+                                    due_attr=rule["attr"] if rule else None)
         _settle_credits(spec, recs, entries, by_no)
         swapped = _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, ip["outgoing"])
         # allocate every bank row over the invoices it names, in the order the money moved:
@@ -554,12 +617,6 @@ def apply_to_records(model: dict, records: dict, entries: dict, today: date | No
     past its due date says so ("überfällig") – the question "who owes me what" starts there."""
     today = today or date.today()
     types = {e["type"] for e in entries.values()}
-    due_of = {}
-    for p in model.get("processes", []):
-        dl = next((d for d in p.get("deadlines", []) if fold(d.get("name") or "").startswith(("faellig", "zahlbar", "due")))
-                  or (p.get("deadlines") or [None])[0], None)
-        if dl:
-            due_of[p["type"]] = dl["attr"]
     for t in model["types"]:
         if t["id"] not in types or any(a["id"] == PAY_STATE for a in t["attrs"]):
             continue
@@ -576,12 +633,11 @@ def apply_to_records(model: dict, records: dict, entries: dict, today: date | No
                 a["hidden"] = True
                 a["superseded"] = PAY_OPEN
     for tid in types:
-        da = due_of.get(tid)
         for r in records.get(tid, []):
             e = entries.get(r["id"])
             if e:
                 state = e["state"]
-                due = as_date(r["data"].get(da)) if da else None
+                due = e.get("due")
                 if state == "offen" and e["open"] > EPS and due and due < today:
                     state = "überfällig"
                 r["data"][PAY_STATE] = state

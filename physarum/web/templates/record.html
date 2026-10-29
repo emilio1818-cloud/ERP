@@ -116,7 +116,7 @@
       <b>{{ s.label }}</b>
       <small>{% if s.date %}{{ display(s.date.isoformat(), 'date') }}{% if s.via %} · <a href="/r/{{ s.via }}">{{ title(s.via) }}</a>{% endif %}
              {% elif s.by_status %}laut Status „{{ rec.data.get(status_attr.id) }}“
-             {% elif s.due %}{{ 'überfällig seit ' ~ display(s.due.isoformat(), 'date') if s.late else 'bis ' ~ display(s.due.isoformat(), 'date') }}
+             {% elif s.due %}{{ 'überfällig seit ' ~ display(s.due.isoformat(), 'date') if s.late else 'bis ' ~ display(s.due.isoformat(), 'date') }}{% if s.due_how %}<br><span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">berechnet: {{ s.due_how }}</span>{% endif %}
              {% elif s.usual is not none %}üblich {{ after_days(s.usual) }}{% else %}offen{% endif %}</small>
       {% if s.action and not timeline.negative %}
         {% if s.action.kind == 'set_date' %}

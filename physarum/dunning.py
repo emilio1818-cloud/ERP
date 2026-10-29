@@ -39,7 +39,6 @@ def overdue_of(rt, party_rid: int, tid: str, today: date | None = None) -> list[
     proc = next((p for p in rt.model.get("processes", []) if p["type"] == tid), None)
     if not spec or not proc or not proc.get("party"):
         return []
-    due_attr = next((dl["attr"] for dl in proc.get("deadlines", [])), None)
     out = []
     for r in rt.records.get(tid, []):
         if r["data"].get(proc["party"]) != party_rid:
@@ -47,15 +46,14 @@ def overdue_of(rt, party_rid: int, tid: str, today: date | None = None) -> list[
         e = rt.ledger.get(r["id"])
         if not e or e["state"] not in ("offen", "teilbezahlt") or e["open"] <= 0.005:
             continue
-        from .values import as_date
-        due = as_date(r["data"].get(due_attr)) if due_attr else None
+        due = e.get("due")  # from the book, or reckoned the way the firm does it (see payments.estimate_due)
         if not due or due >= today:
             continue
         lvl = level_of(r)
         out.append(dict(rid=r["id"], number=r["data"].get(spec.get("key")) or rt.title(r["id"]),
-                        date=r["data"].get(proc["start"]["attr"]), due=due.isoformat(), gross=e["gross"],
-                        paid=e["paid"], open=e["open"], days=(today - due).days, level=min(lvl + 1, 3),
-                        complaint=complaint(rt, r["id"])))
+                        date=r["data"].get(proc["start"]["attr"]), due=due.isoformat(), due_how=e.get("due_how"),
+                        gross=e["gross"], paid=e["paid"], open=e["open"], days=(today - due).days,
+                        level=min(lvl + 1, 3), complaint=complaint(rt, r["id"])))
     out.sort(key=lambda x: (x["due"], x["number"]))
     return out
 

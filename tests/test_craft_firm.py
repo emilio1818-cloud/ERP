@@ -53,6 +53,39 @@ class CraftFirm(unittest.TestCase):
         self.assertEqual(e["state"], "bezahlt")
         self.assertAlmostEqual(e["open"], 0.0, places=2)
 
+    def test_an_invoice_without_due_date_is_due_by_the_customers_term(self):
+        cust_head = "Kunde;Straße;Ort;Zahlungsziel"
+        custs = [[f"Kunde {i}", f"Weg {i}", "Bielefeld", "14 Tage" if i % 2 else "30 Tage"] for i in range(5)]
+        today = date.today()
+        rows = _book(start=today - timedelta(days=150))
+        for i, r in enumerate(rows):  # the book: invoice date plus the customer's payment term
+            d = date(int(r[1][6:]), int(r[1][3:5]), int(r[1][:2]))
+            r[9] = (d + timedelta(days=14 if i % 5 % 2 else 30)).strftime("%d.%m.%Y")
+        rows[3][9] = ""   # left out: Kunde 3 pays within 14 days – long past
+        rows[-1][9] = ""  # left out, but the invoice is young: not yet due
+        rows[-1][1] = (today - timedelta(days=5)).strftime("%d.%m.%Y")
+        bank = [[r[1], r[2], r[0], r[8]] for k, r in enumerate(rows) if k not in (3, len(rows) - 1)]
+        self.f.feed([("Kunden.csv", csv(cust_head, custs)), ("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD, rows)),
+                     ("Umsaetze_Girokonto.csv", csv(BANK_HEAD, bank))])
+        rt = self.f.rt()
+        inv = _type(rt, "Rechnung")
+        e = _states(rt, inv)
+        old, young = e[rows[3][0]], e[rows[-1][0]]
+        d3 = date(int(rows[3][1][6:]), int(rows[3][1][3:5]), int(rows[3][1][:2]))
+        self.assertEqual(old["due"], d3 + timedelta(days=14))
+        self.assertIn("Zahlungsziel des Kunden", old["due_how"])
+        rec = rt.by_id[old["rid"]]
+        self.assertEqual(rec["data"]["pay_state"], "überfällig")
+        self.assertEqual(rt.by_id[young["rid"]]["data"]["pay_state"], "offen")
+        # on Heute: the book has no "bezahlt am", so the due date itself is the work – long passed
+        it = next(x for g in rt.work() if g["kind"] == "due" for x in g["items"] if x["rid"] == old["rid"])
+        self.assertEqual(it["days"], (old["due"] - today).days)
+        self.assertLess(it["days"], 0)
+        self.assertIn("Zahlungsziel", it["due_how"])
+        from physarum import dunning
+        letter = dunning.overdue_of(rt, rec["data"][next(a["id"] for a in inv["attrs"] if a["kind"] == "ref")], inv["id"])
+        self.assertEqual([x["number"] for x in letter], [rows[3][0]])
+
 
 if __name__ == "__main__":
     unittest.main()

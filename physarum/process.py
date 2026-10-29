@@ -763,9 +763,12 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     paid_part = e["paid"] if e["paid"] > 0.005 else None
                 dl = due_by_step.get(st["id"])
                 due = as_date(r["data"].get(dl["attr"])) if dl else None
+                due_how = None
+                if dl and not due and ledger is not None and (ledger.get(r["id"]) or {}).get("due_attr") == dl["attr"]:
+                    due, due_how = ledger[r["id"]]["due"], ledger[r["id"]]["due_how"]  # reckoned, not in the book
                 if due and due < today:
                     buckets[(st["id"], "overdue")].append(dict(rid=r["id"], days=(today - due).days, money=money,
-                                                               due=due.isoformat(), paid=paid_part))
+                                                               due=due.isoformat(), paid=paid_part, due_how=due_how))
                 elif st.get("p80_days") is not None and st.get("n", 0) >= 5 and (st.get("median_days") or 0) > 0 and \
                         not (st["id"] in planned and r["data"].get(planned[st["id"]]) is None) and \
                         not any((st["id"], a, str(r["data"].get(a))) in never for a in never_attrs(never)):
@@ -784,6 +787,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 rg = due_range(r["data"].get(dl["attr"]))
                 due = rg[1] if rg else None
                 e = ledger.get(r["id"]) if ledger else None
+                due_how = None
+                if not due and e and e.get("due_attr") == dl["attr"]:
+                    due, due_how = e["due"], e["due_how"]  # reckoned, not in the book
                 if e and e["state"] in ("bezahlt", "überzahlt", "storniert", "verrechnet"):
                     continue  # the money has gone out already
                 if due and (due - today).days < -30 and not e:
@@ -792,7 +798,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     kind = "payable" if e and e["outgoing"] else "due"
                     buckets[(dl["attr"], kind)].append(dict(rid=r["id"], days=(due - today).days,
                                                             money=e["open"] if e else _money(r, p),
-                                                            due=due.isoformat(), name=dl["name"]))
+                                                            due=due.isoformat(), name=dl["name"], due_how=due_how))
         for (sid, kind), items in buckets.items():
             st = next((s for s in p["steps"] if s["id"] == sid), None)
             items.sort(key=lambda x: (-x["days"] if kind in ("overdue", "late") else x["days"]))

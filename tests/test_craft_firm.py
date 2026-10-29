@@ -52,6 +52,12 @@ class CraftFirm(unittest.TestCase):
         e = _states(rt, inv)["SR-2026-001"]
         self.assertEqual(e["state"], "bezahlt")
         self.assertAlmostEqual(e["open"], 0.0, places=2)
+        # revenue: the down payments were revenue of their own invoices – the final one adds the rest
+        from physarum.process import kpis
+        k = next(k for k in kpis(rt.model, rt.active_records(), date(2026, 5, 31)) if k["type"] == inv["id"])
+        may = next(x["value"] for x in k["series"] if x["month"] == "2026-05")
+        others = sum(float(r[4].replace(",", ".")) for r in rows[:-1] if r[1][3:5] == "05")
+        self.assertAlmostEqual(may, others + 10000.0 * 3900 / 11900, places=1)
 
     def test_an_older_export_dropped_in_later_does_not_overwrite_the_newer(self):
         import time

@@ -1161,6 +1161,20 @@ def _reach_work(model, records, by_id, title, today) -> list[dict]:
     return out
 
 
+def _not_yet_invoiced(data: dict, gross: str | None, payable: str | None, deduct: str | None) -> float:
+    """The share of a final invoice that is new revenue: the down payments it deducts were revenue of
+    their own invoices already (otherwise a job is counted twice)."""
+    g = data.get(gross) if gross else None
+    if not isinstance(g, (int, float)) or isinstance(g, bool) or abs(g) < 0.005:
+        return 1.0
+    owed = data.get(payable) if payable else None
+    if not isinstance(owed, (int, float)) or isinstance(owed, bool):
+        less = data.get(deduct) if deduct else None
+        owed = g - abs(less) if isinstance(less, (int, float)) and not isinstance(less, bool) else g
+    share = owed / g
+    return share if 0 <= share < 1 else 1.0
+
+
 def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
     """Monthly sums of the money-carrying documents."""
     today = today or date.today()
@@ -1202,6 +1216,8 @@ def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
                                 date_attr=p["start"]["attr"], month_end=None))
             continue
         valid = []
+        from .payments import _payable_attrs
+        payable, deduct = _payable_attrs(spec, p) if p.get("gross") else (None, None)
         for r in recs:
             if sattr and str(r["data"].get(sattr)) in negative:
                 continue
@@ -1210,7 +1226,7 @@ def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
             d = as_date(r["data"].get(p["start"]["attr"]))
             v = r["data"].get(aid) if aid else None
             if d and isinstance(v, (int, float)):
-                valid.append((d, float(v)))
+                valid.append((d, float(v) * _not_yet_invoiced(r["data"], p.get("gross"), payable, deduct)))
         if not valid:
             continue
         # a list that ends before this month (delivered on 15.09.) is not "−100 %" in October:

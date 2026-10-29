@@ -171,5 +171,70 @@ class OtherHeadings(unittest.TestCase):
         self.assertEqual({k for k, v in other.items() if v == "bezahlt"}, {f"{i + 1:03d}" for i in range(10)})
 
 
+class MoneyBack(unittest.TestCase):
+    """Money that goes back: a refund leaves the invoice settled, a returned debit opens it again – also
+    when the debit it returns was one of a collective one; a deduction the book accepted is skonto."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="physarum-back-"))
+        start = TODAY - timedelta(days=150)
+        inv = ["Rechnungsnr;Rechnungsdatum;Kunde;Brutto;Fällig am;Bezahlt am;Storniert am"]
+        bank = ["Buchungstag;Verwendungszweck;Zahlungspartner;Betrag"]
+        cls.no = {}
+        for i in range(12):
+            d = start + timedelta(days=11 * i)
+            g = 200.0 + 10 * i
+            no, cust = f"RE-{d.year}-{i + 1:04d}", ["Café Linde", "Hotel Möwe", "Bistro Anker"][i % 3]
+            paid, booked, void = d + timedelta(days=8), "", ""
+            if i < 9:
+                bank.append(f"{de(paid)};{no} danke;{cust};{eur(g)}")
+                booked = de(paid)
+            if i == 8:   # half a return sent back
+                bank.append(f"{de(paid + timedelta(days=12))};Erstattung {no} Ruecksendung;{cust};-{eur(50.0)}")
+            if i == 9:   # 2 % less, and the book has it as paid
+                bank.append(f"{de(paid)};{no} abzgl. 2% Skonto;{cust};{eur(round(g * 0.98, 2))}")
+                booked = de(paid)
+            if i == 10:  # debited with others in one go, returned with the bank's fee
+                bank.append(f"{de(paid + timedelta(days=5))};RUECKLASTSCHRIFT {no} zzgl. Entgelt 3,00 EUR;{cust};-{eur(g + 3.0)}")
+                booked = de(paid)
+            if i == 11:
+                void = de(d + timedelta(days=2))
+            bank.append(f"{de(d + timedelta(days=1))};Miete Laden;Immobilien Kuhn GbR;-{eur(950.0)}")
+            inv.append(f"{no};{de(d)};{cust};{eur(g)};{de(d + timedelta(days=14))};{booked};{void}")
+            cls.no[i] = no
+        (cls.tmp / "Rechnungen.csv").write_text("\n".join(inv) + "\n", encoding="utf-8")
+        (cls.tmp / "Konto.csv").write_text("\n".join(bank) + "\n", encoding="utf-8")
+        cls.store = Store(cls.tmp / "firma")
+        ingest(cls.store, [(n, (cls.tmp / n).read_bytes()) for n in ("Rechnungen.csv", "Konto.csv")], "T")
+        regrow(cls.store)
+        cls.rt = Runtime(cls.store)
+        cls.rt.ensure()
+        spec = next(t for t in cls.rt.model["types"] if t["name"] == "Rechnung")
+        cls.by_no = {r["data"][spec["key"]]: cls.rt.ledger.get(r["id"]) for r in cls.rt.records[spec["id"]]}
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_a_refund_leaves_it_settled(self):
+        e = self.by_no[self.no[8]]
+        self.assertEqual(e["state"], "bezahlt")
+        self.assertTrue(any("50,00 € erstattet" in n for n in e["notes"]))
+
+    def test_a_returned_debit_opens_it_again(self):
+        e = self.by_no[self.no[10]]
+        self.assertEqual(e["state"], "offen")
+        self.assertAlmostEqual(e["open"], 300.0, places=2)                 # the invoice, not the bank's fee
+
+    def test_a_deduction_the_book_accepted_is_skonto(self):
+        e = self.by_no[self.no[9]]
+        self.assertEqual(e["state"], "bezahlt")
+        self.assertTrue(e["skonto"])
+
+    def test_a_cancellation_date_ends_the_claim(self):
+        self.assertEqual(self.by_no[self.no[11]]["state"], "storniert")
+
+
 if __name__ == "__main__":
     unittest.main()

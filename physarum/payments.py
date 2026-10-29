@@ -15,6 +15,7 @@ from datetime import date, timedelta
 from itertools import combinations
 
 from .billing import is_draft
+from .lexicon import NEGATIVE_STATES
 from .text import fold, name_similarity, norm_key, norm_name, tokens
 from .values import as_date, as_number, fmt_eur, parse_duration
 
@@ -102,6 +103,7 @@ def due_attr(p: dict) -> str | None:
 
 
 LEGAL_TERM = 30  # § 286 Abs. 3 BGB: in default 30 days after the invoice at the latest
+CHARGEBACK_FEE = 15.0  # what a bank adds to a returned debit, at most
 
 
 def _due_rule(spec: dict, p: dict, recs: list[dict]) -> dict | None:
@@ -294,6 +296,9 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         entries = {}
         payable, deduct = _payable_attrs(spec, p)
         rule = _due_rule(spec, p, recs)
+        # "Storniert am", "Cancelled at": filled, the claim is gone
+        void_dates = [a["id"] for a in spec["attrs"] if a["kind"] in ("date", "datetime") and not a.get("virtual")
+                      and set(tokens(a["name"])) & NEGATIVE_STATES]
         for r in recs:
             if is_draft(r):
                 continue  # not issued: nobody owes anything yet
@@ -306,14 +311,18 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 owed = round(g - abs(as_number(r["data"].get(deduct))), 2)
             if owed is not None and 0 <= owed < g - EPS:
                 g = owed
-            cancelled = (st.get("attr") and str(r["data"].get(st["attr"])) in negative) or bool((r.get("meta") or {}).get("storno"))
+            cancelled = (st.get("attr") and str(r["data"].get(st["attr"])) in negative) or \
+                bool((r.get("meta") or {}).get("storno")) or any(as_date(r["data"].get(a)) for a in void_dates)
             # the book leaves the due date out now and then: reckoned the way the firm does it, and said so
             due, due_how = (as_date(r["data"].get(rule["attr"])) if rule else None), None
             if rule and not due:
                 due, due_how = estimate_due(rule, r, by_id) or (None, None)
             entries[r["id"]] = dict(rid=r["id"], gross=round(g, 2), paid=0.0, payments=[], notes=[], cancelled=cancelled,
                                     start=as_date(r["data"].get(p["start"]["attr"])), type=p["type"],
-                                    outgoing=ip["outgoing"], skonto_ok=_skonto_agreed(model, by_id, p, r),
+                                    outgoing=ip["outgoing"],
+                                    # granted, or accepted: the firm's own book has it as paid
+                                    skonto_ok=_skonto_agreed(model, by_id, p, r) or
+                                    any(as_date(r["data"].get(a)) for a in own_paid),
                                     credit=0.0, credits=[], credit_to=None, due=due, due_how=due_how,
                                     due_attr=rule["attr"] if rule else None)
         # the PDF the customer got says what is owed when the book says something else (a typo in the list)
@@ -352,15 +361,27 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             elif by_amount and all((b, i) in by_amount for i in invs):
                 how = by_amount[(b, invs[0])]
             if value < 0:
-                # a chargeback undoes what was paid on the invoice(s) it names
+                # money back. A chargeback undoes a payment – all of it, perhaps with the bank's fee on top: the
+                # claim is open again. Less than a payment is a refund: no longer owed, and it came in before
                 left = -value
                 for i in invs:
                     e = entries[i]
                     take = min(left, max(e["paid"], 0.0)) if i != invs[-1] else left
-                    if take > 0:
-                        e["paid"] -= take
-                        e["payments"].append(dict(rid=b, date=when, amount=-round(take, 2), how=how))
-                        left -= take
+                    if take <= 0:
+                        continue
+                    owed = e["gross"] - e["credit"]
+                    seen = any(x["amount"] > 0 and -EPS <= take - x["amount"] <= CHARGEBACK_FEE for x in e["payments"])
+                    if seen or EPS < take - owed <= CHARGEBACK_FEE:
+                        undone = min(take, owed)
+                        if seen:
+                            e["paid"] -= undone
+                        # else the debit it returns is not in the statements (one of a collective debit): in and out
+                        e["fee"] = e.get("fee", 0.0) + round(take - undone, 2)
+                    else:
+                        e["refunded"] = e.get("refunded", 0.0) + take
+                        how = "Erstattung"
+                    e["payments"].append(dict(rid=b, date=when, amount=-round(take, 2), how=how))
+                    left -= take
                 continue
             if len(invs) > 1:
                 invs = _fitting(invs, entries, value)
@@ -740,6 +761,9 @@ def _finish(e: dict):
         e["state"] = "verrechnet"  # a credit note or cancellation document, settled with its invoice
         return
     g, paid = round(e["gross"] - e.get("credit", 0.0), 2), round(e["paid"], 2)  # what is owed after credit notes
+    if e.get("refunded"):
+        paid = max(paid, round(min(e["refunded"], g), 2))  # nobody refunds what never came in
+        e["notes"].append(f"{fmt_eur(e['refunded'])} erstattet")
     e["paid"] = paid
     e["open"] = round(g - max(paid, 0.0), 2)
     pays = sorted([x for x in e["payments"] if x["date"]], key=lambda x: x["date"])
@@ -758,6 +782,8 @@ def _finish(e: dict):
             e["notes"].append(f"Zahlung über {fmt_eur(paid)} auf eine stornierte Rechnung – zurückzahlen oder umbuchen")
         e["open"] = 0.0
         return
+    if g + EPS < paid <= g + e.get("fee", 0.0) + EPS:
+        paid = e["paid"] = g  # what came in on top is the bank's fee for the returned debit
     if paid > g + EPS:
         e["state"] = "überzahlt"
         e["notes"].append(f"{fmt_eur(paid - g)} zu viel gezahlt" +

@@ -724,6 +724,40 @@ class CraftFirm(unittest.TestCase):
         self.assertFalse(isinstance(to["A26-108"], int) or isinstance(to["A26-120"], int))  # "Barverkauf" is nobody
         self.assertEqual(len(rt.records[kunde["id"]]), len(people) + 1)
 
+    def test_one_sheet_per_year_is_one_order_book(self):
+        import io
+        import openpyxl
+        wb = openpyxl.Workbook()
+        old = wb.active
+        old.title = "2025"
+        old.append(["Auftragsbuch 2025"])
+        old.append([])
+        old.append(["Auftrag", "Datum", "Kunde", "Objekt", "Leistung", "Wert €", "Monteur", "Status", "erledigt"])
+        for i in range(20):
+            d = date(2025, 7, 1) + timedelta(days=7 * i)
+            old.append([f"A25-{i + 1:03d}", d, f"Kunde {i % 5}", None, "Wartung", 300 + i, ["Dreier", "Pieper"][i % 2],
+                        "abgerechnet", d + timedelta(days=5)])
+        new = wb.create_sheet("Aufträge 2026")
+        new.append(["Wiesner Haustechnik GmbH – Auftragsbuch"])
+        new.append(["Auftr.-Nr.", "Datum", "Kunde", "Baustelle / Objekt", "Leistung", "Angebot", "Auftragswert netto",
+                    "Monteur", "Status", "fertig am", "Rechnung", "Bemerkung"])
+        for i in range(25):
+            d = date(2026, 1, 5) + timedelta(days=7 * i)
+            new.append([f"A26-{i + 1:03d}", d, f"Kunde {i % 5}", f"Hauptstr. {i}", "Reparatur", None, 500 + i,
+                        ["Dreier", "Pieper"][i % 2], "in Arbeit" if i > 20 else "fertig",
+                        None if i > 20 else d + timedelta(days=4), None, None])
+        buf = io.BytesIO()
+        wb.save(buf)
+        self.f.feed([("Auftragsbuch_2025_2026.xlsx", buf.getvalue())])
+        rt = self.f.rt()
+        orders = [t for t in rt.model["types"] if t.get("concept") == "auftrag"]
+        self.assertEqual(len(orders), 1)                                           # last year's sheet is no other kind
+        t = orders[0]
+        self.assertEqual(len(rt.records[t["id"]]), 45)
+        self.assertEqual(len([a for a in t["attrs"] if a["kind"] == "money"]), 1)  # "Wert €" is the "Auftragswert"
+        done = [a for a in t["attrs"] if a["kind"] in ("date", "datetime") and a["name"] != "Datum"]
+        self.assertEqual(len(done), 1)                                             # "erledigt" is "fertig am"
+
 
 if __name__ == "__main__":
     unittest.main()

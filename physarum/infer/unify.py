@@ -64,10 +64,29 @@ _DECORATION = {"billable", "abrechenbar", "abrechenbare", "eur", "euro", "chf", 
                "in", "hours", "stunden"}
 
 
+# milestones said in other words: "erledigt" in last year's sheet is "fertig am" in this year's
+_SAME_MILESTONE = {"fertig": "erledigt", "fertiggestellt": "erledigt", "abgeschlossen": "erledigt", "done": "erledigt",
+                   "completed": "erledigt", "beendet": "erledigt"}
+_DATE_FILLER = {"am", "datum", "date", "on", "at", "bis"}
+
+
 def header_sim(a: Col, b: Col) -> float:
     na, nb = _norm_header(a), _norm_header(b)
     if na == nb and na:
         return 1.0
+    sim = _header_sim(a, b, na, nb)
+    # "Baustelle / Objekt": two names for one column – either will do
+    alts_a = [x for x in re.split(r"\s*/\s*", display_header(a.name)) if x.strip()]
+    alts_b = [x for x in re.split(r"\s*/\s*", display_header(b.name)) if x.strip()]
+    if len(alts_a) > 1 or len(alts_b) > 1:
+        for x in alts_a:
+            for y in alts_b:
+                if " ".join(tokens(x)) == " ".join(tokens(y)) and tokens(x):
+                    sim = max(sim, 0.9)
+    return sim
+
+
+def _header_sim(a: Col, b: Col, na: str, nb: str) -> float:
     ta, tb = set(na.split()), set(nb.split())
     jac = len(ta & tb) / len(ta | tb) if ta | tb else 0.0
     sim = jac * 0.9
@@ -87,7 +106,19 @@ def header_sim(a: Col, b: Col) -> float:
     if a.prof.concept and a.prof.concept == b.prof.concept and a.role == b.role:
         sim = max(sim, 0.82)
     if a.role == b.role and a.role in ("id",) and a.prof.pattern and a.prof.pattern == b.prof.pattern:
-        sim = max(sim, 0.7)
+        # the same scheme of numbers: with letters in it ("A25-001", "A26-001") a scheme of its own
+        sim = max(sim, 0.8 if re.search(r"[A-Za-z]", a.prof.pattern) and re.search(r"9", a.prof.pattern) else 0.7)
+    if a.kind == b.kind and a.kind in ("money", "quantity", "number"):
+        # German compounds name their kind last: "Auftragswert" is a "Wert", "Einzelpreis" a "Preis"
+        for x in ta:
+            if len(x) >= 4 and any(y != x and len(y) >= len(x) + 3 and y.endswith(x) for y in tb) or \
+                    len(x) >= 4 and any(len(y) >= 4 and y != x and len(x) >= len(y) + 3 and x.endswith(y) for y in tb):
+                sim = max(sim, 0.75)
+    if a.kind in ("date", "datetime") and b.kind in ("date", "datetime"):
+        ma = {_SAME_MILESTONE.get(x, x) for x in ta - _DATE_FILLER}
+        mb = {_SAME_MILESTONE.get(x, x) for x in tb - _DATE_FILLER}
+        if ma and ma == mb:
+            sim = max(sim, 0.8)
     return sim
 
 

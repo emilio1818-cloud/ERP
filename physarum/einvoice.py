@@ -411,8 +411,11 @@ def to_xrechnung(inv: dict) -> str:
     bvat = _vat_id(b.get("vat_id"))
     period = (f"<cac:InvoicePeriod>{_el('cbc:StartDate', inv.get('delivery'))}{_el('cbc:EndDate', inv.get('delivery_end'))}</cac:InvoicePeriod>"
               if inv.get("delivery_end") else "")
-    delivery = (f"<cac:Delivery><cbc:ActualDeliveryDate>{inv['delivery']}</cbc:ActualDeliveryDate></cac:Delivery>"
-                if inv.get("delivery") and not inv.get("delivery_end") else "")
+    when = _el("cbc:ActualDeliveryDate", inv.get("delivery")) if inv.get("delivery") and not inv.get("delivery_end") else ""
+    # BR-IC-12: an intra-community supply names the country it goes to
+    where = (f"<cac:DeliveryLocation><cac:Address><cac:Country><cbc:IdentificationCode>{_x((b.get('country') or 'DE')[:2])}"
+             f"</cbc:IdentificationCode></cac:Country></cac:Address></cac:DeliveryLocation>") if zero_cat == "K" else ""
+    delivery = f"<cac:Delivery>{when}{where}</cac:Delivery>" if when or where else ""
     buyer_ref = b.get("leitweg") or b.get("number") or inv.get("order") or b.get("name")
     notes = _el("cbc:Note", reason) if reason else ""
     return f"""<?xml version="1.0" encoding="UTF-8"?>

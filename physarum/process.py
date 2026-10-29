@@ -96,6 +96,9 @@ def infer_processes(model: dict, records: dict, store=None, today: date | None =
     model["dues"] = _due_specs(model, records)
 
 
+# what the bank says is a fact to read, never a record to type in ("+ Girokonto" would invent a transfer)
+_FACTS = {"kontobewegung", "zahlung"}
+
 # a corrected invoice follows its cancellation within days; a quarter later the cancellation was the decision
 _VOID_GRACE = 90
 
@@ -257,8 +260,10 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
             both = [k for k in a if k in b]
             kin = st.get("type") and (m.get("type") == st.get("type") or
                                       any(x.get("type") == st.get("type") for x in m.get("also", [])))
-            if fold(m["label"]) == fold(st["label"]) and kin:
-                twin = m  # the same milestone reached through another link of the same kind of record
+            if fold(m["label"]) == fold(st["label"]) and (kin or "own" in (m["source"], st["source"])):
+                # one name, one milestone: reached through another link of the same kind of record, or the
+                # book's own "bezahlt am" next to the bank's transfer – even where their dates never overlap
+                twin = m
                 break
             if len(both) < 3:
                 continue
@@ -1122,7 +1127,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 pass  # paid is what the bank statement says
             elif st and st["source"] == "own":
                 action = dict(kind="set_date", attr=st["attr"], label=st["label"])
-            elif st and st["source"] == "child":
+            elif st and st["source"] == "child" and (specs.get(st["type"]) or {}).get("concept") not in _FACTS:
                 action = dict(kind="create_child", type=st["type"], attr=st["rel_attr"], label=st["name"])
             groups.append(dict(id=f"{p['id']}:{sid}:{kind}", type=p["type"], kind=kind, severity=sev, title=head,
                                count=len(items), amount=total, items=items[:50], action=action,

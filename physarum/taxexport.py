@@ -20,7 +20,9 @@ import zipfile
 from datetime import date, datetime, timedelta
 
 from . import billing
+from .payments import _payable_attrs
 from .store import loads, now_iso
+from .text import norm_name
 from .values import as_date
 
 DEFAULTS = dict(berater=1001, mandant=1, skr="03", method="soll", fy_start=1)
@@ -139,11 +141,17 @@ def _de(x: float | None) -> str:
 
 
 def _numbers(store, key: str) -> dict:
-    """Debtor and creditor numbers stay the same from one export to the next."""
-    return {int(k): v for k, v in (store.kv_get(key) or {}).items()}
+    """Debtor and creditor numbers stay the same from one export to the next. A partner is its record, or –
+    a supplier that is only a name on its invoice – "n:" and the name."""
+    return {(int(k) if str(k).isdigit() else str(k)): v for k, v in (store.kv_get(key) or {}).items()
+            if str(k) not in ("None", "")}
 
 
-def _assign(mapping: dict, rid: int | None, own: str | None, start: int, end: int) -> int:
+def _partner_key(rid, name: str):
+    return rid if isinstance(rid, int) else "n:" + (norm_name(name) or "?")
+
+
+def _assign(mapping: dict, rid, own: str | None, start: int, end: int) -> int:
     if rid in mapping:
         return mapping[rid]
     if own and str(own).isdigit() and start <= int(own) < end and int(own) not in mapping.values():
@@ -163,7 +171,7 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
     debitors = _numbers(store, "datev_debitors")
     kreditors = _numbers(store, "datev_kreditors")
     theirs = advisor_accounts(store)
-    out, inc, warn = [], [], []
+    out, inc, warn, copies = [], [], [], []
     vat_out: dict = {}
     vat_in: dict = {}
     for spec in rt.model["types"]:
@@ -173,10 +181,12 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
         party = billing.party_attr(rt, spec)
         proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
         dattr = proc["start"]["attr"] if proc else next((a["id"] for a in spec["attrs"] if a["kind"] == "date"), None)
+        payable, deduct = _payable_attrs(spec, proc or {})
         for rec in rt.active_records().get(spec["id"], []):
             if billing.is_draft(rec):
                 continue
-            when = as_date(rec["data"].get(dattr)) if dattr else None
+            meta = rec.get("meta") or {}
+            when = (as_date(rec["data"].get(dattr)) if dattr else None) or as_date((meta.get("issued") or "")[:10])
             if not when or not (von <= when <= bis):
                 continue
             doc = billing.document(rt, rec)
@@ -189,6 +199,13 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
                        net=doc.get("net"), tax=doc.get("tax"), state=e.get("state"), open=e.get("open"),
                        paid_date=e.get("paid_date"), corrects=doc.get("corrects"), issued=bool(doc.get("issued")),
                        delivery=as_date(doc.get("delivery")), payments=e.get("payments") or [])
+            if not incoming and not (meta.get("issued") or meta.get("storno_of")):
+                # written in another program, copied from its book: booked there, not twice from here
+                row["groups"] = [dict(rate=_rate(g.get("rate")), net=g.get("net") or 0.0, tax=g.get("tax") or 0.0)
+                                 for g in doc.get("groups") or []]
+                row["account"] = ""
+                copies.append(row)
+                continue
             if not name:
                 warn.append(f"{row['number']}: ohne {'Lieferant' if incoming else 'Kunde'}")
             for g in doc.get("groups") or []:
@@ -199,8 +216,16 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
             if not row["groups"] and row["gross"] is not None:
                 warn.append(f"{row['number']}: ohne Netto/USt – nur der Bruttobetrag ist bekannt")
                 row["groups"].append(dict(rate=None, net=row["gross"], tax=0.0))
+            owed = billing._num(rec["data"].get(payable)) if payable else None
+            if owed is None and deduct and billing._num(rec["data"].get(deduct)):
+                owed = round((row["gross"] or 0) - abs(billing._num(rec["data"].get(deduct))), 2)
+            if row["gross"] and owed is not None and 0 <= owed < row["gross"] - 0.005:
+                share = owed / row["gross"]  # the down payments were booked with their own invoices
+                for g in row["groups"]:
+                    g["net"], g["tax"] = round(g["net"] * share, 2), round(g["tax"] * share, 2)
+                row["after_down_payments"] = owed
             if incoming:
-                row["account"] = _assign(kreditors, row["party_rid"], None, KREDITOR_START, 100000)
+                row["account"] = _assign(kreditors, _partner_key(row["party_rid"], name), None, KREDITOR_START, 100000)
                 inc.append(row)
                 for g in row["groups"]:
                     v = vat_in.setdefault(g["rate"], [0.0, 0.0])
@@ -215,7 +240,7 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
             if known and row["party_rid"] and DEBITOR_START <= known < KREDITOR_START and \
                     debitors.get(row["party_rid"]) != known and known not in debitors.values():
                 debitors[row["party_rid"]] = known  # the advisor's debtor number for this customer
-            row["account"] = _assign(debitors, row["party_rid"], own_no, DEBITOR_START, KREDITOR_START)
+            row["account"] = _assign(debitors, _partner_key(row["party_rid"], name), own_no, DEBITOR_START, KREDITOR_START)
             code = (rec.get("meta") or {}).get("tax_category") or ""
             for g in row["groups"]:
                 if g["rate"] == 0.0:
@@ -229,6 +254,9 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
                                     f"gebucht auf {g['account']}, bitte prüfen")
                 else:
                     g["account"] = acc.get(g["rate"]) if g["rate"] is not None else None
+                    if not g["account"] and g["rate"] is not None:
+                        warn.append(f"{row['number']}: für {_pct(g['rate'])} gibt es kein Automatikkonto – "
+                                    f"nicht im Buchungsstapel, bitte von Hand buchen")
                 v = vat_out.setdefault(g["rate"], [0.0, 0.0])
                 v[0] += g["net"]
                 v[1] += g["tax"]
@@ -243,7 +271,8 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
                 continue
             for rec in rt.active_records().get(spec["id"], []):
                 e = rt.ledger.get(rec["id"])
-                if not e or not e.get("gross"):
+                m = rec.get("meta") or {}
+                if not e or not e.get("gross") or not (m.get("issued") or m.get("storno_of")):
                     continue
                 got = sum(p["amount"] for p in e.get("payments") or [] if p.get("date") and von <= as_date(p["date"]) <= bis)
                 if not got:
@@ -272,7 +301,7 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
     store.kv_set("datev_debitors", {str(k): v for k, v in debitors.items()})
     store.kv_set("datev_kreditors", {str(k): v for k, v in kreditors.items()})
     return dict(von=von, bis=bis, out=out, inc=inc, warnings=warn, vat_out=vat_out, vat_in=vat_in, vat_ist=vat_ist,
-                cfg=cfg, debitors=debitors, kreditors=kreditors, elsewhere=elsewhere)
+                cfg=cfg, debitors=debitors, kreditors=kreditors, elsewhere=elsewhere, copies=copies)
 
 
 def extf(data: dict, label: str, now: datetime | None = None) -> bytes:
@@ -328,15 +357,17 @@ def _pct(r) -> str:
 
 
 def books(data: dict) -> dict[str, bytes]:
-    rates = sorted({g["rate"] for r in data["out"] for g in r["groups"] if g["rate"] is not None}, reverse=True)
+    both = sorted(data["out"] + data.get("copies", []), key=lambda x: (x["date"], x["number"]))
+    rates = sorted({g["rate"] for r in both for g in r["groups"] if g["rate"] is not None}, reverse=True)
     head = ["Rechnungsnr.", "Datum", "Kunde", "Debitor"] + [x for rt in rates for x in (f"Netto {_pct(rt)}", f"USt {_pct(rt)}")] + \
-        ["Brutto", "Zahlung", "bezahlt am", "offen", "korrigiert"]
+        ["Brutto", "Zahlung", "bezahlt am", "offen", "korrigiert", "Herkunft"]
     rows = [head]
-    for r in data["out"]:
+    for r in both:
         by = {g["rate"]: g for g in r["groups"]}
         rows.append([r["number"], r["date"].strftime("%d.%m.%Y"), r["party"], r["account"]]
                     + [x for rt in rates for x in (_de(by[rt]["net"]) if rt in by else "", _de(by[rt]["tax"]) if rt in by else "")]
-                    + [_de(r["gross"]), r["state"] or "", _date(r["paid_date"]), _de(r["open"]), r["corrects"] or ""])
+                    + [_de(r["gross"]), r["state"] or "", _date(r["paid_date"]), _de(r["open"]), r["corrects"] or "",
+                       "Physarum (im Buchungsstapel)" if r["account"] else "Datei (anderes Programm, nicht im Stapel)"])
     out = {"Rechnungsausgangsbuch.csv": _csv(rows)}
     rows = [["Rechnungsnr.", "Datum", "Lieferant", "Kreditor", "Netto", "USt", "USt-Satz", "Brutto", "Zahlung", "bezahlt am"]]
     for r in data["inc"]:
@@ -352,7 +383,8 @@ def books(data: dict) -> dict[str, bytes]:
             rows.append([f"Umsätze {_pct(rt_)} (nach Zahlungseingang, Ist-Versteuerung)", _de(n), _de(t)])
     for rt_, (n, t) in sorted(data["vat_in"].items(), key=lambda kv: -(kv[0] or -1)):
         rows.append([f"Vorsteuer aus Eingangsrechnungen {_pct(rt_)}", _de(n), _de(t)])
-    due = sum(t for _, t in (data["vat_ist"] or data["vat_out"]).values()) - sum(t for _, t in data["vat_in"].values())
+    due = sum(t for _, t in (data["vat_ist"] if data["cfg"]["method"] == "ist" else data["vat_out"]).values()) - \
+        sum(t for _, t in data["vat_in"].values())
     rows.append(["Vorläufige Zahllast (ohne Gewähr, ohne weitere Vorsteuer)", "", _de(due)])
     out["Umsatzsteuer.csv"] = _csv(rows)
     return out
@@ -383,6 +415,9 @@ def partners(rt, data: dict) -> bytes:
     rows = [["Konto", "Art", "Name", "Straße", "PLZ", "Ort", "USt-IdNr.", "eigene Nummer"]]
     for kind, mapping in (("Debitor", data["debitors"]), ("Kreditor", data["kreditors"])):
         for rid, n in sorted(mapping.items(), key=lambda kv: kv[1]):
+            if isinstance(rid, str):
+                rows.append([n, kind, rid[2:], "", "", "", "", ""])  # known only by the name on its invoices
+                continue
             if rid not in rt.by_id:
                 continue
             r = billing.recipient(rt, rid)
@@ -423,7 +458,7 @@ def build(rt, von: date, bis: date, label: str, actor: str | None = None) -> tup
     files.update(documents(rt, data))
     with rt.store.tx():
         pass  # seals what is not sealed yet
-    chain = rt.store.verify_chain()
+    chain = rt.store.anchor_chain()  # the protocol hands the seal out: from now on the log can only grow
     lines = [f"Export für die Steuerberatung – Zeitraum {label} ({data['von'].strftime('%d.%m.%Y')} bis "
              f"{data['bis'].strftime('%d.%m.%Y')})",
              f"Erstellt am {datetime.now().strftime('%d.%m.%Y %H:%M')} von {actor or 'unbekannt'} mit Physarum.",
@@ -435,6 +470,11 @@ def build(rt, von: date, bis: date, label: str, actor: str | None = None) -> tup
              "Ausgangsrechnungen sind je Steuersatz auf die Automatik-Erlöskonten gebucht (Umsatzsteuer rechnet DATEV);",
              "Eingangsrechnungen liegen als Liste und Beleg bei – die Aufwandskonten bestimmt die Steuerberatung.",
              "Die Konten bitte einmal mit der Steuerberatung abstimmen.", ""]
+    if data["copies"]:
+        lines.append(f"Nicht im Buchungsstapel: {len(data['copies'])} Rechnungen aus Ihren Dateien (anderes Programm), "
+                     f"Summe brutto {_de(sum(x['gross'] or 0 for x in data['copies']))} € – gebucht werden sie über das "
+                     f"Programm, in dem sie geschrieben wurden. Im Rechnungsausgangsbuch stehen sie mit Herkunft „Datei“.")
+        lines.append("")
     for x in data["elsewhere"]:
         lines.append(f"Nicht enthalten: {x['n']} {x['plural']} ({_de(x['amount'])} €) – sie sind keine Rechnungen dieses "
                      f"Programms; meist kommen sie über den Shop oder Zahlungsanbieter zur Steuerberatung.")
@@ -444,8 +484,15 @@ def build(rt, von: date, bis: date, label: str, actor: str | None = None) -> tup
         lines.append("Bitte prüfen:")
         lines += [f"  – {w}" for w in data["warnings"][:200]]
         lines.append("")
-    lines.append(f"Änderungsprotokoll: {chain['n']} Einträge, Kette {'unverändert' if chain['ok'] else 'GEBROCHEN bei Eintrag ' + str(chain.get('broken_at'))}, "
-                 f"Siegel {chain['head'][:32]}")
+    state = "unverändert" if chain["ok"] else f"GEKÜRZT um {chain['lost']} Einträge" if chain.get("lost") else \
+        f"GEBROCHEN bei Eintrag {chain.get('broken_at')}"
+    lines.append(f"Änderungsprotokoll: {chain['n']} Einträge, Kette {state}, Siegel {chain['head'][:32]}")
+    files_ok = rt.store.verify_files()
+    if files_ok["changed"] or files_ok["missing"] or files_ok["docs_changed"]:
+        lines.append(f"ACHTUNG: außerhalb von Physarum verändert – Originaldateien {len(files_ok['changed'])}, fehlend "
+                     f"{len(files_ok['missing'])}, archivierte Belege {len(files_ok['docs_changed'])}")
+    else:
+        lines.append(f"Originaldateien ({files_ok['sources']}) und archivierte Belege ({files_ok['archived']}) unverändert.")
     lines.append("")
     lines.append("Prüfsummen (SHA-256):")
     for name in sorted(files):

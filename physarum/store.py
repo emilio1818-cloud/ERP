@@ -211,16 +211,53 @@ class Store:
         c.executemany("UPDATE changes SET chain=? WHERE id=?", out)
 
     def verify_chain(self) -> dict:
-        """Recompute every seal. A changed or removed entry breaks the chain from there on."""
-        prev, n, last_ts = "", 0, None
+        """Recompute every seal. A changed, removed or unsealed entry breaks the chain from there on; only the
+        newest entries may still wait for their seal. A chain shorter than when it was last handed out (an
+        export to the tax advisor, see anchor_chain) has lost its newest entries."""
+        prev, n, last_ts, hole = "", 0, None, None
+        anchors = {a["n"]: a["head"] for a in (self.kv_get("seal_anchors") or []) if a.get("n")}
         for r in self.conn().execute(f"SELECT {_CHAIN_COLS}, chain FROM changes ORDER BY id"):
             if r["chain"] is None:
-                break  # written, not yet sealed (a transaction still running)
+                hole = hole or r["id"]  # written, not yet sealed: fine only at the very end
+                continue
             want = chain_hash(prev, r)
-            if want != r["chain"]:
-                return dict(ok=False, n=n, broken_at=r["id"], ts=r["ts"], head=prev)
+            if hole is not None or want != r["chain"] or (n + 1 in anchors and anchors[n + 1] != want):
+                return dict(ok=False, n=n, broken_at=hole or r["id"], ts=r["ts"], head=prev)
             prev, n, last_ts = want, n + 1, r["ts"]
+        lost = max(anchors, default=0) - n
+        if lost > 0:
+            return dict(ok=False, n=n, broken_at=None, lost=lost, ts=last_ts, head=prev)
         return dict(ok=True, n=n, head=prev, ts=last_ts)
+
+    def anchor_chain(self) -> dict:
+        """Check the chain and remember its seal as it is now, because it is handed out (printed in the protocol
+        of an export): from then on the log can only grow."""
+        v = self.verify_chain()
+        if v["ok"] and v["n"]:
+            a = [x for x in (self.kv_get("seal_anchors") or []) if x.get("n") != v["n"]]
+            self.kv_set("seal_anchors", (a + [dict(n=v["n"], head=v["head"], at=now_iso())])[-50:])
+        return v
+
+    def verify_files(self) -> dict:
+        """Recompute the checksum of every original file and of every archived document. An original
+        must match the checksum taken when it was dropped in, an archived document the one in the log."""
+        changed, missing, n = [], [], 0
+        for s in self.q("SELECT id, name, sha256 FROM sources"):
+            n += 1
+            p = self.source_path(s["id"], s["name"])
+            if not p.exists():
+                missing.append(s["name"])
+            elif hashlib.sha256(p.read_bytes()).hexdigest() != s["sha256"]:
+                changed.append(s["name"])
+        sealed = {(r["record_id"], r["attr"]): loads(r["new"])
+                  for r in self.q("SELECT record_id, attr, new FROM changes WHERE kind='archive'")}
+        docs, m = [], 0
+        for a in self.q("SELECT record_id, kind, name, content, sha256 FROM archive"):
+            m += 1
+            h = hashlib.sha256(bytes(a["content"])).hexdigest()
+            if h != a["sha256"] or sealed.get((a["record_id"], a["kind"]), h) != h:
+                docs.append(a["name"])
+        return dict(sources=n, changed=changed, missing=missing, archived=m, docs_changed=docs)
 
     def q(self, sql: str, args=()) -> list[sqlite3.Row]:
         return self.conn().execute(sql, args).fetchall()

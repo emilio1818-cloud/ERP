@@ -280,22 +280,35 @@ def _eur(x: float) -> str:
 
 # --- numbers ------------------------------------------------------------------------------------------------
 
-def next_free_number(rt, spec: dict, c=None, today: date | None = None) -> str | None:
-    """The next number of the learned scheme that was never given out – neither in the data,
-    nor by this program (cancelled and deleted numbers stay used)."""
+def next_free_number(rt, spec: dict, c=None, today: date | None = None) -> str:
+    """The next number of the learned scheme – RE-2026-0001 … where none is learned – that was never given
+    out: neither in the data, nor by this program (cancelled and deleted numbers stay used)."""
     from .ops import next_number
 
+    today = today or date.today()
+    cc = c or rt.store.conn()
+    given = [r["number"] for r in cc.execute("SELECT number FROM numbers WHERE type=?", (spec["id"],)).fetchall()]
+    given += [str(r["data"][spec["key"]]) for r in rt.records.get(spec["id"], []) if r["data"].get(spec["key"])]
+    used = {norm_key(x) for x in given}
     cand = next_number(rt, spec, today)
     if not cand:
-        return None
-    cc = c or rt.store.conn()
-    used = {norm_key(r["number"]) for r in cc.execute("SELECT number FROM numbers WHERE type=?", (spec["id"],)).fetchall()}
-    used |= {norm_key(r["data"].get(spec["key"])) for r in rt.records.get(spec["id"], []) if r["data"].get(spec["key"])}
+        pre = f"RE-{today.year}-"
+        n = max((int(x[len(pre):]) for x in given if x.startswith(pre) and x[len(pre):].isdigit()), default=0)
+        cand = f"{pre}{n + 1:04d}"
     guard = 0
     while norm_key(cand) in used and guard < 100000:
         cand = _increment(cand)
         guard += 1
     return cand
+
+
+def date_attr(rt, spec: dict) -> str | None:
+    """The invoice date: the start of its learned course, else its first date column."""
+    proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
+    if proc:
+        return proc["start"]["attr"]
+    return next((a["id"] for a in spec["attrs"] if a["kind"] in ("date", "datetime") and not a.get("hidden")
+                 and a.get("role") != "due"), None)
 
 
 def _increment(num: str) -> str:
@@ -353,11 +366,38 @@ def recipient(rt, party_rid: int | None) -> dict:
     def role(r):
         a = next((x for x in cs["attrs"] if x.get("role") == r and d.get(x["id"])), None)
         return str(d[a["id"]]) if a else None
+    vat_id = next((str(d[a["id"]]) for a in cs["attrs"] if words(a["name"]) & {"ustid", "ust", "vat"}
+                   and a["kind"] in ("id", "text") and d.get(a["id"])), None)
+    land = next((str(d[a["id"]]).strip() for a in cs["attrs"] if words(a["name"]) & {"land", "country", "staat"}
+                 and d.get(a["id"])), None)
     return dict(name=rt.title(cust["id"]), person=role("person"), street=role("street"), zip=role("zip"),
                 city=role("city"), email=role("email"), number=d.get(cs["key"]) if cs.get("key") else None,
-                vat_id=next((str(d[a["id"]]) for a in cs["attrs"] if words(a["name"]) & {"ustid", "ust", "vat"}
-                             and a["kind"] in ("id", "text") and d.get(a["id"])), None),
+                vat_id=vat_id, country=country_code(land, vat_id),
+                # BT-10: a public buyer is reached by its Leitweg-ID (E-Rechnungsverordnung)
+                leitweg=next((str(d[a["id"]]).strip() for a in cs["attrs"] if "leitweg" in fold(a["name"])
+                              and d.get(a["id"])), None),
                 salutation=salutation(cs, d, rt.title(cust["id"])))
+
+
+_COUNTRIES = {"deutschland": "DE", "germany": "DE", "oesterreich": "AT", "austria": "AT", "schweiz": "CH",
+              "switzerland": "CH", "niederlande": "NL", "netherlands": "NL", "holland": "NL", "belgien": "BE",
+              "frankreich": "FR", "france": "FR", "italien": "IT", "spanien": "ES", "polen": "PL", "daenemark": "DK",
+              "luxemburg": "LU", "tschechien": "CZ"}
+
+
+def country_code(land: str | None, vat_id: str | None) -> str | None:
+    """ISO code of a customer's country: as written ("AT", "Österreich"), else the prefix of the VAT id
+    ("ATU12345678"; Greece writes EL)."""
+    if land:
+        t = fold(land)
+        if len(land.strip()) == 2 and land.strip().isalpha():
+            return land.strip().upper()
+        if t in _COUNTRIES:
+            return _COUNTRIES[t]
+    v = (vat_id or "").replace(" ", "").upper()
+    if len(v) > 4 and v[:2].isalpha():
+        return "GR" if v[:2] == "EL" else v[:2]
+    return None
 
 
 _SALUTE = {"herr": "Sehr geehrter Herr", "hr": "Sehr geehrter Herr", "herrn": "Sehr geehrter Herr",
@@ -401,7 +441,7 @@ def apply_totals(spec: dict, data: dict, pos: list[dict]) -> dict | None:
         if mf[k]:
             data[mf[k]["id"]] = t[k]
     from .payments import _DEDUCT_WORDS, _PAYABLE_WORDS
-    deduct = next((a for a in spec["attrs"] if a["kind"] == "money" and not a.get("virtual")
+    deduct = next((a for a in spec["attrs"] if a["kind"] in ("money", "number") and not a.get("virtual")
                    and set(tokens(a["name"])) & _DEDUCT_WORDS), None)
     for a in spec["attrs"]:
         if a["kind"] == "money" and not a.get("virtual") and set(tokens(a["name"])) & _PAYABLE_WORDS:
@@ -544,10 +584,20 @@ def issue(rt, rid: int, actor: str, today: date | None = None, delivery=None, de
         raise BillingError("Zum Ausstellen fehlt noch: " + "; ".join(problems))
     data = dict(rec["data"])
     proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
-    if proc:
-        data[proc["start"]["attr"]] = today.isoformat()  # an invoice is dated the day it is issued
+    da = date_attr(rt, spec)
+    if da:
+        data[da] = today.isoformat()  # an invoice is dated the day it is issued – stored as printed
+    comp = company(rt.store)
     pos, _ = clean_positions(draft_positions(rt, rec))
+    if comp.get("kleinunternehmer"):
+        pos = [dict(x, rate=0.0) for x in pos]  # § 19 UStG: no VAT on the invoice, whatever the line said
     totals = apply_totals(spec, data, pos)
+    if comp.get("kleinunternehmer") and not totals:
+        mf = money_fields(spec)
+        if mf["tax"]:
+            data[mf["tax"]["id"]] = 0.0
+        if mf["gross"] and mf["net"] and _num(data.get(mf["net"]["id"])) is not None:
+            data[mf["gross"]["id"]] = _num(data.get(mf["net"]["id"]))
     due = None
     if proc and proc.get("deadlines"):
         due_attr = proc["deadlines"][0]["attr"]
@@ -563,7 +613,6 @@ def issue(rt, rid: int, actor: str, today: date | None = None, delivery=None, de
         due = today + timedelta(days=int(days))
         data[due_attr] = due.isoformat()
     deliv = delivery or delivery_of(rt, spec, rec)
-    comp = company(rt.store)
     note = TAX_NOTES.get("kleinunternehmer" if comp.get("kleinunternehmer") else (tax_note or ""), (None, None))
     party = party_attr(rt, spec)
     meta = dict(rec["meta"] or {})
@@ -572,7 +621,7 @@ def issue(rt, rid: int, actor: str, today: date | None = None, delivery=None, de
         row = c.execute("SELECT meta, deleted FROM records WHERE id=?", (rid,)).fetchone()
         if not row or row["deleted"] or not (loads(row["meta"]) or {}).get("draft"):
             raise BillingError("Dieser Entwurf wurde gerade schon ausgestellt.")
-        number = next_free_number(rt, spec, c, today) or _default_number(c, spec, today)
+        number = next_free_number(rt, spec, c, today)
         reserve(c, spec["id"], number, rid)
         data[spec["key"]] = number
         meta.update(draft=False, issued=ts, issued_by=actor,
@@ -580,7 +629,8 @@ def issue(rt, rid: int, actor: str, today: date | None = None, delivery=None, de
                     positions=pos, company=comp, delivery=deliv.isoformat() if deliv else None,
                     delivery_end=delivery_end.isoformat() if delivery_end else None,
                     tax_note=note[1], tax_category=note[0], totals=totals,
-                    terms=(f"Zahlbar ohne Abzug bis {due.strftime('%d.%m.%Y')}." if due else None))
+                    terms=(f"Zahlbar ohne Abzug bis {due.strftime('%d.%m.%Y')}." if due else
+                           "Zahlbar sofort nach Erhalt der Rechnung ohne Abzug."))
         meta.setdefault("w", {})[spec["key"]] = ["user", ts]
         c.execute("UPDATE records SET data=?, meta=?, updated_at=? WHERE id=?", (dumps(data), dumps(meta), ts, rid))
         c.execute("INSERT INTO idents(type,ident,record_id) VALUES(?,?,?) ON CONFLICT(type,ident) DO NOTHING",
@@ -622,14 +672,6 @@ def _order_invoiced(rt, spec: dict, data: dict, number: str, actor: str):
         pass  # a locked or vanished order keeps its status
 
 
-def _default_number(c, spec: dict, today: date) -> str:
-    """No numbering learned yet: RE-2026-0001, RE-2026-0002 …"""
-    pre = f"RE-{today.year}-"
-    used = [r["number"] for r in c.execute("SELECT number FROM numbers WHERE type=? AND number LIKE ?", (spec["id"], pre + "%"))]
-    n = max((int(x[len(pre):]) for x in used if x[len(pre):].isdigit()), default=0)
-    return f"{pre}{n + 1:04d}"
-
-
 def _archive_documents(rt, c, rec: dict, number: str, render=None):
     """The issued invoice as the customer gets it – stored once, with its checksum, never rewritten."""
     doc = document(rt, rec)
@@ -644,9 +686,15 @@ def _archive_documents(rt, c, rec: dict, number: str, render=None):
 
 
 def archive_put(c, rid: int, kind: str, name: str, content: bytes) -> str:
+    """Archive a document once; its checksum also goes into the sealed change log, so a document swapped
+    behind Physarum's back no longer matches the seal."""
     h = hashlib.sha256(content).hexdigest()
-    c.execute("INSERT OR IGNORE INTO archive(record_id,kind,name,content,sha256,created_at) VALUES(?,?,?,?,?,?)",
-              (rid, kind, name, content, h, now_iso()))
+    ts = now_iso()
+    cur = c.execute("INSERT OR IGNORE INTO archive(record_id,kind,name,content,sha256,created_at) VALUES(?,?,?,?,?,?)",
+                    (rid, kind, name, content, h, ts))
+    if cur.rowcount:
+        c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,new,note) VALUES(?,?,?,?,?,?,?)",
+                  (rid, ts, "Physarum", "archive", kind, dumps(h), f"archiviert: {name}"))
     return h
 
 
@@ -706,6 +754,9 @@ def cancel(rt, rid: int, reason: str, actor: str, today: date | None = None, ren
     meta = dict(rec["meta"] or {})
     if meta.get("storno_by") or meta.get("storno_of"):
         raise BillingError("Diese Rechnung ist bereits storniert bzw. selbst ein Storno.")
+    if not meta.get("issued"):
+        raise BillingError("Diese Rechnung stammt aus Ihren Dateien, also aus einem anderen Programm. Storniert "
+                           "wird sie dort; Physarum übernimmt das Storno beim nächsten Einwerfen.")
     proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
     st = (proc or {}).get("status")
     neg_vals = (st or {}).get("negative") or []
@@ -730,14 +781,15 @@ def cancel(rt, rid: int, reason: str, actor: str, today: date | None = None, ren
         for k in ("net", "tax", "gross"):
             if mf[k] and _num(data.get(mf[k]["id"])) is not None:
                 new[mf[k]["id"]] = -_num(data.get(mf[k]["id"]))
-    if proc:
-        new[proc["start"]["attr"]] = today.isoformat()
+    da = date_attr(rt, spec)
+    if da:
+        new[da] = today.isoformat()
     if st:
         new[st["attr"]] = neg
         data[st["attr"]] = neg
     ts = now_iso()
     with rt.store.tx() as c:
-        number = next_free_number(rt, spec, c, today) or _default_number(c, spec, today)
+        number = next_free_number(rt, spec, c, today)
         new[spec["key"]] = number
         nmeta = dict(storno_of=rid, issued=ts, issued_by=actor, recipient=orig_doc.get("buyer"), positions=pos,
                      company=orig_doc.get("seller") or company(rt.store), delivery=orig_doc.get("delivery"),

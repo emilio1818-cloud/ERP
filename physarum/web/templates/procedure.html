@@ -11,13 +11,16 @@
   {% if actors %}Im Protokoll erscheinen als Bearbeitende: {{ actors|join(', ') }}.{% endif %}</p></section>
 
 <section class="card"><h2>2. Wie die Daten entstehen</h2>
-  <p><b>Eingeworfene Dateien.</b> {{ srcs|length }} Dateien wurden eingelesen. Jede wird unverändert im Ordner „originale“ aufbewahrt und über ihren SHA-256-Prüfwert eindeutig identifiziert; jeder daraus übernommene Wert führt zur Datei und Zeile zurück.</p>
+  <p><b>Eingeworfene Dateien.</b> {{ srcs|length }} Dateien wurden eingelesen. Jede wird im Ordner „originale“ aufbewahrt, wie sie kam, und über ihren SHA-256-Prüfwert eindeutig identifiziert; jeder daraus übernommene Wert führt zur Datei und Zeile zurück.
+  {% if not files.changed and not files.missing %}<span class="tag calc">geprüft</span> Alle {{ files.sources|de }} Dateien stimmen mit ihrem Prüfwert vom Einwerfen überein.
+  {% else %}<span class="tag bad">Achtung</span> {% if files.changed %}{{ files.changed|length }} Datei(en) weichen von ihrem Prüfwert ab ({{ files.changed[:3]|join(', ') }}){% endif %}{% if files.missing %}{{ ' und ' if files.changed }}{{ files.missing|length }} fehlen ({{ files.missing[:3]|join(', ') }}){% endif %} – sie wurden außerhalb von Physarum verändert.{% endif %}</p>
   <div class="table-wrap"><table class="table"><thead><tr><th>Datei</th><th>eingelesen</th><th>von</th><th>aktiv</th><th>Prüfwert</th></tr></thead><tbody>
   {% for s in srcs[:200] %}<tr><td>{{ s.name }}</td><td>{{ display(s.added_at, 'datetime') }}</td><td>{{ s.added_by or '' }}</td><td>{{ 'ja' if s.active else 'nein' }}</td><td class="mono faint" style="font-size:.75rem">{{ s.sha256[:16] }}…</td></tr>{% endfor %}
   </tbody></table></div>
   {% if srcs|length > 200 %}<p class="muted">… und {{ srcs|length - 200 }} weitere.</p>{% endif %}
   <p style="margin-top:10px"><b>Eingaben von Hand.</b> {{ (by_kind.create or 0)|de }} Neuanlagen und {{ (by_kind.edit or 0)|de }} Bearbeitungen, jede mit Name, Zeitpunkt, altem und neuem Wert.</p>
-  <p><b>Rechnungen.</b> {{ issued|de }} Rechnungen wurden in Physarum ausgestellt: Die Nummer wird beim Ausstellen fortlaufend vergeben, das Dokument (Druckansicht und XRechnung) wird mit Prüfwert archiviert und nie überschrieben.</p>
+  <p><b>Rechnungen.</b> {{ issued|de }} Rechnungen wurden in Physarum ausgestellt: Die Nummer wird beim Ausstellen fortlaufend vergeben, nie eine, die es in Ihren Dateien oder hier schon gab. Das Dokument (Druckansicht und XRechnung) wird archiviert und nie überschrieben; sein Prüfwert steht im versiegelten Protokoll.
+  {% if files.docs_changed %}<span class="tag bad">Achtung</span> {{ files.docs_changed|length }} archivierte(s) Dokument(e) passen nicht mehr zu ihrem Prüfwert ({{ files.docs_changed[:3]|join(', ') }}).{% elif files.archived %}<span class="tag calc">geprüft</span> {{ files.archived|de }} archivierte Dokumente unverändert.{% endif %}</p>
   <p><b>Zahlungen.</b> Zahlungseingänge und -ausgänge werden aus den eingeworfenen Kontoauszügen nach Betrag und Verwendungszweck den Rechnungen zugeordnet; unsichere Zuordnungen werden erst nach Bestätigung übernommen.</p></section>
 
 <section class="card"><h2>3. Datenmodell und Regeln</h2>
@@ -25,8 +28,9 @@
   <ul class="learned">{% for l in learned %}<li><b>{{ l.kind }}:</b> {{ l.text }} <span class="faint">– {{ l.why }}</span></li>{% endfor %}</ul></section>
 
 <section class="card"><h2>4. Unveränderbarkeit und internes Kontrollsystem</h2>
-  <p><b>Änderungsprotokoll.</b> Jede Änderung wird als neuer Eintrag protokolliert (wer, wann, was, alter und neuer Wert, Herkunft). Einträge können im Programm weder geändert noch gelöscht werden; jeder ist mit dem Prüfwert aller vorherigen versiegelt (Hash-Kette, SHA-256), so dass auch eine Änderung an der Datenbank vorbei auffällt.
+  <p><b>Änderungsprotokoll.</b> Jede Änderung wird als neuer Eintrag protokolliert (wer, wann, was, alter und neuer Wert, Herkunft). Einträge können im Programm weder geändert noch gelöscht werden; jeder ist mit dem Prüfwert aller vorherigen versiegelt (Hash-Kette, SHA-256). Ein Eintrag, der an Physarum vorbei geändert, entsiegelt oder gelöscht wird, bricht die Kette; fehlen Einträge, die es beim letzten Export schon gab, fällt das ebenfalls auf. Das Siegel steht in jedem Prüfprotokoll für die Steuerberatung – dort lässt es sich auch außerhalb dieses Rechners vergleichen. Die Datensätze selbst sind durch Datenbankregeln geschützt, aber nicht einzeln versiegelt.
   {% if chain.ok %}<span class="tag calc">geprüft</span> {{ chain.n|de }} Einträge, unverändert; Siegel des letzten Eintrags <span class="mono" style="font-size:.8rem">{{ chain.head[:32] }}…</span>.
+  {% elif chain.lost %}<span class="tag bad">Achtung</span> Es fehlen die letzten {{ chain.lost|de }} Einträge, die es beim letzten Export schon gab – sie wurden außerhalb von Physarum gelöscht.
   {% else %}<span class="tag bad">Achtung</span> Die Kette ist ab Eintrag {{ chain.broken_at }} ({{ display(chain.ts, 'datetime') }}) gebrochen – dieser oder ein späterer Eintrag wurde außerhalb von Physarum verändert.{% endif %}
   Bisher: {% for k, n in by_kind.items() %}{{ {'import':'Übernahmen aus Quellen','edit':'Bearbeitungen','create':'Neuanlagen','auto':'automatische Änderungen','merge':'Zusammenführungen','note':'Notizen','storno':'Stornos','delete':'Löschungen','remove':'entfallene Quelldaten','issue':'Ausstellungen','remind':'Mahnungen'}.get(k, k) }}: {{ n|de }}{{ '; ' if not loop.last }}{% endfor %}.</p>
   <p><b>Festschreibung.</b> Ausgestellte Rechnungen sind festgeschrieben: Beträge, Daten, Empfänger und Nummer lassen sich nicht ändern; eine Korrektur erfolgt ausschließlich über ein Storno mit Begründung. Datensätze, auf die andere verweisen, können nicht gelöscht werden. Archivierte Belege sind in der Datenbank gegen Änderung und Löschung gesperrt.</p>
@@ -36,7 +40,7 @@
 <section class="card"><h2>5. Datensicherung und Aufbewahrung</h2>
   <p><b>Sicherung.</b> Unter „Sicherung“ entsteht jederzeit eine vollständige Kopie (Datenbank und alle Originaldateien) als ZIP. Empfehlung: mindestens wöchentlich auf ein zweites Medium außerhalb des Rechners{% if last_backup %}; zuletzt am {{ display(last_backup, 'date') }}{% endif %}.</p>
   <p><b>Aufbewahrung.</b> Physarum löscht nichts. Gesetzliche Fristen (§ 147 AO, § 14b UStG, Stand 2025): Buchungsbelege einschließlich Rechnungen 8 Jahre; Bücher und Aufzeichnungen, Inventare, Jahresabschlüsse sowie Arbeitsanweisungen und Organisationsunterlagen – also auch diese Verfahrensdokumentation – 10 Jahre; Handels- und Geschäftsbriefe 6 Jahre, jeweils ab Ende des Kalenderjahres.</p>
-  <p><b>Zugriff.</b> Physarum läuft auf dem eigenen Rechner; den Zugriff regelt das Benutzerkonto des Betriebssystems. Wer etwas ändert, trägt seinen Namen unten in der Seitenleiste ein – er steht dann im Protokoll.</p></section>
+  <p><b>Zugriff.</b> Physarum läuft auf dem eigenen Rechner und ist nur dort erreichbar, solange es nicht ausdrücklich fürs Netz freigegeben wird; eine eigene Anmeldung gibt es nicht, den Zugriff regelt das Benutzerkonto des Betriebssystems. Wer etwas ändert, trägt seinen Namen unten in der Seitenleiste ein – er steht dann im Protokoll, wird aber nicht geprüft.</p></section>
 
 <section class="card"><h2>6. Menschliche Entscheidungen</h2>
   <p class="muted">Was Physarum gefragt und Sie entschieden haben – es gilt ab dem nächsten Wachstum für immer.</p>

@@ -139,6 +139,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                        stale_days=lambda iso: (date.today() - date.fromisoformat(str(iso)[:10])).days if iso else 0)
     env.filters["de"] = lambda x, d=0: views.display(x, "number") if d == 0 else f"{x:,.{d}f}".replace(",", "X").replace(".", ",").replace("X", ".")
     env.filters["json"] = lambda x: json.dumps(x, ensure_ascii=False, default=str)
+    # VAT rates, highest first; an unclear rate (None) last
+    env.filters["by_rate"] = lambda d: sorted((d or {}).items(), key=lambda kv: (kv[0] is None, -(kv[0] or 0)))
     env.filters["iban"] = lambda x: " ".join((lambda s: [s[i:i + 4] for i in range(0, len(s), 4)])("".join(str(x or "").split())))
     env.finalize = lambda x: "" if x is None else x  # a missing value prints as nothing, never as "None"
 
@@ -1801,6 +1803,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         with store.tx():
             pass  # seal what is not sealed yet, then check the whole chain
         chain = store.verify_chain()
+        files = store.verify_files()
         srcs = store.sources(active_only=False)
         versions = store.models()
         by_kind = {r["kind"]: r["n"] for r in store.q("SELECT kind, COUNT(*) AS n FROM changes GROUP BY kind")}
@@ -1818,7 +1821,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         store.flush_events()
         last_backup = next((e["ts"] for e in store.q("SELECT ts FROM events WHERE kind='backup' ORDER BY id DESC LIMIT 1")), None)
         return page(request, "procedure.html", dict(decisions=procedure.decisions(rt) if rt.model else [], srcs=srcs,
-                                                    versions=versions, by_kind=by_kind, chain=chain, actors=actors,
+                                                    versions=versions, by_kind=by_kind, chain=chain, files=files, actors=actors,
                                                     kinds=kinds[:8], quality=quality, issued=issued,
                                                     firm=billing.company(store).get("name"), last_backup=last_backup,
                                                     exports=store.kv_get("tax_exports") or [],

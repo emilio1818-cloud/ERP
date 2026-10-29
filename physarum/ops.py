@@ -213,12 +213,15 @@ def lock_state(rt, spec: dict, rec: dict) -> dict | None:
     cancelled = bool(meta.get("storno_by") or meta.get("storno_of"))
     from .billing import is_own_invoice
     own = is_own_invoice(rt, spec)
-    reason = ("Ausgestellte Rechnung: Nummer, Datum, Kunde und Beträge sind festgeschrieben – Korrektur nur per "
-              "Storno. Zahlungseingang und Notizen lassen sich weiter eintragen.") if own else \
-             ("Rechnung eines Lieferanten: so wie sie gekommen ist. Eine Korrektur schickt der Lieferant; "
-              "Zahlung und Notizen lassen sich eintragen.")
+    here = bool(meta.get("issued") or meta.get("storno_of"))  # written in Physarum, not copied from a file
+    reason = ("Rechnung eines Lieferanten: so wie sie gekommen ist. Eine Korrektur schickt der Lieferant; "
+              "Zahlung und Notizen lassen sich eintragen.") if not own else \
+             ("Ausgestellte Rechnung: Nummer, Datum, Kunde und Beträge sind festgeschrieben – Korrektur nur per "
+              "Storno. Zahlungseingang und Notizen lassen sich weiter eintragen.") if here else \
+             ("Rechnung aus Ihren Dateien (anderes Programm): dort wird sie korrigiert oder storniert. Hier lassen "
+              "sich Zahlung und Notizen eintragen.")
     return dict(editable=set() if cancelled else editable, steps_only=set() if cancelled else steps_only,
-                cancelled=cancelled, own=own, reason=reason)
+                cancelled=cancelled, own=own, here=here, reason=reason)
 
 
 def _parent_lock(rt, spec: dict, rec: dict) -> dict | None:

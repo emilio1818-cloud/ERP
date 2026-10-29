@@ -65,10 +65,10 @@ def _payable_attrs(spec: dict, p: dict) -> tuple[str | None, str | None]:
     """The amount actually asked for, and the down payments deducted from the total."""
     payable = deduct = None
     for a in spec["attrs"]:
-        if a["kind"] != "money" or a.get("virtual") or a["id"] == p.get("gross"):
-            continue
+        if a["kind"] not in ("money", "number") or a.get("virtual") or a["id"] == p.get("gross"):
+            continue  # a column filled on few rows may read as a plain number: still an amount
         toks = set(tokens(a["name"]))
-        if toks & _PAYABLE_WORDS and not toks & {"offen", "offener"} and payable is None:
+        if toks & _PAYABLE_WORDS and not toks & {"offen", "offener"} and payable is None and a["kind"] == "money":
             payable = a["id"]
         elif toks & _DEDUCT_WORDS and deduct is None:
             deduct = a["id"]
@@ -245,7 +245,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         rid_set = {r["id"] for r in recs}
         st = p.get("status") or {}
         negative = set(st.get("negative") or [])
-        own_paid = [s["attr"] for s in ([step] + step.get("also", [])) if s["source"] == "own"] if step else []
+        own_paid = [s["attr"] for st_ in p["steps"] if fold(st_["label"]) == "bezahlt"
+                    for s in [st_] + st_.get("also", []) if s["source"] == "own"]  # the book's own "bezahlt am"
         # which bank rows point to which invoices: references, text mentions, confirmed amount matches
         links: dict[int, list[int]] = defaultdict(list)   # bank rid -> invoices it names
         attrs = {"match"}

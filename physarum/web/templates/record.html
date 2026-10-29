@@ -59,7 +59,7 @@
     {% endif %}
     {% if timeline and timeline.next and timeline.next.late and timeline.next.label == 'bezahlt' and not timeline.negative and not maybe_paid and not draft %}
       <a class="btn" href="/r/{{ rec.id }}/erinnerung" target="_blank">Zahlungserinnerung</a>{% endif %}
-    {% if lock and lock.own and not lock.cancelled and not storno_of %}
+    {% if lock and lock.own and lock.here and not lock.cancelled and not storno_of %}
       <button class="btn ghost danger" data-prompt="Grund für das Storno (wird protokolliert):" data-prompt-field="reason" data-post="/r/{{ rec.id }}/storno">Stornieren</button>
     {% endif %}
     {% if can_edit %}<button class="btn" id="edit-toggle">Bearbeiten</button>{% endif %}

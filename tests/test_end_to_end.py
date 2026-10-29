@@ -230,15 +230,10 @@ class EditingRules(unittest.TestCase):
         self.assertIn(status, changed)  # marked paid: the status says so too
         with self.assertRaises(ops.OpError):
             ops.delete(self.rt, rec["id"], "Test")
-        nid = ops.storno(self.rt, rec["id"], "falscher Kunde", "Test")
-        self.rt.ensure()
-        self.assertEqual(self.rt.by_id[rec["id"]]["data"][status], "storniert")
-        doc = self.rt.by_id[nid]["data"]  # the cancellation is a document of its own
-        netto = self.attr(inv, "Netto")["id"]
-        self.assertEqual(doc[netto], -rec["data"][netto])
-        self.assertNotEqual(doc[inv["key"]], rec["data"][inv["key"]])
-        with self.assertRaises(ops.OpError):
-            ops.storno(self.rt, rec["id"], "nochmal", "Test")
+        # a copy of another program's invoice is cancelled in that program, not here
+        with self.assertRaises(ops.OpError) as e:
+            ops.storno(self.rt, rec["id"], "falscher Kunde", "Test")
+        self.assertIn("anderen Programm", str(e.exception))
 
     def test_create_order_with_lines_uses_numbering_and_formulas(self):
         order = self.spec("Auftrag")

@@ -24,16 +24,17 @@
     <h2 style="margin:0">{{ label }}: {{ data.out|length }} Ausgangs- und {{ data.inc|length }} Eingangsrechnungen</h2>
     <form method="post" action="/steuerberatung/export">
       <input type="hidden" name="art" value="{{ art }}"><input type="hidden" name="nr" value="{{ nr }}"><input type="hidden" name="jahr" value="{{ jahr }}">
-      <button class="primary" type="submit" {{ 'disabled' if not data.out and not data.inc }}>Paket herunterladen (ZIP)</button>
+      <button class="primary" type="submit" {{ 'disabled' if not data.out and not data.inc and not data.copies }}>Paket herunterladen (ZIP)</button>
     </form>
   </div>
   <div class="table-wrap"><table class="table" style="margin-top:10px"><thead><tr><th></th><th class="num">Bemessungsgrundlage</th><th class="num">Steuer</th></tr></thead><tbody>
-    {% for r, v in data.vat_out|dictsort(reverse=true) %}<tr><td>Umsätze {{ '?' if r is none else (r * 100)|round|int ~ ' %' }}</td><td class="num">{{ money(v[0]) }}</td><td class="num">{{ money(v[1]) }}</td></tr>{% endfor %}
-    {% for r, v in data.vat_ist|dictsort(reverse=true) %}<tr><td>davon bezahlt im Zeitraum (Ist), {{ '?' if r is none else (r * 100)|round|int ~ ' %' }}</td><td class="num">{{ money(v[0]) }}</td><td class="num">{{ money(v[1]) }}</td></tr>{% endfor %}
-    {% for r, v in data.vat_in|dictsort(reverse=true) %}<tr><td>Vorsteuer aus Eingangsrechnungen {{ '?' if r is none else (r * 100)|round|int ~ ' %' }}</td><td class="num">{{ money(v[0]) }}</td><td class="num">{{ money(v[1]) }}</td></tr>{% endfor %}
+    {% for r, v in data.vat_out|by_rate %}<tr><td>Umsätze {{ '?' if r is none else (r * 100)|round|int ~ ' %' }}</td><td class="num">{{ money(v[0]) }}</td><td class="num">{{ money(v[1]) }}</td></tr>{% endfor %}
+    {% for r, v in data.vat_ist|by_rate %}<tr><td>davon bezahlt im Zeitraum (Ist), {{ '?' if r is none else (r * 100)|round|int ~ ' %' }}</td><td class="num">{{ money(v[0]) }}</td><td class="num">{{ money(v[1]) }}</td></tr>{% endfor %}
+    {% for r, v in data.vat_in|by_rate %}<tr><td>Vorsteuer aus Eingangsrechnungen {{ '?' if r is none else (r * 100)|round|int ~ ' %' }}</td><td class="num">{{ money(v[0]) }}</td><td class="num">{{ money(v[1]) }}</td></tr>{% endfor %}
     {% if not data.vat_out and not data.vat_in %}<tr><td colspan="3" class="muted">In diesem Zeitraum gibt es keine Rechnungen.</td></tr>{% endif %}
   </tbody></table></div>
   <p class="muted" style="font-size:.85rem">Vorläufig und ohne Gewähr – die Umsatzsteuer-Voranmeldung macht die Steuerberatung. Ausgangsrechnungen werden je Steuersatz auf die Automatik-Erlöskonten des SKR{{ cfg.skr }} gebucht; Eingangsrechnungen liegen als Liste und Beleg bei, ihre Aufwandskonten bestimmt die Steuerberatung.</p>
+  {% if data.copies %}<p class="muted" style="font-size:.85rem"><b>Nicht im Buchungsstapel:</b> {{ data.copies|length|de }} Rechnungen aus Ihren Dateien (anderes Programm), zusammen {{ money(data.copies|sum(attribute='gross')) }} – gebucht werden sie über das Programm, in dem sie geschrieben wurden. Im Paket liegen sie im Rechnungsausgangsbuch.</p>{% endif %}
   {% for x in data.elsewhere %}<p class="muted" style="font-size:.85rem"><b>Nicht enthalten:</b> {{ x.n|de }} {{ x.plural }} ({{ money(x.amount) }}) – sie sind keine Rechnungen dieses Programms; meist kommen sie über den Shop oder Zahlungsanbieter zur Steuerberatung.</p>{% endfor %}
   {% if data.warnings %}<div class="notice warn" style="margin-top:8px"><b>Bitte prüfen ({{ data.warnings|length }}):</b>
     <ul style="margin:.3rem 0 0 1rem">{% for w in data.warnings[:12] %}<li>{{ w }}</li>{% endfor %}</ul>{% if data.warnings|length > 12 %}<p class="muted">… und {{ data.warnings|length - 12 }} weitere im Prüfprotokoll des Pakets.</p>{% endif %}</div>{% endif %}

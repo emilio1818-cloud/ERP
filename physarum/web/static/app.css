@@ -272,6 +272,10 @@ tfoot td { font-weight: 600; }
   h1 { font-size: 1.35rem; }
 }
 @media (max-width: 600px) {
+  /* Heute on the phone: the why of a card shows once it is open; background reading waits for the desk */
+  .work header .what small { display: none; }
+  .work details[open] header .what small { display: block; }
+  .phone-skip { display: none; }
   /* a list on the phone: one card per entry, every value with its label */
   .table.list thead { display: none; }
   .table.list tr { display: flex; flex-wrap: wrap; gap: 3px 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); }

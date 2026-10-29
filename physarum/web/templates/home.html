@@ -4,7 +4,7 @@
   {%- if g.kind == 'overdue' -%}seit {{ it.days }} {{ 'Tag' if it.days == 1 else 'Tagen' }} überfällig{% if it.due_how %} <span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">(Fälligkeit berechnet: {{ it.due_how }})</span>{% endif %}{% if it.claim %} · <span class="tag guess" title="Vor einer Erinnerung den Zahlungseingang prüfen">{{ it.claim }}</span>{% endif %}
   {%- elif g.kind == 'late' -%}wartet seit {{ it.days }} Tagen <span class="faint">(üblich {{ after_days(it.usual or 0) }})</span>
   {%- elif g.kind == 'ready' -%}{{ 'seit heute' if it.days == 0 else 'seit ' ~ days_text(it.days) }} fertig{% if it.late %} <span class="faint">(üblich berechnet {{ after_days(it.usual or 0) }})</span>{% endif %}{% if it.reason %} · {{ it.reason }}{% endif %}
-  {%- elif g.kind == 'soon' -%}{{ 'heute fällig' if it.days == 0 else 'fällig in ' ~ it.days ~ ' Tagen' }}
+  {%- elif g.kind == 'soon' -%}{{ 'heute fällig' if it.days == 0 else 'fällig in ' ~ it.days ~ (' Tag' if it.days == 1 else ' Tagen') }}
   {%- elif g.kind == 'payable' -%}{{ 'heute fällig' if it.days == 0 else ('seit ' ~ (-it.days) ~ (' Tag' if it.days == -1 else ' Tagen') ~ ' fällig' if it.days < 0 else 'fällig in ' ~ it.days ~ (' Tag' if it.days == 1 else ' Tagen')) }}{% if it.due_how %} <span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">(berechnet: {{ it.due_how }})</span>{% endif %}{% if it.reason %} · {{ it.reason }}{% endif %}
   {%- elif g.kind == 'due' and it.reason -%}{{ it.reason }}
   {%- elif g.kind == 'due' -%}{% if it.label %}{{ it.label }} · {% endif %}{{ 'heute' if it.days == 0 else (('seit ' ~ (-it.days) ~ (' Tag' if it.days == -1 else ' Tagen') ~ (' überschritten' if it.label else '')) if it.days < 0 else ('bis ' ~ display(it.due, 'date') if it.label else 'in ' ~ it.days ~ (' Tag' if it.days == 1 else ' Tagen'))) }}{% if it.due_how %} <span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">(berechnet: {{ it.due_how }})</span>{% endif %}
@@ -39,7 +39,7 @@
     {% endif %}
     <div class="stack" data-more-box>
     {% for g in work %}
-    <article class="card work sev{{ g.severity }}{{ ' more-group' if loop.index > 10 }}" data-remove{{ ' hidden' if loop.index > 10 }}>
+    <article class="card work sev{{ g.severity }}{{ ' more-group' if g.hidden }}" data-remove{{ ' hidden' if g.hidden }}>
       <details {{ 'open' if loop.index <= 3 }} data-more-box>
         <summary style="list-style:none">
           <header>
@@ -50,35 +50,35 @@
           </header>
         </summary>
         <ul>
-          {% for it in g['items'] %}
+          {% for it in g['items'] %}{% set ig = it._g or g %}
           <li{{ ' class=more-li hidden' if loop.index > 8 }}>
             <div class="t">
               <div><a href="/r/{{ it.rid }}">{{ it.title }}</a>{% if it.party %} <span class="muted">· {{ it.party }}</span>{% endif %}</div>
-              <div class="r">{{ reason(g, it) }}{% if it.paid %} · <span class="tag guess" title="Teilzahlung erhalten">{{ money(it.paid) }} erhalten</span>{% endif %}
+              <div class="r">{{ reason(ig, it) }}{% if it.paid %} · <span class="tag guess" title="Teilzahlung erhalten">{{ money(it.paid) }} erhalten</span>{% endif %}
                 {% if it.maybe_paid %} · <span class="tag guess">vielleicht schon bezahlt</span> <a class="faint" href="/r/{{ it.maybe_paid.bank }}">passende Zahlung</a>{% endif %}</div>
             </div>
             {% if it.money %}<span class="num amt">{{ money(it.money) }}</span>{% endif %}
             <span class="acts">
             {% if it.maybe_paid %}
               <button class="small primary" data-post="/fragen/{{ it.maybe_paid.qid }}" data-body='{"value": "yes"}' title="{{ it.maybe_paid.text }}">Zahlung zuordnen</button>
-            {% elif g.kind == 'overdue' and g.step == 'bezahlt' %}
+            {% elif ig.kind == 'overdue' and ig.step == 'bezahlt' %}
               <a class="btn small ghost" href="/r/{{ it.rid }}/erinnerung" target="_blank" title="Ein Brief an den Kunden mit allen überfälligen Rechnungen">Erinnern</a>
             {% endif %}
-            {% if g.action and g.action.kind == 'follow_up' %}
-              {% if g.action.create %}<a class="btn small" href="/t/{{ g.action.create.type }}/neu?a_{{ g.action.create.attr }}={{ it.rid }}" title="Der Kunde hat zugesagt">+ {{ g.action.create.label }}</a>{% endif %}
-              <button class="small" data-post="/r/{{ it.rid }}/nachfassen" data-body='{"outcome": "later"}' title="Nachgefasst, noch keine Entscheidung – in {{ g.action.days }} Tagen wieder vorlegen">In {{ g.action.days }} Tagen wieder</button>
-              {% if g.action.negative %}<button class="small ghost" data-post="/r/{{ it.rid }}/nachfassen" data-body='{"outcome": "lost"}' title="Der Kunde hat abgesagt – Status „{{ g.action.negative }}“">{{ g.action.negative|capitalize }}</button>{% endif %}
-            {% elif g.action and g.action.kind == 'set_date' %}
-              <button class="small" data-post="/r/{{ it.rid }}/schritt" data-body='{"attr": "{{ g.action.attr }}"}' title="Mit heutigem Datum eintragen – lässt sich rückgängig machen">✓ {{ g.action.label }}</button>
-            {% elif g.action and g.action.kind == 'create_child' and it.draft %}
+            {% if ig.action and ig.action.kind == 'follow_up' %}
+              {% if ig.action.create %}<a class="btn small" href="/t/{{ ig.action.create.type }}/neu?a_{{ ig.action.create.attr }}={{ it.rid }}" title="Der Kunde hat zugesagt">+ {{ ig.action.create.label }}</a>{% endif %}
+              <button class="small" data-post="/r/{{ it.rid }}/nachfassen" data-body='{"outcome": "later"}' title="Nachgefasst, noch keine Entscheidung – in {{ ig.action.days }} Tagen wieder vorlegen">In {{ ig.action.days }} Tagen wieder</button>
+              {% if ig.action.negative %}<button class="small ghost" data-post="/r/{{ it.rid }}/nachfassen" data-body='{"outcome": "lost"}' title="Der Kunde hat abgesagt – Status „{{ ig.action.negative }}“">{{ ig.action.negative|capitalize }}</button>{% endif %}
+            {% elif ig.action and ig.action.kind == 'set_date' %}
+              <button class="small" data-post="/r/{{ it.rid }}/schritt" data-body='{"attr": "{{ ig.action.attr }}"}' title="Mit heutigem Datum eintragen – lässt sich rückgängig machen">✓ {{ ig.action.label }}</button>
+            {% elif ig.action and ig.action.kind == 'create_child' and it.draft %}
               <a class="btn small ghost" href="/r/{{ it.draft }}" title="Für diesen Vorgang liegt schon ein Entwurf bereit">Entwurf öffnen</a>
-            {% elif g.action and g.action.kind == 'create_child' %}
-              <a class="btn small" href="/t/{{ g.action.type }}/neu?a_{{ g.action.attr }}={{ it.rid }}">+ {{ g.action.label }}</a>
-            {% elif g.kind == 'draft' %}
+            {% elif ig.action and ig.action.kind == 'create_child' %}
+              <a class="btn small" href="/t/{{ ig.action.type }}/neu?a_{{ ig.action.attr }}={{ it.rid }}">+ {{ ig.action.label }}</a>
+            {% elif ig.kind == 'draft' %}
               <a class="btn small" href="/r/{{ it.rid }}">Prüfen und ausstellen</a>
-            {% elif g.kind == 'receipt' %}
+            {% elif ig.kind == 'receipt' %}
               {% if it.act %}<a class="btn small" href="{{ it.act.href }}">{{ it.act.label }}</a>{% endif %}
-            {% elif g.kind == 'mail' %}
+            {% elif ig.kind == 'mail' %}
               {% if it.act %}<a class="btn small" href="{{ it.act.href }}">{{ it.act.label }}</a>{% endif %}
               <button class="small ghost" data-post="/post/{{ it.rid }}/erledigt" title="Diese Mail ist beantwortet oder erledigt">✓ Erledigt</button>
             {% elif it.seen %}
@@ -173,7 +173,7 @@
           <button class="small ghost" data-post="/fragen/{{ q.id }}" data-body='{"value": "unknown"}'>Weiß nicht</button>
           <button class="small ghost" data-post="/fragen/{{ q.id }}" data-body='{"value": "later"}'>Später</button>
         </div>
-        <ul class="consequences">{% for v, label in q.options if consequences.get((q.kind, v)) %}<li><b>{{ label }}:</b> {{ consequences[(q.kind, v)] }}</li>{% endfor %}</ul>
+        <ul class="consequences phone-skip">{% for v, label in q.options if consequences.get((q.kind, v)) %}<li><b>{{ label }}:</b> {{ consequences[(q.kind, v)] }}</li>{% endfor %}</ul>
       </div>
       {% endfor %}
     </div>
@@ -182,7 +182,7 @@
     {% if suggestions %}
     <div class="card">
       <h2>Vorschläge</h2>
-      <p class="muted" style="font-size:.85rem">Was in Ihren Daten immer wieder gleich passiert. Physarum übernimmt es nur, wenn Sie zustimmen.</p>
+      <p class="muted phone-skip" style="font-size:.85rem">Was in Ihren Daten immer wieder gleich passiert. Physarum übernimmt es nur, wenn Sie zustimmen.</p>
       {% for s in suggestions %}
       <div class="question" data-remove>
         <div class="q">{{ s.type.plural }}: {{ s.text }}</div>
@@ -200,7 +200,7 @@
     <div class="card">
       <h2>Ihre Firma auf einen Blick</h2>
       {% if glance %}<p style="margin:0 0 .5rem">{{ glance }}</p>{% endif %}
-      <p class="muted" style="font-size:.82rem; margin:0">Zuletzt gewachsen {{ ago(grown_at) }}: {{ summary.types }} Arten von Dingen, {{ summary.relations }} Verbindungen{% if summary.stats %}, {{ summary.stats.records|de }} Datensätze{% endif %}.
+      <p class="muted phone-skip" style="font-size:.82rem; margin:0">Zuletzt gewachsen {{ ago(grown_at) }}: {{ summary.types }} Arten von Dingen, {{ summary.relations }} Verbindungen{% if summary.stats %}, {{ summary.stats.records|de }} Datensätze{% endif %}.
       {% if summary.first %}<br>Das war das erste Wachstum aus {{ summary.stats.records|de if summary.stats else '' }} Datensätzen.{% endif %}
       {% if summary.new_types %}<br>Neu: {% for t in model.types if t.plural in summary.new_types %}<a href="/t/{{ t.id }}"><b>{{ t.plural }}</b></a>{{ ', ' if not loop.last }}{% endfor %}{% endif %}
       {% if summary.new_attrs %}<br>Neue Felder: {{ summary.new_attrs[:6]|join(', ') }}{% endif %}</p>

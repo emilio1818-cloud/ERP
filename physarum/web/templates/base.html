@@ -21,9 +21,8 @@
     </form>
     {% endif %}
     <nav class="nav">
-      <a href="/" class="{{ 'on' if path == '/' }}"><span>Heute</span></a>
+      <a href="/" class="{{ 'on' if path == '/' or path.startswith('/fragen') }}"><span>Heute</span>{% if n_questions %}<span class="badge" title="{{ n_questions }} {{ 'Frage' if n_questions == 1 else 'Fragen' }} an Sie">{{ n_questions }}</span>{% endif %}</a>
       {% if model %}
-      <a href="/fragen" class="{{ 'on' if path.startswith('/fragen') }}"><span>Fragen an Sie</span>{% if n_questions %}<span class="badge">{{ n_questions }}</span>{% endif %}</a>
       <div class="nav-label">Ihre Daten</div>
       {% for t in nav_active %}
       <a href="/t/{{ t.id }}" class="{{ 'on' if path == '/t/' ~ t.id }}" title="Je länger der Balken, desto mehr hängt in Ihren Abläufen daran">
@@ -39,11 +38,10 @@
         {% endfor %}
       </details>
       {% endif %}
-      <div class="nav-label">Einblick</div>
-      <a href="/ablaeufe" class="{{ 'on' if path.startswith('/ablaeufe') }}"><span>Abläufe</span></a>
-      <a href="/organismus" class="{{ 'on' if path.startswith('/organismus') }}"><span>Aufbau &amp; gelernte Regeln</span></a>
-      <a href="/quellen" class="{{ 'on' if path.startswith('/quellen') }}"><span>Dateien &amp; Einwerfen</span></a>
-      <a href="/firma" class="{{ 'on' if path.startswith('/firma') }}"><span>Ihre Firmendaten</span></a>
+      <div class="nav-label">Rund um</div>
+      <a href="/quellen" class="{{ 'on' if path.startswith('/quellen') }}"><span>Dateien</span></a>
+      <a href="/firma" class="{{ 'on' if path.startswith('/firma') or path.startswith('/steuerberatung') or path.startswith('/verfahrensdoku') }}"><span>Ihre Firma</span></a>
+      <a href="/organismus" class="{{ 'on' if path.startswith('/organismus') or path.startswith('/ablaeufe') }}"><span>Wie Physarum Ihre Firma sieht</span></a>
       {% endif %}
     </nav>
     <div class="bottom">
@@ -51,7 +49,6 @@
         <label for="me" class="faint" style="font-size:.78rem">Ihr Name</label>
         <input id="me" name="name" value="{{ '' if me == 'Benutzer' else me }}" placeholder="fürs Protokoll" style="flex:1; padding:4px 8px; font-size:.85rem" aria-label="Ihr Name für das Änderungsprotokoll">
       </form>
-      {% if model %}<p style="margin:8px 4px 0"><a class="faint" style="font-size:.8rem" href="/steuerberatung">Für die Steuerberatung</a> · <a class="faint" style="font-size:.8rem" href="/verfahrensdoku">Verfahrensdokumentation</a> · <a class="faint" style="font-size:.8rem" href="/sicherung.zip">Sicherung</a></p>{% endif %}
     </div>
   </aside>
   <main class="main" id="main">

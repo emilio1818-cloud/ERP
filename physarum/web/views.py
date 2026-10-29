@@ -366,6 +366,39 @@ def process_svg(rt, p: dict, open_counts: dict, w: int = 860, slow: int | None =
     return Markup("".join(parts))
 
 
+SHOWN = 7  # cards on Heute before "weitere Hinweise": what fits the first look
+
+
+def cards(work: list[dict], plural_of) -> list[dict]:
+    """One card per thing to do: what is overdue and what falls due soon at the same step together, the stock
+    to reorder in one. Every item keeps the group it came from (its reason, its button). Hints, and what does
+    not fit the first look, wait behind "weitere Hinweise"."""
+    out, at = [], {}
+    for g in work:
+        key = (g["type"], g.get("step"), "due") if g["kind"] in ("overdue", "soon") else \
+            (g["type"], "stock") if g["kind"] in ("threshold", "reach") else None
+        items = [dict(x, _g=g) for x in g["items"]]
+        c = at.get(key) if key else None
+        if c is None:
+            c = dict(g, items=items)
+            out.append(c)
+            if key:
+                at[key] = c
+            continue
+        seen = {x["rid"] for x in c["items"]}
+        new = [x for x in items if x["rid"] not in seen]
+        c["items"] += new
+        c["count"] += g["count"] - (len(items) - len(new))
+        c["amount"] = round((c["amount"] or 0) + sum(x.get("money") or 0 for x in new), 2)
+        c["severity"] = max(c["severity"], g["severity"])
+        c["explain"] = " ".join(x if x.endswith(".") else x + "." for x in (c.get("explain"), g.get("explain")) if x)
+        c["title"] = f"{plural_of(g['type'])} nachbestellen" if key[-1] == "stock" else \
+            f"{c['title'].rsplit(' – ', 1)[0]} – überfällig und bald fällig"
+    for k, c in enumerate(out):
+        c["hidden"] = k >= SHOWN or c["severity"] < 2
+    return out
+
+
 def at_a_glance(rt, open_items: dict | None, n_files: int) -> str:
     """The firm in one plain paragraph: what there is, since when, how fast money comes in."""
     from ..values import as_date

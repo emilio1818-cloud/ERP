@@ -205,7 +205,7 @@
 
 <section class="card" id="ausstellen" aria-label="Ausstellen">
   <h2>Ausstellen</h2>
-  {% if problems %}<div class="notice warn" style="margin-bottom:10px">Zum Ausstellen fehlt noch:<ul style="margin:.3rem 0 0 1.1rem">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>{% endif %}
+  {% if problems %}<div class="notice warn" style="margin-bottom:10px">Zum Ausstellen fehlt noch:<ul style="margin:.3rem 0 0 1.1rem">{% for p in problems %}<li>{{ p }}{% if p.startswith('Anschrift des Kunden') and party and rec.data.get(party.id) is number %} – <a href="/r/{{ rec.data.get(party.id) }}" class="to-customer">beim Kunden ergänzen</a>{% endif %}</li>{% endfor %}</ul></div>{% endif %}
   {% if xr_problems %}<p class="muted" style="font-size:.85rem">Als E-Rechnung (XRechnung) geht sie so nicht: es fehlt {{ xr_problems|join('; ') }}. Die gedruckte Rechnung ist davon nicht betroffen.</p>{% endif %}
   <form data-step="/r/{{ rec.id }}/ausstellen" class="form-grid" style="align-items:end">
     <div class="field"><label>Leistungsdatum{% if delivery_hint %} <span class="faint">({{ delivery_hint }})</span>{% endif %}</label><input type="date" name="leistung" value="{{ delivery_value or '' }}"></div>

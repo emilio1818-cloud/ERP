@@ -68,6 +68,25 @@ const problems = [];
   await shot('06b-entwurf-positionen');
   const probs = await page.$$eval('#ausstellen .notice li', (li) => li.map((x) => x.textContent.trim()));
   console.log('issue problems:', JSON.stringify(probs));
+  const toCustomer = page.locator('#ausstellen a.to-customer');
+  if (await toCustomer.count()) {
+    // the customer's address is missing: added where it belongs, as the owner would
+    const back = page.url();
+    await toCustomer.first().click();
+    await page.waitForLoadState('networkidle');
+    await page.click('#edit-toggle');
+    const field = async (label, v) => {
+      const el = page.locator('.fact', { has: page.locator('dt', { hasText: new RegExp('^\\s*' + label) }) }).locator('.edit-mode input');
+      if ((await el.count()) && !(await el.first().inputValue())) await el.first().fill(v);
+    };
+    await field('Straße', 'Deichstraße 7');
+    await field('PLZ', '21614');
+    await page.click('.edit-mode button[type=submit]');
+    await page.waitForLoadState('networkidle');
+    await shot('06c-kunde-anschrift');
+    await page.goto(back);
+    console.log('issue problems after:', JSON.stringify(await page.$$eval('#ausstellen .notice li', (li) => li.map((x) => x.textContent.trim()))));
+  }
   await page.click('#ausstellen button.primary');
   await page.waitForTimeout(1500);
   await shot('07-ausgestellt');

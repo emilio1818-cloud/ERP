@@ -100,7 +100,7 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
  │  Datensätze  │   Zahlungsbuch: Kontoauszug ↔ Rechnungen ↔ Lieferantenrechnungen, eine Wahrheit für „offen“
  └──────┬───────┘   Physarum: Dicke der Verbindungen aus Daten- und Nutzungsfluss
         ▼
-   Oberfläche: Heute · Listen · Datensatz · Formulare · Organismus · Prozesse · Fragen
+   Oberfläche: Heute (mit den Fragen) · Listen · Datensatz · Dateien · Ihre Firma · Wie Physarum Ihre Firma sieht
 ```
 
 **Technik:** Python 3, Starlette, Jinja2 und SQLite (WAL, FTS5), serverseitig gerendert mit wenig Vanilla-JS. Es gibt keinen Build-Schritt und keinen externen Dienst, alles läuft lokal und offline. Ein einzelner Ordner mit einer SQLite-Datei und den Originaldateien ist die komplette Firma; ein Backup heißt, diesen Ordner zu kopieren.
@@ -136,7 +136,7 @@ Drei Reviewer hatten nur die ursprüngliche Idee vor sich und kannten diesen Ent
 | Einwand / Idee | Quelle | Was daraus wurde |
 |---|---|---|
 | **„Fester Kern, wachsende Hülle.“** Ein System, das seinen buchhaltungsrelevanten Kern selbst umbaut, ist in Deutschland nicht betreibbar. | Praktiker | Ausgestellte Rechnungen sind festgeschrieben, Korrektur nur per Storno mit Grund. Datensätze mit Verweisen sind nicht löschbar. Gelernte Regeln wirken erst nach Zustimmung („Trampelpfade“). |
-| **Salienz beschneiden, nie Semantik**; μ > 1 macht das Netz zum Baum | Forscher | Physarum steuert nur Sichtbarkeit. Der erste Lauf mit μ = 1,6 hat tatsächlich den Belegfluss Rechnung → Auftrag weggeschnitten, deshalb gilt jetzt μ = 0,85 (redundantes, robustes Netz). Navigation mit Hysterese, nichts springt. |
+| **Salienz beschneiden, nie Semantik**; μ > 1 macht das Netz zum Baum | Forscher | Physarum steuert nur Sichtbarkeit. Der erste Lauf mit μ = 1,6 hat tatsächlich den Belegfluss Rechnung → Auftrag weggeschnitten, deshalb galt danach μ = 0,85 (redundantes, robustes Netz); seit Runde 6 misst Physarum den Fluss direkt, ohne Tero-Löser. Navigation mit Hysterese, nichts springt. |
 | **Erhaltungssätze als Hunger:** Wo Geld nicht aufgeht, fehlt ein Prozess oder eine Verknüpfung | Forscher | Bankabgleich auf zwei Wegen: über Nummern im Verwendungszweck und über den Betrag (centgenau, mit Skonto oder als Summe zweier Rechnungen). Ob bezahlt ist, sagt allein das Zahlungsbuch; die Status-Spalte der Datei heißt „laut Datei“. |
 | **Eingegebene Bits pro Vorgang** als Nordstern; die Maske fragt nur, was nicht vorhersagbar ist | Forscher | Formulare belegen vor: Nummer, Datum, Status, Formeln, Preis aus dem Artikel, Fälligkeit aus dem Zahlungsziel des Kunden, „Wie beim letzten Mal“. |
 | **Aha-Moment:** „Café Linde bestellt sonst alle zwei Wochen, seit sieben Wochen nichts“ | Inhaberin | Rhythmus-Analyse je Kunde und Lieferant; dazu die Reichweite der Bestände. |

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Ihre Firmendaten{% endblock %}
+{% block title %}Ihre Firma{% endblock %}
 {% block content %}
 <div class="pagehead">
-  <div><h1>Ihre Firmendaten</h1>
+  <div><h1>Ihre Firma</h1>
     <p>Stehen auf jeder Rechnung und in jeder E-Rechnung (§ 14 UStG). Gelb vorbelegt ist, was Physarum in Ihren Dateien gefunden hat – bitte prüfen.</p></div>
 </div>
 {% if missing %}<div class="notice warn" style="margin-bottom:12px">Bevor gedruckt oder eine E-Rechnung erzeugt werden kann, fehlt noch: <b>{{ missing|join(', ') }}</b>.</div>{% endif %}
@@ -18,4 +18,12 @@
   <p class="muted" style="margin-top:12px">Pflicht für jede Rechnung: Name, Anschrift und Steuernummer oder USt-IdNr. Für die E-Rechnung (XRechnung) zusätzlich E-Mail, Telefon und IBAN. Jede Änderung steht mit altem und neuem Wert im Protokoll.</p>
   <div class="row" style="margin-top:8px"><button class="primary" type="submit">Speichern</button>{% if back %}<a class="btn ghost" href="{{ back }}">Zurück</a>{% endif %}</div>
 </form>
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top:14px">
+  <a class="card" href="/steuerberatung" style="text-decoration:none"><h2>Für die Steuerberatung</h2>
+    <p class="muted">Buchungsstapel der Ausgangsrechnungen für DATEV, die Bücher, die Belege und ein Protokoll – als ein Paket.</p></a>
+  <a class="card" href="/verfahrensdoku" style="text-decoration:none"><h2>Verfahrensdokumentation</h2>
+    <p class="muted">Wie Ihre Daten hierher kommen, was Physarum daraus macht und wie jede Änderung festgehalten wird (GoBD).</p></a>
+  <a class="card" href="/sicherung.zip" style="text-decoration:none"><h2>Sicherung</h2>
+    <p class="muted">Alles in einer Datei: Ihre Originale, alle Datensätze, das Änderungsprotokoll.</p></a>
+</div>
 {% endblock %}

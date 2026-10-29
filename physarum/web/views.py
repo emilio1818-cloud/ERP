@@ -96,7 +96,7 @@ def input_value(attr: dict, value) -> str:
     return str(value)
 
 
-def list_columns(spec: dict, limit: int = 7, pins: dict | None = None) -> list[dict]:
+def list_columns(spec: dict, limit: int | None = 7, pins: dict | None = None) -> list[dict]:
     """The columns a list shows: what the person pinned, then the most conductive attributes
     (as of the last growth – between two feedings the list does not rearrange itself)."""
     pins = pins or {}
@@ -127,10 +127,49 @@ def list_columns(spec: dict, limit: int = 7, pins: dict | None = None) -> list[d
     if paid:
         sal["pay_state"] = sal["pay_open"] = 9.0
     ranked = sorted(attrs, key=lambda a: (a["id"] not in pinned, -sal[a["id"]]))
+    if limit is None:
+        return ranked
     keep = ranked[:max(limit, len(pinned & set(sal)))]
     order = {a["id"]: i for i, a in enumerate(spec["attrs"])}
     keep.sort(key=lambda a: (0 if a["id"] in (spec.get("key"), spec.get("title")) else 1, order[a["id"]]))
     return keep
+
+
+def related_columns(spec: dict, recs: list[dict], parent_type: str, limit: int = 6) -> list[dict]:
+    """Columns for a few related records on a record page: what tells these rows apart. A column
+    empty here, one that says the same in every row, or a date equal to another date is left out;
+    a purpose or description is worth showing."""
+    cand = [c for c in list_columns(spec, None) if not (c["kind"] == "ref" and c.get("ref") == parent_type)]
+    notes = [a for a in spec["attrs"] if a.get("role") == "notes" and not a.get("hidden") and a["kind"] == "text"]
+    sample = recs[:60]
+    if not sample:
+        return cand[:limit]
+
+    def vals(c):
+        return [r["data"].get(c["id"]) for r in sample]
+
+    keep = []
+    for c in cand + [n for n in notes[:1] if n not in cand]:
+        v = vals(c)
+        filled = [x for x in v if x not in (None, "")]
+        if len(filled) < 0.3 * len(sample):
+            continue
+        essential = c["id"] in (spec.get("key"), spec.get("title")) or c["kind"] == "money"
+        if len(sample) >= 3 and len({str(x) for x in filled}) == 1 and not essential:
+            continue  # the same in every row here ("GUTSCHR. UEBERWEISUNG")
+        if c["kind"] in ("date", "datetime") and any(
+                o["kind"] in ("date", "datetime") and sum(1 for a, b in zip(v, vals(o)) if a == b) >= 0.9 * len(sample)
+                for o in keep):
+            continue  # "Wertstellung" next to "Buchungstag", "Ende" next to "Beginn"
+        keep.append(c)
+    note = next((c for c in keep if c.get("role") == "notes"), None)
+    out = [c for c in keep if c is not note][:limit - (1 if note else 0)]  # the most telling ones …
+    order = {a["id"]: i for i, a in enumerate(spec["attrs"])}
+    out.sort(key=lambda a: (0 if a["id"] in (spec.get("key"), spec.get("title")) else 1, order[a["id"]]))  # … in file order
+    if note:
+        pos = next((i for i, c in enumerate(out) if c["kind"] in ("money", "number")), len(out))
+        out.insert(pos, note)  # the purpose before the amounts
+    return out
 
 
 from ..lexicon import EN_VALUES, show_value  # noqa: E402,F401  (German display of English values)

@@ -34,6 +34,7 @@
     <p>
       {% if party %}{{ fmt(party, rec.data.get(party.id)) }}{% endif %}
       {% if money_attr and rec.data.get(money_attr.id) is not none %} · <b>{{ money(rec.data.get(money_attr.id), money_attr.currency) }}</b>{% endif %}
+      {% if effort %} · <span class="{{ 'bad' if effort.share > 120 else ('warn' if effort.share > 100 else 'muted') }}" title="Summe der {{ effort.n }} Zeiteinträge mit Betrag">Aufwand {{ money(effort.total) }} = {{ effort.share }} % von {{ effort.budget_name }}</span>{% endif %}
       {% if pay and pay.open and pay.state in ('teilbezahlt', 'offen') and pay.paid %} · noch offen: <b>{{ money(pay.open) }}</b>{% endif %}
       {% if reach %} · reicht noch ca. {{ reach|round|int }} Tage{% endif %}
     </p>
@@ -225,7 +226,7 @@
     </tbody>
   </table>
   </div>
-  {% if g.n > g.recs|length %}<p class="muted" style="font-size:.85rem">… {{ g.n - g.recs|length }} weitere</p>{% endif %}
+  {% if g.n > g.recs|length %}<p class="muted" style="font-size:.85rem">{% if g.more %}<a href="{{ g.more }}">Alle {{ g.n }} {{ g.spec.plural }} ansehen →</a>{% else %}… {{ g.n - g.recs|length }} weitere{% endif %}</p>{% endif %}
 </section>
 {% endfor %}
 

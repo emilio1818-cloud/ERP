@@ -185,7 +185,7 @@ table { border-collapse: collapse; width: 100%; }
 .step .bar { height: 6px; border-radius: 3px; background: var(--soft); margin: 8px 0 8px; }
 .step.done .bar { background: var(--accent); }
 .step.late .bar { background: var(--bad); }
-.step b { display: block; font-size: .9rem; }
+.step b { display: block; font-size: .9rem; overflow-wrap: anywhere; hyphens: auto; }
 .step small { display: block; }
 .lines td input { width: 100%; }
 .history li { padding: 6px 0; border-bottom: 1px solid var(--line); font-size: .88rem; }
@@ -287,3 +287,6 @@ tfoot td { font-weight: 600; }
 }
 form.inline { display: inline; margin-left: .4rem; }
 dd.shadow { font-size: .85rem; margin-top: .1rem; }
+.grid > * { min-width: 0; } /* grid cells may shrink: wide tables scroll inside them */
+span.bad { color: var(--bad); font-weight: 600; }
+span.warn { color: var(--warn-ink, var(--accent-strong)); font-weight: 600; }

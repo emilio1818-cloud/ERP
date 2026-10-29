@@ -29,6 +29,11 @@
 <div class="toolbar noprint">
   <input type="search" name="q" value="{{ state.q }}" placeholder="In {{ spec.plural }} suchen …" data-live aria-label="Suchen">
   {% if state.range %}<a class="chip on" href="?{{ keep('range') }}" title="Zeitraum entfernen">{{ state.range.label }} ✕</a>{% endif %}
+  {% set facet_ids = facets|map(attribute='attr')|map(attribute='id')|list %}
+  {% for k, v in state.filters.items() if k not in facet_ids %}
+    {% set fa = spec.attrs|selectattr('id', 'equalto', k)|first %}
+    {% if fa %}<a class="chip on" href="?{{ keep(k) }}" title="Filter entfernen">{{ fa.name }}: {{ title(v|int) if fa.kind == 'ref' and v.isdigit() else v }} ✕</a>{% endif %}
+  {% endfor %}
   {% for f in facets %}
   <div class="chips" aria-label="Filter {{ f.attr.name }}">
     {% for k, label, n in f['values'] %}

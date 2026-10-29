@@ -174,7 +174,8 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
                 and not lexicon.is_unnamed(a["name"]):  # a date without a heading is no milestone anyone could name
             cand.append(dict(id=f"s_{a['id']}", source="own", attr=a["id"], label=_label_of(a), name=a["name"]))
     for rel, src, pd in kids:
-        lab = CHILD_LABEL.get(src.get("concept") or "", src["name"])
+        # a supplier's invoice for a project is a cost of it, not its billing
+        lab = src["name"] if src.get("incoming") else CHILD_LABEL.get(src.get("concept") or "", src["name"])
         cand.append(dict(id=f"c_{rel['id']}", source="child", type=src["id"], rel=rel["id"], rel_attr=rel["attr"],
                          rel_kind=rel["kind"], attr=pd["id"], label=lab, name=src["name"], child_plural=src["plural"]))
     for a in spec["attrs"]:

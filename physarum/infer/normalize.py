@@ -136,6 +136,9 @@ def candidate_extractions(o: Obs) -> list[dict]:
                 continue
             if party and transactional and y.role in TRANSACTION_FACTS:
                 continue  # the price at the time of sale is a fact of the sale
+            if party and y.prof.concept and y.prof.concept != x.prof.concept and \
+                    lexicon.CONCEPTS[y.prof.concept]["kind"] == "transaction":
+                continue  # the project a ticket is about belongs to the ticket, not to the customer
             ok, cons = depends(groups, y, g)
             if ok:
                 deps.append((y, cons))

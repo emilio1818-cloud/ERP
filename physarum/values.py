@@ -77,9 +77,21 @@ def parse_time(v) -> str | None:
     return f"{int(m.group(1)):02d}:{m.group(2)}"
 
 
+_PER_PERIOD = re.compile(r"\s*(?:(?:/|pro|je|per)\s*(?:monat|mon\.?|jahr|stunde|std\.?|h|woche|tag)|p\.\s?[ma]\.?|"
+                        r"mtl\.?|monatlich|jährlich|jaehrlich)\s*$", re.I)
+# what people write into a date or amount column when there is none (yet)
+PLACEHOLDERS = {"unbefristet", "laufend", "offen", "tbd", "n/a", "na", "-", "--", "—", "–", "k.a.", "k. a.", "keine angabe",
+                "ongoing", "open", "unbekannt", "folgt", "nach vereinbarung", "siehe vertrag", "auf anfrage", "kein",
+                "keine", "noch offen", "ausstehend", "x", "?"}
+
+
+def is_placeholder(v) -> bool:
+    return isinstance(v, str) and fold(v).strip().rstrip(".") in PLACEHOLDERS | {p.rstrip(".") for p in PLACEHOLDERS}
+
+
 def _clean_num_str(s: str) -> tuple[str, bool, str | None]:
     """Strip currency, spaces and sign markers. Returns (digits_and_separators, negative, currency)."""
-    s = _NUM_PREFIX.sub("", s.strip())
+    s = _PER_PERIOD.sub("", _NUM_PREFIX.sub("", s.strip()))  # "220 €/Monat" is 220 €
     if re.search(r"[,.]-{1,2}\s*(€|eur)?$", s, re.I):
         s = re.sub(r"([,.])-{1,2}(\s*(€|eur)?)$", r"\g<1>00\2", s, flags=re.I)  # "139,-" is 139,00
     cur = None
@@ -107,8 +119,8 @@ def number_locale_evidence(s: str) -> str | None:
         t = t[:-1]
     if _DE_NUM.match(t) and not _AMBIG_DE_THOUSAND.match(t):
         return "de"
-    if _EN_NUM.match(t) and not _AMBIG_EN_THOUSAND.match(t):
-        return "en"
+    if _EN_NUM.match(t) and not _AMBIG_EN_THOUSAND.match(t) and not _AMBIG_DE_THOUSAND.match(t):
+        return "en"  # "12.500" says nothing: twelve thousand five hundred here, twelve and a half there
     return None
 
 
@@ -438,6 +450,8 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
                 kind = "money"
     if kind is None:
         s_all = [str(v) for v in present]
+        real = [x for x in s_all if not is_placeholder(x)]
+        typed = real if len(real) >= 0.4 * len(s_all) else s_all  # "unbefristet" between the dates says: none yet
         tests = [
             ("email", lambda x: bool(_EMAIL.match(x))),
             ("url", lambda x: bool(_URL.match(x))),
@@ -451,11 +465,12 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
             need = 0.9
             if k == "number" and hrole in ("money", "quantity"):
                 need = 0.6  # "nach Aufwand" in an amount column does not make it text
-            if share(pred, s_all[:3000]) >= need:
+            pool = typed if k in ("time", "date", "percent", "number") else s_all
+            if pool and share(pred, pool[:3000]) >= need:
                 kind = k
                 break
         if kind == "date":
-            parsed = [parse_date(x, p.date_order) for x in s_all[:3000]]
+            parsed = [parse_date(x, p.date_order) for x in typed[:3000]]
             if any(isinstance(d, datetime) and d.time() != time(0, 0) for d in parsed):
                 kind = "datetime"
         if kind == "number" and share(lambda x: bool(_CURRENCY.search(x)), s_all[:3000]) >= 0.3:
@@ -521,6 +536,10 @@ def profile_column(name: str, raw: list, meta: dict | None = None) -> Profile:
         ck = (type(v), v) if not isinstance(v, (list, dict)) else None
         if ck is not None and ck in cache:
             x, bad = cache[ck]
+        elif kind in ("date", "datetime", "number", "money", "percent", "percent_whole", "time") and is_placeholder(v):
+            x, bad = None, False
+            if ck is not None:
+                cache[ck] = (x, bad)
         else:
             x = _parse_as(kind, v, p)
             bad = x is None

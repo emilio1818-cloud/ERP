@@ -29,6 +29,7 @@
 <div class="grid g2" style="margin-top:14px; align-items:start">
   <section class="card">
     <h2>Arten von Dingen</h2>
+    <div style="overflow-x:auto">
     <table class="table">
       <thead><tr><th>Name</th><th class="num">Anzahl</th><th>entstanden aus</th><th class="num">Leitf.</th></tr></thead>
       <tbody>
@@ -40,6 +41,7 @@
       {% endfor %}
       </tbody>
     </table>
+    </div>
     <details style="margin-top:12px"><summary class="muted">Eine Art umbenennen</summary>
       <form method="post" action="/organismus/umbenennen" class="row" style="margin-top:8px">
         <select name="type">{% for t in model.types %}<option value="{{ t.id }}">{{ t.plural }}</option>{% endfor %}</select>
@@ -59,7 +61,7 @@
     {% for l in items %}
       <li>{{ l.text }}<br><span class="faint" style="font-size:.82rem">{{ l.why }}</span>
         {% if l.rel and l.rel.kind != 'mention' and not l.rel.structural %}
-        <button class="small ghost" data-post="/organismus/verweis" data-body='{"key": "rel|{{ (model.types|selectattr('id','equalto',l.rel.src)|first).name }}|{{ ((model.types|selectattr('id','equalto',l.rel.src)|first).attrs|selectattr('id','equalto',l.rel.attr)|first).orig_name }}|{{ (model.types|selectattr('id','equalto',l.rel.dst)|first).name }}"}' data-confirm="Diese Verbindung lösen? Physarum wächst danach neu.">lösen</button>{% endif %}
+        <button class="small ghost" data-post="/organismus/verweis" data-body='{"key": "rel|{{ l.rel.src }}|{{ l.rel.attr }}|{{ l.rel.dst }}"}' data-confirm="Diese Verbindung lösen? Physarum wächst danach neu.">lösen</button>{% endif %}
       </li>
     {% endfor %}
     </ul>
@@ -70,6 +72,7 @@
 
 <section class="card" style="margin-top:14px">
   <h2>Wachstum</h2>
+  <div style="overflow-x:auto">
   <table class="table">
     <thead><tr><th>Version</th><th>wann</th><th>Arten</th><th>Verbindungen</th><th>Datensätze</th><th>neu</th></tr></thead>
     <tbody>{% for v in versions %}
@@ -78,6 +81,7 @@
         <td>{{ (v.summary.new_types or [])|join(', ') }}</td></tr>
     {% endfor %}</tbody>
   </table>
+  </div>
   <p class="faint" style="font-size:.84rem">Physarum rechnet bei jedem Einwurf alles neu aus allen Quellen – das Ergebnis hängt nicht von der Reihenfolge ab. Ihre Antworten und Korrekturen gelten dabei als feste Randbedingungen.</p>
 </section>
 {% endblock %}

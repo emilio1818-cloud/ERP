@@ -456,21 +456,23 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             if not s2:
                 continue
             relid = f"r_{tid2}_{attr}" if kind == "ref" else (f"m_{tid2}_{attr}_{spec['id']}" if attr != "doc" else f"doc_{spec['id']}")
-            cols = views.list_columns(s2, 6)
-            cols = [c for c in cols if not (c["kind"] == "ref" and c.get("ref") == spec["id"])]
             proc2 = next((p for p in rt.model.get("processes", []) if p["type"] == tid2), None)
             dattr = proc2["start"]["attr"] if proc2 else None
             if dattr:
                 recs.sort(key=lambda r: str(r["data"].get(dattr) or ""), reverse=True)
+            cols = views.related_columns(s2, recs, spec["id"], 6)
             money_cols = [c for c in s2["attrs"] if c["kind"] == "money" and not c.get("hidden")]
             total_attr = next((c for c in money_cols if set(billing.words(c["name"])) & {"gesamt", "summe", "total", "betrag",
                                                                                        "brutto", "offen"}), None) \
                 or (money_cols[-1] if money_cols else None)
             total = sum(float(r["data"].get(total_attr["id"]) or 0) for r in recs if isinstance(r["data"].get(total_attr["id"]), (int, float))) if total_attr else None
             label = s2["plural"] if kind == "ref" else (f"Erwähnt in {s2['plural']}" if attr != "doc" else "Erwähnt in Dokumenten")
-            related.append(dict(spec=s2, attr=attr, kind=kind, recs=recs[:100], n=len(recs), cols=cols, rel=relid,
+            lines = s2["kind"] == "line"
+            shown = recs[:100] if lines else recs[:10]  # an invoice's positions in full; of 34 invoices the newest
+            related.append(dict(spec=s2, attr=attr, kind=kind, recs=shown, n=len(recs), cols=cols, rel=relid,
                                 cond=cond.get(relid, 0.5 if kind == "ref" else 0.3), label=label, total=total,
-                                total_attr=total_attr, lines=s2["kind"] == "line"))
+                                total_attr=total_attr, lines=lines,
+                                more=f"/t/{tid2}?f_{attr}={rid}" if kind == "ref" and len(recs) > len(shown) else None))
         related.sort(key=lambda g: (not g["lines"], -g["cond"], -g["n"]))
         # what this record mentions (bank transfer -> invoices, e-mail -> customers)
         mentions = []
@@ -530,7 +532,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 delivery_hint="aus dem Auftrag" if dv else "bitte angeben",
                 zero_rate=bool(t_now and any(abs(g["rate"]) < 1e-9 for g in t_now["groups"])),
                 other_invoices=billing.other_invoices(rt, spec, rec))
+        effort = _effort(spec, rec)
         return dict(rec=rec, spec=spec, facts=facts, timeline=timeline, related=related, mentions=mentions, notes=notes,
+                    effort=effort,
                     stale=stale, issued_here=bool(meta.get("issued")), incoming=bool(spec.get("incoming")), **issue_ctx,
                     draft_lines=bool(draft and meta.get("positions") is not None),
                     maybe_paid=maybe_paid, pay=pay, alloc=alloc, invoice=inv, draft=draft, doc=doc,
@@ -542,6 +546,29 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     changes=changes, src_files=src_files, lock=lock, children=children, party=party,
                     money_attr=money_attr, status_attr=rt.attr(spec["id"], status_attr) if status_attr else None,
                     line=line_child(spec), reach=reach)
+
+    def _effort(spec: dict, rec: dict) -> dict | None:
+        """A budget and the work booked on it (time entries with an amount)."""
+        from ..process import _BUDGET_WORDS, _RATE_WORDS
+        budget = next((a for a in spec["attrs"] if a["kind"] == "money" and not a.get("hidden") and not a.get("virtual")
+                       and set(billing.words(a["name"])) & _BUDGET_WORDS), None)
+        b = rec["data"].get(budget["id"]) if budget else None
+        if not isinstance(b, (int, float)) or b <= 0:
+            return None
+        total, n = 0.0, 0
+        for frm, attr, kind, _how in rt.backrefs.get(rec["id"], []):
+            r2 = rt.by_id.get(frm)
+            s2 = rt.spec(r2["type"]) if r2 else None
+            if not s2 or kind != "ref" or s2.get("concept") != "zeiteintrag":
+                continue
+            v = next((r2["data"][a["id"]] for a in s2["attrs"] if a["kind"] == "money" and not a.get("virtual")
+                      and not set(billing.words(a["name"])) & _RATE_WORDS and isinstance(r2["data"].get(a["id"]), (int, float))), None)
+            if v:
+                total += float(v)
+                n += 1
+        if not n:
+            return None
+        return dict(total=round(total, 2), budget=b, budget_name=budget["name"], share=round(total / b * 100), n=n)
 
     def build_timeline(proc: dict, rec: dict) -> dict:
         data = rec["data"]
@@ -577,6 +604,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             late = (not when) and not by_status and due and due < today
             item = dict(label=st["label"], date=when, done=bool(when) or bool(by_status), via=via, due=due, late=late, step=st,
                         usual=st.get("median_days"), by_status=by_status)
+            if (st.get("share") or 1) < 0.5 and not item["done"] and not due:
+                continue  # most cases go without it (a ticket, a supplier's invoice): no step to wait for
             if not when and not by_status and nxt is None:
                 nxt = item
                 own = next((s for s in [st] + st.get("also", []) if s["source"] == "own"), None)

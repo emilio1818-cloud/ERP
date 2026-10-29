@@ -56,6 +56,11 @@ def _norm_header(c: Col) -> str:
     return " ".join(tokens(display_header(c.name)))
 
 
+# words that decorate a header without changing what it holds ("Billable Amount (EUR)" is "Amount")
+_DECORATION = {"billable", "abrechenbar", "abrechenbare", "eur", "euro", "chf", "usd", "h", "std", "decimal", "dezimal",
+               "in", "hours", "stunden"}
+
+
 def header_sim(a: Col, b: Col) -> float:
     na, nb = _norm_header(a), _norm_header(b)
     if na == nb and na:
@@ -63,6 +68,9 @@ def header_sim(a: Col, b: Col) -> float:
     ta, tb = set(na.split()), set(nb.split())
     jac = len(ta & tb) / len(ta | tb) if ta | tb else 0.0
     sim = jac * 0.9
+    small, big = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+    if small and small < big and (big - small) <= _DECORATION and not small <= _DECORATION:
+        sim = max(sim, 0.8)
     ca, cb = na.replace(" ", ""), nb.replace(" ", "")
     if ca and cb and len(ta) == len(tb):
         # spelling variants ("Strasse"/"Straße", "E-Mail"/"Email"), not "Kunde" vs "Kunde seit"

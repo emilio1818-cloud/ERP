@@ -42,7 +42,8 @@ class RelDraft:
 
 
 class IdentIndex:
-    def __init__(self, groups: list[Group], title: str | None = None):
+    def __init__(self, groups: list[Group], title: str | None = None, alt: dict | None = None):
+        self.alt = alt or {}
         self.by: dict[str, int] = {}
         self.names: dict[str, list[tuple[str, int]]] = defaultdict(list)
         self.words: dict[str, set[int]] = defaultdict(set)        # word prefix -> groups whose name has it
@@ -75,6 +76,8 @@ class IdentIndex:
     def lookup(self, value, via: str, fuzzy: bool = True) -> tuple[int | None, bool]:
         if value is None:
             return None, False
+        if via.startswith("a:"):
+            return (self.alt.get(via[2:]) or {}).get(norm_key(value)), True
         if via == "k":
             i = self.by.get("k:" + norm_key(value))
             if i is None and isinstance(value, str):
@@ -115,10 +118,36 @@ class IdentIndex:
 _MULTI = re.compile(r"\s*(?:[,;+/&]|\bund\b)\s*")
 
 
-def _vias(d: TypeDraft) -> list[tuple[str, AttrDraft]]:
+def alternate_keys(d: TypeDraft, groups: list[Group]) -> dict[str, dict[str, int]]:
+    """Other programs' numbers a thing carries besides its own ("Firmen-Nr. (CRM)", the ticket system's
+    company id): filled for most, unique to one thing each. A reference may speak that number."""
+    out = {}
+    for a in d.attrs:
+        if a is d.key or a.kind != "id":
+            continue
+        seen: dict[str, int] = {}
+        clash = filled = 0
+        for gi, g in enumerate(groups):
+            v = g.values.get(a.aid)
+            if v is None:
+                continue
+            filled += 1
+            k = norm_key(v)
+            if k in seen and seen[k] != gi:
+                clash += 1
+            seen.setdefault(k, gi)
+        if filled >= 3 and filled >= 0.3 * len(groups) and clash <= filled // 50:
+            out[a.aid] = seen
+    return out
+
+
+def _vias(d: TypeDraft, alt: dict | None = None) -> list[tuple[str, AttrDraft]]:
     out = []
     if d.key is not None:
         out.append(("k", d.key))
+    for a in d.attrs:
+        if alt and a.aid in alt:
+            out.append(("a:" + a.aid, a))
     for a in d.attrs:
         if a.kind == "email":
             out.append(("e", a))
@@ -141,7 +170,8 @@ def _eligible(t: TypeDraft, a: AttrDraft) -> bool:
 def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: dict[str, TypeDraft],
              decisions: dict | None = None, log: list | None = None, ask: list | None = None) -> list[RelDraft]:
     decisions = decisions or {}
-    idx = {id(t): IdentIndex(groups[id(t)], t.title.aid if t.title is not None else None) for t in types}
+    alts = {id(t): alternate_keys(t, groups[id(t)]) for t in types if t.kind == "master"}
+    idx = {id(t): IdentIndex(groups[id(t)], t.title.aid if t.title is not None else None, alts.get(id(t))) for t in types}
     rels: list[RelDraft] = []
     taken: set[tuple[int, int]] = set()  # (id(type), id(attr))
 
@@ -191,7 +221,8 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
                     continue
                 tobs = next((o for o in d.members if o.oid == target_oid), None)
                 ta = d.attr_of(tobs, tobs.key) if tobs is not None and tobs.key else None
-                via = "k" if ta is d.key else "e" if (ta is not None and ta.kind == "email") else "n"
+                via = "k" if ta is d.key else "e" if (ta is not None and ta.kind == "email") else \
+                    "a:" + ta.aid if ta is not None and ta.aid in (alts.get(id(d)) or {}) else "n"
                 r = build(t, a, d, via, True, f"„{col_name}“ wurde aus derselben Tabelle herausgelöst")
                 if r is None:
                     continue
@@ -211,13 +242,15 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
             for d in types:
                 if d is t or d.kind == "line" or len(groups[id(d)]) < 2:
                     continue
-                for via, va in _vias(d):
+                for via, va in _vias(d, alts.get(id(d))):
                     if a.kind == "email" and via != "e":
                         continue
                     if a.kind != "email" and via == "e":
                         continue
                     if a.kind == "id" and via == "n" and d.key is not None:
                         continue
+                    if via.startswith("a:") and (a.kind != "id" or va is a or d is t):
+                        continue  # another program's number is spoken by a number column
                     r = build(t, a, d, via, False, "")
                     if r is None or r.hits < 2:
                         continue
@@ -275,7 +308,7 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
                             for gi in hits:
                                 r.unresolved.pop(gi, None)
                 r.evidence = (f"{round(r.inclusion * 100)} % der Werte in „{a.name}“ sind "
-                              f"{'Nummern' if r.via == 'k' else 'E-Mails' if r.via == 'e' else 'Namen'} "
+                              f"{'Nummern' if r.via == 'k' or r.via.startswith('a:') else 'E-Mails' if r.via == 'e' else 'Namen'} "
                               f"von {d_plural(r.dst)}") + (f", {r.fuzzy} davon unscharf erkannt" if r.fuzzy else "")
                 r.kind = "parent" if t.kind == "line" and r.dst.kind == "transaction" else "ref"
                 rels.append(r)

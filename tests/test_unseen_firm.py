@@ -573,5 +573,22 @@ class UnseenFirm(unittest.TestCase):
         self.assertFalse(any("ELE-2026-0" in it["title"] for it in risk["items"] + checks["items"]))  # the paid, normal ones
 
 
+    def test_a_reference_may_speak_another_programs_number(self):
+        kunden = [[f"K-{10001 + i}", f"Firma {chr(65 + i)} GmbH", str(3363819200 + 7 * i), "Hamburg"] for i in range(12)]
+        kontakte = [[str(9000 + j), f"Person {j}", f"p{j}@firma{j % 12}.de", str(3363819200 + 7 * (j % 12))] for j in range(30)]
+        self.f.feed([("Kundenstamm.csv", csv("KdNr;Firma;CRM-ID;Ort", kunden)),
+                     ("hubspot-contacts.csv", csv("Record ID,Name,Email,Associated Company ID", kontakte, ","))])
+        rt = self.f.rt()
+        ku = next(t for t in rt.model["types"] if t.get("concept") == "kunde")
+        ko = next(t for t in rt.model["types"] if t["id"] != ku["id"] and any(a["kind"] == "ref" and a.get("ref") == ku["id"]
+                                                                               for a in t["attrs"]))
+        ref = next(a for a in ko["attrs"] if a["kind"] == "ref" and a.get("ref") == ku["id"])
+        linked = {r["data"].get(ref["id"]) for r in rt.records[ko["id"]]}
+        self.assertTrue(all(isinstance(v, int) for v in linked))
+        by_no = {r["id"]: r["data"][ku["key"]] for r in rt.records[ku["id"]]}
+        first = next(r for r in rt.records[ko["id"]] if "p0@" in str(r["data"]))
+        self.assertEqual(by_no[first["data"][ref["id"]]], "K-10001")
+
+
 if __name__ == "__main__":
     unittest.main()

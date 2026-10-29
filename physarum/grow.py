@@ -430,7 +430,7 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
         same_target = [x for x in rels if x.src is r.src and x.dst is r.dst]
         generic = set(tokens(spec["name"])) <= (set(lexicon.ROLE_TERMS["id"]) | {"name", "email", "mail", "e"}) or \
             spec.get("concept") == r.dst.concept or fold(spec["name"]) in (fold(r.dst.name), fold(r.dst.plural))
-        if len(same_target) == 1 and (generic or r.via in ("k", "e")) and r.attr.aid not in rename_attr:
+        if len(same_target) == 1 and (generic or r.via in ("k", "e") or r.via.startswith("a:")) and r.attr.aid not in rename_attr:
             spec["name"] = r.dst.name if not r.extra else "Partner"
     # "Kd-Nr" and "Kunde" side by side point at the same customer: one reference is enough
     pairs = defaultdict(list)
@@ -440,7 +440,7 @@ def _build_model(store, types, groups, rels, mrels, derived, table_meta, log) ->
     for rs in pairs.values():
         if len(rs) != 2:
             continue
-        num = next((x for x in rs if x.via in ("k", "e")), None)
+        num = next((x for x in rs if x.via in ("k", "e") or x.via.startswith("a:")), None)
         name = next((x for x in rs if x.via == "n"), None)
         if not num or not name:
             continue

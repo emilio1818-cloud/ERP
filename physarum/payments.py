@@ -480,12 +480,20 @@ def problems(entries: dict) -> list[dict]:
 
 
 PAY_STATE, PAY_OPEN = "pay_state", "pay_open"
-STATES = ["offen", "teilbezahlt", "bezahlt", "überzahlt", "storniert", "verrechnet"]
+STATES = ["offen", "überfällig", "teilbezahlt", "bezahlt", "überzahlt", "storniert", "verrechnet"]
 
 
-def apply_to_records(model: dict, records: dict, entries: dict):
-    """Show the ledger where people look: two computed fields on every invoice."""
+def apply_to_records(model: dict, records: dict, entries: dict, today: date | None = None):
+    """Show the ledger where people look: two computed fields on every invoice. An open invoice
+    past its due date says so ("überfällig") – the question "who owes me what" starts there."""
+    today = today or date.today()
     types = {e["type"] for e in entries.values()}
+    due_of = {}
+    for p in model.get("processes", []):
+        dl = next((d for d in p.get("deadlines", []) if fold(d.get("name") or "").startswith(("faellig", "zahlbar", "due")))
+                  or (p.get("deadlines") or [None])[0], None)
+        if dl:
+            due_of[p["type"]] = dl["attr"]
     for t in model["types"]:
         if t["id"] not in types or any(a["id"] == PAY_STATE for a in t["attrs"]):
             continue
@@ -502,10 +510,15 @@ def apply_to_records(model: dict, records: dict, entries: dict):
                 a["hidden"] = True
                 a["superseded"] = PAY_OPEN
     for tid in types:
+        da = due_of.get(tid)
         for r in records.get(tid, []):
             e = entries.get(r["id"])
             if e:
-                r["data"][PAY_STATE] = e["state"]
+                state = e["state"]
+                due = as_date(r["data"].get(da)) if da else None
+                if state == "offen" and e["open"] > EPS and due and due < today:
+                    state = "überfällig"
+                r["data"][PAY_STATE] = state
                 r["data"][PAY_OPEN] = e["open"]
 
 

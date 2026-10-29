@@ -66,7 +66,9 @@ def status_class(v: str) -> str:
         return "good"
     if f in NEGATIVE_STATES:
         return "bad"
-    if f in ("gemahnt", "ueberfaellig", "mahnung", "overdue", "pending", "in pruefung", "unfulfilled", "teilbezahlt",
+    if f in ("ueberfaellig", "overdue"):
+        return "bad"
+    if f in ("gemahnt", "mahnung", "pending", "in pruefung", "unfulfilled", "teilbezahlt",
              "ueberzahlt", "partially paid", "partially_refunded"):
         return "warn"
     if f in ("offen", "open"):
@@ -188,7 +190,15 @@ def facets(rt, spec: dict, recs: list[dict], limit: int = 2) -> list[dict]:
         cands = [a for a in cands if a["id"] == "pay_state" or a.get("role") != "status"]
     cands.sort(key=lambda a: (0 if a["id"] == "pay_state" else 1 if a.get("role") == "status" else 2,
                               -(a.get("salience") or 0)))
-    for a in cands[:limit]:
+    # "Kundengruppe" from one file and "Segment" from another say the same: one chip row is enough
+    picked = []
+    for a in cands:
+        keys = {facet_key(v) for v in (a.get("enum") or [])}
+        if any(len(keys & {facet_key(v) for v in (b.get("enum") or [])}) >= 0.5 * min(len(keys), len(b.get("enum") or [1]))
+               for b in picked):
+            continue
+        picked.append(a)
+    for a in picked[:limit]:
         cnt, label = Counter(), {}
         variants: dict[str, Counter] = defaultdict(Counter)
         for r in recs:

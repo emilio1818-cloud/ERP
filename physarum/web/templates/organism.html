@@ -31,7 +31,7 @@
     <h2>Arten von Dingen</h2>
     <div style="overflow-x:auto">
     <table class="table">
-      <thead><tr><th>Name</th><th class="num">Anzahl</th><th>entstanden aus</th><th class="num">Leitf.</th></tr></thead>
+      <thead><tr><th>Name</th><th class="num">Anzahl</th><th>entstanden aus</th><th class="num" title="Wie viel Fluss diese Art trägt: Verknüpfungen, Geld, Nutzung">Gewicht</th></tr></thead>
       <tbody>
       {% for t in model.types|sort(attribute='salience', reverse=True) %}
         <tr><td><a href="/t/{{ t.id }}">{{ t.plural }}</a><br><span class="faint" style="font-size:.78rem">{{ {'master':'Stammdaten','transaction':'Vorgänge','line':'Positionen','document':'Dokumente'}[t.kind] }}</span></td>

@@ -31,12 +31,13 @@
       {% if rec.meta.fuzzy %}<span class="tag guess" title="Aus ähnlichen Einträgen zusammengeführt">zusammengeführt</span>{% endif %}
     </div>
     <h1>{{ 'Rechnungsentwurf' if draft else title(rec.id) }}</h1>
-    <p>
-      {% if party %}{{ fmt(party, rec.data.get(party.id)) }}{% endif %}
-      {% if money_attr and rec.data.get(money_attr.id) is not none %} · <b>{{ money(rec.data.get(money_attr.id), money_attr.currency) }}</b>{% endif %}
-      {% if effort %} · <span class="{{ 'bad' if effort.share > 120 else ('warn' if effort.share > 100 else 'muted') }}" title="Summe der {{ effort.n }} Zeiteinträge mit Betrag">Aufwand {{ money(effort.total) }} = {{ effort.share }} % von {{ effort.budget_name }}</span>{% endif %}
-      {% if pay and pay.open and pay.state in ('teilbezahlt', 'offen') and pay.paid %} · noch offen: <b>{{ money(pay.open) }}</b>{% endif %}
-      {% if reach %} · reicht noch ca. {{ reach|round|int }} Tage{% endif %}
+    <p>{% set sep = joiner(" · ") %}
+      {% if party %}{{ sep() }}{{ fmt(party, rec.data.get(party.id)) }}{% endif %}
+      {% if money_attr and rec.data.get(money_attr.id) is not none %}{{ sep() }}<b>{{ money(rec.data.get(money_attr.id), money_attr.currency) }}</b>{% endif %}
+      {% for o in owes or [] %}{{ sep() }}<a href="{{ o.href }}" class="{{ 'bad' if o.late else '' }}">{{ 'zu zahlen' if o.incoming else 'offen' }}: <b>{{ money(o.total) }}</b>{% if o.late %} (davon {{ money(o.late) }} überfällig){% endif %}</a>{% endfor %}
+      {% if effort %}{{ sep() }}<span class="{{ 'bad' if effort.share > 120 else ('warn' if effort.share > 100 else 'muted') }}" title="Summe der {{ effort.n }} Zeiteinträge mit Betrag">Aufwand {{ money(effort.total) }} = {{ effort.share }} % von {{ effort.budget_name }}</span>{% endif %}
+      {% if pay and pay.open and pay.state in ('teilbezahlt', 'offen') and pay.paid %}{{ sep() }}noch offen: <b>{{ money(pay.open) }}</b>{% endif %}
+      {% if reach %}{{ sep() }}reicht noch ca. {{ reach|round|int }} Tage{% endif %}
     </p>
   </div>
   <div class="row noprint">

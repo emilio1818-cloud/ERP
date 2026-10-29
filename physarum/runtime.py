@@ -256,14 +256,19 @@ class Runtime:
         if saved.get("model") == self._mv and set(prev) == set(sal):
             order = prev
         else:
-            order = prev + [t["id"] for t in sorted(types, key=lambda t: -sal[t["id"]]) if t["id"] not in prev]
+            # the menu keeps its places (people find things where they were); a new kind of thing joins
+            # where its weight puts it, and only a list that became far more important moves up
+            order = list(prev)
+            for t in sorted((t for t in types if t["id"] not in prev), key=lambda t: -sal[t["id"]]):
+                pos = next((i for i, x in enumerate(order) if sal[x] < sal[t["id"]]), len(order))
+                order.insert(pos, t["id"])
             changed, guard = True, 0
             while changed and guard < 50:
                 changed = False
                 guard += 1
                 for i in range(len(order) - 1):
                     a, b = order[i], order[i + 1]
-                    if sal[b] > sal[a] * 1.15 + 0.01:
+                    if sal[b] > sal[a] * 2 + 0.05:
                         order[i], order[i + 1] = b, a
                         changed = True
             self.store.kv_set("nav_order", dict(order=order, model=self._mv))
@@ -279,6 +284,7 @@ class Runtime:
         by = {t["id"]: t for t in types}
         for tid in order:
             t = dict(by[tid])
+            t["count"] = len(self.records.get(tid, []))  # what is there now, also what was made here since growing
             t["is_new"] = bool(seen.get(tid)) and (date.today() - date.fromisoformat(seen[tid])).days <= 14
             used = flux.get(f"type:{tid}", 0) > 0.5
             if (sal[tid] < 0.22 and not used and (t.get("count") or 0) < 30 and not t["is_new"]) and t["kind"] != "document":

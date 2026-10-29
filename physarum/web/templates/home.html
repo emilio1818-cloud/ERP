@@ -35,9 +35,10 @@
     {% if not work %}
     <div class="card"><h2>Nichts Dringendes.</h2><p class="muted">Physarum meldet sich, sobald etwas länger dauert als üblich, eine Frist abläuft oder ein Bestand knapp wird.</p></div>
     {% endif %}
+    <div class="stack" data-more-box>
     {% for g in work %}
-    <article class="card work sev{{ g.severity }}" data-remove>
-      <details {{ 'open' if loop.index <= 3 }}>
+    <article class="card work sev{{ g.severity }}{{ ' more-group' if loop.index > 10 }}" data-remove{{ ' hidden' if loop.index > 10 }}>
+      <details {{ 'open' if loop.index <= 3 }} data-more-box>
         <summary style="list-style:none">
           <header>
             <span class="dot {{ 'bad' if g.severity == 3 else 'warn' if g.severity == 2 else 'info' }}" style="margin-top:8px"></span>
@@ -47,8 +48,8 @@
           </header>
         </summary>
         <ul>
-          {% for it in g['items'][:8] %}
-          <li>
+          {% for it in g['items'] %}
+          <li{{ ' class=more-li hidden' if loop.index > 8 }}>
             <div class="t">
               <div><a href="/r/{{ it.rid }}">{{ it.title }}</a>{% if it.party %} <span class="muted">· {{ it.party }}</span>{% endif %}</div>
               <div class="r">{{ reason(g, it) }}{% if it.paid %} · <span class="tag guess" title="Teilzahlung erhalten">{{ money(it.paid) }} erhalten</span>{% endif %}
@@ -74,11 +75,16 @@
           </li>
           {% endfor %}
         </ul>
-        {% if g['items']|length > 8 %}<div class="why">… und {{ g.count - 8 }} weitere. <a href="/t/{{ g.type }}">Alle {{ model.types|selectattr('id', 'equalto', g.type)|map(attribute='plural')|first }} ansehen</a></div>{% endif %}
+        {% if g['items']|length > 8 or g.count > g['items']|length %}<div class="why">
+          {% if g['items']|length > 8 %}<button type="button" class="linkish" data-more=".more-li">… und {{ g['items']|length - 8 }} weitere zeigen</button>{% endif %}
+          {% if g.count > g['items']|length %}<span class="faint">({{ g.count }} insgesamt)</span>{% endif %}
+          {% if g.type %}<a href="/t/{{ g.type }}">Alle {{ model.types|selectattr('id', 'equalto', g.type)|map(attribute='plural')|first }} ansehen</a>{% endif %}
+        </div>{% endif %}
       </details>
     </article>
     {% endfor %}
-    {% if more_work %}<p class="muted">… und {{ more_work }} weitere Hinweise mit geringerer Dringlichkeit.</p>{% endif %}
+    {% if more_work %}<button type="button" class="linkish muted" data-more=".more-group">… und {{ more_work }} weitere {{ 'Hinweis' if more_work == 1 else 'Hinweise' }} mit geringerer Dringlichkeit zeigen</button>{% endif %}
+    </div>
 
     {% if quality %}
     <div class="card">
@@ -95,7 +101,7 @@
 
   <aside class="stack" aria-label="Überblick">
     {% if open_items %}
-    <a href="/t/{{ open_items.type }}?f_pay_state=offen" class="card kpi" style="display:block; text-decoration:none">
+    <a href="/t/{{ open_items.type }}?f_pay_state=offen|überfällig|teilbezahlt" class="card kpi" style="display:block; text-decoration:none">
       <div class="label">Offene Posten · {{ open_items.plural }}</div>
       <div class="value">{{ money(open_items.amount) }}</div>
       <div class="delta muted">{{ open_items.n }} unbezahlt{% if open_items.partial %}, {{ open_items.partial }} teilweise bezahlt{% endif %}{% if open_items.overdue %} · davon {{ money(open_items.overdue) }} überfällig{% endif %}</div>

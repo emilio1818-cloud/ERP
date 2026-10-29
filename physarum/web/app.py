@@ -182,7 +182,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         from ..coverage import coverage
         from ..questions import CONSEQUENCES
         cov = coverage(rt)
-        return page(request, "home.html", dict(work=work[:10], more_work=max(0, len(work) - 10), kpis=ks[:4], cov=cov,
+        return page(request, "home.html", dict(work=work[:40], more_work=max(0, min(len(work), 40) - 10), kpis=ks[:4], cov=cov,
                                                consequences=CONSEQUENCES,
                                                questions=qs, suggestions=sugg, quality=quality, summary=summary,
                                                payments=payments, pay_exact=len(pay_exact),
@@ -289,8 +289,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             if k.startswith("f_") and v:
                 aid = k[2:]
                 state["filters"][aid] = v
+                wanted = v.split("|")
                 recs = [r for r in recs if r["data"].get(aid) is not None and
-                        (views.facet_key(r["data"].get(aid)) == v or str(r["data"].get(aid)) == v)]
+                        (views.facet_key(r["data"].get(aid)) in wanted or str(r["data"].get(aid)) in wanted)]
         von, bis = request.query_params.get("von"), request.query_params.get("bis")
         if von or bis:
             proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
@@ -366,7 +367,10 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         store.event("list", f"type:{tid}")
         sums = {}
         for c in cols:
-            if c["kind"] == "money":
+            # the sum of unit prices in a price list says nothing; that of invoices does
+            if c["kind"] == "money" and spec["kind"] in ("transaction", "line") and \
+                    not set(billing.words(c["name"])) & {"preis", "einzelpreis", "stueckpreis", "satz", "stundensatz",
+                                                         "rate", "listenpreis", "ek", "vk", "tarif"}:
                 vals = [r["data"].get(c["id"]) for r in recs]
                 vals = [v for v in vals if isinstance(v, (int, float)) and not isinstance(v, bool)]
                 if vals:
@@ -541,8 +545,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 zero_rate=bool(t_now and any(abs(g["rate"]) < 1e-9 for g in t_now["groups"])),
                 other_invoices=billing.other_invoices(rt, spec, rec))
         effort = _effort(spec, rec)
+        owes = _owes(spec, rec) if spec["kind"] == "master" else None
         return dict(rec=rec, spec=spec, facts=facts, timeline=timeline, related=related, mentions=mentions, notes=notes,
-                    effort=effort,
+                    effort=effort, owes=owes,
                     stale=stale, issued_here=bool(meta.get("issued")), incoming=bool(spec.get("incoming")), **issue_ctx,
                     draft_lines=bool(draft and meta.get("positions") is not None),
                     maybe_paid=maybe_paid, pay=pay, alloc=alloc, invoice=inv, draft=draft, doc=doc,
@@ -554,6 +559,32 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     changes=changes, src_files=src_files, lock=lock, children=children, party=party,
                     money_attr=money_attr, status_attr=rt.attr(spec["id"], status_attr) if status_attr else None,
                     line=line_child(spec), reach=reach)
+
+    def _owes(spec: dict, rec: dict) -> list[dict]:
+        """What a customer still owes (or what is still to be paid to a supplier), per kind of invoice."""
+        out = []
+        for p in rt.model.get("processes", []):
+            party = p.get("party")
+            s2 = rt.spec(p["type"])
+            if not party or not s2 or rt.attr(p["type"], party) is None or rt.attr(p["type"], party).get("ref") != spec["id"]:
+                continue
+            total = late = 0.0
+            n = 0
+            for r in rt.records.get(p["type"], []):
+                if r["data"].get(party) != rec["id"]:
+                    continue
+                e = rt.ledger.get(r["id"])
+                if not e or e["state"] not in ("offen", "teilbezahlt") or e["open"] <= 0.005:
+                    continue
+                total += e["open"]
+                n += 1
+                if r["data"].get("pay_state") == "überfällig":
+                    late += e["open"]
+            if n:
+                out.append(dict(type=p["type"], plural=s2["plural"], total=round(total, 2), late=round(late, 2), n=n,
+                                incoming=bool(s2.get("incoming")),
+                                href=f"/t/{p['type']}?f_{party}={rec['id']}&f_pay_state=offen|überfällig|teilbezahlt"))
+        return out
 
     def _effort(spec: dict, rec: dict) -> dict | None:
         """A budget and the work booked on it (time entries with an amount)."""
@@ -577,6 +608,14 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         if not n:
             return None
         return dict(total=round(total, 2), budget=b, budget_name=budget["name"], share=round(total / b * 100), n=n)
+
+    def _void(rid: int) -> bool:
+        r = rt.by_id.get(rid)
+        if not r:
+            return True
+        meta = r.get("meta") or {}
+        e = rt.ledger.get(rid)
+        return bool(meta.get("storno_by") or meta.get("storno") or meta.get("storno_of") or (e and e["state"] == "storniert"))
 
     def build_timeline(proc: dict, rec: dict) -> dict:
         data = rec["data"]
@@ -602,6 +641,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     else:
                         srcs = [c["id"] for c in rt.records.get(s["type"], []) if c["data"].get(s["rel_attr"]) == rec["id"]]
                     for x in srcs:
+                        if _void(x):
+                            continue  # a cancelled invoice did not invoice the order
                         d = as_date(rt.by_id.get(x, {}).get("data", {}).get(s["attr"]))
                         if d and (when is None or d < when):
                             when, via = d, x
@@ -1169,10 +1210,11 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             from ..questions import reopen
             reopen(store, qid)
             return JSONResponse(dict(reload=True, toast="Die Frage ist wieder offen."))
-        q = store.q1("SELECT status, payload FROM questions WHERE id=?", (qid,))
+        q = store.q1("SELECT status, payload, kind FROM questions WHERE id=?", (qid,))
         options = {str(o[0]) for o in ((loads(q["payload"]) or {}).get("options") or [])} if q else set()
         if not q or not value or (options and value not in options | {"later", "unknown"}):
             return JSONResponse(dict(error="Diese Antwort passt nicht zur Frage."), status_code=400)
+        kind, payload = q["kind"], loads(q["payload"]) or {}
         res = answer_question(store, qid, value, actor(request))
         if res.get("regrow"):
             jid = jobs.start("answer", lambda progress: regrow(store, progress, actor(request)), next_url="/fragen")
@@ -1181,6 +1223,12 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         msg = {"later": "Ich frage morgen noch einmal.", "unknown": "In Ordnung, ich lasse es, wie es ist."}.get(value, "Danke, gemerkt.")
         if res.get("merged"):
             msg = "Zusammengeführt. Der Verlauf beider Datensätze bleibt erhalten."
+        if kind == "payment_match" and value == "yes":
+            rt.ensure()
+            invs = (payload.get("records") or [])[1:]
+            states = [f"{rt.title(i)}: {rt.ledger[i]['state']}" for i in invs if i in rt.ledger]
+            msg = "Zugeordnet" + (f" – {', '.join(states)}." if states else ".")
+            return JSONResponse(dict(toast=msg, reload=True))
         return JSONResponse(dict(toast=msg))
 
     def rule_toggle(request: Request, form):
@@ -1475,6 +1523,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         name = (form.get("name") or "").strip()[:40]
         if name:
             resp.set_cookie("physarum_name", name, max_age=3600 * 24 * 365, samesite="lax")
+        else:
+            resp.delete_cookie("physarum_name")
         return resp
 
     def health(request: Request):

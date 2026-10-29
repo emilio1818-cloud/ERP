@@ -366,6 +366,22 @@
     $$(".fact .prov").forEach((x) => x.classList.toggle("hide", !show));
     prov.textContent = show ? "Herkunft ausblenden" : "Herkunft zeigen";
   });
+  // the name for the protocol is kept as soon as one leaves the field, not only with Enter
+  // "… und 12 weitere zeigen": the rest is already on the page, only folded away
+  $$("[data-more]").forEach((b) => b.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    const box = b.closest("[data-more-box]") || document;
+    $$(b.dataset.more, box).forEach((x) => { if (x.closest("[data-more-box]") === box) x.hidden = false; });
+    b.remove();
+  }));
+
+  const me = $("#me");
+  if (me) me.addEventListener("change", () => {
+    const body = new URLSearchParams({ name: me.value });
+    fetch("/ich", { method: "POST", body, headers: { "x-requested-with": "fetch" } })
+      .then(() => toast(me.value ? "Gemerkt: " + me.value : "Name entfernt"))
+      .catch(() => toast("Das hat nicht geklappt."));
+  });
   $$("details[data-remember]").forEach((d) => {
     try {
       const k = "open:" + d.dataset.remember;

@@ -82,6 +82,10 @@ class Runtime:
             except Exception:  # noqa: BLE001 - the pages must open even if the ledger cannot be built
                 self.ledger = {}
             apply_to_records(self.model, self.records, self.ledger)
+            from .process import stock_now
+            for rid, v in stock_now(self.model, self.records).items():
+                if rid in self.by_id:
+                    self.by_id[rid]["data"]["stock_now"] = v
             self.stale = stale_statuses(self.model, self.records, self.ledger)
             self._mv, self._dv = mv, dv
             self._work = None

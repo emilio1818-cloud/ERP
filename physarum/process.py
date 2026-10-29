@@ -430,10 +430,58 @@ def _reach_specs(model, records) -> list[dict]:
             pd = _primary_date(specs[parent_rel["dst"]])
             if not pd:
                 continue
+            # goods leave when they are delivered, not when they are ordered
+            pproc = next((p for p in model.get("processes", []) if p["type"] == parent_rel["dst"]), None)
+            moved = None
+            for st in (pproc or {}).get("steps", []):
+                if fold(st["label"]) in ("geliefert", "versendet", "ausgeliefert", "verschickt"):
+                    moved = next((x["attr"] for x in [st] + st.get("also", []) if x["source"] == "own"), None)
+                    if moved:
+                        break
             flows.append(dict(line=line["id"], ref=rel["attr"], qty=qty["id"], parent_ref=parent_rel["attr"],
-                              parent=parent_rel["dst"], date=pd["id"], label=line["plural"]))
+                              parent=parent_rel["dst"], date=pd["id"], moved=moved, label=line["plural"]))
         if flows:
-            out.append(dict(type=spec["id"], stock=stock["id"], flows=flows))
+            labels = {x.get("obs") for x in stock.get("sources") or []}
+            asof = max((m.get("asof") or "" for m in spec.get("members", []) if m.get("label") in labels), default="")
+            out.append(dict(type=spec["id"], stock=stock["id"], flows=flows, asof=asof or None))
+            if asof and not any(a["id"] == "stock_now" for a in spec["attrs"]):
+                spec["attrs"].append(dict(id="stock_now", name="Bestand jetzt", kind="number", role="quantity", fill=1.0,
+                                          distinct=0, enum=None, constant=False, hidden=False, sources=[],
+                                          virtual=dict(stock=True),
+                                          explain=f"{stock['name']} laut Liste vom {asof[8:10]}.{asof[5:7]}.{asof[:4]} "
+                                                  f"minus alles, was seitdem geliefert wurde"))
+    return out
+
+
+def stock_now(model: dict, records: dict, today: date | None = None) -> dict[int, float]:
+    """Stock as of today: what the inventory said, minus what was delivered since (cancelled and
+    draft orders do not move goods)."""
+    today = today or date.today()
+    out = {}
+    negative_of = {p["type"]: ((p.get("status") or {}).get("attr"), set((p.get("status") or {}).get("negative") or []))
+                   for p in model.get("processes", [])}
+    for rc in model.get("reach", []):
+        base_day = as_date(rc.get("asof"))
+        if not base_day:
+            continue
+        moved = defaultdict(float)
+        for fl in rc["flows"]:
+            attr, neg = negative_of.get(fl["parent"], (None, set()))
+            when = {}
+            for r in records.get(fl["parent"], []):
+                if is_draft(r) or (attr and str(r["data"].get(attr)) in neg):
+                    continue
+                d = as_date(r["data"].get(fl.get("moved") or fl["date"]))
+                if d and base_day < d <= today:
+                    when[r["id"]] = d
+            for ln in records.get(fl["line"], []):
+                a, p, q = ln["data"].get(fl["ref"]), ln["data"].get(fl["parent_ref"]), ln["data"].get(fl["qty"])
+                if isinstance(a, int) and p in when and isinstance(q, (int, float)) and not isinstance(q, bool):
+                    moved[a] += float(q)
+        for r in records.get(rc["type"], []):
+            v = r["data"].get(rc["stock"])
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                out[r["id"]] = round(float(v) - moved.get(r["id"], 0.0), 3)
     return out
 
 
@@ -749,8 +797,11 @@ def _threshold_work(model, records, title) -> list[dict]:
     for spec in model["types"]:
         for th in spec.get("thresholds") or []:
             items = []
+            stock_attr = next((rc["stock"] for rc in model.get("reach", []) if rc["type"] == spec["id"]), None)
             for r in records.get(spec["id"], []):
                 v, m = r["data"].get(th["attr"]), r["data"].get(th["min"])
+                if th["attr"] == stock_attr and isinstance(r["data"].get("stock_now"), (int, float)):
+                    v = r["data"]["stock_now"]  # today's stock, not the inventory's
                 if isinstance(v, (int, float)) and isinstance(m, (int, float)) and v < m:
                     items.append(dict(rid=r["id"], title=title(r["id"]), days=0, money=None, value=v, min=m))
             if items:
@@ -811,7 +862,7 @@ def _reach_work(model, records, by_id, title, today) -> list[dict]:
                     use[a] += float(q)
         items = []
         for r in records.get(rc["type"], []):
-            stock = r["data"].get(rc["stock"])
+            stock = r["data"].get("stock_now", r["data"].get(rc["stock"]))
             per_day = use.get(r["id"], 0) / 90
             if not isinstance(stock, (int, float)) or per_day <= 0:
                 continue

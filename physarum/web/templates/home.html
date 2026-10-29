@@ -59,7 +59,7 @@
             {% if it.maybe_paid %}
               <button class="small primary" data-post="/fragen/{{ it.maybe_paid.qid }}" data-body='{"value": "yes"}' title="{{ it.maybe_paid.text }}">Zahlung zuordnen</button>
             {% elif g.kind == 'overdue' and g.step == 'bezahlt' %}
-              <a class="btn small ghost" href="/r/{{ it.rid }}/erinnerung" target="_blank" title="Zahlungserinnerung als Entwurf öffnen">Erinnern</a>
+              <a class="btn small ghost" href="/r/{{ it.rid }}/erinnerung" target="_blank" title="Ein Brief an den Kunden mit allen überfälligen Rechnungen">Erinnern</a>
             {% endif %}
             {% if g.action and g.action.kind == 'set_date' %}
               <button class="small" data-post="/r/{{ it.rid }}/schritt" data-body='{"attr": "{{ g.action.attr }}"}' title="Mit heutigem Datum eintragen – lässt sich rückgängig machen">✓ {{ g.action.label }}</button>

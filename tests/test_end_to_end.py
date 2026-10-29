@@ -51,6 +51,26 @@ class DemoCompany(unittest.TestCase):
             self.assertIn(n, names)
         self.assertEqual(len(names), 14)  # nothing spurious
 
+    def test_stock_moves_with_deliveries(self):
+        art = self.t("Artikel")
+        if not any(a["id"] == "stock_now" for a in art["attrs"]):
+            self.skipTest("kein Bestand mit Stichtag")
+        order, line = self.t("Auftrag"), self.t("Auftragsposition")
+        a_art = next(a["id"] for a in line["attrs"] if a.get("ref") == art["id"])
+        a_qty = next(a["id"] for a in line["attrs"] if a["name"] == "Menge")
+        rt = Runtime(self.store)
+        rt.ensure()
+        item = next(r for r in rt.records[art["id"]] if isinstance(r["data"].get("stock_now"), (int, float)))
+        before = item["data"]["stock_now"]
+        kunde = rt.records[self.t("Kunde")["id"]][0]["id"]
+        rid = ops.create(rt, order["id"], {self.a("Auftrag", "Kunde")["id"]: str(kunde)}, "Test",
+                         [{a_art: str(item["id"]), a_qty: "4"}], line["id"])
+        rt.ensure()
+        self.assertEqual(rt.by_id[item["id"]]["data"]["stock_now"], before)          # ordered is not gone yet
+        ops.set_step(rt, rid, self.a("Auftrag", "Geliefert am")["id"], None, "Test")
+        rt.ensure()
+        self.assertAlmostEqual(rt.by_id[item["id"]]["data"]["stock_now"], before - 4)  # delivered is
+
     def test_einvoices_are_anchored(self):
         """XRechnung (UBL) and ZUGFeRD (CII, also inside a PDF) become supplier invoices with lines."""
         er = self.t("Eingangsrechnung")
@@ -241,6 +261,26 @@ class WebPages(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_reminder_letter_per_customer_with_levels(self):
+        store = Store(self.tmp / "firma")
+        store.kv_set("company_profile", dict(name="Röstwerk Hafenbohne GmbH", street="Am Sandtorkai 12", zip="20457",
+                                             city="Hamburg", vat_id="DE123456789", iban="DE95200505502461587401"))
+        rt = Runtime(store)
+        rt.ensure()
+        g = next(g for g in rt.work() if g["kind"] == "overdue" and g.get("step") == "bezahlt")
+        rid = g["items"][0]["rid"]
+        r = self.c.get(f"/r/{rid}/erinnerung", follow_redirects=False)
+        self.assertEqual(r.status_code, 303)
+        url = r.headers["location"]
+        page = self.c.get(url).text
+        self.assertIn("Zahlungserinnerung", page)
+        self.assertIn("DE95 2005 0550 2461 5874 01", page)           # the bank details are in the letter
+        pid, typ = url.split("/mahnung/")[1].split("?typ=")
+        h = {"origin": "http://testserver", "x-requested-with": "fetch"}
+        self.assertIn("toast", self.c.post(f"/mahnung/{pid}", data={"typ": typ}, headers=h).json())
+        self.assertEqual(len(store.record(rid)["meta"].get("dunning") or []), 1)
+        self.assertIn("1. Mahnung", self.c.get(url).text)            # the next letter is one level up
 
     def test_odd_input_never_breaks_a_page(self):
         m = Store(self.tmp / "firma").model()

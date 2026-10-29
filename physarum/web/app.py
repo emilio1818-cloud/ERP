@@ -792,44 +792,45 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         return cands.most_common(1)[0][0] if cands else "Ihre Firma"
 
     def record_reminder(request: Request):
-        """A payment reminder letter for an overdue invoice; creating it is logged and sets the status."""
+        """The old door to a reminder: it opens the customer's letter with everything overdue."""
         rt.ensure()
         rid = int(request.path_params["rid"])
-        rec = store.record(rid)
-        spec = rt.spec(rec["type"])
-        rec["data"] = rt.by_id.get(rid, rec)["data"]
-        ctx = record_context(rec, spec, request)
-        tl = ctx["timeline"]
-        nxt = tl["next"] if tl else None
-        party = ctx["party"]
-        cust = rt.by_id.get(rec["data"].get(party["id"])) if party else None
-        addr = []
-        if cust:
-            cspec = rt.spec(cust["type"])
-            for role in ("name", "person", "street"):
-                a = next((x for x in cspec["attrs"] if x.get("role") == role and cust["data"].get(x["id"])), None)
-                if a:
-                    addr.append(str(cust["data"][a["id"]]))
-            z = next((x for x in cspec["attrs"] if x.get("role") == "zip" and cust["data"].get(x["id"])), None)
-            o = next((x for x in cspec["attrs"] if x.get("role") == "city" and cust["data"].get(x["id"])), None)
-            line = " ".join(str(cust["data"][x["id"]]) for x in (z, o) if x)
-            if line:
-                addr.append(line)
-        if request.method == "POST":
-            proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
-            st = (proc or {}).get("status")
-            raw = {}
-            if st:
-                enum = (rt.attr(spec["id"], st["attr"]) or {}).get("enum") or []
-                dun = next((v for v in enum if fold(str(v)) in ("gemahnt", "mahnung", "erinnert", "1. mahnung")), None)
-                if dun and str(rec["data"].get(st["attr"])) != dun:
-                    raw[st["attr"]] = dun
-            if raw:
-                ops.update(rt, rid, raw, actor(request), note="Zahlungserinnerung erstellt")
-            ops.add_note(rt, rid, "Zahlungserinnerung erstellt", actor(request))
-            return JSONResponse(dict(toast="Erinnerung protokolliert.", reload=True))
-        return templates.TemplateResponse(request, "reminder.html", dict(ctx, request=request, company=company_name(),
-                                                                         address=addr, step=nxt, today=views.today_text()))
+        rec = rt.by_id.get(rid)
+        proc = next((p for p in rt.model.get("processes", []) if rec and p["type"] == rec["type"]), None)
+        pid = rec["data"].get(proc["party"]) if rec and proc and proc.get("party") else None
+        if not isinstance(pid, int):
+            return page(request, "message.html", dict(title="Kein Kunde", text="Diese Rechnung hat keinen Kunden, an den man schreiben könnte."), 404)
+        return RedirectResponse(f"/mahnung/{pid}?typ={rec['type']}", 303)
+
+    def reminder_letter(request: Request):
+        """One letter per customer: every overdue invoice, the level each has reached, the bank details."""
+        from .. import dunning
+        rt.ensure()
+        pid = int(request.path_params["pid"])
+        tid = request.query_params.get("typ") or ""
+        items = dunning.overdue_of(rt, pid, tid)
+        cust = rt.by_id.get(pid)
+        if not cust or not rt.spec(tid):
+            return page(request, "message.html", dict(title="Nicht gefunden", text="Kunde oder Liste gibt es nicht."), 404)
+        send = [x for x in items if not x["complaint"]]
+        held = [x for x in items if x["complaint"]]
+        level = max((x["level"] for x in send), default=1)
+        addr = billing.recipient(rt, pid)
+        lack = [n for k, n in (("street", "Straße"), ("zip", "PLZ"), ("city", "Ort")) if not addr.get(k)]
+        return templates.TemplateResponse(request, "reminder.html", dict(
+            request=request, items=send, held=held, cust=cust, addr=addr, lack=lack, level=level,
+            title_text=dunning.LEVELS[level], company=billing.company(store), company_missing=billing.company_missing(store),
+            total=round(sum(x["open"] for x in send), 2), tid=tid, pid=pid, today=views.today_text(),
+            spec=rt.spec(tid)))
+
+    def reminder_sent(request: Request, form):
+        from .. import dunning
+        pid = int(request.path_params["pid"])
+        n = dunning.record_sent(rt, pid, form.get("typ") or "", actor(request))
+        if not n:
+            return JSONResponse(dict(error="Nichts zu protokollieren – keine überfällige Rechnung (ohne Reklamation)."))
+        return JSONResponse(dict(reload=True, toast=f"Versand protokolliert: {n} {'Rechnung' if n == 1 else 'Rechnungen'}, "
+                                                     f"jede mit Eintrag im Verlauf."))
 
     # --- the firm itself ------------------------------------------------------------------------------------
     def company_page(request: Request):
@@ -1454,7 +1455,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/firma", company_page), Route("/firma", formed(company_save), methods=["POST"]),
         Route("/abgleich/{tid}", stale_preview), Route("/api/ableiten", api_derive),
         Route("/r/{rid:int}/druck", record_print),
-        Route("/r/{rid:int}/erinnerung", record_reminder, methods=["GET", "POST"]),
+        Route("/r/{rid:int}/erinnerung", record_reminder),
+        Route("/mahnung/{pid:int}", reminder_letter),
+        Route("/mahnung/{pid:int}", formed(reminder_sent), methods=["POST"]),
         Route("/suche", search_page), Route("/api/suche", api_search), Route("/api/datensatz/{rid:int}", api_record),
         Route("/api/wie-letztes-mal", api_like_last),
         Route("/fragen", questions_page), Route("/fragen/{qid:int}", formed(question_answer), methods=["POST"]),

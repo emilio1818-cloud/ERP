@@ -436,7 +436,7 @@ def apply_virtual(model: dict, records: dict):
     for t in model["types"]:
         for a in t["attrs"]:
             v = a.get("virtual")
-            if not v or v.get("payments"):
+            if not v or v.get("payments") or v.get("stock"):
                 continue
             sums = defaultdict(float)
             for r in records.get(v["child"], []):

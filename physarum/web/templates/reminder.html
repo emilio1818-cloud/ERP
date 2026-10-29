@@ -1,27 +1,45 @@
 <!doctype html>
-<html lang="de"><head><meta charset="utf-8"><title>Zahlungserinnerung {{ title(rec.id) }}</title>
+<html lang="de"><head><meta charset="utf-8"><title>{{ title_text }} {{ addr.name }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="/static/app.css">
-<style>body{background:#fff;color:#111;padding:48px 56px;max-width:800px;margin:auto;font-size:15px}
-.addr{margin:40px 0 36px;line-height:1.5} .meta{text-align:right;color:#444} h1{font-size:1.25rem;margin-top:28px}
-table{margin:18px 0} td{padding:4px 18px 4px 0}</style>
+<style>body{background:#fff;color:#111;padding:40px 48px;max-width:820px;margin:auto;font-size:15px}
+.sender{text-align:right;color:#444;font-size:.85rem}.sender b{color:#111;font-size:1rem}
+.line{font-size:.72rem;color:#666;border-bottom:1px solid #ccc;padding-bottom:2px;margin-top:30px;display:inline-block}
+.addr{margin:6px 0 30px;line-height:1.5}.meta{text-align:right;color:#444}h1{font-size:1.2rem;margin-top:26px}
+table{width:100%;border-collapse:collapse;margin:14px 0}th{text-align:left;color:#555;font-weight:600;border-bottom:1px solid #111;padding:5px 4px}
+td{padding:5px 4px;border-bottom:1px solid #ddd}.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tfoot td{font-weight:700;border-bottom:0}@media print{.noprint{display:none}body{padding:0}}</style>
 </head><body>
-<div class="noprint" style="background:var(--accent-soft);padding:10px 14px;border-radius:10px;margin-bottom:24px">
-  Entwurf – bitte prüfen. <button class="small primary" data-post="/r/{{ rec.id }}/erinnerung">Als versendet protokollieren</button>
-  <button class="small" onclick="window.print()">Drucken</button></div>
-<div style="color:#555;font-size:.85rem">{{ company }}</div>
-<div class="addr">{% for l in address %}{{ l }}<br>{% endfor %}</div>
-<div class="meta">{{ today }}</div>
-<h1>Zahlungserinnerung zu {{ spec.name }} {{ title(rec.id) }}</h1>
+<div class="noprint notice" style="margin-bottom:20px">
+  <b>Entwurf – bitte prüfen.</b> Ein Brief an {{ addr.name }} mit allen überfälligen Rechnungen{% if items %} ({{ items|length }}){% endif %}.
+  {% if company_missing %}<br>Es fehlen noch Ihre Firmendaten ({{ company_missing|join(', ') }}) – <a href="/firma?zurueck=/mahnung/{{ pid }}?typ={{ tid }}">eintragen</a>.{% endif %}
+  {% if lack %}<br>Beim Kunden fehlt {{ lack|join(', ') }} – ohne vollständige Anschrift kommt der Brief nicht an. <a href="/r/{{ cust.id }}">Kunde öffnen</a>{% endif %}
+  {% for h in held %}<br>Nicht in diesem Brief: {{ h.number }} – dazu gibt es <a href="/r/{{ h.complaint.rid }}">„{{ h.complaint.title }}“</a>; erst klären, dann mahnen.{% endfor %}
+  <div class="row" style="margin-top:8px">{% if items %}<button class="small primary" data-post="/mahnung/{{ pid }}" data-body='{"typ": "{{ tid }}"}'>Als versendet protokollieren</button>{% endif %}
+    <button class="small" onclick="window.print()">Drucken</button><a class="btn small ghost" href="/r/{{ cust.id }}">zurück</a></div>
+</div>
+<div class="sender"><b>{{ company.name or 'Ihre Firma' }}</b><br>{{ company.street }}<br>{{ company.zip }} {{ company.city }}
+  {% if company.phone %}<br>Tel. {{ company.phone }}{% endif %}{% if company.email %}<br>{{ company.email }}{% endif %}</div>
+<div class="line">{{ company.name }}{% if company.street %} · {{ company.street }}{% endif %}{% if company.zip or company.city %} · {{ company.zip }} {{ company.city }}{% endif %}</div>
+<div class="addr"><b>{{ addr.name }}</b>{% if addr.person %}<br>{{ addr.person }}{% endif %}{% if addr.street %}<br>{{ addr.street }}{% endif %}{% if addr.zip or addr.city %}<br>{{ addr.zip }} {{ addr.city }}{% endif %}</div>
+<div class="meta">{{ today }}{% if addr.number %}<br>Kundennummer {{ addr.number }}{% endif %}</div>
+<h1>{{ title_text }}</h1>
+{% if items %}
 <p>Sehr geehrte Damen und Herren,</p>
-<p>bei der Durchsicht unserer Buchhaltung ist uns aufgefallen, dass folgender Betrag noch offen ist:</p>
+{% if level == 1 %}<p>sicher ist es Ihrer Aufmerksamkeit entgangen: Für die folgenden Rechnungen haben wir noch keine (vollständige) Zahlung erhalten.</p>
+{% elif level == 2 %}<p>auf unsere Zahlungserinnerung haben wir leider noch keine Zahlung erhalten. Folgende Beträge sind weiterhin offen:</p>
+{% else %}<p>trotz Erinnerung und Mahnung sind die folgenden Beträge weiterhin offen. Bitte begleichen Sie sie bis spätestens zehn Tage nach Erhalt dieses Schreibens.</p>{% endif %}
 <table>
-  {% for f in facts if f.value is not none and (f.attr.kind in ('money','date','id') or f.attr.role == 'due') %}
-  <tr><td>{{ f.attr.name }}</td><td><b>{{ fmt(f.attr, f.value, link=False) }}</b></td></tr>
-  {% endfor %}
+  <thead><tr><th>Rechnung</th><th>vom</th><th>fällig seit</th><th class="num">Betrag</th><th class="num">bezahlt</th><th class="num">offen</th></tr></thead>
+  <tbody>{% for x in items %}<tr><td>{{ x.number }}</td><td>{{ display(x.date, 'date') if x.date else '' }}</td><td>{{ display(x.due, 'date') }}</td>
+    <td class="num">{{ money(x.gross) }}</td><td class="num">{{ money(x.paid) if x.paid else '–' }}</td><td class="num">{{ money(x.open) }}</td></tr>{% endfor %}</tbody>
+  <tfoot><tr><td colspan="5">Offen insgesamt</td><td class="num">{{ money(total) }}</td></tr></tfoot>
 </table>
-{% if step and step.due %}<p>Die Zahlung war fällig am {{ display(step.due.isoformat(), 'date') }}.</p>{% endif %}
-<p>Sicher handelt es sich um ein Versehen. Bitte überweisen Sie den Betrag in den nächsten Tagen unter Angabe der Rechnungsnummer.
-Sollten Sie die Zahlung bereits veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
-<p>Mit freundlichen Grüßen<br><br>{{ company }}</p>
+<p>Bitte überweisen Sie {{ 'den Betrag' if items|length == 1 else 'die Beträge' }} unter Angabe der Rechnungsnummer{{ '' if items|length == 1 else 'n' }}{% if company.iban %} auf unser Konto IBAN {{ company.iban|iban }}{% if company.bic %} (BIC {{ company.bic }}){% endif %}{% if company.bank %} bei der {{ company.bank }}{% endif %}{% endif %}.
+Sollten Sie die Zahlung inzwischen veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
+<p>Mit freundlichen Grüßen<br><br>{{ company.name or '' }}</p>
+{% else %}
+<p class="muted">Keine überfällige Rechnung{% if held %} ohne Reklamation{% endif %} – nichts zu erinnern.</p>
+{% endif %}
 <script src="/static/app.js"></script>
 </body></html>

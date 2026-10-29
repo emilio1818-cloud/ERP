@@ -98,10 +98,19 @@ def merge_group(ts: list[dict]) -> dict:
     info = dict(versions=len(ts), files=len({t.get("source_id") for t in ts}), dropped=0, changed=[], vanished=[])
     keep: list[tuple[int, int]] = []  # (index of table in ts, row index)
     pos = {id(t): n for n, t in enumerate(ts)}
-    key = key_columns(ts, columns, volatile) if len(ts) > 1 else None
+    key = key_columns(ts, columns, volatile)
     stale: dict[tuple[int, int], str] = {}  # rows the newest version no longer lists -> its file name
     if len(ts) == 1:
-        keep = [(0, i) for i in range(len(founder["rows"]))]
+        seen_rows: set = set()
+        for i, r in enumerate(founder["rows"]):
+            kv = tuple(_cell(r[j]) if j < len(r) else "" for j in key) if key else None
+            if kv and all(kv):
+                sig = (kv, _sig(r, volatile))
+                if sig in seen_rows:
+                    info["dropped"] += 1  # the same numbered row exported twice
+                    continue
+                seen_rows.add(sig)
+            keep.append((0, i))
     elif key:
         newest_first = sorted(ts, key=_rank, reverse=True)
         owner: dict[tuple, int] = {}            # key -> the version that speaks for it
@@ -226,12 +235,13 @@ def _superseded(ts: list[dict], columns: list[str], volatile: set[int], info: di
     """Two exports of a list without numbers (time entries, bank lines) that overlap in time:
     for the days it covers, the newer export is right – an entry corrected or deleted in the
     other program is missing there. Only when the overlap shows they really are the same list
-    (nine in ten rows identical); two people's time sheets with the same columns are not."""
+    (three in four rows identical); two people's time sheets with the same columns are not. Bank
+    statements are left alone: a booking never changes, a missing one means a shorter export."""
     from ..values import parse_date
     files = {}
     for n, t in enumerate(ts):
         files.setdefault(t.get("source_id"), []).append(n)
-    if len(files) < 2:
+    if len(files) < 2 or lexicon.concept_of(str(ts[0].get("name") or "")) == "kontobewegung":
         return set()
     j = _date_col(ts, columns)
     if j is None:
@@ -265,7 +275,7 @@ def _superseded(ts: list[dict], columns: list[str], volatile: set[int], info: di
                 if left[h] > 0:
                     left[h] -= 1
                     same.append((n, i))
-            if len(same) < 0.9 * len(inside):
+            if len(same) < 0.75 * len(inside):
                 continue  # not clearly the same list: both stay
             gone = [x for x in inside if x not in set(same)]
             out.update(gone)

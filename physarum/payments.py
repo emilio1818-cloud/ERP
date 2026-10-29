@@ -223,9 +223,16 @@ def _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, outg
     swapped: the payer mistyped. The money goes to the invoice it was meant for."""
     from .reconcile import bank_amount
     key, party = spec.get("key"), p.get("party")
-    if not key or not party:
+    if not key:
         return {}
     by_rid = {r["id"]: r for r in recs}
+    names = [a["id"] for a in spec["attrs"] if a.get("role") in ("name", "person") and a["kind"] == "text"]
+
+    def customer(r) -> str:
+        v = r["data"].get(party) if party else None
+        if isinstance(v, int) and not isinstance(v, bool):
+            return _title_of(model, by_id.get(v), by_id)
+        return next((str(r["data"][a]) for a in names if isinstance(r["data"].get(a), str)), "")
     out = {}
     for b, invs in links.items():
         if len(invs) != 1 or invs[0] not in entries or invs[0] not in by_rid:
@@ -243,14 +250,14 @@ def _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, outg
         payer = _title_of(model, by_id.get(pv), by_id) if isinstance(pv, int) else \
             str(row["data"].get(bs["name"]["id"]) or "") if bs.get("name") else ""
         payer = norm_name(payer)
-        cust = norm_name(_title_of(model, by_id.get(inv["data"].get(party)), by_id))
+        cust = norm_name(customer(inv))
         if not payer or not cust or name_similarity(payer, cust) >= 0.6:
             continue  # the customer itself pays: a partial payment, not a typo
         number = str(inv["data"].get(key) or "")
         alts = [r for r in recs if r["id"] != inv["id"] and r["id"] in entries and r["data"].get(key) is not None
                 and _transposed(str(r["data"][key]), number)
                 and abs(entries[r["id"]]["gross"] - entries[r["id"]]["credit"] - value) <= EPS
-                and name_similarity(payer, norm_name(_title_of(model, by_id.get(r["data"].get(party)), by_id))) >= 0.6]
+                and name_similarity(payer, norm_name(customer(r))) >= 0.6]
         if len(alts) == 1:
             links[b] = [alts[0]["id"]]
             out[b] = number

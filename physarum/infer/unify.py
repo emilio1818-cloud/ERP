@@ -173,7 +173,9 @@ def obs_similarity(a: Obs, b: Obs) -> dict:
         conflict = True  # invoices *to* customers are not invoices *from* suppliers
         same_concept = False
     kinds = {lexicon.CONCEPTS[c]["kind"] for c in (ca, cb) if c in lexicon.CONCEPTS}
-    kind_conflict = conflict and len(kinds) == 2  # master data next to business cases
+    # master data next to business cases; or two kinds of business case (bank lines and invoices name
+    # the same customers – that makes them related, not the same)
+    kind_conflict = conflict and (len(kinds) == 2 or (kinds == {"transaction"} and "kontobewegung" in (ca, cb)))
     for x, y in ((a, b), (b, a)):
         if x.kind_hint == "party" and y.kind_hint != "party" and y.concept in lexicon.CONCEPTS and \
                 lexicon.CONCEPTS[y.concept]["kind"] == "transaction" and x.concept != y.concept:
@@ -191,7 +193,7 @@ def obs_similarity(a: Obs, b: Obs) -> dict:
     elif same_concept and cont >= 0.6:
         decision, reason = "merge", f"beides {lexicon.CONCEPTS[ca]['pl']}, ähnliche Spalten"
     elif (same_concept and cont >= 0.4) or (not conflict and cont >= 0.6 and sym >= 0.4) or \
-            (ident >= 0.2 and cont >= 0.3):
+            (ident >= 0.2 and cont >= 0.3 and not kind_conflict):
         decision, reason = "ask", "ähnliche Spalten" if not same_concept else "gleicher Begriff, teils andere Spalten"
     score = 0.45 * ident + 0.35 * cont + 0.1 * sym + (0.1 if same_concept else 0.0) - (0.15 if conflict else 0.0)
     return dict(decision=decision, reason=reason, score=round(score, 3), cont=round(cont, 2), ident=round(ident, 2),

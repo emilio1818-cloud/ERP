@@ -65,9 +65,33 @@ def parse(root) -> dict | None:
     return None
 
 
+def _ubl_subtotals(r) -> list[dict]:
+    out = []
+    for tt in [x for x in r if _local(x.tag) == "TaxTotal"]:
+        for st in [x for x in tt if _local(x.tag) == "TaxSubtotal"]:
+            out.append(dict(base=_num(_text(st, ["TaxableAmount"])), tax=_num(_text(st, ["TaxAmount"])),
+                            rate=_num(_text(st, ["TaxCategory", "Percent"])), category=_text(st, ["TaxCategory", "ID"])))
+    return out
+
+
+def _ubl_tax_ids(r, party: list[str]) -> tuple[str | None, str | None]:
+    """(USt-IdNr, Steuernummer) of a party: the tax scheme says which is which."""
+    vat = tax_no = None
+    p = _find(r, party)
+    for ts in ([x for x in p if _local(x.tag) == "PartyTaxScheme"] if p is not None else []):
+        cid, scheme = _text(ts, ["CompanyID"]), (_text(ts, ["TaxScheme", "ID"]) or "").upper()
+        if scheme == "VAT" and not vat:
+            vat = cid
+        elif cid and not tax_no:
+            tax_no = cid
+    return vat, tax_no
+
+
 def _ubl(r, credit=False) -> dict:
     sup = ["AccountingSupplierParty", "Party"]
     cus = ["AccountingCustomerParty", "Party"]
+    vat, tax_no = _ubl_tax_ids(r, sup)
+    tot = ["LegalMonetaryTotal"]
     lines = []
     for ln in [x for x in r if _local(x.tag) in ("InvoiceLine", "CreditNoteLine")]:
         q = _find(ln, ["InvoicedQuantity"])
@@ -76,20 +100,27 @@ def _ubl(r, credit=False) -> dict:
         lines.append(dict(pos=_text(ln, ["ID"]), name=_text(ln, ["Item", "Name"]) or _text(ln, ["Item", "Description"]),
                           qty=_num(q.text if q is not None else None), unit=q.get("unitCode") if q is not None else None,
                           price=_num(_text(ln, ["Price", "PriceAmount"])),
+                          per=_num(_text(ln, ["Price", "BaseQuantity"])),
                           total=_num(_text(ln, ["LineExtensionAmount"])),
+                          discounted=any(_local(x.tag) == "AllowanceCharge" for x in ln),
                           sku=_text(ln, ["Item", "SellersItemIdentification", "ID"])))
     return dict(
         number=_text(r, ["ID"]), date=_date(_text(r, ["IssueDate"])),
         due=_date(_text(r, ["DueDate"]) or _text(r, ["PaymentMeans", "PaymentDueDate"])),
         seller=_text(r, sup + ["PartyLegalEntity", "RegistrationName"]) or _text(r, sup + ["PartyName", "Name"]),
-        seller_vat=_text(r, sup + ["PartyTaxScheme", "CompanyID"]),
+        seller_vat=vat or tax_no, seller_tax_no=tax_no,
         seller_mail=_text(r, sup + ["Contact", "ElectronicMail"]),
         buyer=_text(r, cus + ["PartyLegalEntity", "RegistrationName"]) or _text(r, cus + ["PartyName", "Name"]),
         iban=_text(r, ["PaymentMeans", "PayeeFinancialAccount", "ID"]),
         order=_text(r, ["OrderReference", "ID"]),
-        net=_num(_text(r, ["LegalMonetaryTotal", "TaxExclusiveAmount"])),
+        net=_num(_text(r, tot + ["TaxExclusiveAmount"])),
         tax=_num(_text(r, ["TaxTotal", "TaxAmount"])),
-        gross=_num(_text(r, ["LegalMonetaryTotal", "PayableAmount"]) or _text(r, ["LegalMonetaryTotal", "TaxInclusiveAmount"])),
+        gross=_num(_text(r, tot + ["PayableAmount"]) or _text(r, tot + ["TaxInclusiveAmount"])),
+        totals=dict(lines=_num(_text(r, tot + ["LineExtensionAmount"])), allowances=_num(_text(r, tot + ["AllowanceTotalAmount"])),
+                    charges=_num(_text(r, tot + ["ChargeTotalAmount"])), inclusive=_num(_text(r, tot + ["TaxInclusiveAmount"])),
+                    prepaid=_num(_text(r, tot + ["PrepaidAmount"])), rounding=_num(_text(r, tot + ["PayableRoundingAmount"])),
+                    payable=_num(_text(r, tot + ["PayableAmount"]))),
+        subtotals=_ubl_subtotals(r),
         currency=_text(r, ["DocumentCurrencyCode"]) or "EUR", credit=credit, syntax="UBL", lines=lines)
 
 
@@ -105,17 +136,36 @@ def _cii(r) -> dict:
                           name=_text(ln, ["SpecifiedTradeProduct", "Name"]),
                           qty=_num(q.text if q is not None else None), unit=q.get("unitCode") if q is not None else None,
                           price=_num(_text(ln, ["SpecifiedLineTradeAgreement", "NetPriceProductTradePrice", "ChargeAmount"])),
+                          per=_num(_text(ln, ["SpecifiedLineTradeAgreement", "NetPriceProductTradePrice", "BasisQuantity"])),
                           total=_num(_text(ln, ["SpecifiedLineTradeSettlement",
                                                 "SpecifiedTradeSettlementLineMonetarySummation", "LineTotalAmount"])),
+                          discounted=_find(ln, ["SpecifiedLineTradeSettlement", "SpecifiedTradeAllowanceCharge"]) is not None,
                           sku=_text(ln, ["SpecifiedTradeProduct", "SellerAssignedID"])))
     summ = ["SpecifiedTradeSettlementHeaderMonetarySummation"]
     type_code = _text(doc, ["TypeCode"]) if doc is not None else None
+    vat = tax_no = None
+    seller = _find(agr, ["SellerTradeParty"]) if agr is not None else None
+    for reg in ([x for x in seller if _local(x.tag) == "SpecifiedTaxRegistration"] if seller is not None else []):
+        rid = _find(reg, ["ID"])
+        scheme = (rid.get("schemeID") or "").upper() if rid is not None else ""
+        val = rid.text.strip() if rid is not None and rid.text else None
+        if scheme == "VA" and not vat:
+            vat = val
+        elif val and not tax_no:
+            tax_no = val
+    subtotals = []
+    for tt in ([x for x in stl if _local(x.tag) == "ApplicableTradeTax"] if stl is not None else []):
+        subtotals.append(dict(base=_num(_text(tt, ["BasisAmount"])), tax=_num(_text(tt, ["CalculatedAmount"])),
+                              rate=_num(_text(tt, ["RateApplicablePercent"])), category=_text(tt, ["CategoryCode"])))
+
+    def total(name):
+        return _num(_text(stl, summ + [name])) if stl is not None else None
     return dict(
         number=_text(doc, ["ID"]) if doc is not None else None,
         date=_date(_text(doc, ["IssueDateTime", "DateTimeString"])) if doc is not None else None,
         due=_date(_text(stl, ["SpecifiedTradePaymentTerms", "DueDateDateTime", "DateTimeString"])) if stl is not None else None,
         seller=_text(agr, ["SellerTradeParty", "Name"]) if agr is not None else None,
-        seller_vat=_text(agr, ["SellerTradeParty", "SpecifiedTaxRegistration", "ID"]) if agr is not None else None,
+        seller_vat=vat or tax_no, seller_tax_no=tax_no,
         seller_mail=_text(agr, ["SellerTradeParty", "URIUniversalCommunication", "URIID"]) if agr is not None else None,
         buyer=_text(agr, ["BuyerTradeParty", "Name"]) if agr is not None else None,
         iban=_text(stl, ["SpecifiedTradeSettlementPaymentMeans", "PayeePartyCreditorFinancialAccount", "IBANID"]) if stl is not None else None,
@@ -123,8 +173,61 @@ def _cii(r) -> dict:
         net=_num(_text(stl, summ + ["TaxBasisTotalAmount"])) if stl is not None else None,
         tax=_num(_text(stl, summ + ["TaxTotalAmount"])) if stl is not None else None,
         gross=_num(_text(stl, summ + ["DuePayableAmount"]) or _text(stl, summ + ["GrandTotalAmount"])) if stl is not None else None,
+        totals=dict(lines=total("LineTotalAmount"), allowances=total("AllowanceTotalAmount"), charges=total("ChargeTotalAmount"),
+                    inclusive=total("GrandTotalAmount"), prepaid=total("TotalPrepaidAmount"), rounding=total("RoundingAmount"),
+                    payable=total("DuePayableAmount")),
+        subtotals=subtotals,
         currency=_text(stl, ["InvoiceCurrencyCode"]) if stl is not None else "EUR", credit=type_code == "381",
         syntax="CII", lines=lines)
+
+
+def _eur(x: float) -> str:
+    return f"{x:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def check(inv: dict) -> list[str]:
+    """What does not add up in a received e-invoice (the EN 16931 calculation rules a reader can check
+    without a schema) and what § 14 UStG requires that is missing. Every finding is a sentence."""
+    out = []
+    tol = 0.011
+    tot = inv.get("totals") or {}
+    lines = [ln.get("total") for ln in inv.get("lines") or [] if ln.get("total") is not None]
+    if lines and tot.get("lines") is not None and abs(sum(lines) - tot["lines"]) > tol:
+        out.append(f"Die Positionen ergeben {_eur(sum(lines))}, die Rechnung nennt {_eur(tot['lines'])} als Summe")
+    for ln in inv.get("lines") or []:
+        if None in (ln.get("qty"), ln.get("price"), ln.get("total")) or ln.get("discounted"):
+            continue
+        per = ln.get("per") or 1.0  # a price per 100 pieces
+        if abs(ln["qty"] * ln["price"] / per - ln["total"]) > max(tol, abs(ln["total"]) * 0.0005):
+            out.append(f"Position {ln.get('pos') or '?'}: {ln['qty']:g} × {_eur(ln['price'])}"
+                       f"{'' if per == 1 else f' je {per:g}'} sind nicht {_eur(ln['total'])}")
+            break
+    base = tot.get("lines")
+    if base is not None and inv.get("net") is not None:
+        want = base - (tot.get("allowances") or 0.0) + (tot.get("charges") or 0.0)
+        if abs(want - inv["net"]) > tol:
+            out.append(f"Netto {_eur(inv['net'])} passt nicht zu den Positionen abzüglich Rabatten ({_eur(want)})")
+    incl = tot.get("inclusive")
+    if incl is not None and inv.get("net") is not None and inv.get("tax") is not None and abs(inv["net"] + inv["tax"] - incl) > tol:
+        out.append(f"Netto {_eur(inv['net'])} plus Umsatzsteuer {_eur(inv['tax'])} sind nicht {_eur(incl)}")
+    if incl is not None and tot.get("payable") is not None:
+        want = incl - (tot.get("prepaid") or 0.0) + (tot.get("rounding") or 0.0)
+        if abs(want - tot["payable"]) > tol:
+            out.append(f"Zu zahlen sind {_eur(tot['payable'])}, nach Brutto und Anzahlungen wären es {_eur(want)}")
+    subs = inv.get("subtotals") or []
+    for st in subs:
+        if None not in (st.get("base"), st.get("rate"), st.get("tax")) and abs(st["base"] * st["rate"] / 100 - st["tax"]) > 0.015:
+            out.append(f"{st['rate']:g} % von {_eur(st['base'])} sind nicht {_eur(st['tax'])} Umsatzsteuer")
+    if subs and inv.get("tax") is not None and all(st.get("tax") is not None for st in subs) and \
+            abs(sum(st["tax"] for st in subs) - inv["tax"]) > tol:
+        out.append(f"Die Steuer je Satz ergibt {_eur(sum(st['tax'] for st in subs))}, die Rechnung nennt {_eur(inv['tax'])}")
+    for key, label in (("number", "Rechnungsnummer"), ("date", "Rechnungsdatum"), ("seller", "Name des Lieferanten"),
+                       ("buyer", "Empfänger"), ("gross", "Betrag")):
+        if inv.get(key) in (None, ""):
+            out.append(f"{label} fehlt")
+    if not inv.get("seller_vat") and not inv.get("seller_tax_no"):
+        out.append("Weder USt-IdNr. noch Steuernummer des Lieferanten (§ 14 Abs. 4 UStG) – kein Vorsteuerabzug")
+    return out
 
 
 HEADER_COLS = ["Rechnungsnr", "Rechnungsdatum", "Fällig am", "Lieferant", "USt-IdNr", "IBAN", "Bestellung", "Netto",
@@ -155,7 +258,8 @@ def to_tables(inv: dict, source_name: str):
     text = (f"E-Rechnung {inv['number']} von {inv['seller']} vom {inv['date']}\n"
             f"Betrag: {inv['gross']} {inv['currency']}\nIBAN: {inv['iban'] or '–'}\nBestellung: {inv['order'] or '–'}")
     doc = RawDoc("e-rechnung", f"E-Rechnung {inv['number']} · {inv['seller']}", text,
-                 sender=inv.get("seller_mail") or inv.get("seller"), meta={"syntax": inv["syntax"]})
+                 sender=inv.get("seller_mail") or inv.get("seller"),
+                 meta={"syntax": inv["syntax"], "problems": check(inv), "buyer": inv.get("buyer")})
     return head, lines if rows else None, doc
 
 

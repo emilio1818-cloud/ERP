@@ -39,7 +39,8 @@ def invoice_specs(model: dict) -> list[dict]:
             continue
         step = next((s for s in p["steps"] if fold(s["label"]) == "bezahlt"), None)
         party_attr = next((a for a in spec["attrs"] if a["id"] == p.get("party")), {}) if p.get("party") else {}
-        outgoing = (specs.get(party_attr.get("ref")) or {}).get("concept") == "lieferant"
+        # a supplier's invoice is paid by money going out – whether or not the supplier is a list of its own
+        outgoing = bool(spec.get("incoming")) or (specs.get(party_attr.get("ref")) or {}).get("concept") == "lieferant"
         if step is None and not any(fold(d.get("name") or "").startswith("faellig") for d in p.get("deadlines", [])):
             continue
         out.append(dict(p=p, spec=spec, step=step, outgoing=outgoing))

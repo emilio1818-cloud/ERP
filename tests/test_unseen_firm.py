@@ -497,5 +497,81 @@ class UnseenFirm(unittest.TestCase):
         self.assertEqual(guess_company(self.f.rt()).get("name"), "Nordlicht Digital GmbH")
 
 
+    @staticmethod
+    def _ubl(number, when, seller, iban, lines, buyer="Elektro Brandt GmbH", vat="DE811234567", net=None, tax=None,
+             incl=None, rate=19.0, sub_tax=None):
+        lsum = round(sum(q * p for q, p in lines), 2)
+        net = lsum if net is None else net
+        tax = round(net * rate / 100, 2) if tax is None else tax
+        incl = round(net + tax, 2) if incl is None else incl
+        sub_tax = tax if sub_tax is None else sub_tax
+        items = "".join(f"""<cac:InvoiceLine><cbc:ID>{i + 1}</cbc:ID><cbc:InvoicedQuantity unitCode="H87">{q}</cbc:InvoicedQuantity>
+<cbc:LineExtensionAmount currencyID="EUR">{q * p:.2f}</cbc:LineExtensionAmount><cac:Item><cbc:Name>Material {i + 1}</cbc:Name></cac:Item>
+<cac:Price><cbc:PriceAmount currencyID="EUR">{p:.2f}</cbc:PriceAmount></cac:Price></cac:InvoiceLine>""" for i, (q, p) in enumerate(lines))
+        vat_xml = f"<cac:PartyTaxScheme><cbc:CompanyID>{vat}</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme>" if vat else ""
+        return f"""<?xml version="1.0" encoding="UTF-8"?>
+<ubl:Invoice xmlns:ubl="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+ xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+ xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+<cbc:ID>{number}</cbc:ID><cbc:IssueDate>{when.isoformat()}</cbc:IssueDate><cbc:DueDate>{(when + timedelta(days=30)).isoformat()}</cbc:DueDate>
+<cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode><cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
+<cac:AccountingSupplierParty><cac:Party><cac:PartyName><cbc:Name>{seller}</cbc:Name></cac:PartyName>{vat_xml}
+<cac:PartyLegalEntity><cbc:RegistrationName>{seller}</cbc:RegistrationName></cac:PartyLegalEntity></cac:Party></cac:AccountingSupplierParty>
+<cac:AccountingCustomerParty><cac:Party><cac:PartyLegalEntity><cbc:RegistrationName>{buyer}</cbc:RegistrationName></cac:PartyLegalEntity></cac:Party></cac:AccountingCustomerParty>
+<cac:PaymentMeans><cbc:PaymentMeansCode>58</cbc:PaymentMeansCode><cac:PayeeFinancialAccount><cbc:ID>{iban}</cbc:ID></cac:PayeeFinancialAccount></cac:PaymentMeans>
+<cac:TaxTotal><cbc:TaxAmount currencyID="EUR">{tax:.2f}</cbc:TaxAmount><cac:TaxSubtotal><cbc:TaxableAmount currencyID="EUR">{net:.2f}</cbc:TaxableAmount>
+<cbc:TaxAmount currencyID="EUR">{sub_tax:.2f}</cbc:TaxAmount><cac:TaxCategory><cbc:ID>S</cbc:ID><cbc:Percent>{rate}</cbc:Percent></cac:TaxCategory></cac:TaxSubtotal></cac:TaxTotal>
+<cac:LegalMonetaryTotal><cbc:LineExtensionAmount currencyID="EUR">{lsum:.2f}</cbc:LineExtensionAmount>
+<cbc:TaxExclusiveAmount currencyID="EUR">{net:.2f}</cbc:TaxExclusiveAmount><cbc:TaxInclusiveAmount currencyID="EUR">{incl:.2f}</cbc:TaxInclusiveAmount>
+<cbc:PayableAmount currencyID="EUR">{incl:.2f}</cbc:PayableAmount></cac:LegalMonetaryTotal>{items}</ubl:Invoice>""".encode("utf-8")
+
+    def test_supplier_invoices_are_checked_before_anybody_pays(self):
+        from physarum.einvoice import check, parse
+        from defusedxml.ElementTree import fromstring
+        today = date.today()
+        a, b, c, n = "Elektrogroßhandel Nord GmbH", "Kabelwerk Süd GmbH", "Leuchten Meyer KG", "Schaltschrankbau Ost GmbH"
+        iban_a, iban_b, iban_c = "DE89370400440532013000", "DE02120300000000202051", "DE12500105170648489890"
+        files, bank = [], []
+        for k, (sup, iban) in enumerate([(a, iban_a), (b, iban_b), (c, iban_c)]):
+            for j in range(3):
+                when = today - timedelta(days=150 - 30 * j + k)
+                no = f"{sup[:3].upper()}-{2026}{k}{j}"
+                files.append((f"E-Rechnungen/{no}.xml", self._ubl(no, when, sup, iban, [(10, 12.5 + j)])))
+                bank.append([(when + timedelta(days=10)).strftime("%d.%m.%Y"), sup, iban, f"Rechnung {no}",
+                             f"-{(10 * (12.5 + j)) * 1.19:.2f}".replace(".", ",")])
+        # 1. the next invoice of A suddenly names another account
+        files.append(("E-Rechnungen/ELE-NEU.xml", self._ubl("ELE-2026-99", today - timedelta(days=4), a, "DE75512108001245126199",
+                                                           [(20, 13.0)])))
+        # 2. B's figures do not add up: lines 300 €, net 310 €, 19 % of 310 is not 50 €, and the total is wrong too
+        bad = self._ubl("KAB-2026-77", today - timedelta(days=3), b, iban_b, [(10, 30.0)], net=310.0, tax=50.0, incl=365.0)
+        files.append(("E-Rechnungen/KAB-77.xml", bad))
+        # 3. C's new invoice is addressed to another firm
+        files.append(("E-Rechnungen/LEU-88.xml", self._ubl("LEU-2026-88", today - timedelta(days=2), c, iban_c, [(4, 25.0)],
+                                                          buyer="Haustechnik Petersen GmbH")))
+        # 4. a supplier nobody knew, without a VAT id
+        files.append(("E-Rechnungen/SCH-1.xml", self._ubl("SOB-2026-1", today - timedelta(days=1), n, "DE44500105175407324931",
+                                                         [(1, 890.0)], vat=None)))
+        files.append(("Konto.csv", csv("Buchungstag;Empfänger;IBAN;Verwendungszweck;Betrag", bank)))
+        found = check(parse(fromstring(bad)))
+        self.assertTrue(any("Netto 310,00 €" in x for x in found), found)
+        self.assertTrue(any("19 % von 310,00 €" in x for x in found), found)
+        self.assertTrue(any("plus Umsatzsteuer" in x for x in found), found)
+        self.f.store.kv_set("company_profile", dict(name="Elektro Brandt GmbH"))
+        self.f.feed(files)
+        rt = self.f.rt()
+        work = rt.work()
+        risk = next((g for g in work if g["id"] == "risk:iban"), None)
+        self.assertIsNotNone(risk)
+        self.assertTrue(any("DE75 5121 0800 1245 1261 99" in it["reason"] and it["party"] == a for it in risk["items"]))
+        checks = next((g for g in work if g["id"] == "check:incoming"), None)
+        self.assertIsNotNone(checks)
+        why = " | ".join(it["reason"] for it in checks["items"])
+        self.assertIn("Netto 310,00 €", why)
+        self.assertIn("Adressiert an „Haustechnik Petersen GmbH“", why)
+        self.assertIn("erste Rechnung dieses Lieferanten", why)
+        self.assertIn("Weder USt-IdNr. noch Steuernummer", why)
+        self.assertFalse(any("ELE-2026-0" in it["title"] for it in risk["items"] + checks["items"]))  # the paid, normal ones
+
+
 if __name__ == "__main__":
     unittest.main()

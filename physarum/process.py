@@ -867,8 +867,18 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                    explain="Teilzahlungen, doppelte Zahlungen, Rücklastschriften und Geld auf stornierten "
                                            "Rechnungen – nach Betrag aus dem Kontoauszug, nicht nach Nummer."))
     if outrefs is not None:
-        from .reconcile import risk_items
-        risks = risk_items(model, records, outrefs, titles_in or {r: title(r) for r in by_id})
+        from .reconcile import risk_items, supplier_items
+        tmap = titles_in or {r: title(r) for r in by_id}
+        risks = risk_items(model, records, outrefs, tmap)
+        more, checks = supplier_items(model, records, outrefs, tmap, ledger, today,
+                                      reported={(x["partner"], x.get("iban")) for x in risks})
+        risks += more
+        if checks:
+            groups.append(dict(id="check:incoming", type=checks[0].get("type") or "doc", kind="risk", severity=2,
+                               title="Eingangsrechnungen vor dem Bezahlen prüfen", count=len(checks), amount=None,
+                               items=checks, action=None,
+                               explain="E-Rechnungen, deren Zahlen nicht aufgehen oder denen Pflichtangaben fehlen, "
+                                       "und die erste Rechnung eines neuen Lieferanten."))
         if risks:
             groups.append(dict(id="risk:iban", type="doc", kind="risk", severity=3,
                                title="Vorsicht: Bankverbindung oder Absender passen nicht zum Lieferanten",

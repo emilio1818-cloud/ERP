@@ -19,7 +19,7 @@ from .infer.unify import AttrDraft, TypeDraft, obs_sig, unify
 from .infer.versions import merge_versions
 from .ingest import read_file
 from .store import Store, dumps, loads, now_iso, parse_pair
-from .text import fold, norm_key, norm_name, slug, tokens
+from .text import fold, name_similarity, norm_key, norm_name, slug, tokens
 from .values import parse_period, profile_table
 
 DOC_TYPE = "doc"
@@ -27,7 +27,7 @@ DOC_ATTRS = [
     ("doc_title", "Titel", "text", "name"), ("doc_kind", "Art", "text", "category"),
     ("doc_from", "Von", "text", "person"), ("doc_to", "An", "text", "person"),
     ("doc_date", "Datum", "datetime", "date"), ("doc_text", "Text", "text", "notes"),
-    ("doc_file", "Datei", "text", "file"),
+    ("doc_file", "Datei", "text", "file"), ("doc_check", "Prüfung", "text", "notes"),
 ]
 DOC_KIND_LABEL = {"email": "E-Mail", "pdf": "PDF", "text": "Text", "docx": "Word", "bild": "Bild"}
 
@@ -642,6 +642,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
             stats["records"] += 1
 
     # 3. documents
+    own_name = (store.kv_get("company_profile") or {}).get("name")
     doc_rids = []
     existing = {r["ident"]: r["record_id"] for r in
                 c.execute("SELECT ident, record_id FROM idents WHERE type=?", (DOC_TYPE,)).fetchall()}
@@ -657,7 +658,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
         done[ident] = [d["source_id"]]
         data = {"doc_title": d["title"], "doc_kind": DOC_KIND_LABEL.get(d["kind"], d["kind"]), "doc_from": d["sender"],
                 "doc_to": d["recipients"], "doc_date": (d["date"] or "")[:16] or None, "doc_text": d["body"],
-                "doc_file": d["source_name"]}
+                "doc_file": d["source_name"], "doc_check": _doc_check(d, own_name)}
         data = {k: v for k, v in data.items() if v}
         if ident in existing:
             rid = existing[ident]
@@ -971,6 +972,17 @@ def _reindex(c, model: dict, live: dict | None = None):
     titles = record_titles(specs, ((rid, t, d) for rid, (t, d) in live.items()))
     c.executemany("INSERT INTO search(body, record_id, type) VALUES(?,?,?)",
                   [(record_text(specs[t], d, titles), rid, t) for rid, (t, d) in live.items() if t in specs])
+
+
+def _doc_check(d, own_name: str | None) -> str | None:
+    """What does not add up in a received e-invoice, and whether it is addressed to this firm at all."""
+    meta = loads(d["meta"]) if isinstance(d["meta"], str) else (d["meta"] or {})
+    problems = list((meta or {}).get("problems") or [])
+    buyer = (meta or {}).get("buyer")
+    if own_name and buyer and name_similarity(norm_name(own_name), norm_name(buyer)) < 0.85 and \
+            not set(norm_name(own_name).split()) <= set(norm_name(buyer).split()):
+        problems.append(f"Adressiert an „{buyer}“, nicht an {own_name}")
+    return "; ".join(problems) or None
 
 
 def _de_date(v) -> str:

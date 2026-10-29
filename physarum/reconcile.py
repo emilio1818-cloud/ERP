@@ -53,8 +53,9 @@ def bank_amount(b: dict, data: dict) -> float | None:
 def bank_specs(model: dict) -> list[dict]:
     out = []
     for t in model["types"]:
-        if t["kind"] != "transaction":
-            continue
+        if t["kind"] != "transaction" or t.get("incoming") or \
+                (t.get("concept") or "") in ("rechnung", "angebot", "auftrag", "bestellung", "einkauf", "gutschrift"):
+            continue  # a supplier's invoice names an IBAN and an amount too – it is not a bank statement
         iban = next((a for a in t["attrs"] if a["kind"] == "iban" and not a.get("hidden")), None)
         moneys = [a for a in t["attrs"] if a["kind"] == "money" and not a.get("hidden")]
         money = moneys[0] if moneys else None
@@ -245,8 +246,116 @@ def risk_items(model: dict, records: dict, outrefs: dict, titles: dict) -> list[
                     reasons.append(f"kommt von „{sdom}“ – ähnlich, aber nicht gleich „{close[0]}“")
             if reasons:
                 out.append(dict(rid=d["id"], partner=t, title=titles.get(d["id"], "Dokument"), party=titles.get(t),
-                                reason="; ".join(reasons), days=0, money=None))
+                                reason="; ".join(reasons), days=0, money=None, iban=unknown[0] if unknown else None))
     return out
+
+
+_SUPPLIER_WORDS = {"lieferant", "kreditor", "rechnungssteller", "supplier", "vendor", "verkaeufer", "seller"}
+
+
+def _party_key(v):
+    """A supplier as a record, or – where there is no list of suppliers – by its written name."""
+    if isinstance(v, int) and not isinstance(v, bool):
+        return v
+    return norm_name(v) or None if isinstance(v, str) else None
+
+
+def _incoming(model: dict) -> list[tuple[dict, dict, dict | None, dict | None]]:
+    """Kinds of supplier invoices: (type, supplier attribute, IBAN attribute, date attribute)."""
+    specs = {t["id"]: t for t in model["types"]}
+    out = []
+    for t in model["types"]:
+        if not t.get("incoming") or t["kind"] != "transaction":
+            continue
+        party = next((a for a in t["attrs"] if a["kind"] == "ref" and (specs.get(a.get("ref")) or {}).get("kind") == "master"), None) \
+            or next((a for a in t["attrs"] if a["kind"] == "text" and set(tokens(a["name"])) & _SUPPLIER_WORDS), None)
+        if not party:
+            continue
+        iban = next((a for a in t["attrs"] if a["kind"] == "iban"), None)
+        proc = next((p for p in model.get("processes", []) if p["type"] == t["id"]), None)
+        dattr = next((a for a in t["attrs"] if proc and a["id"] == proc["start"]["attr"]), None) or \
+            next((a for a in t["attrs"] if a["kind"] in ("date", "datetime")), None)
+        out.append((t, party, iban, dattr))
+    return out
+
+
+def supplier_items(model: dict, records: dict, outrefs: dict, titles: dict, ledger: dict | None = None,
+                   today: date | None = None, reported: set | None = None) -> tuple[list[dict], list[dict]]:
+    """Two looks at every supplier invoice before it is paid.
+    Risks: it names a bank account none of the supplier's earlier invoices named (and no payment went to).
+    Checks: an e-invoice whose figures do not add up, or the first invoice of a supplier nobody knew."""
+    today = today or date.today()
+    by_id = {r["id"]: r for rs in records.values() for r in rs}
+    paid_to: dict = {}
+    for b in bank_specs(model):
+        who = b["party"] or b["name"]
+        if not b["iban"] or not who:
+            continue
+        for row in records.get(b["spec"]["id"], []):
+            iv = row["data"].get(b["iban"]["id"])
+            keys = {_party_key(row["data"].get(who["id"]))}
+            if b["party"] and b["name"]:
+                keys.add(_party_key(row["data"].get(b["name"]["id"])))
+            if b["party"] and isinstance(row["data"].get(b["party"]["id"]), int):
+                keys.add(_party_key(titles.get(row["data"][b["party"]["id"]])))
+            for k in keys - {None}:
+                if iv:
+                    paid_to.setdefault(k, set()).add(re.sub(r"\s+", "", str(iv)).upper())
+    master_ibans: dict[int, set] = {}
+    for t in model["types"]:
+        if t["kind"] == "master":
+            for a in (a for a in t["attrs"] if a["kind"] == "iban"):
+                for r in records.get(t["id"], []):
+                    if r["data"].get(a["id"]):
+                        master_ibans.setdefault(r["id"], set()).add(re.sub(r"\s+", "", str(r["data"][a["id"]])).upper())
+    risks, checks = [], []
+    per_supplier: dict = {}
+    names: dict = {}
+    for t, party, iban, dattr in _incoming(model):
+        for r in records.get(t["id"], []):
+            raw = r["data"].get(party["id"])
+            pv = _party_key(raw)
+            if pv is None:
+                continue
+            names[pv] = titles.get(raw) if isinstance(raw, int) else raw
+            when = as_date(r["data"].get(dattr["id"])) if dattr else None
+            iv = re.sub(r"\s+", "", str(r["data"].get(iban["id"]) or "")).upper() if iban else ""
+            per_supplier.setdefault(pv, []).append((when or date.min, r["id"], iv))
+    history = sum(1 for v in per_supplier.values() if len(v) >= 2)
+    for pv, invs in per_supplier.items():
+        invs.sort()
+        seen: set = set()
+        paid = paid_to.get(pv, set()) | paid_to.get(_party_key(names.get(pv)), set())
+        for k, (when, rid, iv) in enumerate(invs):
+            e = (ledger or {}).get(rid) or {}
+            open_ = e.get("state") in (None, "offen", "teilbezahlt") and (e.get("open") is None or e.get("open", 0) > 0.005)
+            recent = when != date.min and (today - when).days <= 60
+            known = seen | (master_ibans.get(pv, set()) if isinstance(pv, int) else set()) | paid
+            if iv and known and iv not in known and open_ and recent and (pv, iv) not in (reported or set()):
+                risks.append(dict(rid=rid, partner=pv if isinstance(pv, int) else None, title=titles.get(rid, "Rechnung"),
+                                  party=names.get(pv),
+                                  reason=f"nennt die Bankverbindung {_fmt_iban(iv)}; frühere Rechnungen und Zahlungen: "
+                                         f"{', '.join(_fmt_iban(x) for x in sorted(known)[:2])}", days=0, money=None))
+            if k == 0 and history >= 3 and open_ and recent and not paid:
+                checks.append(dict(rid=rid, partner=pv if isinstance(pv, int) else None, title=titles.get(rid, "Rechnung"),
+                                   party=names.get(pv),
+                                   reason="erste Rechnung dieses Lieferanten – vor der ersten Zahlung die Bankverbindung "
+                                          "über eine bekannte Telefonnummer bestätigen", days=0, money=None))
+            if iv:
+                seen.add(iv)
+    for d in records.get("doc", []):
+        note = d["data"].get("doc_check")
+        if not note:
+            continue
+        partner = next((to for to, attr, kind, how in outrefs.get(d["id"], []) if to in by_id and
+                        any(by_id[to]["type"] == t["id"] for t, *_ in _incoming(model))), None)
+        if partner is not None:
+            e = (ledger or {}).get(partner) or {}
+            if e.get("state") in ("bezahlt", "überzahlt", "verrechnet", "storniert"):
+                continue  # paid long ago: no longer a reason to look before paying
+        checks.append(dict(rid=d["id"], partner=partner, title=titles.get(d["id"], "E-Rechnung"),
+                           party=titles.get(partner) if partner else None, reason=note, days=0, money=None))
+    return risks, checks
 
 
 def _fmt_iban(s: str) -> str:

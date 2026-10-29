@@ -10,6 +10,7 @@ is work.
 """
 from __future__ import annotations
 
+import re
 import statistics
 from collections import Counter, defaultdict
 from datetime import date, timedelta
@@ -573,10 +574,26 @@ _MAIL_ORDER = ("bestellung", "bestelle", "bestellen", "nachbestell", "auftrag er
 _MAIL_ASK = ("anfrage", "angebot", "kostenvoranschlag", "interesse an", "was kostet", "unverbindlich", "preisanfrage")
 _MAIL_BULK = ("newsletter", "no-reply", "noreply", "abmelden", "unsubscribe", "news@", "webinar", "keynote", "werbung")
 _MAIL_DAYS = 30
+# what a customer asks for in a sentence ("Schicken Sie uns bitte die Rechnung", "bitte Termin machen")
+_MAIL_WANTS_INVOICE = ("rechnung schicken", "schicken sie uns bitte die rechnung", "schicken sie mir bitte die rechnung",
+                       "bitte die rechnung", "rechnung zusenden", "rechnung senden", "rechnung zukommen")
+_MAIL_WANTS_VISIT = ("termin machen", "termin vereinbaren", "bitte termin", "bitte einen termin", "terminvorschlag",
+                     "jemanden schicken", "vorbeikommen", "vorbei kommen", "termin geben")
+_MAIL_CANCELS = ("kuendige", "kuendigen", "kuendigung", "gekuendigt")
+_PAID_CLAIM = re.compile(r"\b(?:bereits|schon|haben\s+(?:wir|ich)|wurde|ist)\b(?:[^.\n]|\.(?=\d)){0,60}?"
+                         r"\b(?:ueberwiesen|bezahlt|beglichen)\b")
+_SOME_DAY = re.compile(r"\b(\d{1,2}\.\d{1,2}\.(?:\d{4}|\d{2})?)")
+_DEADLINE = re.compile(r"\bbis\s+(?:zum\s+|spaetestens\s+)?(\d{1,2}\.\d{1,2}\.(?:\d{4}|\d{2})?)")
+
+
+def _short_day(s: str) -> str:
+    """'30.10.2026' -> '30.10.'"""
+    parts = [p for p in s.split(".") if p]
+    return f"{parts[0].zfill(2)}.{parts[1].zfill(2)}." if len(parts) >= 2 else s
 
 
 def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outrefs: dict | None,
-               done: set | None) -> list[dict]:
+               done: set | None, ledger: dict | None = None) -> list[dict]:
     """The inbox as part of the firm's processes: an order, an inquiry or a complaint that came by mail
     and has nothing yet that answers it – no order, no offer for that customer since. A complaint
     waits until somebody marks it done."""
@@ -613,30 +630,74 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
                 answers[which].setdefault(pv, []).append(d)
                 if which == "order":
                     answers["ask"].setdefault(pv, []).append(d)  # an order answers an inquiry too
+    from .pdfinvoice import _NEW_BANK
+    invoices_of: dict[int, list[date]] = {}  # an invoice for that customer since: the asked-for invoice is written
+    for t in model["types"]:
+        if concept[t["id"]] == "rechnung" and not t.get("incoming"):
+            p = procs.get(t["id"]) or {}
+            pa, da = p.get("party"), (p.get("start") or {}).get("attr")
+            for r in records.get(t["id"], []) if pa else []:
+                d = (as_date(r["data"].get(da)) if da else None) or as_date((r.get("created_at") or "")[:10])
+                if isinstance(r["data"].get(pa), int) and d:
+                    invoices_of.setdefault(r["data"][pa], []).append(d)
     items = []
     for d in records.get("doc", []):
         dd = d["data"]
         if str(dd.get("doc_kind") or "") != "E-Mail" or (done and str(d["id"]) in done):
             continue
         when = as_date(str(dd.get("doc_date") or "")[:10])
-        if not when or (today - when).days > _MAIL_DAYS or when > today:
+        if not when or when > today:
             continue
         sender = fold(str(dd.get("doc_from") or ""))
         subject = str(dd.get("doc_title") or "")
-        text = fold(subject + "\n" + str(dd.get("doc_text") or "")[:3000])
+        body = str(dd.get("doc_text") or "")[:3000]
+        text = fold(subject + "\n" + body)
         if any(w in sender or w in text[:400] for w in _MAIL_BULK):
             continue
         refs = [to for to, attr, k, how in outrefs.get(d["id"], []) if to in by_id]
         masters = [to for to in refs if kind_of(by_id[to]["type"]) == "master"]
+        invoice = next((to for to in refs if concept[by_id[to]["type"]] == "rechnung"
+                        and not specs[by_id[to]["type"]].get("incoming")), None)
+        entry = (ledger or {}).get(invoice) if invoice else None
+        claims = bool(entry and entry["state"] in ("offen", "überfällig", "teilbezahlt") and _PAID_CLAIM.search(text))
+        if (today - when).days > _MAIL_DAYS and not claims:
+            continue  # an old mail – unless it says an invoice is paid that still is not
+        if _NEW_BANK.search(body) or _NEW_BANK.search(subject):
+            items.append(dict(rid=d["id"], title=subject or "E-Mail", party=None, days=(today - when).days, money=None,
+                              mail="bank", act=None,
+                              reason=f"kündigt am {when.strftime('%d.%m.')} eine neue Bankverbindung an – vor jeder "
+                                     f"Zahlung beim bekannten Ansprechpartner anrufen, nicht unter der Nummer aus der Mail"))
+            continue
         if any(concept[by_id[m]["type"]] == "lieferant" for m in masters):
             continue  # a supplier's mail is about our purchase, not a customer's wish (risks are checked elsewhere)
         party = next((m for m in masters if concept[by_id[m]["type"]] == "kunde"), None) or \
             next((m for m in masters if concept[by_id[m]["type"]] != "mitarbeiter"), None)
-        invoice = next((to for to in refs if concept[by_id[to]["type"]] == "rechnung"), None)
+        contract = next((to for to in refs if concept[by_id[to]["type"]] == "vertrag"), None)
         subj = fold(subject)
-        if any(w in text for w in _MAIL_COMPLAINT) or (invoice and subj.startswith(("rueckfrage", "frage"))):
+        if claims:
+            day = next((m.group(1) for m in _SOME_DAY.finditer(text[_PAID_CLAIM.search(text).start():][:120])), None)
+            what = "claim"
+            reason = (f"sagt am {when.strftime('%d.%m.')}, {title(invoice)} sei {('am ' + _short_day(day) + ' ') if day else ''}"
+                      f"bezahlt – im Kontoauszug ist keine Zahlung zu finden")
+        elif contract and any(w in text for w in _MAIL_CANCELS):
+            what = "cancel"
+            to_day = re.search(r"\bzum\s+(\d{1,2}\.\d{1,2}\.(?:\d{4}|\d{2})?)", text)
+            noted = any("kuendig" in fold(str(v)) for v in by_id[contract]["data"].values() if isinstance(v, str))
+            reason = (f"Kündigung {title(contract)}" + (f" zum {_short_day(to_day.group(1))}" if to_day else "")
+                      + (" – in Ihrer Vertragsliste schon eingetragen; schriftlich bestätigt?" if noted
+                         else " – noch nicht in der Vertragsliste"))
+        elif any(w in text for w in _MAIL_COMPLAINT) or (invoice and subj.startswith(("rueckfrage", "frage"))):
             what = "complaint"
-            reason = f"Rückfrage oder Reklamation vom {when.strftime('%d.%m.')}" + (f" zu {title(invoice)}" if invoice else "")
+            until = _DEADLINE.search(text)
+            reason = (f"Rückfrage oder Reklamation vom {when.strftime('%d.%m.')}" + (f" zu {title(invoice)}" if invoice else "")
+                      + (f" – Frist {_short_day(until.group(1))}" if until else ""))
+        elif any(w in text for w in _MAIL_WANTS_INVOICE + _MAIL_WANTS_VISIT):
+            wants = [x for x, ws in (("die Rechnung", _MAIL_WANTS_INVOICE), ("einen Termin", _MAIL_WANTS_VISIT))
+                     if any(w in text for w in ws)]
+            if wants == ["die Rechnung"] and party is not None and any(x >= when for x in invoices_of.get(party, [])):
+                continue  # the invoice was written since
+            what = "request"
+            reason = f"bittet am {when.strftime('%d.%m.')} um {' und '.join(wants)}"
         elif any(w in subj for w in _MAIL_ORDER) or (not subj.startswith(("aw:", "re:", "wg:", "fwd:")) and
                                                      any(w in text[:600] for w in _MAIL_ORDER[:5])):
             what = "order"
@@ -649,8 +710,15 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
         if what in ("order", "ask") and party is not None and any(x >= when for x in answers[what].get(party, [])):
             continue  # an order or an offer for that customer came after the mail
         act = None
-        if what == "complaint":
+        if what in ("complaint", "claim"):
             act = dict(href=f"/r/{invoice}", label="Rechnung ansehen") if invoice else None
+        elif what == "cancel":
+            act = dict(href=f"/r/{contract}", label="Vertrag ansehen")
+        elif what == "request":
+            inv_t = next((t for t in model["types"] if concept[t["id"]] == "rechnung" and not t.get("incoming")), None)
+            pa = (procs.get(inv_t["id"]) or {}).get("party") if inv_t else None
+            if inv_t and pa and party is not None and "Rechnung" in reason:
+                act = dict(href=f"/t/{inv_t['id']}/neu?a_{pa}={party}", label=f"+ {inv_t['name']}")
         elif party is not None:
             fits = [(tid, pattr) for tid, pattr in targets[what]
                     if next((a for a in specs[tid]["attrs"] if a["id"] == pattr), {}).get("ref") == by_id[party]["type"]]
@@ -658,15 +726,17 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
                 tid, pattr = max(fits, key=lambda x: used[(x[0], party)])  # stable: the first (an "Auftrag") on a tie
                 act = dict(href=f"/t/{tid}/neu?a_{pattr}={party}", label=f"+ {specs[tid]['name']}")
         items.append(dict(rid=d["id"], title=subject or "E-Mail", party=title(party) if party else None,
-                          days=(today - when).days, money=None, reason=reason, mail=what, act=act))
+                          days=(today - when).days, money=None, reason=reason, mail=what, act=act,
+                          invoice=invoice, when=when.isoformat()))
     if not items:
         return []
-    items.sort(key=lambda x: ({"complaint": 0, "order": 1, "ask": 2}[x["mail"]], -x["days"]))
-    urgent = any(x["mail"] in ("complaint", "order") for x in items)
+    order = {"bank": 0, "complaint": 1, "claim": 2, "order": 3, "request": 4, "cancel": 5, "ask": 6}
+    items.sort(key=lambda x: (order[x["mail"]], -x["days"]))
+    urgent = any(x["mail"] in ("bank", "complaint", "claim", "order") for x in items)
     return [dict(id="mail:open", type="doc", kind="mail", severity=2 if urgent else 1,
                  title="E-Mails, die auf Sie warten", count=len(items), amount=None, items=items[:30], action=None,
-                 explain="Bestellungen, Anfragen und Reklamationen aus den eingeworfenen Mails, zu denen es noch "
-                         "keinen Auftrag und kein Angebot gibt. Was erledigt ist, lässt sich abhaken.")]
+                 explain="Reklamationen, Bitten, Kündigungen, Bestellungen und Anfragen aus den eingeworfenen Mails, "
+                         "zu denen noch nichts geschehen ist. Was erledigt ist, lässt sich abhaken.")]
 
 
 def compute_work(model: dict, records: dict, mention_refs: dict, today: date | None = None,
@@ -982,7 +1052,13 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                count=len(risks), amount=None, items=risks, action=None,
                                explain="Vor einer Zahlung telefonisch beim bekannten Ansprechpartner prüfen. "
                                        "So sieht Rechnungsbetrug typischerweise aus."))
-    groups += _mail_work(model, records, by_id, title, today, outrefs, mails_done)
+    mail = _mail_work(model, records, by_id, title, today, outrefs, mails_done, ledger)
+    claims = {x["invoice"]: x for g in mail for x in g["items"] if x.get("mail") == "claim"}
+    for g in groups:
+        for x in g["items"] if g["kind"] == "overdue" else []:
+            if x["rid"] in claims:  # the customer says it is paid: look before reminding
+                x["claim"] = f"Kunde sagt: bezahlt (Mail vom {_short_day(date.fromisoformat(claims[x['rid']]['when']).strftime('%d.%m.%Y'))})"
+    groups += mail
     groups += _due_work(model, records, by_id, title, today)
     groups += _threshold_work(model, records, title)
     groups += _rhythm_work(model, records, by_id, title, today)

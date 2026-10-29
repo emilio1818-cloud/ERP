@@ -397,7 +397,8 @@ def find_numbering(spec: dict, recs: list[dict], today: date | None = None) -> d
         s = sorted(c)
         gaps = [n for n in range(s[0], s[-1] + 1) if n not in c] if s and s[-1] - s[0] < 20000 else []
         lab = (lambda n: f"{pre}{y}{sep}{str(n).zfill(width)}") if has_year else (lambda n: f"{pre}{sep}{str(n).zfill(width)}")
-        if gaps and spec.get("kind") == "transaction":
+        if gaps and spec.get("kind") == "transaction" and spec.get("concept") == "rechnung":
+            # only invoices must be gap-free: a contract or an offer that was never made leaves an honest gap
             issues.append(dict(kind="gap", year=y, count=len(gaps), examples=[lab(n) for n in gaps[:5]]))
         if dups:
             issues.append(dict(kind="dup", year=y, count=len(dups), examples=[lab(n) for n in dups[:5]]))

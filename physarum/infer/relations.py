@@ -631,6 +631,10 @@ class MentionIndex:
         if not found:
             dom = e.rsplit("@", 1)[-1]
             hits = self.domains.get(dom, [])
+            if not hits and dom not in FREEMAIL:
+                # a firm writes from its name: "metzgerei-brueggemann.de" is Metzgerei Brüggemann
+                label = dom.rsplit(".", 1)[0].rsplit(".", 1)[-1]
+                hits = self.names.get(norm_name(label.replace("-", " ").replace("_", " ")), [])
             if len({(id(t), gi) for t, gi in hits}) == 1:
                 t, gi = hits[0]
                 found[(id(t), gi)] = (t, gi, "Absender-Domain")

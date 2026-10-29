@@ -632,6 +632,56 @@ class CraftFirm(unittest.TestCase):
         self.assertIn("zweimal eingegangen (RE_4471004.pdf, Scan_0001.pdf)", pay[0]["reason"])
         self.assertEqual(pay[0]["party"], "Grosshandel Nord GmbH")
 
+    def test_mails_that_wait_for_an_answer(self):
+        from email.message import EmailMessage
+
+        def mail(sender, subject, day, text):
+            m = EmailMessage()
+            m["From"], m["To"], m["Subject"] = sender, "info@muster.example", subject
+            m["Date"] = f"{day.strftime('%a')}, {day.day:02d} {day.strftime('%b')} {day.year} 10:00:00 +0200"
+            m.set_content(text)
+            return m.as_bytes()
+        today = date(2026, 10, 29)
+        rows = _book(24, start=date(2026, 5, 4))
+        bank = [[r[1], r[2], f"Rechnung {r[0]}", r[8]] for r in rows if r[0] not in ("RE-2026-0004", "RE-2026-0005")]
+        customers = csv("Kd.-Nr.;Name;E-Mail", [[f"K{i}", f"Kunde {i}", f"post@kunde{i}.example"] for i in range(5)]
+                        + [["K9", "Metzgerei Brüggemann", ""]])
+        contracts = csv("Vertr.-Nr.;Kunde;Intervall;letzte Wartung;Status",
+                        [[f"WV-{i:04d}", f"Kunde {i % 5}", "jährlich", "10.10.2025", "aktiv"] for i in range(101, 108)])
+        self.f.feed([("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD, rows)), ("Umsaetze.csv", csv(BANK_HEAD, bank)),
+                     ("Kunden.csv", customers), ("Wartungsvertraege.csv", contracts),
+                     ("claim.eml", mail("Kunde 3 <post@kunde3.example>", "AW: Zahlungserinnerung RE-2026-0004",
+                                        date(2026, 9, 14), "die Rechnung RE-2026-0004 haben wir bereits am 12.08.2026 "
+                                                           "überwiesen. Bitte prüfen Sie Ihren Zahlungseingang.")),
+                     ("paid.eml", mail("Kunde 1 <post@kunde1.example>", "Rechnung RE-2026-0002", date(2026, 10, 20),
+                                       "die Rechnung RE-2026-0002 haben wir bereits überwiesen.")),
+                     ("cancel.eml", mail("Kunde 2 <post@kunde2.example>", "Kündigung", date(2026, 10, 5),
+                                         "hiermit kündige ich den Wartungsvertrag WV-0102 zum 31.12.2026.")),
+                     ("bitte.eml", mail("Frank Brüggemann <info@metzgerei-brueggemann.example>", "Rohrbruch – Danke!",
+                                        date(2026, 10, 26), "Schicken Sie uns bitte die Rechnung. Und bitte Termin machen "
+                                                            "für die Klimaanlage.")),
+                     ("danke.eml", mail("Kunde 4 <post@kunde4.example>", "Danke für die Wartung", date(2026, 10, 7),
+                                        "Herr Dreier war gestern da und hat die Therme gewartet. Alles bestens.")),
+                     ("bank.eml", mail("Buchhaltung <buchhaltung@gh-nord-hamburg.example>", "WICHTIG: neue Bankverbindung",
+                                       date(2026, 10, 20), "Bitte überweisen Sie ab sofort nur noch auf unsere neue "
+                                                           "Bankverbindung DE12500105170648489890."))])
+        rt = self.f.rt()
+        work = rt.work(today)
+        g = next(g for g in work if g["kind"] == "mail")
+        got = {x["title"]: x for x in g["items"]}
+        self.assertEqual(set(got), {"AW: Zahlungserinnerung RE-2026-0004", "Kündigung", "Rohrbruch – Danke!",
+                                    "WICHTIG: neue Bankverbindung"})               # not the thanks, not the paid one
+        self.assertEqual(g["items"][0]["title"], "WICHTIG: neue Bankverbindung")   # the risk first
+        self.assertIn("RE-2026-0004 sei am 12.08. bezahlt", got["AW: Zahlungserinnerung RE-2026-0004"]["reason"])
+        self.assertIn("WV-0102 zum 31.12.", got["Kündigung"]["reason"])
+        self.assertIn("noch nicht in der Vertragsliste", got["Kündigung"]["reason"])
+        self.assertEqual(got["Rohrbruch – Danke!"]["party"], "Metzgerei Brüggemann")  # the domain is the name
+        self.assertIn("um die Rechnung und einen Termin", got["Rohrbruch – Danke!"]["reason"])
+        self.assertEqual(got["Rohrbruch – Danke!"]["act"]["label"], "+ Rechnung")
+        overdue = {x["title"]: x for w in work if w["kind"] == "overdue" for x in w["items"]}
+        self.assertIn("Kunde sagt: bezahlt", overdue["RE-2026-0004"]["claim"])     # look before reminding
+        self.assertNotIn("claim", overdue["RE-2026-0005"])
+
 
 if __name__ == "__main__":
     unittest.main()

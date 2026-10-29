@@ -6,8 +6,8 @@
   "lists": 0.671,
   "schema_questions": 0,
   "errors": 0,
-  "lines": 18867,
-  "word_rules": 708,
+  "lines": 18916,
+  "word_rules": 709,
   "regexes": 174
  },
  "results": [
@@ -108,7 +108,7 @@
        "fn": 0
       }
      },
-     "seconds": 30.6,
+     "seconds": 30.3,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -193,7 +193,7 @@
        "fn": 1
       }
      },
-     "seconds": 38.6,
+     "seconds": 38.9,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -287,7 +287,7 @@
        "fn": 0
       }
      },
-     "seconds": 30.0,
+     "seconds": 28.9,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -376,7 +376,7 @@
        "fn": 0
       }
      },
-     "seconds": 39.5,
+     "seconds": 39.6,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -481,7 +481,7 @@
        "fn": 0
       }
      },
-     "seconds": 32.6,
+     "seconds": 32.5,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -568,7 +568,7 @@
        "fn": 1
       }
      },
-     "seconds": 39.8,
+     "seconds": 40.2,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -600,7 +600,7 @@
      "questions": 3,
      "schema_questions": 0,
      "heute_groups": 9,
-     "heute_items": 22,
+     "heute_items": 19,
      "coverage": 0.883,
      "open": {
       "RE-2026-0311": 178.5,
@@ -658,9 +658,6 @@
       "P-2026-016"
      ],
      "receipts": [
-      261.8,
-      714.0,
-      3462.9,
       7659.32
      ],
      "eur_open": 39949.38,
@@ -678,7 +675,7 @@
        "fn": 0
       }
      },
-     "seconds": 43.0,
+     "seconds": 43.8,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -705,8 +702,8 @@
      ],
      "questions": 2,
      "schema_questions": 0,
-     "heute_groups": 9,
-     "heute_items": 22,
+     "heute_groups": 8,
+     "heute_items": 20,
      "coverage": 0.899,
      "open": {
       "RE-2026-0311": 178.5,
@@ -744,10 +741,7 @@
       "P-2025-042",
       "P-2026-016"
      ],
-     "receipts": [
-      3462.9,
-      10115.0
-     ],
+     "receipts": [],
      "eur_open": 49390.91,
      "score": {
       "open": {
@@ -768,7 +762,7 @@
        "fn": 1
       }
      },
-     "seconds": 51.5,
+     "seconds": 53.0,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -862,7 +856,7 @@
        "fn": 0
       }
      },
-     "seconds": 30.4,
+     "seconds": 29.8,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -951,7 +945,7 @@
        "fn": 0
       }
      },
-     "seconds": 39.6,
+     "seconds": 40.7,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -1046,7 +1040,7 @@
        "fn": 0
       }
      },
-     "seconds": 30.9,
+     "seconds": 31.4,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -1136,7 +1130,7 @@
        "fn": 0
       }
      },
-     "seconds": 42.1,
+     "seconds": 42.2,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -1436,7 +1430,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.1,
+     "seconds": 1.9,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -1521,7 +1515,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.9,
+     "seconds": 2.8,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -1545,9 +1539,9 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 4,
-     "heute_items": 24,
-     "coverage": 0.839,
+     "heute_groups": 3,
+     "heute_items": 13,
+     "coverage": 0.843,
      "open": {
       "BR-2026-0276": 95.0,
       "BR-2026-0550": 68.0,
@@ -1574,19 +1568,7 @@
      ],
      "unbilled": [],
      "over_budget": [],
-     "receipts": [
-      42.0,
-      42.0,
-      42.0,
-      68.0,
-      68.0,
-      95.0,
-      95.0,
-      95.0,
-      95.0,
-      3341.0,
-      3341.0
-     ],
+     "receipts": [],
      "eur_open": 696.0,
      "score": {
       "open": {
@@ -1598,6 +1580,11 @@
       },
       "overdue": {
        "tp": 10,
+       "fp": 0,
+       "fn": 0
+      },
+      "receipts": {
+       "tp": 0,
        "fp": 0,
        "fn": 0
       }
@@ -1668,7 +1655,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.1,
+     "seconds": 0.2,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1761,7 +1748,7 @@
        "fn": 1
       }
      },
-     "seconds": 1.5,
+     "seconds": 1.6,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -1851,7 +1838,7 @@
        "fn": 2
       }
      },
-     "seconds": 1.8,
+     "seconds": 1.9,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -2002,7 +1989,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.0,
+     "seconds": 1.9,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2216,7 +2203,7 @@
        "fn": 0
       }
      },
-     "seconds": 5.5,
+     "seconds": 5.3,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2356,7 +2343,7 @@
        "fn": 0
       }
      },
-     "seconds": 5.8,
+     "seconds": 5.7,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2546,7 +2533,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.4,
+     "seconds": 2.5,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -2745,9 +2732,9 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 4,
-     "heute_items": 24,
-     "coverage": 0.839,
+     "heute_groups": 3,
+     "heute_items": 13,
+     "coverage": 0.843,
      "open": {
       "BR-2026-0276": 95.0,
       "BR-2026-0550": 68.0,
@@ -2774,19 +2761,7 @@
      ],
      "unbilled": [],
      "over_budget": [],
-     "receipts": [
-      42.0,
-      42.0,
-      42.0,
-      68.0,
-      68.0,
-      95.0,
-      95.0,
-      95.0,
-      95.0,
-      3341.0,
-      3341.0
-     ],
+     "receipts": [],
      "eur_open": 696.0,
      "score": {
       "open": {
@@ -2800,9 +2775,14 @@
        "tp": 10,
        "fp": 0,
        "fn": 0
+      },
+      "receipts": {
+       "tp": 0,
+       "fp": 0,
+       "fn": 0
       }
      },
-     "seconds": 0.6,
+     "seconds": 0.7,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2826,9 +2806,9 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 4,
-     "heute_items": 24,
-     "coverage": 0.839,
+     "heute_groups": 3,
+     "heute_items": 13,
+     "coverage": 0.843,
      "open": {
       "BR-2026-0276": 95.0,
       "BR-2026-0550": 68.0,
@@ -2855,19 +2835,7 @@
      ],
      "unbilled": [],
      "over_budget": [],
-     "receipts": [
-      42.0,
-      42.0,
-      42.0,
-      68.0,
-      68.0,
-      95.0,
-      95.0,
-      95.0,
-      95.0,
-      3341.0,
-      3341.0
-     ],
+     "receipts": [],
      "eur_open": 696.0,
      "score": {
       "open": {
@@ -2881,9 +2849,14 @@
        "tp": 10,
        "fp": 0,
        "fn": 0
+      },
+      "receipts": {
+       "tp": 0,
+       "fp": 0,
+       "fn": 0
       }
      },
-     "seconds": 0.8,
+     "seconds": 0.7,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2907,9 +2880,9 @@
      ],
      "questions": 0,
      "schema_questions": 0,
-     "heute_groups": 4,
-     "heute_items": 24,
-     "coverage": 0.839,
+     "heute_groups": 3,
+     "heute_items": 13,
+     "coverage": 0.843,
      "open": {
       "BR-2026-0276": 95.0,
       "BR-2026-0550": 68.0,
@@ -2936,19 +2909,7 @@
      ],
      "unbilled": [],
      "over_budget": [],
-     "receipts": [
-      42.0,
-      42.0,
-      42.0,
-      68.0,
-      68.0,
-      95.0,
-      95.0,
-      95.0,
-      95.0,
-      3341.0,
-      3341.0
-     ],
+     "receipts": [],
      "eur_open": 696.0,
      "score": {
       "open": {
@@ -2960,6 +2921,11 @@
       },
       "overdue": {
        "tp": 10,
+       "fp": 0,
+       "fn": 0
+      },
+      "receipts": {
+       "tp": 0,
        "fp": 0,
        "fn": 0
       }
@@ -3345,7 +3311,7 @@
        "fn": 2
       }
      },
-     "seconds": 1.9,
+     "seconds": 1.8,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -3438,7 +3404,7 @@
        "fn": 1
       }
      },
-     "seconds": 1.7,
+     "seconds": 1.6,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -3529,7 +3495,7 @@
        "fn": 2
       }
      },
-     "seconds": 2.0,
+     "seconds": 1.9,
      "delivery": 2,
      "today": "2026-10-28"
     }

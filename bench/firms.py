@@ -75,7 +75,7 @@ def musikschule(tmp: Path) -> list[dict]:
     t = json.loads((tmp / "musik_truth.json").read_text(encoding="utf-8"))
     return [dict(files=_files(out), today=t["today"],
                  truth=dict(open={no: None for no in t["open_invoices"]}, open_total=t["open_amount"],
-                            overdue=t["overdue"]))]
+                            overdue=t["overdue"], receipts=[]))]  # every transfer pays fees: no money without invoice
 
 
 def maler(tmp: Path) -> list[dict]:

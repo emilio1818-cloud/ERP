@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import time
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -57,8 +58,10 @@ def measure(rt: Runtime, truth: dict, today) -> dict:
     for k in ("overdue", "unbilled", "over_budget"):
         if truth.get(k) is not None:
             score[k] = _score(set(out[k]), set(truth[k]))
-    if truth.get("receipts") is not None:
-        score["receipts"] = _score(set(receipts), set(round(x, 2) for x in truth["receipts"]))
+    if truth.get("receipts") is not None:  # amounts repeat (four times 95 €): counted as often as they come
+        got, want = Counter(receipts), Counter(round(x, 2) for x in truth["receipts"])
+        score["receipts"] = dict(tp=sum((got & want).values()), fp=sum((got - want).values()),
+                                 fn=sum((want - got).values()))
     out["score"] = score
     return out
 

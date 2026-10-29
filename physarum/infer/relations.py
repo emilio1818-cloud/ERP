@@ -391,6 +391,8 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
             for d in types:
                 if d is t or d.kind == "line" or len(groups[id(d)]) < 2:
                     continue
+                if a is t.title and t.kind == "master" and d.kind == "transaction":
+                    continue  # a pupil's own name is no reference to the contract that names the pupil
                 for via, va in _vias(d, alts.get(id(d))):
                     if a.kind == "email" and via != "e":
                         continue

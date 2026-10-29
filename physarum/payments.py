@@ -608,7 +608,7 @@ def _bank_pool(model, banks, records, by_id, taken: set, outgoing: bool) -> dict
                 str(row["data"].get(b["name"]["id"]) or "") if b.get("name") else ""
             text = " ".join(str(row["data"].get(a["id"]) or "") for a in b["spec"]["attrs"] if a["kind"] == "text")
             pool[round(value, 2)].append(dict(rid=row["id"], date=when, party=pv if isinstance(pv, int) else None,
-                                              name=norm_name(name), iban=_iban_of(b, row),
+                                              name=norm_name(name), iban=_iban_of(b, row), text=norm_name(text),
                                               dates={as_date(x) for x in _INVOICE_OF.findall(text)} - {None}))
     return pool
 
@@ -628,11 +628,13 @@ def _listed_payment(model, pool, iban_party, owed, paid_on, r, p, spec, by_id, w
     party = r["data"].get(p.get("party")) if p.get("party") else None
     cust = norm_name(_title_of(model, by_id.get(party), by_id)) if isinstance(party, int) else \
         norm_name(party) if isinstance(party, str) else ""  # a book without a customer list names them
+    around = _names_around(model, by_id.get(party), by_id) if isinstance(party, int) else set()
     start = as_date(r["data"].get(p["start"]["attr"]))
     fit = [x for x in cands if (x["party"] is not None and x["party"] == party) or
            (cust and x["name"] and name_similarity(cust, x["name"]) >= 0.6) or
            (isinstance(party, int) and (iban_party or {}).get(x["iban"]) == {party}) or
-           (start is not None and start in x["dates"])]
+           (start is not None and start in x["dates"]) or
+           any((x["name"] and name_similarity(n, x["name"]) >= 0.85) or f" {n} " in f" {x['text']} " for n in around)]
     if not fit:
         return None
     fit.sort(key=lambda x: abs((x["date"] - paid_on).days))
@@ -679,6 +681,23 @@ def _listed_together(alone, pool, model, p, by_id, claimed, iban_party):
             for e in pair:
                 e["payments"][0].update(rid=hit["rid"], date=hit["date"], shared=True,
                                         how="Sammelzahlung ohne Nummern – Summe, Zahler und Tag passen zur Liste")
+
+
+def _names_around(model: dict, rec: dict | None, by_id: dict, depth: int = 0) -> set[str]:
+    """Who may pay for a case: its name, the people written in it (a parent, a contact person) and those of
+    the records it points to (the contract's pupil) – two words at least."""
+    from .lexicon import looks_like_person
+    if not rec or depth > 1:
+        return set()
+    spec = next((t for t in model["types"] if t["id"] == rec["type"]), None) or {}
+    out = {norm_name(_title_of(model, rec, by_id))}
+    for a in spec.get("attrs", []):
+        v = rec["data"].get(a["id"])
+        if a["kind"] == "text" and isinstance(v, str) and len(v) <= 60 and looks_like_person(v):
+            out.add(norm_name(v))
+        elif a["kind"] == "ref" and isinstance(v, int) and v != rec["id"]:
+            out |= _names_around(model, by_id.get(v), by_id, depth + 1)
+    return {n for n in out if len(n.split()) >= 2}
 
 
 def _title_of(model: dict, rec: dict | None, by_id: dict | None = None, depth: int = 0) -> str:

@@ -860,6 +860,8 @@ def guess_company(rt) -> dict:
                 if m and iban_ok(m.group(1).replace(" ", "")):
                     out["iban"] = m.group(1).replace(" ", "")
     pool = strong or names
+    if not pool:
+        pool = _account_holder(rt)
     if pool:
         top = max(pool.values())
         out["name"] = max((n for n, c in pool.items() if c == top), key=len)
@@ -873,6 +875,26 @@ def guess_company(rt) -> dict:
                 for r in rt.records.get(b["spec"]["id"], [])[:1]:
                     if r["data"].get(own["id"]):
                         out["iban"] = r["data"][own["id"]]
+    return out
+
+
+def _account_holder(rt) -> dict:
+    """The firm on its own statement: a party column whose one firm name stands on most of the rows (the
+    payee of what comes in, the payer of what goes out)."""
+    from collections import Counter
+
+    from .reconcile import bank_specs
+    out = Counter()
+    for b in bank_specs(rt.model):
+        rows = rt.records.get(b["spec"]["id"], [])
+        for a in b["spec"]["attrs"]:
+            if a["kind"] != "text" or len(rows) < 10:
+                continue
+            seen = Counter(str(r["data"].get(a["id"])) for r in rows if r["data"].get(a["id"]))
+            top = seen.most_common(1)
+            # (a column of partners: other names stand in it too – not the bank's name on every line)
+            if top and 0.5 * len(rows) <= top[0][1] < 0.98 * len(rows) and len(seen) >= 3 and _FIRM_RE.search(top[0][0]):
+                out[top[0][0].strip()] += top[0][1]
     return out
 
 

@@ -139,9 +139,11 @@ class Runtime:
             return []
         pending = self.payment_proposals()
         self.pending_payments = pending
+        from .billing import company, guess_company
+        own = {n for n in (company(self.store).get("name"), guess_company(self).get("name")) if n}
         work = compute_work(self.model, self.active_records(), self.mentions, today, self.outrefs, self.titles,
                             pending_payments=pending, ledger=self.ledger,
-                            mails_done=set(self.store.decisions("mail_done")))
+                            mails_done=set(self.store.decisions("mail_done")), own=own)
         work += self.integrity()
         work += self.mail_payments()
         changed = self.bank_changes(today)

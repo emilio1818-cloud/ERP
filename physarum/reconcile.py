@@ -23,6 +23,7 @@ from .billing import is_draft
 from .lexicon import SALUTATIONS, TITLES
 from .infer.identity import FREEMAIL
 from .text import fold, jaro_winkler, name_similarity, norm_name, tokens
+from .pdfinvoice import is_own, norm
 from .values import as_date, as_number, iban_ok
 
 IBAN_RE = re.compile(r"\b([A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,4})?)\b")
@@ -558,7 +559,7 @@ _OWN_MOVES = ("umbuchung", "uebertrag", "kontouebertrag", "eigene", "sparbuch", 
 
 
 def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict, today: date,
-                         pending: set | None = None, days: int = 60) -> list[dict]:
+                         pending: set | None = None, days: int = 60, own: set | None = None) -> list[dict]:
     """Money that came in and pays no invoice: an advance on an order nobody invoiced yet, a supplier's
     credit for a return, or something to ask about. The last two months. A payer whose money comes
     again and again without ever paying an invoice (the shop's weekly payout, a tenant's rent) is a
@@ -617,8 +618,10 @@ def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict,
                 continue
             text = str(r["data"].get(b["text"]["id"]) or "") if b["text"] else ""
             who = who_of(b, r)
-            if any(w in fold(text) for w in _OWN_MOVES):
-                continue  # money moved between the firm's own accounts
+            mine = {norm(n) for n in own or ()}
+            selves = sum(1 for v in r["data"].values() if isinstance(v, str) and mine and is_own(v, mine))
+            if any(w in fold(text) for w in _OWN_MOVES) or (mine and who and is_own(str(who), mine)) or selves >= 2:
+                continue  # money from the firm to the firm: between its accounts, its collective debit, its cash
             if payer(b, r) in regular:
                 continue  # comes every week or month and never pays an invoice: a known income
             iv = re.sub(r"\s+", "", str(r["data"].get(b["iban"]["id"]) or "")).upper() if b["iban"] else ""

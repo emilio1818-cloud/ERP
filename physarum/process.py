@@ -996,7 +996,8 @@ def value_chains(model: dict, records: dict, mention_refs: dict, ledger: dict | 
 def compute_work(model: dict, records: dict, mention_refs: dict, today: date | None = None,
                  outrefs: dict | None = None, titles_in: dict | None = None,
                  pending_payments: dict | None = None, ledger: dict | None = None,
-                 mails_done: set | None = None) -> list[dict]:
+                 mails_done: set | None = None, own: set | None = None) -> list[dict]:
+    """`own`: the firm's own names – money from itself is no question."""
     from .grow import record_title
 
     today = today or date.today()
@@ -1274,7 +1275,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                                           + ", ".join(twice[x["rid"]]) + ") – nur einmal bezahlen"]))
         from .reconcile import unexplained_receipts
         got = unexplained_receipts(model, records, ledger or {}, tmap, today,
-                                   pending={x.get("bank") for x in (pending_payments or {}).values()})
+                                   pending={x.get("bank") for x in (pending_payments or {}).values()}, own=own)
         if got:
             groups.append(dict(id="bank:unexplained", type=got and by_id[got[0]["rid"]]["type"], kind="receipt",
                                severity=2, title="Geld erhalten – wofür?", count=len(got),

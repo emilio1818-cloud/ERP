@@ -125,6 +125,7 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - Mehrbenutzerbetrieb und Rechte sind nur rudimentär vorhanden (Name im Änderungsprotokoll).
 - Heuristiken irren. Deshalb ist alles erklärbar, korrigierbar und umkehrbar, und die Originaldaten bleiben unangetastet.
 - Unter neutralen Dateinamen weiß Physarum nicht mehr, dass die Käufer im Shop-Export Kunden sind; sie bleiben eine eigene Liste neben den Kunden aus CRM und Kundenliste, und die Zusammenlegung steht als Hinweis an der Liste.
+- Abrechnungen von Zahlungsanbietern (Klarna, PayPal, Stripe) zählen nicht als Zahlungsnachweis für die einzelne Bestellung; nur der Kontoauszug zählt. Bei einem Shop bleiben so Bestellungen offen, die der Anbieter längst ausgezahlt hat.
 - Ein Kontoauszug, der nur Zahlungseingänge auf Rechnungen enthält und dessen Verwendungszweck nur die Rechnungsnummer nennt, sieht unter einem neutralen Dateinamen aus wie eine zweite Fassung des Rechnungsbuchs und wird mit ihm zu einer Liste. Echte Auszüge mit Miete, Löhnen und Lastschriften trennt Physarum richtig.
 
 ## 8. Was die unabhängigen Reviews verändert haben
@@ -195,4 +196,4 @@ Nach sechs Runden fragte eine strategische Prüfung, ob das System noch das schl
 | Zeilen Code | 18.723 | 18.564 |
 | Wort-Regeln / reguläre Ausdrücke | 739 / 162 | 746 / 164 |
 
-Centgenau stimmen jetzt Agentur, Handwerk, Demo, Musikschule und Maler, die drei kleinen auch unter fremden Namen. Beim Shop bleiben 10 bzw. 12 Bestellungen zu viel offen: Sie sind über Wege bezahlt, die in den Dateien nicht stehen, oder nur autorisiert. Nicht erreicht ist das Ziel, die Wort-Regeln zu halbieren. Die Runde hat Wörter durch Struktur ersetzt, wo der Geldkern daran hing. Neue Regeln brauchte es für Erstattungen, Namen und neutrale Dateinamen; die alten Wortlisten der Erkennung stehen noch.
+Centgenau stimmen jetzt Agentur, Handwerk, Demo, Musikschule und Maler, die drei kleinen auch unter fremden Namen. Beim Shop bleiben 10 bzw. 12 Bestellungen zu viel offen: Sie sind über Klarna oder PayPal bezahlt, deren Abrechnungen Physarum noch nicht als Zahlungsnachweis liest (nur der Kontoauszug zählt), über eine B2B-Rechnung abgerechnet oder nur autorisiert. Nicht erreicht ist das Ziel, die Wort-Regeln zu halbieren. Die Runde hat Wörter durch Struktur ersetzt, wo der Geldkern daran hing. Neue Regeln brauchte es für Erstattungen, Namen und neutrale Dateinamen; die alten Wortlisten der Erkennung stehen noch.

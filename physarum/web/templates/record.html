@@ -24,9 +24,9 @@
       <a class="pill" href="/t/{{ spec.id }}">{{ spec.name }}</a>
       {% if draft %}<span class="pill warn">Entwurf – noch nicht ausgestellt</span>{% endif %}
       {% if status_is_payment and not draft %}
-      <span class="pill {{ status_class(pay_status) }}" title="nach den Zahlungen im Kontoauszug{% if own_status != pay_status %} – in der Liste steht „{{ own_status }}“{% endif %}">{{ pay_status }}</span>
+      <span class="pill {{ status_class(pay_status) }}" title="nach den Zahlungen im Kontoauszug{% if own_status != pay_status %} – in der Liste steht „{{ show_value(own_status) }}“{% endif %}">{{ pay_status }}</span>
       {% else %}
-      {% if own_status and not draft %}<span class="pill {{ status_class(own_status) }}">{{ own_status }}</span>{% endif %}
+      {% if own_status and not draft %}<span class="pill {{ status_class(show_value(own_status)) }}" title="{{ own_status }}">{{ show_value(own_status) }}</span>{% endif %}
       {% if pay_status and pay_status != own_status %}<span class="pill {{ status_class(pay_status) }}" title="nach den Zahlungen im Kontoauszug">Zahlung: {{ pay_status }}</span>{% endif %}
       {% endif %}
       {% if lock and not lock.cancelled %}<span class="pill info" title="{{ lock.reason }}">festgeschrieben</span>{% endif %}

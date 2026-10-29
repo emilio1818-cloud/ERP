@@ -97,7 +97,7 @@
       </details>
     </article>
     {% endfor %}
-    {% if more_work %}<button type="button" class="linkish muted" data-more=".more-group">… und {{ more_work }} weitere {{ 'Hinweis' if more_work == 1 else 'Hinweise' }} mit geringerer Dringlichkeit zeigen</button>{% endif %}
+    {% if more_work %}<button type="button" class="linkish muted" data-more=".more-group">… und {{ 'einen weiteren Hinweis' if more_work == 1 else more_work ~ ' weitere Hinweise' }} mit geringerer Dringlichkeit zeigen</button>{% endif %}
     </div>
 
     {% if quality %}

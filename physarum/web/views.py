@@ -320,9 +320,16 @@ def organism_svg(rt, w: int = 900, h: int = 520, highlight: str | None = None) -
         r = min(r, 38)
         label = escape(t["plural"])
         cnt = t.get("count") or 0
+        # a long name at the edge would be cut off: it reads from the edge inwards instead
+        half, tx, anchor = len(t["plural"]) * 3.7, x, "middle"
+        if x - half < 4:
+            tx, anchor = max(4.0, x - r), "start"
+        elif x + half > w - 4:
+            tx, anchor = min(w - 4.0, x + r), "end"
+        how = f' style="text-anchor:{anchor}"' if anchor != "middle" else ""
         parts.append(f'<a href="/t/{t["id"]}"><g class="node {t["kind"]}"><circle cx="{x:.0f}" cy="{y:.0f}" r="{r:.0f}"/>'
-                     f'<text x="{x:.0f}" y="{y + r + 15:.0f}">{label}</text>'
-                     f'<text class="sub" x="{x:.0f}" y="{y + r + 29:.0f}">{cnt:,}</text></g></a>'.replace(",", "."))
+                     f'<text x="{tx:.0f}" y="{y + r + 15:.0f}"{how}>{label}</text>'
+                     f'<text class="sub" x="{tx:.0f}" y="{y + r + 29:.0f}"{how}>{cnt:,}</text></g></a>'.replace(",", "."))
     parts.append("</svg>")
     return Markup("".join(parts))
 

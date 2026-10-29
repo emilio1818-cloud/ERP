@@ -135,6 +135,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                        ago=views.ago, days_text=views.days_text, input_value=views.input_value,
                        after_days=views.after_days,
                        title=lambda rid: rt.title(rid), status_class=views.status_class, display=display,
+                       show_value=views.show_value,
                        stale_days=lambda iso: (date.today() - date.fromisoformat(str(iso)[:10])).days if iso else 0)
     env.filters["de"] = lambda x, d=0: views.display(x, "number") if d == 0 else f"{x:,.{d}f}".replace(",", "X").replace(".", ",").replace("X", ".")
     env.filters["json"] = lambda x: json.dumps(x, ensure_ascii=False, default=str)
@@ -525,12 +526,23 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 recs.sort(key=lambda r: str(r["data"].get(dattr) or ""), reverse=True)
             cols = views.related_columns(s2, recs, spec["id"], 6)
             money_cols = [c for c in s2["attrs"] if c["kind"] == "money" and not c.get("hidden")]
-            total_attr = next((c for c in money_cols if set(billing.words(c["name"])) & {"gesamt", "summe", "total", "betrag",
-                                                                                       "brutto", "offen"}), None) \
-                or (money_cols[-1] if money_cols else None)
-            total = sum(float(r["data"].get(total_attr["id"]) or 0) for r in recs if isinstance(r["data"].get(total_attr["id"]), (int, float))) if total_attr else None
-            label = s2["plural"] if kind == "ref" else (f"Erwähnt in {s2['plural']}" if attr != "doc" else "Erwähnt in Dokumenten")
             lines = s2["kind"] == "line"
+            # a unit price adds up to nothing: 2 × 9,52 € are not 9,52 €
+            per_piece = [c for c in money_cols if billing.words(c["name"]) & {"einzelpreis", "preis", "price", "ep",
+                                                                              "stueckpreis", "einheitspreis"}
+                         and not billing.words(c["name"]) & {"gesamt", "summe", "total", "gp", "gesamtpreis"}]
+            sums = [c for c in money_cols if c not in per_piece]
+            total_attr = next((c for c in sums if set(billing.words(c["name"])) & {"gesamt", "summe", "total", "betrag",
+                                                                                 "brutto", "offen"}), None) \
+                or (sums[-1] if sums else None)
+            total = sum(float(r["data"].get(total_attr["id"]) or 0) for r in recs if isinstance(r["data"].get(total_attr["id"]), (int, float))) if total_attr else None
+            qty = billing.attr_by(s2, kind="number", role="quantity") if lines and per_piece and not total_attr else None
+            if qty:  # the lines' worth: quantity × price
+                total = round(sum(float(r["data"][qty["id"]]) * float(r["data"][per_piece[0]["id"]]) for r in recs
+                                  if isinstance(r["data"].get(qty["id"]), (int, float))
+                                  and isinstance(r["data"].get(per_piece[0]["id"]), (int, float))), 2)
+                total_attr = dict(name=f"Summe (Menge × {per_piece[0]['name']})", currency=per_piece[0].get("currency"))
+            label = s2["plural"] if kind == "ref" else (f"Erwähnt in {s2['plural']}" if attr != "doc" else "Erwähnt in Dokumenten")
             shown = recs[:100] if lines else recs[:10]  # an invoice's positions in full; of 34 invoices the newest
             related.append(dict(spec=s2, attr=attr, kind=kind, recs=shown, n=len(recs), cols=cols, rel=relid,
                                 cond=cond.get(relid, 0.5 if kind == "ref" else 0.3), label=label, total=total,

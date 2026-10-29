@@ -72,6 +72,9 @@ def words(name: str) -> set[str]:
     return set(tokens(name, camel=False)) | set(tokens(name))
 
 
+_header_words = words
+
+
 def is_invoice(spec: dict | None) -> bool:
     """An invoice this firm writes (drafts, numbers, print, e-invoice, storno) – not one a
     supplier sent: those keep the supplier's number and are corrected by the supplier."""
@@ -87,6 +90,7 @@ def is_draft(rec: dict) -> bool:
 
 
 def attr_by(spec: dict, *, kind=None, words=(), role=None):
+    wanted = set(words)  # the parameter hides the function words() of this module
     for a in spec["attrs"]:
         if a.get("hidden") or a.get("virtual"):
             continue
@@ -94,7 +98,7 @@ def attr_by(spec: dict, *, kind=None, words=(), role=None):
             continue
         if role and a.get("role") != role:
             continue
-        if words and not words(a["name"]) & set(words):
+        if wanted and not _header_words(a["name"]) & wanted:
             continue
         return a
     return None

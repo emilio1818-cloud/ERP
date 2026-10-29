@@ -17,9 +17,10 @@ from itertools import combinations
 from .billing import is_draft
 from .lexicon import NEGATIVE_STATES
 from .text import fold, name_similarity, norm_key, norm_name, tokens
-from .values import as_date, as_number, fmt_eur, parse_duration
+from .values import as_date, as_number, fmt_eur, parse_duration, skonto_terms
 
 _NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
+_CREDITOR_ID = re.compile(r"\b[A-Z]{2}\d{2}ZZZ[A-Z0-9]{8,28}\b")  # SEPA creditor id: on a debit and on its return
 
 EPS = 0.01
 BY_AMOUNT = "Zahlung ohne Nummer – Betrag und Zahler stimmen"        # booked by the growth
@@ -242,6 +243,9 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
     # the first day the statements cover: a payment before it cannot be seen
     bank_from = min((d for b in banks.values() for row in records.get(b["spec"]["id"], [])
                      for d in [as_date(row["data"].get(b["date"]["id"]))] if d), default=None)
+    def debit(row) -> bool:  # the line carries a creditor id: a direct debit, or its return
+        return any(isinstance(v, str) and _CREDITOR_ID.search(v) for v in row["data"].values())
+    knows_debits = {tid for tid in banks if any(debit(row) for row in records.get(tid, []))}
     for ip in invoice_specs(model):
         p, spec, step = ip["p"], ip["spec"], ip["step"]
         recs = records.get(p["type"], [])
@@ -320,9 +324,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             entries[r["id"]] = dict(rid=r["id"], gross=round(g, 2), paid=0.0, payments=[], notes=[], cancelled=cancelled,
                                     start=as_date(r["data"].get(p["start"]["attr"])), type=p["type"],
                                     outgoing=ip["outgoing"],
-                                    # granted, or accepted: the firm's own book has it as paid
-                                    skonto_ok=_skonto_agreed(model, by_id, p, r) or
-                                    any(as_date(r["data"].get(a)) for a in own_paid),
+                                    skonto_ok=_skonto_agreed(model, by_id, p, r),
                                     credit=0.0, credits=[], credit_to=None, due=due, due_how=due_how,
                                     due_attr=rule["attr"] if rule else None)
         # the PDF the customer got says what is owed when the book says something else (a typo in the list)
@@ -371,7 +373,10 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                         continue
                     owed = e["gross"] - e["credit"]
                     seen = any(x["amount"] > 0 and -EPS <= take - x["amount"] <= CHARGEBACK_FEE for x in e["payments"])
-                    if seen or EPS < take - owed <= CHARGEBACK_FEE:
+                    # a returned debit carries the creditor id like the debit did; a refund is a transfer of the firm's
+                    returned = debit(row) if row["type"] in knows_debits else seen or EPS < take - owed <= CHARGEBACK_FEE
+                    if returned:
+                        seen = seen or any(x["amount"] > 0 for x in e["payments"])
                         undone = min(take, owed)
                         if seen:
                             e["paid"] -= undone
@@ -415,7 +420,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         alone = []  # paid by the list, no transfer of their own amount: perhaps one transfer for several
         for r in recs:
             e = entries.get(r["id"])
-            if not e or e["payments"]:
+            if not e or any(x["how"] != "Erstattung" for x in e["payments"]):
                 continue
             by_hand = as_date((r.get("meta") or {}).get("paid_by_hand"))
             if by_hand:
@@ -509,12 +514,9 @@ def _net_overpayments(entries: dict, links: dict, number: dict, when_of):
                                                how=f"Überzahlung von {number.get(a) or 'einer anderen Rechnung'} verrechnet"))
 
 
-_STORNO_WORDS = ("storno", "storniert", "stornierung", "stornorechnung", "cancel")
-
-
 def _bank_pool(model, banks, records, by_id, taken: set, outgoing: bool) -> dict:
     """Bank lines that name no invoice, by amount: candidates for payments the list knows."""
-    from .reconcile import bank_amount
+    from .reconcile import _INVOICE_OF, bank_amount
     pool: dict[float, list] = defaultdict(list)
     for btid, b in banks.items():
         for row in records.get(btid, []):
@@ -533,9 +535,6 @@ def _bank_pool(model, banks, records, by_id, taken: set, outgoing: bool) -> dict
                                               name=norm_name(name), iban=_iban_of(b, row),
                                               dates={as_date(x) for x in _INVOICE_OF.findall(text)} - {None}))
     return pool
-
-
-_INVOICE_OF = re.compile(r"rechnung(?:en)?\s+(?:vom|v\.)\s*(\d{1,2}\.\d{1,2}\.\d{2,4})", re.I)
 
 
 def _iban_of(b: dict, row: dict) -> str:
@@ -701,12 +700,10 @@ def _settle_credits(spec: dict, recs: list[dict], entries: dict, by_no: dict):
         storno_of = (r.get("meta") or {}).get("storno_of")
         if isinstance(storno_of, int) and storno_of in entries:
             named.append(storno_of)
-        words = ""
         for aid in texts:
             v = r["data"].get(aid)
             if not isinstance(v, str):
                 continue
-            words += " " + fold(v)
             for tok in _NUMBER_TOKEN.findall(v[:500]):
                 i = by_no.get(norm_key(tok))
                 if i is not None and i != r["id"] and i in entries and i not in named and entries[i]["gross"] > EPS:
@@ -717,7 +714,7 @@ def _settle_credits(spec: dict, recs: list[dict], entries: dict, by_no: dict):
         amount = -e["gross"]
         number = r["data"].get(key) if key else None
         e["credit_to"] = inv["rid"]
-        if abs(amount - (inv["gross"] - inv["credit"])) <= EPS and (any(w in words for w in _STORNO_WORDS) or storno_of):
+        if abs(amount - (inv["gross"] - inv["credit"])) <= EPS:
             inv["cancelled"] = True
             inv["notes"].append(f"storniert durch {number or 'Stornobeleg'}")
             e["notes"].append(f"storniert die Rechnung über {fmt_eur(inv['gross'])}")
@@ -728,15 +725,19 @@ def _settle_credits(spec: dict, recs: list[dict], entries: dict, by_no: dict):
             e["notes"].append(f"mit der Rechnung über {fmt_eur(inv['gross'])} verrechnet")
 
 
-def _skonto_agreed(model: dict, by_id: dict, p: dict, r: dict) -> bool:
-    """Skonto only where the firm grants it: a skonto column of the invoice or of its customer."""
+def _skonto_agreed(model: dict, by_id: dict, p: dict, r: dict) -> tuple | bool:
+    """Skonto only where the firm grants it: the terms of the invoice or of its customer ("8 Tage 2 % Skonto",
+    as (days, percent)), or a skonto column."""
     specs = {t["id"]: t for t in model["types"]}
     for rec in (r, by_id.get(r["data"].get(p.get("party"))) if p.get("party") else None):
         if not rec:
             continue
         for a in specs.get(rec["type"], {}).get("attrs", []):
+            v = rec["data"].get(a["id"])
+            terms = skonto_terms(v)
+            if terms:
+                return terms
             if "skonto" in fold(a["name"]):
-                v = rec["data"].get(a["id"])
                 if v not in (None, "", 0, 0.0, False) and fold(str(v)) not in ("nein", "kein", "keins", "0"):
                     return True
     return False
@@ -801,7 +802,10 @@ def _finish(e: dict):
     if paid > EPS:
         last = pays[-1]["date"] if pays else None
         share = e["open"] / g if g else 1
+        terms = e.get("skonto_ok") if isinstance(e.get("skonto_ok"), tuple) else None
         timely = last and e["start"] and (last - e["start"]).days <= SKONTO_DAYS
+        if terms and timely:  # as agreed: no more than the percentage, paid within the days (and a few bank days)
+            e["skonto_ok"] = share <= terms[1] / 100 + 0.001 and (last - e["start"]).days <= terms[0] + 5
         if share <= SKONTO_MAX and timely and not e.get("skonto_ok"):
             e["state"] = "teilbezahlt"
             e["notes"].append(f"{str(round(share * 100, 1)).replace('.', ',')} % ({fmt_eur(e['open'])}) abgezogen, ohne dass "

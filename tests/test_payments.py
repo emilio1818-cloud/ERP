@@ -176,13 +176,14 @@ class OtherHeadings(unittest.TestCase):
 
 class MoneyBack(unittest.TestCase):
     """Money that goes back: a refund leaves the invoice settled, a returned debit opens it again – also
-    when the debit it returns was one of a collective one; a deduction the book accepted is skonto."""
+    when the debit it returns was one of a collective one; a deduction is skonto where the terms grant it,
+    not because the book has the invoice as paid."""
 
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp(prefix="physarum-back-"))
         start = TODAY - timedelta(days=150)
-        inv = ["Rechnungsnr;Rechnungsdatum;Kunde;Brutto;Fällig am;Bezahlt am;Storniert am"]
+        inv = ["Rechnungsnr;Rechnungsdatum;Kunde;Brutto;Fällig am;Bezahlt am;Storniert am;Zahlungsbedingung"]
         bank = ["Buchungstag;Verwendungszweck;Zahlungspartner;Betrag"]
         cls.no = {}
         for i in range(12):
@@ -190,12 +191,16 @@ class MoneyBack(unittest.TestCase):
             g = 200.0 + 10 * i
             no, cust = f"RE-{d.year}-{i + 1:04d}", ["Café Linde", "Hotel Möwe", "Bistro Anker"][i % 3]
             paid, booked, void = d + timedelta(days=8), "", ""
-            if i < 9:
+            terms = "8 Tage 2 % Skonto, 14 Tage netto" if i == 9 else "14 Tage netto"
+            if i < 7 or i == 8:
                 bank.append(f"{de(paid)};{no} danke;{cust};{eur(g)}")
+                booked = de(paid)
+            if i == 7:   # 3 % less although nothing was agreed – and the book has it as paid all the same
+                bank.append(f"{de(paid)};{no} abzgl. 3% Skonto;{cust};{eur(round(g * 0.97, 2))}")
                 booked = de(paid)
             if i == 8:   # half a return sent back
                 bank.append(f"{de(paid + timedelta(days=12))};Erstattung {no} Ruecksendung;{cust};-{eur(50.0)}")
-            if i == 9:   # 2 % less, and the book has it as paid
+            if i == 9:   # 2 % less, as the terms allow
                 bank.append(f"{de(paid)};{no} abzgl. 2% Skonto;{cust};{eur(round(g * 0.98, 2))}")
                 booked = de(paid)
             if i == 10:  # debited with others in one go, returned with the bank's fee
@@ -204,7 +209,7 @@ class MoneyBack(unittest.TestCase):
             if i == 11:
                 void = de(d + timedelta(days=2))
             bank.append(f"{de(d + timedelta(days=1))};Miete Laden;Immobilien Kuhn GbR;-{eur(950.0)}")
-            inv.append(f"{no};{de(d)};{cust};{eur(g)};{de(d + timedelta(days=14))};{booked};{void}")
+            inv.append(f"{no};{de(d)};{cust};{eur(g)};{de(d + timedelta(days=14))};{booked};{void};{terms}")
             cls.no[i] = no
         (cls.tmp / "Rechnungen.csv").write_text("\n".join(inv) + "\n", encoding="utf-8")
         (cls.tmp / "Konto.csv").write_text("\n".join(bank) + "\n", encoding="utf-8")
@@ -230,10 +235,15 @@ class MoneyBack(unittest.TestCase):
         self.assertEqual(e["state"], "offen")
         self.assertAlmostEqual(e["open"], 300.0, places=2)                 # the invoice, not the bank's fee
 
-    def test_a_deduction_the_book_accepted_is_skonto(self):
+    def test_a_deduction_the_terms_grant_is_skonto(self):
         e = self.by_no[self.no[9]]
         self.assertEqual(e["state"], "bezahlt")
         self.assertTrue(e["skonto"])
+
+    def test_a_deduction_nobody_agreed_stays_open(self):
+        e = self.by_no[self.no[7]]
+        self.assertEqual(e["state"], "teilbezahlt")                       # the book's date does not grant it
+        self.assertTrue(any("ohne dass" in n for n in e["notes"]))
 
     def test_a_cancellation_date_ends_the_claim(self):
         self.assertEqual(self.by_no[self.no[11]]["state"], "storniert")

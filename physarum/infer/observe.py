@@ -218,7 +218,7 @@ def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list
         # the file name is silent ("export (5).csv"): the rows say what they are – by their number
         # ("Rechnungsnr"), or as a statement
         kc = telling_key(o)
-        o.concept = o.file_concept = (lexicon.header_concept(kc.name) if kc else None) or \
+        o.concept = o.file_concept = (lexicon.header_concept(o.col(o.key).name) if kc else None) or \
             ("kontobewegung" if _bank_like(cols) else None)
     return o
 
@@ -226,13 +226,20 @@ def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list
 SILENT_HEADERS = {"name", "id", "nr", "no", "nummer", "number", "code", "key", "schluessel"}
 
 
-def telling_key(o: "Obs") -> "Col | None":
-    """The key column where its heading names the rows ("Rechnungsnr", "Beleg-Nr" – not "Name", "ID" or an IBAN)."""
+def telling_key(o: "Obs") -> "str | None":
+    """What the key column's heading calls the rows, if it says so (see heading_name)."""
     c = o.col(o.key) if o.key else None
-    if c is None or c.kind != "id" or " ".join(tokens(c.name)) in SILENT_HEADERS:
+    return heading_name(c.name) if c is not None and c.kind == "id" else None
+
+
+def heading_name(name: str) -> "str | None":
+    """The rows a number column counts, by its heading: "Rechnungsnr" – Rechnungs, "Datensatz-Nr. (CRM)" – Datensatz;
+    not "Name", "ID", "Spalte 1" (no heading) or "Auftr.-Nr." (abbreviated)."""
+    if " ".join(tokens(name)) in SILENT_HEADERS or lexicon.is_unnamed(name):
         return None
-    word = re.sub(r"(?i)[\s.\-_]*(nr|no|nummer|number|id)\.?$", "", display_header(c.name)).strip()
-    return c if len(word) >= 4 and not word.isupper() else None
+    word = re.sub(r"\([^)]*\)", "", display_header(name)).strip()
+    word = re.sub(r"(?i)[\s\-_]*(nr|no|nummer|number|id)\.?$", "", word).strip()
+    return word if len(word) >= 4 and word.isalpha() and not word.isupper() else None
 
 
 _FIRST = {"vorname", "first", "firstname", "given", "rufname"}

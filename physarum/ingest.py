@@ -23,7 +23,7 @@ from pathlib import PurePath
 
 from . import lexicon
 from .text import fold
-from .values import is_empty, parse_date, parse_number
+from .values import parse_date, parse_number
 
 MAX_ZIP_TOTAL = 300 * 1024 * 1024
 MAX_ZIP_MEMBERS = 3000
@@ -61,7 +61,6 @@ class Digest:
     notes: list[str] = field(default_factory=list)
 
 
-TEXT_EXT = {".csv", ".tsv", ".txt", ".dat", ".tab", ".prn", ".md", ".log", ".text"}
 SHEET_EXT = {".xlsx", ".xlsm", ".xltx", ".xltm"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".tif", ".tiff", ".bmp", ".heic", ".webp"}
 

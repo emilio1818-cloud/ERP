@@ -18,8 +18,6 @@ from .text import fold, norm_key, tokens
 
 EMPTY = {"", "-", "--", "—", "–", "n/a", "na", "null", "none", "#n/a", "#nv", "nan", "k.a.", "k. a.", "?", "/", "."}
 
-KINDS = ("empty", "bool", "int", "number", "money", "percent", "duration", "date", "datetime", "time", "email",
-         "phone", "url", "iban", "zip", "id", "text")
 _TIME = re.compile(r"^([01]?\d|2[0-3])[:.]([0-5]\d)(?::([0-5]\d))?\s*(?:uhr|h)?$", re.I)
 _NUM_PREFIX = re.compile(r"^(?:ca\.?|circa|etwa|rund|pauschal|ab|~|≈)\s*", re.I)
 
@@ -288,6 +286,22 @@ def shape(s: str) -> str:
         else:
             out.append(ch)
     return "".join(out)
+
+
+_SKONTO_TERMS = (re.compile(r"(\d{1,2})\s*tage?n?\W{0,3}(\d{1,2}(?:[.,]\d+)?)\s*%\s*skonto"),
+                 re.compile(r"skonto\W{0,3}(\d{1,2}(?:[.,]\d+)?)\s*%\D{0,30}?(\d{1,2})\s*tage?n?"))
+
+
+def skonto_terms(v) -> tuple[int, float] | None:
+    """(days, percent) of the skonto that terms grant: "8 Tage 2% Skonto", "Skonto 2 % bei Zahlung in 7 Tagen"."""
+    if not isinstance(v, str):
+        return None
+    s = fold(v)
+    m = _SKONTO_TERMS[0].search(s)
+    if m:
+        return int(m.group(1)), float(m.group(2).replace(",", "."))
+    m = _SKONTO_TERMS[1].search(s)
+    return (int(m.group(2)), float(m.group(1).replace(",", "."))) if m else None
 
 
 def parse_duration(v) -> int | None:
@@ -706,7 +720,10 @@ def _parse_as(kind: str, v, p: Profile):
         x = parse_number(v, p.locale)
         return None if x is None else x / 100.0
     if kind == "duration":
-        return parse_duration(v)
+        n = parse_duration(v)
+        # "8 Tage 2 % Skonto, 14 Tage netto": the terms stay as written – every reader parses them, and the skonto
+        # agreed in them is the firm's (payments.skonto_terms)
+        return v.strip() if n is not None and isinstance(v, str) and skonto_terms(v) else n
     if kind == "bool":
         return parse_bool(v)
     return v

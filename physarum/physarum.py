@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import math
 import random
-import time
 
 def layout(n: int, edges: list[tuple[int, int, float]], weights: list[float], seed: int = 7,
            iters: int = 400) -> list[tuple[float, float]]:
@@ -110,7 +109,6 @@ def grow_network(model: dict, store=None, keep_layout: bool = True):
     for e in eids:
         u = flux.get(f"rel:{e}", 0.0)
         usage.append(0.02 * math.log1p(u))
-    t0 = time.time()
     Q = flows(edges, nutrients, usage)
     cond = {e: round(q, 4) for e, q in zip(eids, Q)}
     # salience of types: substance + throughput + attention
@@ -135,7 +133,7 @@ def grow_network(model: dict, store=None, keep_layout: bool = True):
         positions[t["id"]] = prev.get(t["id"]) if keep_layout and t["id"] in prev else [round(pts[k][0], 4), round(pts[k][1], 4)]
     if store is not None:
         store.kv_set("layout", positions)
-    model["network"] = dict(conductivity=cond, salience=sal, positions=positions, solved_ms=round((time.time() - t0) * 1000),
+    model["network"] = dict(conductivity=cond, salience=sal, positions=positions,
                             edges=[dict(id=e, a=ids[i], b=ids[j]) for e, (i, j, _) in zip(eids, edges)])
     for t in types:
         t["salience"] = sal[t["id"]]

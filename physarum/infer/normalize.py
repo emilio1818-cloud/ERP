@@ -16,9 +16,9 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 from .. import lexicon
-from ..text import name_similarity, singular_de, slug, tokens
+from ..text import name_similarity, plural_de, singular_de, slug, tokens
 from ..values import Profile
-from .observe import ENTITY_ROLES, NEVER_DETERMINANT, SILENT_HEADERS, Col, Obs, display_header, pick_key
+from .observe import ENTITY_ROLES, NEVER_DETERMINANT, SILENT_HEADERS, Col, Obs, display_header, heading_name, pick_key
 
 TYPE_COST = 64.0   # bits; small on purpose: a visible header/line structure is worth a concept
 CONSISTENCY = 0.93
@@ -307,13 +307,15 @@ def extract(o: Obs, e: dict) -> tuple[Obs, Obs]:
         elif " ".join(tokens(x.name)) in SILENT_HEADERS:
             sg, pl, stem = "Beleg", "Belege", "Beleg"  # Shopify calls the order number "Name"
         else:
-            sg = singular_de(display_header(x.name))
-            pl, stem = None, sg
+            word = heading_name(x.name)
+            sg = singular_de(word[:1].upper() + word[1:]) if word else singular_de(display_header(x.name))
+            pl, stem = (plural_de(sg) if word else None), sg
         q = o.qualifier + "-" if o.qualifier else ""
-        parent.name_hint = (q + sg, (q + pl) if pl else None)
+        unnamed = lexicon.is_unnamed(x.name) and not concept  # "Spalte 1" names nothing: the lists say what they are
+        parent.name_hint = None if unnamed else (q + sg, (q + pl) if pl else None)
         rest.kind_hint = "line"
         rest.concept = None
-        rest.name_hint = (f"{q}{stem}position", f"{q}{stem}positionen")
+        rest.name_hint = None if unnamed else (f"{q}{stem}position", f"{q}{stem}positionen")
     else:
         concept = _party_concept(o, x, deps)
         parent.kind_hint = "party"
@@ -322,8 +324,9 @@ def extract(o: Obs, e: dict) -> tuple[Obs, Obs]:
             sg, pl, _stem = lexicon.concept_names(concept)
             parent.name_hint = (sg, pl)
         else:
-            sg = singular_de(display_header(x.name))
-            parent.name_hint = (sg, None)
+            word = heading_name(x.name)
+            sg = singular_de(word[:1].upper() + word[1:]) if word else singular_de(display_header(x.name))
+            parent.name_hint = (sg, plural_de(sg) if word else None)
     parent.label = f"{o.label}"
     return parent, rest
 

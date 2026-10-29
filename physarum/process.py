@@ -18,15 +18,14 @@ from datetime import date, timedelta
 from . import lexicon
 from .billing import is_draft
 from .text import fold, tokens
-from .values import as_date, due_range, event_date
+from .values import as_date, due_range, event_date, fmt_eur
 
 RECURRING = {"monatlich", "monatspauschale", "pauschale", "mtl", "monthly", "abo", "miete", "monatsbeitrag",
              "monatsrate", "rate", "grundgebuehr", "wartungspauschale"}
 PARTICIPLES = {"geliefert", "bezahlt", "versendet", "berechnet", "eingegangen", "erledigt", "abgeschlossen",
                "storniert", "angenommen", "unterschrieben", "gemahnt", "freigegeben", "montiert", "installiert",
                "gewartet", "beendet", "ausgetreten"}
-CHILD_LABEL = {"rechnung": "berechnet", "kontobewegung": "bezahlt", "zahlung": "bezahlt", "lieferschein": "geliefert",
-               "auftrag": "beauftragt", "einkauf": "bestellt"}
+CHILD_LABEL = {"lieferschein": "geliefert", "auftrag": "beauftragt", "einkauf": "bestellt"}
 PAID = "bezahlt"  # the step the money settles: named by Physarum, the firm's heading stays the column's name
 BILLED = "berechnet"  # the step an invoice settles
 
@@ -75,11 +74,31 @@ def _first_date(spec: dict, recs: list[dict]) -> str | None:
     return max(full, key=lambda a: (first_in(a), a.get("fill", 0), -len(a["name"])))["id"]
 
 
-def money_attrs(spec: dict) -> tuple[dict | None, dict | None]:
-    """(net-ish, gross-ish) money attribute of a type (computed totals count)."""
+def money_attrs(spec: dict, recs: list[dict] | None = None) -> tuple[dict | None, dict | None]:
+    """(net-ish, gross-ish) money attribute of a type (computed totals count). With the records: the gross is
+    the amount no other amount of a row exceeds ("Rechnungsbetrag" over Netto, MwSt and "Offener Betrag"),
+    the net the next one below it – whatever the columns are called."""
     ms = [a for a in spec["attrs"] if a["kind"] == "money" and not a.get("hidden") and not a.get("constant")]
     if not ms:
         return None, None
+    if recs:
+        def top(a) -> float:  # share of the rows with any amount where this one is the largest
+            n = k = 0
+            for r in recs:
+                vs = {b["id"]: abs(r["data"][b["id"]]) for b in ms if isinstance(r["data"].get(b["id"]), (int, float))}
+                if not vs:
+                    continue
+                n += 1
+                k += a["id"] in vs and vs[a["id"]] >= max(vs.values()) - 0.005
+            return k / n if n else 0.0
+        share = {a["id"]: top(a) for a in ms}
+        gross = max(ms, key=lambda a: share[a["id"]])
+        if share[gross["id"]] >= 0.9:
+            rest = [a for a in ms if a is not gross]
+            fill = lambda a: sum(1 for r in recs if isinstance(r["data"].get(a["id"]), (int, float)))
+            net = max(rest, key=lambda a: (share[a["id"]] + fill(a) / len(recs), -ms.index(a)), default=gross)
+            named = next((a for a in rest if set(tokens(a["name"])) & {"netto", "net"}), None)
+            return named or net, gross
     net = next((a for a in ms if "netto" in tokens(a["name"]) or "net" in tokens(a["name"])), None)
     gross = next((a for a in ms if set(tokens(a["name"])) & {"brutto", "gesamt", "total", "summe", "betrag", "gross"}), None)
     net = net or gross or ms[-1]
@@ -308,7 +327,12 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
                 continue
             near = sum(1 for k in both if abs((a[k] - b[k]).days) <= 3) / len(both)
             same = sum(1 for k in both if a[k] == b[k]) / len(both)
-            if ((fold(m["label"]) == fold(st["label"]) or paying) and near >= 0.8) or (same >= 0.9 and len(both) >= 10):
+            # the book notes the money after it came: the same day, or when the month's books are done
+            follows = paying and sum(1 for k in both if 0 <= (a[k] - b[k]).days <= 35) / len(both) >= 0.9
+            # an invoice of its own is a step of its own, though written the day the job was done
+            apart = st["source"] == "child" and st.get("type") not in banks
+            if ((fold(m["label"]) == fold(st["label"]) or paying) and near >= 0.8) or follows or \
+                    (same >= 0.9 and len(both) >= 10 and not apart):
                 twin = m
                 break
         if twin:
@@ -389,7 +413,7 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
             if vals and sa["id"] != status["attr"]:
                 extra_neg.append(dict(attr=sa["id"], values=vals))
         status["negative_other"] = extra_neg
-    net, gross = money_attrs(spec)
+    net, gross = money_attrs(spec, recs)
 
     refs = [a for a in spec["attrs"] if a["kind"] == "ref" and a.get("ref") and a["id"] != spec.get("key")]
     party = next((a for a in refs if a.get("ref_kind") == "master"), None)
@@ -1330,7 +1354,7 @@ def _budget_work(model, records, mention_refs, title) -> list[dict]:
             if any(set(tokens(str(r["data"].get(a) or ""))) & _RUNNING for a in cats):
                 continue  # a retainer's budget is per month
             items.append(dict(rid=r["id"], title=title(r["id"]), money=round(e - b, 2), days=0,
-                              reason=f"Aufwand {_eur_short(e)} bei {budget['name']} {_eur_short(b)} "
+                              reason=f"Aufwand {fmt_eur(e)} bei {budget['name']} {fmt_eur(b)} "
                                      f"({round(e / b * 100)} %)"))
         if items:
             items.sort(key=lambda x: -x["money"])
@@ -1341,10 +1365,6 @@ def _budget_work(model, records, mention_refs, title) -> list[dict]:
                                     f"„{budget['name']}“ – ab 120 %. Laufend abgerechnete (mehr als zwei Rechnungen) "
                                     f"bleiben außen vor."))
     return out
-
-
-def _eur_short(x: float) -> str:
-    return f"{x:,.0f} €".replace(",", ".")
 
 
 def _due_work(model, records, by_id, title, today) -> list[dict]:
@@ -1455,7 +1475,7 @@ def _skonto(r, sk, e, today) -> dict | None:
     if until < today:
         return dict(days=(until - today).days, text=f"Skonto-Frist {until.strftime('%d.%m.')} verpasst")
     pct_s = f"{pct:g}".replace(".", ",") + " % " if pct else ""
-    save = f" ({_eur_short(e['open'] * pct / 100)})" if pct and e.get("open") else ""
+    save = f" ({fmt_eur(e['open'] * pct / 100)})" if pct and e.get("open") else ""
     when = "heute" if until == today else f"bis {until.strftime('%d.%m.')}"
     return dict(days=(until - today).days, text=f"{pct_s}Skonto{save} nur noch {when}")
 
@@ -1697,18 +1717,4 @@ def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
                         salience=spec.get("salience", 0), date_attr=p["start"]["attr"],
                         month_end=f"{ref.year}-{ref.month:02d}-{last:02d}",
                         asof=ref.isoformat() if ref != today else None))
-    return out
-
-
-def open_items(model: dict, records: dict, mention_refs: dict, today: date | None = None) -> list[dict]:
-    """Per money-carrying process: how much is not yet through its final step."""
-    out = []
-    work = compute_work(model, records, mention_refs, today)
-    for p in model.get("processes", []):
-        if not p["steps"] or not (p.get("gross") or p.get("net")):
-            continue
-        final = p["steps"][-1]
-        ws = [g for g in work if g["type"] == p["type"] and g.get("step") == final["label"]]
-        out.append(dict(type=p["type"], step=final["label"], overdue=sum(g["amount"] or 0 for g in ws if g["kind"] == "overdue"),
-                        n_overdue=sum(g["count"] for g in ws if g["kind"] == "overdue")))
     return out

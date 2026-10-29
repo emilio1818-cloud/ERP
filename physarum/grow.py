@@ -13,13 +13,13 @@ from datetime import date, datetime
 from . import lexicon
 from .infer.identity import Group, build_protos, resolve
 from .infer.normalize import normalize
-from .infer.observe import Obs, display_header, obs_from_table
+from .infer.observe import Obs, obs_from_table
 from .infer.relations import MentionIndex, RelDraft, discover, discover_mentions
 from .infer.unify import AttrDraft, TypeDraft, obs_sig, unify
 from .infer.versions import merge_versions
 from .ingest import read_file
 from .store import Store, dumps, loads, now_iso, parse_pair
-from .text import fold, name_similarity, norm_key, norm_name, slug, tokens
+from .text import fold, name_similarity, norm_key, norm_name, tokens
 from .values import parse_period, profile_table
 
 DOC_TYPE = "doc"
@@ -324,14 +324,18 @@ def _named_by_money(model: dict, renamed: dict):
     from .payments import invoice_specs
     billed = {st["type"] for p in model.get("processes", []) for st in p["steps"]
               if st["source"] == "child" and fold(st["label"]) == "berechnet"}
+    names = {fold(t["name"]) for t in model["types"]}
     for ip in invoice_specs(model):
         t = ip["spec"]
         if not t.get("silent") or t.get("concept") or t["id"] in renamed:
             continue
-        if not (ip["p"].get("deadlines") or t["id"] in billed):
-            continue  # a shop order paid at once is no invoice
+        if t["id"] not in billed and not (ip["p"].get("deadlines") and ((ip["step"] or {}).get("median_days") or 0) >= 3):
+            continue  # a shop order paid at once is no invoice: an invoice's money comes days later
+        sg, pl = ("Eingangsrechnung", "Eingangsrechnungen") if ip["outgoing"] else ("Rechnung", "Rechnungen")
         t["concept"] = "rechnung"
-        t["name"], t["plural"] = ("Eingangsrechnung", "Eingangsrechnungen") if ip["outgoing"] else ("Rechnung", "Rechnungen")
+        if fold(sg) not in names:  # the name is free: a second list of invoices keeps its own
+            t["name"], t["plural"] = sg, pl
+            names.add(fold(sg))
     # a name that only needed telling apart from the one renamed: plain again ("Belege (5)" -> "Belege")
     taken = {fold(t["name"]) for t in model["types"]}
     for t in model["types"]:

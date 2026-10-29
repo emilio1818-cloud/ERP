@@ -147,17 +147,14 @@ class IdentIndex:
                 return True
         return False
 
-    def short(self, nm: str, acr: set | frozenset = frozenset()) -> int | None:
-        found = self.candidates(nm, acr)
-        return next(iter(found)) if len(found) == 1 else None
-
     def candidates(self, nm: str, acr: set | frozenset = frozenset()) -> set[int]:
         """A short name ("Elbkind", "Dr. Behrens") names the one thing whose name contains all its words –
         if there is exactly one. Two Hafenkontors leave "Hafenkontor" unresolved. People go by their
         surname ("Fam. Tepe", "Peters") and by initials ("KD Meyer", "H. Schulze"); two Schulzes leave
         "Fam. Schulze" unresolved."""
         words = nm.split()
-        person = bool(words) and words[0] in _SALUTATIONS and words[0] != "firma"
+        # a household goes by its surname; "Frau Dr. Lehmann" may well run the practice of that name
+        person = bool(words) and words[0] in ("fam", "familie", "eheleute", "ehel")
         while len(words) > 1 and words[0] in _SALUTATIONS:
             words = words[1:]
         if len(words) > 1:

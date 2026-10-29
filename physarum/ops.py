@@ -13,9 +13,8 @@ from __future__ import annotations
 import re
 from datetime import date, datetime, timedelta
 
-from . import lexicon
 from .store import dumps, loads, now_iso
-from .text import fold, norm_key, norm_name, tokens
+from .text import fold, norm_key, norm_name
 from .values import _EMAIL, add_months, as_date, as_number, iban_ok, interval_months, parse_date, parse_duration, parse_number, period_text
 
 LOCKED_CONCEPTS = {"rechnung"}
@@ -238,7 +237,7 @@ def _parent_lock(rt, spec: dict, rec: dict) -> dict | None:
 # --- writes -----------------------------------------------------------------------------------------
 
 def _write_refs_and_search(rt, c, rid: int, spec: dict, data: dict):
-    from .grow import record_text, record_title
+    from .grow import record_text
 
     c.execute("DELETE FROM refs WHERE from_id=? AND kind='ref'", (rid,))
     for a in spec["attrs"]:

@@ -219,6 +219,18 @@ def _ident_overlap(a: Obs, b: Obs) -> tuple[float, str]:
     return best, why
 
 
+def _shape_kind(o: Obs) -> str | None:
+    """Master data or business cases, also where no name says it ("export (5).csv"): things listed once
+    hold neither date nor amount; events hold both in each row."""
+    if o.concept in lexicon.CONCEPTS:
+        return lexicon.CONCEPTS[o.concept]["kind"]
+    if o.kind_hint in ("party", "line"):
+        return "master" if o.kind_hint == "party" else None
+    kinds = {c.kind for c in o.cols}
+    dated, money = bool(kinds & {"date", "datetime"}), "money" in kinds
+    return "transaction" if o.kind_hint == "header" or (dated and money) else "master" if not (dated or money) else None
+
+
 def obs_similarity(a: Obs, b: Obs) -> dict:
     ma, mb = _meaningful(a), _meaningful(b)
     pairs = match_columns(ma, mb)
@@ -244,6 +256,11 @@ def obs_similarity(a: Obs, b: Obs) -> dict:
     # master data next to business cases; or two kinds of business case (bank lines and invoices name
     # the same customers – that makes them related, not the same)
     kind_conflict = conflict and (len(kinds) == 2 or (kinds == {"transaction"} and "kontobewegung" in (ca, cb)))
+    if {_shape_kind(a), _shape_kind(b)} == {"master", "transaction"}:
+        conflict = kind_conflict = True  # suppliers named in invoices are not more suppliers
+        same_concept = False
+    if "kontobewegung" in (ca, cb) and ca != cb:
+        conflict = kind_conflict = True  # a statement (known by its columns) and a list that is none are two lists
     for x, y in ((a, b), (b, a)):
         if x.kind_hint == "party" and y.kind_hint != "party" and y.concept in lexicon.CONCEPTS and \
                 lexicon.CONCEPTS[y.concept]["kind"] == "transaction" and x.concept != y.concept:
@@ -271,7 +288,8 @@ def obs_similarity(a: Obs, b: Obs) -> dict:
 
 def obs_sig(o: Obs) -> str:
     label = o.sig_label or o.label
-    stem = clean_stem(label)
+    # a file whose name says nothing ("export (5)") is known by its columns, which a later export keeps
+    stem = clean_stem(label) if not says_nothing(label) else "/".join(sorted(fold(c.name) for c in o.cols))[:300]
     sheet = label.split(" › ")[1] if " › " in label else ""
     return f"{fold(stem)}|{fold(sheet)}|{fold(o.determinant or '')}"
 
@@ -409,8 +427,7 @@ def _finish(t: TypeDraft):
         if says_nothing(lead.label):
             t.silent = True
             # "export (5).csv" with a column "Beleg-Nr": a list of "Belege"; without one, the file's own name
-            stem = re.sub(r"(?i)[\s.\-_]*(nr|no|nummer|number|id)\.?$", "", display_header(told.name)).strip() \
-                if told else lead.label.split(" › ")[0]
+            stem = told or lead.label.split(" › ")[0]
         sheet = lead.label.split(" › ", 1)[1].strip() if " › " in lead.label else ""
         if sheet and not re.match(r"^(tabelle|sheet|blatt|table|liste)\s*\d*$", fold(sheet)) and \
                 len(sheet) <= 40 and not any(ch.isdigit() for ch in sheet):
@@ -424,10 +441,12 @@ def _finish(t: TypeDraft):
             sg = singular_de(stem[:1].upper() + stem[1:])
             # a file name that cannot be made singular and has no regular plural ("Steinbach", "LIESMICH")
             # is not given an invented ending
-            if fold(stem) != fold(sg):
+            if told:
+                t.name, t.plural = sg, plural_de(sg)  # "Vorgangsnummer": Vorgang, Vorgänge
+            elif fold(stem) != fold(sg):
                 t.name, t.plural = sg, stem[:1].upper() + stem[1:]
             else:
-                t.name, t.plural = sg, plural_de(sg) if plural_is_known(sg) or told else sg
+                t.name, t.plural = sg, plural_de(sg) if plural_is_known(sg) else sg
     from ..text import plural_de
     if not t.plural:
         t.plural = plural_de(t.name)
@@ -537,7 +556,7 @@ def _dedupe_names(types: list[TypeDraft]):
                 pl = lexicon.CONCEPTS[parent]["pl"]
                 t.name, t.plural = f"{t.name} ({pl})", f"{t.plural} ({pl})"  # "Zeiteinträge (Tickets)"
                 continue
-            stem = clean_stem(label)
+            stem = clean_stem(label).strip("()")
             if fold(stem) in (fold(t.name), fold(t.plural)) or not stem:
                 # "Rechnungen_2024" next to "Rechnungen": the year tells them apart, not the word
                 import re as _re

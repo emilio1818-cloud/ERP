@@ -15,7 +15,6 @@ from .grow import record_title
 from .lexicon import dative_plural
 from .payments import BY_AMOUNT, CONFIRMED
 from .store import Store, dumps, loads, now_iso, pair_subject
-from .text import norm_key
 
 
 def _rec_brief(t, g, limit=4) -> list[list[str]]:
@@ -85,6 +84,8 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
         else:
             ma, mb, sim = a["a"], a["b"], a["sim"]
             sigs = sorted(a["sig"])
+            if len(sigs) < 2:
+                continue  # two files known by the same signature: whatever is decided holds for both alike
             subj = "same_type|" + pair_subject(*sigs)
             cols_a = [c.name for c in ma.cols][:8]
             cols_b = [c.name for c in mb.cols][:8]

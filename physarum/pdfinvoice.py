@@ -148,18 +148,6 @@ def read(text: str | None, sender: str | None = None) -> dict | None:
                 kind=fold(heading.group(1)))
 
 
-def problems(inv: dict) -> list[str]:
-    """What does not add up – only what a text can say for sure (no schema, no positions to trust)."""
-    from .values import fmt_eur
-    out = []
-    if None not in (inv.get("net"), inv.get("tax"), inv.get("gross")) and \
-            abs(inv["net"] + inv["tax"] - inv["gross"]) > 0.011 and inv.get("kind") not in ("schlussrechnung",):
-        out.append(f"Netto {fmt_eur(inv['net'])} plus Umsatzsteuer {fmt_eur(inv['tax'])} sind nicht {fmt_eur(inv['gross'])}")
-    if not inv.get("seller_vat") and not inv.get("seller_tax_no"):
-        out.append("Weder USt-IdNr. noch Steuernummer des Lieferanten (§ 14 Abs. 4 UStG) – kein Vorsteuerabzug")
-    return out
-
-
 EXTRA_COLS = ["Skonto bis", "Skonto %", "Absender"]
 
 

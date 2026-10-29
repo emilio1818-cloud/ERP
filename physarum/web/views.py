@@ -1,7 +1,6 @@
 """Presentation helpers: formatting values, choosing columns, building page models."""
 from __future__ import annotations
 
-import html
 import math
 from collections import Counter, defaultdict
 from datetime import date, datetime

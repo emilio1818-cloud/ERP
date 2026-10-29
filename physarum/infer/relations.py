@@ -632,16 +632,6 @@ def _ctoks(v) -> list[str]:
     return [t for t in tokens(str(v)) if len(t) >= 2 and t not in _STOP and not t.isdigit()]
 
 
-def _tok_match(e: str, pool: set, parts: bool = False) -> bool:
-    """A word of a written name in a record's words: the same word, inflected ("Elbkinds"), or – for the
-    kind of work, not for names – a part of a compound ("Shop" in "Onlineshop"). "Alsterblick" is not
-    "Alster"."""
-    for p in pool:
-        if _same_word(e, p) or (parts and _part_of(e, p)):
-            return True
-    return False
-
-
 def _composite_index(d: TypeDraft, r0: RelDraft | None, groups: dict, as_date) -> list[tuple]:
     """Per record: the words of its kind of work, of its customer (as resolved and as written), its time."""
     parties = [r0.attr] if r0 is not None else [x for x in d.attrs if x.kind == "text" and x.concept in ("kunde", "lieferant")]
@@ -707,12 +697,35 @@ def _composite_refs(types: list[TypeDraft], groups: dict, rels: list[RelDraft], 
                 entries = index[id(d)]
                 if len(entries) < 3:
                     continue
-                cache = {}
-                for v in distinct:
+                # each word once: which entries it names as their customer (the same word, inflected:
+                # "Elbkinds"), which as their kind of work (also a part of a compound: "Shop" in
+                # "Onlineshop"). "Alsterblick" is not "Alster".
+                party_at, work_at = defaultdict(set), defaultdict(set)
+                for k, x in enumerate(entries):
+                    for w in x[2]:
+                        party_at[w].add(k)
+                    for w in x[1]:
+                        work_at[w].add(k)
+                found: dict[str, tuple[set, set]] = {}
+
+                def named(e: str) -> tuple[set, set]:
+                    if e not in found:
+                        found[e] = (set().union(*(ks for w, ks in party_at.items() if _same_word(e, w))),
+                                    set().union(*(ks for w, ks in work_at.items() if _same_word(e, w) or _part_of(e, w))))
+                    return found[e]
+
+                def picks(v: str) -> list:
                     et = vtoks[v]
-                    cache[v] = [x for x in entries if all(_tok_match(e, x[2]) or _tok_match(e, x[1], parts=True) for e in et)
-                                and any(_tok_match(e, x[2]) for e in et) and any(_tok_match(e, x[1], parts=True) for e in et)] \
-                        if len(et) >= 2 else []
+                    if len(et) < 2:
+                        return []
+                    hit = [named(e) for e in et]
+                    ok = set.intersection(*(a | b for a, b in hit))
+                    ok &= set().union(*(a for a, _ in hit)) & set().union(*(b for _, b in hit))
+                    return [entries[k] for k in sorted(ok)]
+                sample = sorted(distinct)[::max(1, len(distinct) // 100)]
+                if len(distinct) > 200 and sum(1 for v in sample if picks(v)) < 0.4 * len(sample):
+                    continue  # a hundred of them, spread over all, already pick out mostly nothing
+                cache = {v: picks(v) for v in distinct}
                 if sum(1 for v in distinct if cache[v]) < 0.6 * len(distinct):
                     continue  # most names pick out nothing here: not this kind of reference
                 targets, hit_vals = {}, set()

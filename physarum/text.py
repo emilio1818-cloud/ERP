@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from functools import lru_cache
 
 _FOLD = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "ae", "Ö": "oe", "Ü": "ue", "ı": "i", "ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "æ": "ae", "Æ": "Ae", "œ": "oe", "þ": "th", "ŀ": "l"})
 _CAMEL = re.compile(r"(?<=[a-zäöüß])(?=[A-ZÄÖÜ])")
@@ -71,7 +72,13 @@ def norm_name(v) -> str:
     """Normalise a company or person name: fold, drop legal forms and punctuation."""
     if v is None:
         return ""
-    s = fold(str(v))
+    v = str(v)
+    return _norm_name(v) if len(v) <= 200 else _norm_name.__wrapped__(v)  # a long text is not kept
+
+
+@lru_cache(maxsize=200_000)  # the same names, compared again and again while the lists grow together
+def _norm_name(v: str) -> str:
+    s = fold(v)
     m = _LAST_FIRST.match(s)
     if m and not any(w in _STREET_WORDS for w in m.group(2).replace(".", " ").split()):
         s = f"{m.group(2)} {m.group(1)}"  # "Schulze, Gerda" is "Gerda Schulze"

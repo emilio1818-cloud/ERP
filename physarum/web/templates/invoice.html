@@ -43,7 +43,7 @@
 {% set b = d.buyer or {} %}
 {% if d.draft %}<div class="draft">ENTWURF</div>{% endif %}
 <div class="sheet">
-  <div class="noprint"><button onclick="window.print()">Drucken</button></div>
+  <div class="noprint"><button type="button" data-print>Drucken</button></div>
   {% if d.draft %}<div class="warn">Vorschau eines Entwurfs – Nummer, Rechnungsdatum und Leistungsdatum werden beim Ausstellen festgelegt.</div>{% endif %}
   {% if d.copy %}<div class="warn">Abschrift aus Ihren Daten: Diese Rechnung wurde in einem anderen Programm erstellt. Das Original (und die E-Rechnung) kommt aus jenem Programm.</div>{% endif %}
   {% if company_missing %}<div class="warn noprint">Es fehlen noch Firmendaten ({{ company_missing|join(', ') }}). <a href="/firma?zurueck=/r/{{ rec.id }}/druck">Jetzt eintragen</a></div>{% endif %}
@@ -101,5 +101,6 @@
     <div>{% if s.bank %}{{ s.bank }}<br>{% endif %}{% if s.iban %}IBAN {{ s.iban|iban }}<br>{% endif %}{% if s.bic %}BIC {{ s.bic }}{% endif %}<br><span>Erstellt am {{ printed }}</span></div>
   </div>
 </div>
+<script src="/static/app.js"></script>
 </body>
 </html>

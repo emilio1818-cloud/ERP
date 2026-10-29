@@ -170,13 +170,16 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
                 first[k] = i
     # a name or address that repeats inside one list does not identify a row of that list
     # (a timesheet names the same building site every day)
+    # (counted per delivered table: two versions of one list name the same supplier once each)
+    def table_of(p):
+        return p.prov[0][0] if p.prov else id(p.member)
     inside = Counter()
     for p in protos:
         if title_aid and p.values.get(title_aid):
-            inside[(id(p.member), "n", norm_name(p.values[title_aid]))] += 1
+            inside[(table_of(p), "n", norm_name(p.values[title_aid]))] += 1
         for ea in email_aids:
             if p.values.get(ea):
-                inside[(id(p.member), "e", str(p.values[ea]).strip().casefold())] += 1
+                inside[(table_of(p), "e", str(p.values[ea]).strip().casefold())] += 1
     # 2. same e-mail (master data only: two invoices to one address are two invoices)
     if master and email_aids:
         first = {}
@@ -186,7 +189,7 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
                 if not v:
                     continue
                 k = str(v).strip().casefold()
-                if inside[(id(p.member), "e", k)] > 1:
+                if inside[(table_of(p), "e", k)] > 1:
                     continue
                 if k in first:
                     join(first[k], i)
@@ -200,7 +203,7 @@ def resolve(t: TypeDraft, protos: list[Proto], decisions: dict | None = None,
             if not v:
                 continue
             k = norm_name(v)
-            if len(k) < 3 or inside[(id(p.member), "n", k)] > 1:
+            if len(k) < 3 or inside[(table_of(p), "n", k)] > 1:
                 continue
             if k in first:
                 join(first[k], i, by_name=True)

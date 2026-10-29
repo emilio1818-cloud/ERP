@@ -9,7 +9,7 @@
   {%- elif g.kind == 'threshold' -%}Bestand {{ it.value|de }} · mindestens {{ it.min|de }}
   {%- elif g.kind == 'rhythm' -%}seit {{ days_text(it.days) }} nichts <span class="faint">(sonst alle {{ it.usual }} Tage)</span>
   {%- elif g.kind == 'reach' -%}reicht noch ca. {{ it.days }} Tage <span class="faint">({{ it.per_week|de(1) }} pro Woche)</span>
-  {%- elif g.kind in ('risk', 'payment', 'integrity', 'draft', 'budget', 'mail') -%}{{ it.reason }}
+  {%- elif g.kind in ('risk', 'payment', 'integrity', 'draft', 'budget', 'mail', 'mailpay') -%}{{ it.reason }}
   {%- endif -%}
 {%- endmacro %}
 {% block content %}
@@ -78,6 +78,7 @@
           </li>
           {% endfor %}
         </ul>
+        {% if g.kind == 'mailpay' %}<div class="why">{% for src in g.sources %}<button class="small" data-post="/zahlungsquelle/{{ src.id }}" data-confirm="„{{ src.name }}“ als Zahlungsquelle anerkennen? Die Rechnungen darin gelten dann als bezahlt.">„{{ src.name }}“ als Zahlungsquelle anerkennen</button> {% endfor %}</div>{% endif %}
         {% if g['items']|length > 8 or g.count > g['items']|length %}<div class="why">
           {% if g['items']|length > 8 %}<button type="button" class="linkish" data-more=".more-li">… und {{ g['items']|length - 8 }} weitere zeigen</button>{% endif %}
           {% if g.count > g['items']|length %}<span class="faint">({{ g.count }} insgesamt)</span>{% endif %}

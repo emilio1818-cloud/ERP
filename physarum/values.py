@@ -62,6 +62,8 @@ def is_empty(v) -> bool:
 
 def parse_time(v) -> str | None:
     """'07:30', '7.30 Uhr', a spreadsheet time cell -> '07:30'."""
+    if isinstance(v, str) and len(v) > MAX_VALUE_LEN:
+        return None
     if isinstance(v, dtime):
         return v.strftime("%H:%M")
     if isinstance(v, timedelta):
@@ -92,8 +94,15 @@ def is_placeholder(v) -> bool:
     return isinstance(v, str) and len(v) <= 24 and fold(v).strip().rstrip(".") in _PLACEHOLDER_KEYS
 
 
+# a number, a date, a duration is short: longer cells are text, and never reach the patterns
+# (a cell of 100.000 spaces between two digits made one of them backtrack for minutes)
+MAX_VALUE_LEN = 64
+
+
 def _clean_num_str(s: str) -> tuple[str, bool, str | None]:
     """Strip currency, spaces and sign markers. Returns (digits_and_separators, negative, currency)."""
+    if len(s) > MAX_VALUE_LEN:
+        return "", False, None
     s = _PER_PERIOD.sub("", _NUM_PREFIX.sub("", s.strip()))  # "220 €/Monat" is 220 €
     if re.search(r"[,.]-{1,2}\s*(€|eur)?$", s, re.I):
         s = re.sub(r"([,.])-{1,2}(\s*(€|eur)?)$", r"\g<1>00\2", s, flags=re.I)  # "139,-" is 139,00
@@ -157,6 +166,8 @@ def parse_number(v, locale: str | None = "de") -> float | None:
 
 def parse_percent(v, locale: str | None = "de") -> float | None:
     """Return a fraction: '19%' -> 0.19, '7,5 %' -> 0.075."""
+    if isinstance(v, str) and len(v) > MAX_VALUE_LEN:
+        return None
     if isinstance(v, str):
         s = v.strip()
         if s.endswith("%"):
@@ -185,6 +196,8 @@ def _mk(y: int, m: int, d: int, hh=None, mm=None, ss=None):
 def parse_date(v, order: str = "dmy"):
     """Parse many date notations. Returns date, datetime or None. `order` resolves 01/02/2026.
     Placeholder years (0001, 9999) are no dates."""
+    if isinstance(v, str) and len(v) > 2 * MAX_VALUE_LEN:
+        return None
     r = _parse_date(v, order)
     if r is None:
         return None
@@ -280,7 +293,7 @@ def shape(s: str) -> str:
 def parse_duration(v) -> int | None:
     if isinstance(v, (int, float)) and not isinstance(v, bool):
         return int(v) if float(v).is_integer() and 0 <= v <= 3650 else None
-    if not isinstance(v, str):
+    if not isinstance(v, str) or len(v) > 3 * MAX_VALUE_LEN:
         return None
     s = fold(v.strip())
     if s in ("sofort", "sofort netto", "immediately", "bar", "vorkasse", "zahlbar sofort", "sofort ohne abzug"):
@@ -323,6 +336,8 @@ def parse_hours(v, locale: str | None = "de") -> float | None:
         return None
     if isinstance(v, (int, float)):
         return float(v) if 0 <= v < 1000 else None
+    if isinstance(v, str) and len(v) > MAX_VALUE_LEN:
+        return None
     if isinstance(v, timedelta):
         return round(v.total_seconds() / 3600, 4)
     if isinstance(v, dtime):

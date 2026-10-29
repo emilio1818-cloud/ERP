@@ -3,7 +3,7 @@
 {% block content %}
 <div class="pagehead"><div><h1>Verfahrensdokumentation</h1>
   <p>Schreibt sich aus Herkunft, Regeln, Entscheidungen und Protokoll von selbst. Sie beschreibt nach den GoBD, wie Ihre Daten entstehen, verarbeitet, geschützt und aufbewahrt werden. Bitte einmal mit Ihrer Steuerberatung durchgehen und dann jährlich ausdrucken.</p></div>
-  <button class="btn noprint" onclick="window.print()">Drucken</button></div>
+  <button type="button" class="btn noprint" data-print>Drucken</button></div>
 
 <section class="card"><h2>1. Allgemeine Beschreibung</h2>
   <p>{{ firm or 'Die Firma' }} führt mit Physarum ihre Stammdaten und Geschäftsvorfälle{% if kinds %}: {% for k in kinds %}{{ k.n|de }} {{ k.plural }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}.

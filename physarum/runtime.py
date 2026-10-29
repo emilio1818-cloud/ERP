@@ -7,11 +7,11 @@ from __future__ import annotations
 import threading
 import time
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 
 from .behavior import apply_virtual
 from .grow import _de_date, record_title, record_titles
-from .store import Store
+from .store import Store, loads
 
 
 class Runtime:
@@ -76,9 +76,10 @@ class Runtime:
                     self.mentions[row["attr"]][row["to_id"]].append(row["from_id"])
                 self.backrefs[row["to_id"]].append((row["from_id"], row["attr"], row["kind"], row["how"]))
                 self.outrefs[row["from_id"]].append((row["to_id"], row["attr"], row["kind"], row["how"]))
-            from .payments import apply_to_records, ledger, stale_statuses
+            from .payments import apply_to_records, ledger, mail_sources, stale_statuses
+            self.untrusted = mail_sources(self.store)
             try:
-                self.ledger = ledger(self.model, self.records, self.mentions)
+                self.ledger = ledger(self.model, self.records, self.mentions, untrusted=self.untrusted)
             except Exception:  # noqa: BLE001 - the pages must open even if the ledger cannot be built
                 self.ledger = {}
             apply_to_records(self.model, self.records, self.ledger)
@@ -131,10 +132,80 @@ class Runtime:
                             pending_payments=pending, ledger=self.ledger,
                             mails_done=set(self.store.decisions("mail_done")))
         work += self.integrity()
+        work += self.mail_payments()
+        changed = self.bank_changes(today)
+        if changed:
+            risk = next((g for g in work if g["id"] == "risk:iban"), None)
+            if risk is None:
+                risk = dict(id="risk:iban", type=changed[0]["type"], kind="risk", severity=3, count=0, amount=None,
+                            items=[], action=None, title="Vorsicht: Bankverbindung oder Absender passen nicht zum Lieferanten",
+                            explain="Vor einer Zahlung telefonisch beim bekannten Ansprechpartner prüfen. "
+                                    "So sieht Rechnungsbetrug typischerweise aus.")
+                work.append(risk)
+            risk["items"] = changed + risk["items"]
+            risk["count"] = len(risk["items"])
         work.sort(key=lambda g: (-g["severity"], -(g["amount"] or 0), -g["count"]))
         self._work = work
         self._work_key = key
         return self._work
+
+    def bank_changes(self, today: date) -> list[dict]:
+        """A newer supplier list names another bank account than before: the classic invoice fraud
+        comes as a changed master record too, not only as a mail."""
+        out = []
+        masters = {t["id"]: t for t in self.model["types"] if t["kind"] == "master"}
+        ibans = {a["id"]: t for t in masters.values() for a in t["attrs"] if a["kind"] == "iban"}
+        if not ibans:
+            return out
+        since = (today - timedelta(days=60)).isoformat()
+        marks = ",".join("?" * len(ibans))
+        for c in self.store.q(f"SELECT record_id, ts, attr, old, new, source_id FROM changes WHERE kind='import' "
+                              f"AND attr IN ({marks}) AND ts >= ? ORDER BY id", (*ibans, since)):
+            old, new = loads(c["old"]), loads(c["new"])
+            if not old or not new or "".join(str(old).split()).upper() == "".join(str(new).split()).upper():
+                continue
+            rid = c["record_id"]
+            if rid not in self.by_id:
+                continue
+            src = self.store.q1("SELECT name FROM sources WHERE id=?", (c["source_id"],)) if c["source_id"] else None
+            from .reconcile import _fmt_iban
+            out.append(dict(rid=rid, partner=rid, title=self.title(rid), party=None, days=0, money=None, type=ibans[c["attr"]]["id"],
+                            reason=f"neue Bankverbindung im Stammsatz: {_fmt_iban(str(new))} statt {_fmt_iban(str(old))}"
+                                   + (f" (laut „{src['name']}“)" if src else "")
+                                   + " – vor der nächsten Zahlung telefonisch bestätigen"))
+        return out
+
+    def mail_payments(self) -> list[dict]:
+        """A list that came by mail says invoices are paid: shown, not counted, until the owner accepts it."""
+        from .payments import untrusted_rows
+        rows = untrusted_rows(self.model, self.records, getattr(self, "untrusted", set()))
+        if not rows:
+            return []
+        inv_types = {e["type"] for e in self.ledger.values()}
+        items, sources = [], {}
+        for rid in rows:
+            r = self.by_id.get(rid)
+            if not r:
+                continue
+            named = [to for to, attr, kind, how in self.outrefs.get(rid, []) if to in self.by_id
+                     and self.by_id[to]["type"] in inv_types and (self.ledger.get(to) or {}).get("state") in ("offen", "teilbezahlt")]
+            if not named:
+                continue
+            sid = next(iter(set((r.get("meta") or {}).get("src") or []) & self.untrusted), None)
+            src = self.store.q1("SELECT name FROM sources WHERE id=?", (sid,)) if sid else None
+            sources[sid] = src["name"] if src else "?"
+            for to in named[:3]:
+                items.append(dict(rid=to, title=self.title(to), days=0, money=(self.ledger.get(to) or {}).get("open"),
+                                  reason=f"laut „{sources[sid]}“ aus einer Mail bezahlt – im eigenen Kontoauszug nicht zu sehen",
+                                  source=sid, party=None))
+        if not items:
+            return []
+        return [dict(id="pay:mail", type=self.by_id[items[0]["rid"]]["type"], kind="mailpay", severity=2,
+                     title="Zahlungsnachweise aus Mails – noch nicht gezählt", count=len(items),
+                     amount=round(sum(x["money"] or 0 for x in items), 2), items=items[:50], action=None,
+                     sources=[dict(id=k, name=v) for k, v in sources.items() if k],
+                     explain="Eine mitgeschickte Liste nennt diese Rechnungen als bezahlt. Gezählt wird Geld nur aus "
+                             "Ihren eigenen Kontoauszügen – oder aus dieser Liste, wenn Sie sie als Zahlungsquelle anerkennen.")]
 
     def integrity(self) -> list[dict]:
         """Issued documents and what the files say about them: deviations that were not taken over,
@@ -165,6 +236,13 @@ class Runtime:
                 meta = r.get("meta") or {}
                 if meta.get("draft"):
                     continue
+                for aid, (v, src) in (meta.get("collision") or {}).items():
+                    a = next((x for x in spec["attrs"] if x["id"] == aid), None)
+                    if a:
+                        items.append(dict(rid=r["id"], title=self.title(r["id"]), days=0, money=None, party=None,
+                                          reason=f"„{src}“ nennt diese Nummer für eine andere Rechnung ({a['name']}: "
+                                                 f"{v}) – nicht übernommen, die Nummer ist hier vergeben", sev=3))
+                        break
                 for aid, (v, src) in (meta.get("conflicts") or {}).items():
                     a = next((x for x in spec["attrs"] if x["id"] == aid), None)
                     if a:

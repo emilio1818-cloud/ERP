@@ -16,7 +16,7 @@ tfoot td{font-weight:700;border-bottom:0}@media print{.noprint{display:none}body
   {% if lack %}<br>Beim Kunden fehlt {{ lack|join(', ') }} – ohne vollständige Anschrift kommt der Brief nicht an. <a href="/r/{{ cust.id }}">Kunde öffnen</a>{% endif %}
   {% for h in held %}<br>Nicht in diesem Brief: {{ h.number }} – dazu gibt es <a href="/r/{{ h.complaint.rid }}">„{{ h.complaint.title }}“</a>; erst klären, dann mahnen.{% endfor %}
   <div class="row" style="margin-top:8px">{% if items %}<button class="small primary" data-post="/mahnung/{{ pid }}" data-body='{"typ": "{{ tid }}"}'>Als versendet protokollieren</button>{% endif %}
-    <button class="small" onclick="window.print()">Drucken</button><a class="btn small ghost" href="/r/{{ cust.id }}">zurück</a></div>
+    <button type="button" class="small" data-print>Drucken</button><a class="btn small ghost" href="/r/{{ cust.id }}">zurück</a></div>
 </div>
 <div class="sender"><b>{{ company.name or 'Ihre Firma' }}</b><br>{{ company.street }}<br>{{ company.zip }} {{ company.city }}
   {% if company.phone %}<br>Tel. {{ company.phone }}{% endif %}{% if company.email %}<br>{{ company.email }}{% endif %}</div>

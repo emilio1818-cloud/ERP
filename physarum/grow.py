@@ -275,9 +275,10 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         mention_map[r["attr"]][r["to_id"]].append(r["from_id"])
     specs = {t["id"]: t for t in model["types"]}
     titles = record_titles(specs, ((r["id"], t, r["data"]) for t, rs in records.items() for r in rs))
-    from .payments import ledger as pay_ledger, stale_statuses
+    from .payments import ledger as pay_ledger, mail_sources, stale_statuses
     led: dict = {}
-    _learn(model, "Zahlungen nach Betrag", lambda: led.update(pay_ledger(model, records, mention_map)))
+    untrusted = mail_sources(store)
+    _learn(model, "Zahlungen nach Betrag", lambda: led.update(pay_ledger(model, records, mention_map, untrusted=untrusted)))
     if led:
         stale = stale_statuses(model, records, led)
         covered = {e["type"] for e in led.values()}
@@ -285,7 +286,9 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
             if p["type"] in covered and p.get("status"):
                 p["status"]["stale"] = stale.get(p["type"], [])[:200]
     matches = []
-    _learn(model, "Zahlungsabgleich", lambda: matches.extend(find_matches(model, records, mention_map, titles, led)))
+    from .payments import untrusted_rows
+    skip = untrusted_rows(model, records, untrusted)
+    _learn(model, "Zahlungsabgleich", lambda: matches.extend(find_matches(model, records, mention_map, titles, led, skip)))
     progress(f"{len(matches)} Zahlungen ohne Rechnungsnummer über den Betrag zugeordnet (zur Bestätigung)", 0.92)
 
     from .questions import collect_questions
@@ -544,6 +547,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
     rid_of: dict[tuple[int, int], int] = {}
     seen_records: set[int] = set()
     written: dict[int, dict] = {}
+    collided: set[int] = set()
 
     # 1. identities -> record ids. An ident shared by several groups (two different people
     # called "Lena Neumann") identifies nobody and is not used.
@@ -567,16 +571,37 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
             rids = sorted({existing[i] for i in g.idents if i in existing})
             rids = [x for x in rids if x not in seen_records]  # never let two groups share one record
             guard = protect.get(t.tid) or significant.get(t.tid)
+            blocked = None
             if guard:
                 # a record made here is never taken over by an imported one that only shares its number
                 # (an offer typed in here as A-2026-082 and another A-2026-082 from the other program)
                 for x in [x for x in rids if x in made_here]:
-                    row = c.execute("SELECT data FROM records WHERE id=?", (x,)).fetchone()
+                    row = c.execute("SELECT data, meta FROM records WHERE id=?", (x,)).fetchone()
                     mine = loads(row["data"]) if row else {}
-                    if any(aid in mine and not isinstance(v, (int,)) and not _same(mine[aid], _jsonable(v))
-                           for aid, v in g.values.items() if aid in guard):
+                    differ = {aid: _jsonable(v) for aid, v in g.values.items() if aid in guard and aid in mine
+                              and not isinstance(v, (int,)) and not _same(mine[aid], _jsonable(v))}
+                    if differ:
                         rids.remove(x)
                         stats.setdefault("collisions", []).append(x)
+                        if protect.get(t.tid) and (loads(row["meta"]) or {}).get("issued"):
+                            blocked = (x, differ)
+            if blocked and not rids and g.vanished:
+                continue  # the newest version of that file no longer names it: nothing to show
+            if blocked and not rids:
+                # an invoice number issued here belongs to that invoice: a file naming it for another one
+                # does not make a second invoice with the same number – it is shown on the issued one
+                x, differ = blocked
+                src = src_name.get(tables.get(g.lines[0][0], 0), "eine Datei") if g.lines else "eine Datei"
+                row = c.execute("SELECT meta FROM records WHERE id=?", (x,)).fetchone()
+                meta = loads(row["meta"]) or {}
+                col = {aid: [v, src] for aid, v in differ.items()}
+                if meta.get("collision") != col:
+                    meta["collision"] = col
+                    c.execute("UPDATE records SET meta=? WHERE id=?", (dumps(meta), x))
+                    c.execute("INSERT INTO changes(record_id,ts,actor,kind,note) VALUES(?,?,?,?,?)",
+                              (x, ts, actor, "conflict", f"„{src}“ nennt diese Nummer für eine andere Rechnung – nicht übernommen"))
+                collided.add(x)
+                continue
             if rids:
                 rid = rids[0]
                 for other in rids[1:]:
@@ -599,6 +624,13 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
             seen_records.add(rid)
             c.executemany("INSERT INTO idents(type,ident,record_id) VALUES(?,?,?) ON CONFLICT(type,ident) DO UPDATE SET record_id=excluded.record_id",
                           [(t.tid, i, rid) for i in g.idents])
+
+    # a file that named an issued number for another invoice and is gone (or corrected) leaves no mark
+    for r in c.execute("SELECT id, meta FROM records WHERE meta LIKE '%\"collision\"%'").fetchall():
+        if r["id"] not in collided:
+            meta = loads(r["meta"]) or {}
+            if meta.pop("collision", None) is not None:
+                c.execute("UPDATE records SET meta=? WHERE id=?", (dumps(meta), r["id"]))
 
     # 2. values (refs resolved to record ids)
     ref_of = {}

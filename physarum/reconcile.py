@@ -108,10 +108,13 @@ def paid_dates(proc: dict, step: dict, records: dict, mentions: dict) -> dict[in
     return d
 
 
-def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledger: dict | None = None) -> list[dict]:
+def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledger: dict | None = None,
+                 skip: set | None = None) -> list[dict]:
     """Proposals for transfers without a usable reference. With a ledger, an invoice is open by
-    the money that is still missing (a partial payment leaves its remainder to be matched)."""
+    the money that is still missing (a partial payment leaves its remainder to be matched).
+    `skip`: rows that do not move money (a list that came by mail)."""
     out = []
+    skip = skip or set()
     banks = bank_specs(model)
     procs = invoice_processes(model)
     if not banks or not procs:
@@ -124,7 +127,7 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
     for ip in procs:
         p, step = ip["p"], ip["step"]
         party_attr = next((a for a in ip["spec"]["attrs"] if a["id"] == p["party"]), {})
-        outgoing = (specs.get(party_attr.get("ref")) or {}).get("concept") == "lieferant"
+        outgoing = bool(ip["spec"].get("incoming")) or (specs.get(party_attr.get("ref")) or {}).get("concept") == "lieferant"
         paid = paid_dates(p, step, records, mentions)
         neg = set((p.get("status") or {}).get("negative") or [])
         sattr = (p.get("status") or {}).get("attr")
@@ -152,7 +155,7 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                 by_party.setdefault(pv, []).append(r)
         for b in banks:
             for row in records.get(b["spec"]["id"], []):
-                if row["id"] in linked_bank:
+                if row["id"] in linked_bank or row["id"] in skip:
                     continue
                 amount = bank_amount(b, row["data"])
                 when = as_date(row["data"].get(b["date"]["id"]))

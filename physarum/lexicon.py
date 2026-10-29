@@ -194,7 +194,10 @@ NONREF_SUFFIXES = ("gruppe", "typ", "art", "kategorie", "segment", "klasse", "st
 
 # words that end with a concept but mean something else ("Abrechnung" is how a project is billed)
 _FALSE_COMPOUNDS = {"abrechnung", "abrechnungen", "abrechnungsart", "verrechnung", "berechnung", "umrechnung",
-                    "nachberechnung", "einrechnung", "hochrechnung", "gegenrechnung"}
+                    "nachberechnung", "einrechnung", "hochrechnung", "gegenrechnung",
+                    # a partner's bank details are master data, not the firm's bank statement
+                    "bankdaten", "bankverbindung", "bankverbindungen", "kontodaten", "kontoverbindung",
+                    "kontoverbindungen", "bankangaben", "kontoangaben", "bankinfo", "bankdetails"}
 
 
 def _compound_concept(tok: str) -> tuple[str | None, str]:

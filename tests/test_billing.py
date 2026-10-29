@@ -343,13 +343,24 @@ class NewBookAfterIssuing(unittest.TestCase):
             self.assertIn(net["id"], ch["meta"].get("conflicts") or {})          # recorded, not applied
             self.assertIn(gone_no, by_no)                                        # an issued invoice is never removed
             self.assertEqual(rt.by_id[mine]["data"][net["id"]], my_net)          # the one issued here is untouched
-            self.assertEqual(len(by_no[number]), 2)                              # the file's twin stays separate ...
-            group = next(g for g in rt.work() if g["kind"] == "integrity")       # ... and all of it is on Heute
+            # the file's twin does not become a second invoice with the issued number (it would be dunned) …
+            self.assertEqual(len(by_no[number]), 1)
+            self.assertEqual(by_no[number][0]["id"], mine)
+            self.assertIn(net["id"], rt.by_id[mine]["meta"].get("collision") or {})
+            group = next(g for g in rt.work() if g["kind"] == "integrity")       # … and all of it is on Heute
             reasons = {(x["rid"], x["reason"].split(" ")[0]) for x in group["items"]}
             self.assertIn(ch["id"], {rid for rid, _ in reasons})
             self.assertIn(by_no[gone_no][0]["id"], {rid for rid, _ in reasons})
-            self.assertIn(mine, {rid for rid, _ in reasons})
+            self.assertTrue(any(rid == mine and "andere Rechnung" in x["reason"] for x in group["items"]
+                                for rid in [x["rid"]]))
             self.assertNotEqual(billing.next_free_number(rt, inv), number)
+            # the file corrected: the mark goes away
+            time.sleep(1)
+            ingest(store, [("Rechnungsausgangsbuch.csv", ("\n".join([head] + body[:-1]) + "\n").encode("cp1252"))], "Test")
+            regrow(store)
+            rt = Runtime(store)
+            rt.ensure()
+            self.assertFalse(rt.by_id[mine]["meta"].get("collision"))
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 

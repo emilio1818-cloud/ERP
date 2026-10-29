@@ -52,11 +52,50 @@ def _bank_types(model: dict) -> dict:
     return {b["spec"]["id"]: b for b in bank_specs(model)}
 
 
-def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = None) -> dict:
-    """{invoice rid: entry}. An entry has gross, paid, open, state, paid_date, payments, notes."""
+def mail_sources(store) -> set[int]:
+    """Files that came inside a mail (an attachment, a ZIP in a mail): a list somebody else made. A
+    customer's "Zahlungsnachweis" there names invoice numbers too – but money counts only from the
+    firm's own bank statements, or from such a file once the owner has accepted it."""
+    rows = {r["id"]: r for r in store.q("SELECT id, name, parent_id FROM sources")}
+    accepted = {int(k) for k, v in store.decisions("payment_source").items() if v == "yes" and str(k).isdigit()}
+    out = set()
+    for sid, row in rows.items():
+        cur, seen = row["parent_id"], set()
+        while cur and cur not in seen:
+            seen.add(cur)
+            parent = rows.get(cur)
+            if parent is None:
+                break
+            if str(parent["name"]).lower().endswith((".eml", ".msg")):
+                out.add(sid)
+                break
+            cur = parent["parent_id"]
+    return out - accepted
+
+
+def untrusted_rows(model: dict, records: dict, untrusted: set | None) -> set[int]:
+    """Bank-like rows that come only from such files."""
+    if not untrusted:
+        return set()
+    out = set()
+    for tid in _bank_types(model):
+        for r in records.get(tid, []):
+            src = set((r.get("meta") or {}).get("src") or [])
+            if src and src <= untrusted:
+                out.add(r["id"])
+    return out
+
+
+def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = None,
+           untrusted: set | None = None) -> dict:
+    """{invoice rid: entry}. An entry has gross, paid, open, state, paid_date, payments, notes.
+    `untrusted`: source ids whose rows do not move money (see mail_sources)."""
     from .reconcile import bank_amount
     today = today or date.today()
     banks = _bank_types(model)
+    skip = untrusted_rows(model, records, untrusted)
+    if skip:
+        records = {tid: ([r for r in rs if r["id"] not in skip] if tid in banks else rs) for tid, rs in records.items()}
     by_id = {r["id"]: r for rs in records.values() for r in rs}
     out: dict[int, dict] = {}
     claimed: set[int] = set()  # bank lines given to an invoice by amount, so no second one takes them

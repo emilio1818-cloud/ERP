@@ -367,6 +367,12 @@
     prov.textContent = show ? "Herkunft ausblenden" : "Herkunft zeigen";
   });
   // the name for the protocol is kept as soon as one leaves the field, not only with Enter
+  // no inline handlers (the page forbids inline script): print, reload, drop forms that never submit
+  $$("[data-print]").forEach((b) => b.addEventListener("click", () => window.print()));
+  $$("[data-reload]").forEach((b) => b.addEventListener("click", (ev) => { ev.preventDefault(); location.reload(); }));
+  $$("form.drop").forEach((f) => f.addEventListener("submit", (ev) => ev.preventDefault()));
+  if (document.body && document.body.hasAttribute("data-autoprint")) window.addEventListener("load", () => window.print());
+
   // "… und 12 weitere zeigen": the rest is already on the page, only folded away
   $$("[data-more]").forEach((b) => b.addEventListener("click", (ev) => {
     ev.preventDefault();

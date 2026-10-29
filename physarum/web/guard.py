@@ -32,6 +32,18 @@ def _is_ip(h: str) -> bool:
         return False
 
 
+# no foreign page may frame Physarum (a click there would be a click here), no inline script runs,
+# nothing is loaded from elsewhere
+SECURITY_HEADERS = [
+    (b"x-frame-options", b"DENY"),
+    (b"content-security-policy", b"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                                 b"img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; "
+                                 b"frame-ancestors 'none'"),
+    (b"x-content-type-options", b"nosniff"),
+    (b"referrer-policy", b"same-origin"),
+]
+
+
 class Guard:
     def __init__(self, app, allowed: set[str] | None = None, any_ip: bool = False):
         self.app = app
@@ -56,7 +68,13 @@ class Guard:
                     return await _refuse(send, 403, "Diese Änderung kam nicht von einer Physarum-Seite und wurde abgelehnt.")
             elif src == "null" or headers.get("sec-fetch-site", "same-origin") not in ("same-origin", "none"):
                 return await _refuse(send, 403, "Diese Änderung kam nicht von einer Physarum-Seite und wurde abgelehnt.")
-        return await self.app(scope, receive, send)
+        async def send_secure(message):
+            if message["type"] == "http.response.start":
+                present = {k.lower() for k, _ in message.get("headers", [])}
+                message = dict(message, headers=list(message.get("headers", [])) +
+                               [(k, v) for k, v in SECURITY_HEADERS if k not in present])
+            await send(message)
+        return await self.app(scope, receive, send_secure)
 
 
 async def _refuse(send, status: int, text: str):

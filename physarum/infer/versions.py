@@ -20,6 +20,7 @@ from ..values import asof_date
 _ID_WORDS = {"nr", "nummer", "id", "no", "number", "code", "kennung"}
 _POS_WORDS = {"pos", "position", "zeile", "lfd", "posnr", "line", "positionsnr"}
 _VOLATILE = {"info", "status", "valuta", "valutadatum", "vermerk", "saldo", "kategorie"}
+_NAME_WORDS = {"firma", "name", "firmenname", "lieferant", "kunde", "company", "supplier", "customer", "bezeichnung"}
 
 
 def _cell(v) -> str:
@@ -82,6 +83,14 @@ def key_columns(ts: list[dict], columns: list[str], volatile: set[int] | None = 
         for k in pos:
             if k != j and _unique(ts, [j, k], volatile, sig_of):
                 return [j, k]
+    # a list of suppliers or customers without numbers is kept by name: in the next version, the row
+    # with the same name is the same supplier (with a new bank account), not a second one
+    concept = lexicon.concept_of(str(ts[0].get("name") or ""))
+    if concept and lexicon.CONCEPTS[concept]["kind"] == "master" and len(ts) > 1:
+        for j, name in enumerate(columns):
+            if lexicon.header_role(name) == "name" or set(tokens(name)) & _NAME_WORDS:
+                if _unique(ts, [j], volatile, sig_of):
+                    return [j]
     return None
 
 

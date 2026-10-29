@@ -291,9 +291,31 @@ def _read_html(stem: str, html: str, d: Digest):
 
 # --- spreadsheets ---------------------------------------------------------------------------
 
+def _archive_ok(data: bytes, d: Digest, what: str) -> bool:
+    """An .xlsx or .docx is a ZIP too: the same limits as for a ZIP before a library unpacks it
+    (a 124 KB workbook with one 120 MB string is a bomb, not a list)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            total = 0
+            for info in z.infolist()[:MAX_ZIP_MEMBERS * 2]:
+                total += info.file_size
+                if info.file_size > 20 * 1024 * 1024 and info.file_size / max(info.compress_size, 1) > MAX_ZIP_RATIO:
+                    d.notes.append(f"{what} entpackt sich auf das {info.file_size // max(info.compress_size, 1)}-Fache "
+                                   "– nicht gelesen (sieht nicht nach einem Export aus). Die Datei wurde aufbewahrt.")
+                    return False
+                if total > MAX_ZIP_TOTAL:
+                    d.notes.append(f"{what} ist entpackt größer als {MAX_ZIP_TOTAL // (1024 * 1024)} MB – nicht gelesen.")
+                    return False
+    except zipfile.BadZipFile:
+        return True  # not a ZIP at all: the reader says what is wrong with it
+    return True
+
+
 def _read_xlsx(stem: str, data: bytes, d: Digest):
     import openpyxl
 
+    if not _archive_ok(data, d, f"Die Mappe „{stem}“"):
+        return
     wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     sheets = [ws for ws in wb.worksheets if getattr(ws, "sheet_state", "visible") == "visible"] or wb.worksheets
     for ws in sheets:
@@ -704,6 +726,8 @@ def _read_pdf(stem: str, data: bytes, d: Digest):
 def _read_docx(stem: str, data: bytes, d: Digest):
     import docx
 
+    if not _archive_ok(data, d, f"Das Dokument „{stem}“"):
+        return
     doc = docx.Document(io.BytesIO(data))
     paras = [p.text for p in doc.paragraphs if p.text.strip()]
     for i, t in enumerate(doc.tables):

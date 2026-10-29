@@ -77,6 +77,7 @@
   <button class="small ghost" data-post="/r/{{ rec.id }}/trennen" data-body='{{ {"key": j.key}|tojson }}' data-confirm="„{{ j.name }}“ wieder als eigenen Eintrag führen? Physarum merkt sich das.">Wieder trennen</button></div>{% endfor %}
 </div>{% endif %}
 {% if rec.meta and rec.meta.vanished %}<div class="notice warn" style="margin-bottom:12px">Fehlt in der neuesten Fassung von „{{ rec.meta.vanished }}“ – dort gelöscht oder ausgetragen? Der Eintrag bleibt hier mit seinem Verlauf erhalten, zählt aber nicht mehr bei „Heute“ und in den Kennzahlen.</div>{% endif %}
+{% if rec.meta and rec.meta.collision %}{% set first = rec.meta.collision.values()|list|first %}<div class="notice bad" style="margin-bottom:12px"><b>Nummer doppelt vergeben?</b> „{{ first[1] }}“ nennt diese Nummer für eine andere Rechnung – nicht übernommen, denn hier wurde sie bereits ausgestellt. Bitte prüfen, woher die Datei stammt.</div>{% endif %}
 {% for c in conflicts %}<div class="notice bad" style="margin-bottom:12px"><b>Abweichung:</b> In „{{ c.source }}“ steht für {{ c.attr.name }} {{ fmt(c.attr, c.value, link=False) }} statt {{ fmt(c.attr, rec.data.get(c.attr.id), link=False) }}. Nicht übernommen, weil die Rechnung festgeschrieben ist – bitte prüfen; eine Korrektur geht nur per Storno.</div>{% endfor %}
 {% if maybe_paid %}<div class="notice warn row between" style="margin-bottom:12px"><span>{{ maybe_paid.text }} <a href="/r/{{ maybe_paid.bank }}">Zahlung ansehen</a></span>
   <button class="small primary" data-post="/fragen/{{ maybe_paid.qid }}" data-body='{"value": "yes"}'>Ja, zuordnen</button></div>{% endif %}
@@ -138,7 +139,7 @@
   <div class="row between"><h2>Angaben</h2>
     <div class="row">
       <button class="small ghost noprint" type="button" id="prov-toggle" title="Woher jeder Wert stammt">Herkunft zeigen</button>
-      <span class="edit-mode hide row"><button class="primary" type="submit">Speichern</button><button class="ghost" onclick="location.reload(); return false;">Abbrechen</button></span></div></div>
+      <span class="edit-mode hide row"><button class="primary" type="submit">Speichern</button><button type="button" class="ghost" data-reload>Abbrechen</button></span></div></div>
   <dl class="facts head-fields">
     {% for f in facts if not (draft and (f.attr.virtual or f.attr.milestone or f.attr.id == spec.key) and f.value is none) %}
     {% set a = f.attr %}

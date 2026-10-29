@@ -590,5 +590,67 @@ class UnseenFirm(unittest.TestCase):
         self.assertEqual(by_no[first["data"][ref["id"]]], "K-10001")
 
 
+    def test_hostile_files_cost_seconds_not_hours(self):
+        import io
+        import time
+        import zipfile
+        from physarum.ingest import read_file
+        # one amount cell of 200.000 spaces between two digits made the number pattern backtrack for hours
+        t0 = time.time()
+        self.f.feed([("Betraege.csv", ("Betrag;Name\n1" + " " * 200000 + "1;x\n" +
+                                       "".join(f"{i},50;Kunde {i}\n" for i in range(30))).encode())])
+        self.assertLess(time.time() - t0, 20)
+        # a workbook of 100 KB that unpacks to 120 MB is a bomb, not a list
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("[Content_Types].xml", "<Types/>")
+            z.writestr("xl/sharedStrings.xml", "<sst><si><t>" + "A" * (60 * 1024 * 1024) + "</t></si></sst>")
+        d = read_file("bombe.xlsx", buf.getvalue())
+        self.assertFalse(d.tables)
+        self.assertTrue(any("Fache" in n for n in d.notes))
+
+    def test_a_payment_list_that_came_by_mail_moves_no_money_until_accepted(self):
+        rows = _invoices(12, start=date.today() - timedelta(days=40))
+        self.f.feed([("Rechnungsausgangsbuch.csv", csv(INV_HEAD, rows))])
+        m = EmailMessage()
+        m["From"], m["To"], m["Subject"] = "buchhaltung@kunde0.de", "info@agentur.de", "Zahlungsnachweis"
+        m.set_content("Anbei unser Zahlungsnachweis.")
+        proof = csv("Buchungstag;Verwendungszweck;Betrag;Zahlungspflichtiger",
+                    [[(date.today() - timedelta(days=i)).strftime("%d.%m.%Y"), f"Ausgleich {r[0]}", r[7], r[3]]
+                     for i, r in enumerate(rows[:3])])
+        m.add_attachment(proof, maintype="text", subtype="csv", filename="Zahlungsnachweis.csv")
+        self.f.feed([("mails/zahlungsnachweis.eml", m.as_bytes())])
+        rt = self.f.rt()
+        inv = _type(rt, "Rechnung")
+        state = {rt.by_id[rid]["data"][inv["key"]]: e["state"] for rid, e in rt.ledger.items()}
+        self.assertEqual({state[r[0]] for r in rows[:3]}, {"offen"})          # nothing paid by a list from outside
+        g = next(g for g in rt.work() if g["id"] == "pay:mail")
+        self.assertEqual(len(g["items"]), 3)
+        with self.f.store.tx() as c:
+            self.f.store.decide("payment_source", str(g["sources"][0]["id"]), "yes", "Tester", c=c)
+        rt.bump()
+        rt = self.f.rt()
+        state = {rt.by_id[rid]["data"][inv["key"]]: e["state"] for rid, e in rt.ledger.items()}
+        self.assertEqual({state[r[0]] for r in rows[:3]}, {"bezahlt"})        # accepted by the owner
+
+    def test_a_new_bank_account_in_the_supplier_list_is_a_risk(self):
+        import time
+        head = "Firma;IBAN;Zahlungsziel"
+        old = [["Kaffee Kontor Nord GmbH", "DE89370400440532013000", "30 Tage"],
+               ["Origin Green Coffee Traders", "DE02120300000000202051", "30 Tage"],
+               ["Elbe Verpackungen GmbH", "DE12500105170648489890", "14 Tage"]]
+        self.f.feed([("Lieferanten_Bankdaten.csv", csv(head, old))])
+        new = [list(r) for r in old]
+        new[0][1] = "DE75512108001245126199"
+        time.sleep(1)
+        self.f.feed([("Lieferanten_Bankdaten_Stand_30.10.2026.csv", csv(head, new))])
+        rt = self.f.rt()
+        li = _type(rt, "Lieferant")
+        self.assertEqual(len(rt.records[li["id"]]), 3)                     # the same three suppliers, one changed
+        risk = next(g for g in rt.work() if g["id"] == "risk:iban")
+        self.assertTrue(any("DE75 5121 0800 1245 1261 99" in it["reason"] and "DE89 3704" in it["reason"]
+                            for it in risk["items"]))
+
+
 if __name__ == "__main__":
     unittest.main()

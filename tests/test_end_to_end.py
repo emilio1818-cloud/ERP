@@ -321,6 +321,21 @@ class WebPages(unittest.TestCase):
         r = self.c.get("/suche?q=Versandavis")
         self.assertIn("Dokumente", r.text)
 
+    def test_no_foreign_page_may_frame_or_script_it(self):
+        for path in ["/", "/fragen", "/firma", "/steuerberatung"]:
+            h = self.c.get(path).headers
+            self.assertEqual(h.get("x-frame-options"), "DENY", path)
+            self.assertIn("frame-ancestors 'none'", h.get("content-security-policy", ""), path)
+            self.assertIn("script-src 'self'", h.get("content-security-policy", ""), path)
+            self.assertEqual(h.get("x-content-type-options"), "nosniff", path)
+        page = self.c.get("/firma?zurueck=javascript:alert(document.domain)").text
+        self.assertNotIn("javascript:", page)                          # a way back stays inside Physarum
+        self.assertNotIn('href="//', self.c.get("/firma?zurueck=//evil.example/").text)
+
+    def test_missing_things_are_404_not_500(self):
+        for u in ["/r/99999999/druck", "/r/99999999/erinnerung", "/quellen/99999/datei", "/mahnung/99999999?typ=x"]:
+            self.assertIn(self.c.get(u, follow_redirects=False).status_code, (404, 303), u)
+
 
 if __name__ == "__main__":
     unittest.main()

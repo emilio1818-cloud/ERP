@@ -102,6 +102,19 @@ def _attachment(name: str) -> str:
     return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(name)}'
 
 
+def local_path(p: str | None, default: str = "/") -> str:
+    """A way back that stays inside Physarum: '/t/t5?seite=2', never 'javascript:…' or '//elsewhere'."""
+    if not p:
+        return default
+    if p.startswith(("http://", "https://")):
+        from urllib.parse import urlsplit
+        u = urlsplit(p)
+        p = u.path + (f"?{u.query}" if u.query else "")
+    if not p.startswith("/") or p.startswith("//") or "\\" in p or any(ord(ch) < 32 for ch in p):
+        return default
+    return p
+
+
 def formed(fn):
     """A writing handler gets its form, then runs in a worker thread like every other page:
     the server stays responsive while one request computes."""
@@ -849,10 +862,15 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                                  else "Gelöscht (bleibt im Protokoll nachvollziehbar).", reload=False,
                                  next=f"/t/{rec['type']}"))
 
+    def not_found(request: Request):
+        return page(request, "message.html", dict(title="Nicht gefunden", text="Dieser Datensatz existiert nicht (mehr)."), 404)
+
     def record_print(request: Request):
         rt.ensure()
         rid = int(request.path_params["rid"])
         rec = store.record(rid)
+        if not rec or rec["deleted"] or not rt.spec(rec["type"]):
+            return not_found(request)
         spec = rt.spec(rec["type"])
         rec["data"] = rt.by_id.get(rid, rec)["data"]
         ctx = record_context(rec, spec, request)
@@ -939,7 +957,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         values["kleinunternehmer"] = bool(cur.get("kleinunternehmer"))
         return page(request, "company.html", dict(fields=billing.COMPANY_FIELDS, values=values, guessed=
                                                   {k for k in guess if not cur.get(k)},
-                                                  back=request.query_params.get("zurueck") or "",
+                                                  back=local_path(request.query_params.get("zurueck"), ""),
                                                   missing=[x for x in (request.query_params.get("fehlt") or "").split(",") if x]))
 
     def company_save(request: Request, form):
@@ -958,8 +976,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
                               (0, ts, actor(request), "company", k, dumps(old.get(k)), dumps(data.get(k)),
                                f"Firmendaten: {label} geändert"))
-        back = form.get("back") or "/"
-        return RedirectResponse(back if back.startswith("/") else "/", 303)
+        return RedirectResponse(local_path(form.get("back")), 303)
 
     def stale_preview(request: Request):
         """Before anything changes: which invoices the bank says are paid, with the evidence."""
@@ -1260,6 +1277,17 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             return JSONResponse(dict(toast=msg, reload=True))
         return JSONResponse(dict(toast=msg))
 
+    def payment_source(request: Request, form):
+        """The owner accepts a list that came by mail as a source of payments (or takes it back)."""
+        sid = int(request.path_params["sid"])
+        if not store.q1("SELECT id FROM sources WHERE id=?", (sid,)):
+            return JSONResponse(dict(error="Diese Datei gibt es nicht."), status_code=404)
+        with store.tx() as c:
+            store.decide("payment_source", str(sid), "no" if form.get("undo") else "yes", actor(request), c=c)
+        rt.bump()
+        return JSONResponse(dict(toast="Wieder nicht gezählt." if form.get("undo") else "Anerkannt – die Zahlungen darin zählen jetzt.",
+                                 reload=True, undo=None if form.get("undo") else dict(url=f"/zahlungsquelle/{sid}", body=dict(undo="1"))))
+
     def mail_done(request: Request, form):
         """A mail that is answered leaves "Heute"; the mail itself stays among the documents."""
         rid = int(request.path_params["rid"])
@@ -1399,7 +1427,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                             a["hidden"] = False
             c.execute("UPDATE models SET model=? WHERE version=?", (dumps(m), m["version"]))
             rt.bump(c)
-        return RedirectResponse(request.headers.get("referer") or f"/t/{tid}", 303)
+        return RedirectResponse(local_path(request.headers.get("referer"), f"/t/{tid}"), 303)
 
     def organism_relation(request: Request, form):
         key = form.get("key")
@@ -1476,7 +1504,10 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
     def source_file(request: Request):
         sid = int(request.path_params["sid"])
         s = store.q1("SELECT * FROM sources WHERE id=?", (sid,))
-        p = store.source_path(sid, s["name"])
+        p = store.source_path(sid, s["name"]) if s else None
+        if not s or not s["active"] or not p.exists():
+            return page(request, "message.html", dict(title="Nicht gefunden",
+                                                      text="Diese Datei gibt es nicht oder sie wurde herausgenommen."), 404)
         return FileResponse(p, filename=s["name"])
 
     # --- export -----------------------------------------------------------------------------------------------
@@ -1593,7 +1624,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
     def tax_settings(request: Request, form):
         from .. import taxexport
         taxexport.save_settings(store, form)
-        back = "/steuerberatung?" + "&".join(f"{k}={form.get(k)}" for k in ("art", "nr", "jahr") if form.get(k))
+        from urllib.parse import urlencode
+        back = "/steuerberatung?" + urlencode({k: form.get(k) for k in ("art", "nr", "jahr") if form.get(k)})
         return RedirectResponse(back, 303)
 
     def tax_download(request: Request, form):
@@ -1635,7 +1667,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                                                     learned=learned_items() if rt.model else []))
 
     def set_name(request: Request, form):
-        resp = RedirectResponse(request.headers.get("referer") or "/", 303)
+        resp = RedirectResponse(local_path(request.headers.get("referer")), 303)
         name = (form.get("name") or "").strip()[:40]
         if name:
             resp.set_cookie("physarum_name", name, max_age=3600 * 24 * 365, samesite="lax")
@@ -1656,6 +1688,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/r/{rid:int}", record_view), Route("/r/{rid:int}", formed(record_update), methods=["POST"]),
         Route("/r/{rid:int}/trennen", formed(record_split), methods=["POST"]),
         Route("/post/{rid:int}/erledigt", formed(mail_done), methods=["POST"]),
+        Route("/zahlungsquelle/{sid:int}", formed(payment_source), methods=["POST"]),
         Route("/r/{rid:int}/schritt", formed(record_step), methods=["POST"]),
         Route("/r/{rid:int}/notiz", formed(record_note), methods=["POST"]),
         Route("/r/{rid:int}/storno", formed(record_storno), methods=["POST"]),

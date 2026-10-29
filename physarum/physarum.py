@@ -1,212 +1,21 @@
-"""The slime mould: Tero et al. (2010) adaptive network dynamics on the data model.
+"""The slime mould as the model for how the firm's picture grows.
 
-Nodes are the kinds of things (types); tubes are the relations between them. Food
-sources are where substance is: record counts, money and the attention of the people
-using the system. Each step sends flow between every pair of food sources through the
-tube network (Kirchhoff's laws: a Laplacian system), and every tube adapts its
-conductivity to the flow it carries:
+Physarum takes in all the food it finds, keeps every tube it ever grew and lets the ones
+nothing flows through grow thin. Here the food is what the firm's files hold – records,
+money – and what the people using Physarum do. The kinds of things (types) are the nodes,
+the links between them the tubes; a tube is as thick as what flows through it: how much of
+the two ends is linked, and how often someone goes that way. The thickness orders the
+navigation and the related lists of a record, and draws the picture on "Wie Physarum Ihre
+Firma sieht". Nothing is ever deleted; a thin tube is only shown less.
 
-    dD/dt = f(|Q|) - gamma * D,    f(q) = q^mu / (1 + q^mu)
-
-Tubes on the shortest, strongest paths between important things thicken; redundant or
-unused ones thin out. The resulting conductivities decide what the interface shows
-first: order of the navigation, which related lists appear on a record, which columns a
-list shows. Decay only lowers *salience*; nothing is ever deleted.
-
-Usage flow (navigating along a relation, opening a list, editing a field) is added to
-the physical flow, so the network keeps adapting to how the company actually works.
+(Until round 6 a Tero et al. (2010) solver computed the thickness from Kirchhoff flows; it
+sorted the same few lists the same way as the direct measure and was dropped.)
 """
 from __future__ import annotations
 
 import math
 import random
 import time
-
-MU = 0.85   # < 1 keeps redundant tubes (robust network, Tero 2010); > 1 would prune to a tree
-GAMMA = 1.0
-DT = 0.5
-ITER = 160
-
-
-def _invert(m: list[list[float]]) -> list[list[float]]:
-    n = len(m)
-    a = [row[:] + [1.0 if i == j else 0.0 for j in range(n)] for i, row in enumerate(m)]
-    for col in range(n):
-        piv = max(range(col, n), key=lambda r: abs(a[r][col]))
-        if abs(a[piv][col]) < 1e-12:
-            raise ZeroDivisionError("singular")
-        a[col], a[piv] = a[piv], a[col]
-        pv = a[col][col]
-        a[col] = [x / pv for x in a[col]]
-        for r in range(n):
-            if r != col and a[r][col] != 0.0:
-                f = a[r][col]
-                ra, rc = a[r], a[col]
-                a[r] = [x - f * y for x, y in zip(ra, rc)]
-    return [row[n:] for row in a]
-
-
-def _components(n: int, edges: list[tuple[int, int, float]]) -> list[list[int]]:
-    parent = list(range(n))
-
-    def find(x):
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-
-    for i, j, _ in edges:
-        parent[find(i)] = find(j)
-    comps: dict[int, list[int]] = {}
-    for v in range(n):
-        comps.setdefault(find(v), []).append(v)
-    return list(comps.values())
-
-
-def tero(n: int, edges: list[tuple[int, int, float]], nutrients: list[float], usage: list[float] | None = None,
-         iters: int = ITER, mu: float = MU) -> tuple[list[float], list[float]]:
-    """Run the Physarum solver. Returns (conductivity per edge, mean |flux| per edge)."""
-    try:
-        import numpy  # noqa: F401
-    except ImportError:  # pragma: no cover - the pure version below does the same, only slower
-        return _tero_py(n, edges, nutrients, usage, iters, mu)
-    return _tero_np(n, edges, nutrients, usage, iters, mu)
-
-
-def _tero_np(n, edges, nutrients, usage, iters, mu):
-    """Same model, vectorised: one Laplacian solve per component and iteration; the flux of all
-    nutrient pairs over all edges at once."""
-    import numpy as np
-
-    m = len(edges)
-    D = np.ones(m)
-    use = np.array(usage or [0.0] * m, dtype=float)
-    if m == 0:
-        return [], []
-    I = np.array([e[0] for e in edges])
-    J = np.array([e[1] for e in edges])
-    L = np.array([e[2] for e in edges], dtype=float)
-    comps = [c for c in _components(n, edges) if len(c) > 1]
-    flux = np.zeros(m)
-    for _ in range(iters):
-        Q = np.zeros(m)
-        total_w = 0.0
-        for comp in comps:
-            ground = comp[-1]
-            nodes = [v for v in comp if v != ground]
-            pos = {v: k for k, v in enumerate(nodes)}
-            in_c = np.array([(i in pos or i == ground) and (j in pos or j == ground) for i, j, _ in edges])
-            if not in_c.any():
-                continue
-            g = np.where(in_c, D / L, 0.0)
-            size = len(nodes)
-            lap = np.zeros((size, size))
-            for e in np.nonzero(in_c)[0]:
-                a, b = int(I[e]), int(J[e])
-                for x, y in ((a, b), (b, a)):
-                    if x in pos:
-                        lap[pos[x], pos[x]] += g[e]
-                        if y in pos:
-                            lap[pos[x], pos[y]] -= g[e]
-            try:
-                G = np.linalg.inv(lap)
-            except np.linalg.LinAlgError:
-                continue
-            food = [v for v in comp if nutrients[v] > 0]
-            if len(food) < 2:
-                continue
-            # potential at every node for a unit injection at every food node (ground row = 0)
-            P = np.zeros((n, len(food)))
-            for k, s in enumerate(food):
-                if s == ground:
-                    continue
-                col = G[:, pos[s]]
-                for v, idx in pos.items():
-                    P[v, k] = col[idx]
-            w = np.array([nutrients[v] for v in food], dtype=float)
-            W = np.triu(np.outer(w, w), 1)
-            total_w += W.sum()
-            idx = np.nonzero(in_c)[0]
-            d = P[I[idx]] - P[J[idx]]                       # (edges, food)
-            diff = np.abs(d[:, :, None] - d[:, None, :])     # (edges, food, food)
-            Q[idx] += g[idx] * (diff * W[None, :, :]).sum(axis=(1, 2))
-        if total_w > 0:
-            Q = Q / total_w
-        q = Q + use
-        f = q ** mu / (1.0 + q ** mu)
-        nd = np.maximum(1e-6, D + DT * (f - GAMMA * D))
-        change = float(np.max(np.abs(nd - D))) if m else 0.0
-        D = nd
-        flux = Q
-        if change < 1e-5:
-            break
-    return [float(x) for x in D], [float(x) for x in flux]
-
-
-def _tero_py(n: int, edges: list[tuple[int, int, float]], nutrients: list[float], usage: list[float] | None = None,
-             iters: int = ITER, mu: float = MU) -> tuple[list[float], list[float]]:
-    m = len(edges)
-    D = [1.0] * m
-    usage = usage or [0.0] * m
-    flux = [0.0] * m
-    if m == 0:
-        return D, flux
-    comps = [c for c in _components(n, edges) if len(c) > 1]
-    for _ in range(iters):
-        Q = [0.0] * m
-        total_w = 0.0
-        for comp in comps:
-            ground = comp[-1]
-            idx = {v: k for k, v in enumerate(x for x in comp if x != ground)}
-            size = len(idx)
-            lap = [[0.0] * size for _ in range(size)]
-            cond = []
-            for e, (i, j, L) in enumerate(edges):
-                if i not in idx and i != ground:
-                    cond.append(0.0)
-                    continue
-                g = D[e] / L
-                cond.append(g)
-                for a, b in ((i, j), (j, i)):
-                    if a in idx:
-                        lap[idx[a]][idx[a]] += g
-                        if b in idx:
-                            lap[idx[a]][idx[b]] -= g
-            try:
-                G = _invert(lap)
-            except ZeroDivisionError:
-                continue
-
-            def pot(v, s):  # potential at v for unit injection at s, grounded sink
-                if v == ground or s == ground:
-                    return 0.0
-                return G[idx[v]][idx[s]]
-
-            nodes = [v for v in comp if nutrients[v] > 0]
-            for a in range(len(nodes)):
-                for b in range(a + 1, len(nodes)):
-                    s, t = nodes[a], nodes[b]
-                    w = nutrients[s] * nutrients[t]
-                    total_w += w
-                    for e, (i, j, L) in enumerate(edges):
-                        if cond[e] == 0.0:
-                            continue
-                        dp = (pot(i, s) - pot(i, t)) - (pot(j, s) - pot(j, t))
-                        Q[e] += w * abs(cond[e] * dp)
-        if total_w > 0:
-            Q = [q / total_w for q in Q]
-        change = 0.0
-        for e in range(m):
-            q = Q[e] + usage[e]
-            f = q ** mu / (1.0 + q ** mu)
-            nd = max(1e-6, D[e] + DT * (f - GAMMA * D[e]))
-            change = max(change, abs(nd - D[e]))
-            D[e] = nd
-        flux = Q
-        if change < 1e-5:
-            break
-    return D, flux
-
 
 def layout(n: int, edges: list[tuple[int, int, float]], weights: list[float], seed: int = 7,
            iters: int = 400) -> list[tuple[float, float]]:
@@ -255,6 +64,15 @@ def layout(n: int, edges: list[tuple[int, int, float]], weights: list[float], se
 KIND_WEIGHT = {"transaction": 1.4, "master": 1.2, "line": 0.5, "document": 0.6}
 
 
+def flows(edges: list[tuple[int, int, float]], nutrients: list[float], usage: list[float] | None = None) -> list[float]:
+    """What flows through each tube, the thickest 1: the food at its thinner end over the tube's length
+    (a well-linked relation is short), and what people do along it. Never 0 – thin, not gone."""
+    usage = usage or [0.0] * len(edges)
+    q = [min(nutrients[i], nutrients[j]) / length + u for (i, j, length), u in zip(edges, usage)]
+    top = max(q, default=0.0) or 1.0
+    return [max(1e-4, x / top) for x in q]
+
+
 def grow_network(model: dict, store=None, keep_layout: bool = True):
     """Compute conductivities (relations), salience (types, attributes) and a layout."""
     types = [t for t in model["types"]]
@@ -293,9 +111,8 @@ def grow_network(model: dict, store=None, keep_layout: bool = True):
         u = flux.get(f"rel:{e}", 0.0)
         usage.append(0.02 * math.log1p(u))
     t0 = time.time()
-    D, Q = tero(len(types), edges, nutrients, usage)
-    dmax = max(D) if D else 1.0
-    cond = {e: round(d / dmax, 4) for e, d in zip(eids, D)}
+    Q = flows(edges, nutrients, usage)
+    cond = {e: round(q, 4) for e, q in zip(eids, Q)}
     # salience of types: substance + throughput + attention
     through = [0.0] * len(types)
     for (i, j, _), q in zip(edges, Q):

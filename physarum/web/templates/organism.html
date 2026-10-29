@@ -2,7 +2,7 @@
 {% block title %}Organismus{% endblock %}
 {% block content %}
 <div class="pagehead"><div><h1>Wie Physarum Ihre Firma sieht</h1>
-  <p>Jeder Kreis ist eine Art von Dingen, jede Röhre eine Verbindung. Dicke Röhren tragen viel Fluss: viele Verknüpfungen, viel Geld, viel Nutzung. Wenig genutzte Röhren werden dünner – gelöscht wird nichts.</p></div></div>
+  <p>Jeder Kreis ist eine Art von Dingen, jede Röhre eine Verbindung. Dicke Röhren tragen viel Fluss: viele Einträge an beiden Enden, die miteinander verknüpft sind, und viel Nutzung. Wenig genutzte Röhren werden dünner – gelöscht wird nichts.</p></div></div>
 
 {% if cov and cov.parts %}
 <section class="card" id="abdeckung" style="margin-bottom:14px">
@@ -31,7 +31,7 @@
     <h2>Arten von Dingen</h2>
     <div style="overflow-x:auto">
     <table class="table">
-      <thead><tr><th>Name</th><th class="num">Anzahl</th><th>entstanden aus</th><th class="num" title="Wie viel Fluss diese Art trägt: Verknüpfungen, Geld, Nutzung">Gewicht</th></tr></thead>
+      <thead><tr><th>Name</th><th class="num">Anzahl</th><th>entstanden aus</th><th class="num" title="Wie viel Fluss diese Art trägt: Einträge, Verknüpfungen, Nutzung">Gewicht</th></tr></thead>
       <tbody>
       {% for t in model.types|sort(attribute='salience', reverse=True) %}
         <tr><td><a href="/t/{{ t.id }}">{{ t.plural }}</a><br><span class="faint" style="font-size:.78rem">{{ {'master':'Stammdaten','transaction':'Vorgänge','line':'Positionen','document':'Dokumente'}[t.kind] }}</span></td>

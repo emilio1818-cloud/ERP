@@ -50,7 +50,7 @@ Dazu kommen ein paar Fragen und Vorschläge („Trampelpfade“), etwa „Wenn �
 1. **Einwerfen statt einrichten.**
 2. **Nichts geht verloren:** Originale bleiben unverändert, jede Zahl führt zurück zur Quelldatei und Zeile, jede Änderung ist ein neuer Protokolleintrag.
 3. **Kompression als Bauplan (MDL):** Ein neuer Begriff entsteht nur, wenn er mehr Wiederholung spart, als er Komplexität kostet.
-4. **Fluss als Relevanz (Physarum nach Tero et al. 2010):** Kirchhoff-Fluss auf dem Typen-Graphen und Anpassung der Leitfähigkeit; Nutzung fließt mit ein. Navigation, Spalten und Reihenfolgen folgen der Leitfähigkeit, mit Hysterese, damit nichts herumspringt.
+4. **Fluss als Relevanz:** Wie beim Schleimpilz ist jede Verbindung zwischen zwei Listen so dick wie das, was durch sie fließt: wie viel von beiden verknüpft ist und wie oft jemand diesen Weg geht. Danach richten sich die Reihenfolge der Listen und der verknüpften Einträge, mit Hysterese, damit nichts herumspringt. Dünne Verbindungen verblassen, verschwinden aber nie.
 5. **Prozesse aus Zeitstempeln, Arbeit aus Abweichungen.**
 6. **Fragen statt Konfigurieren:** wenige Fragen mit Begründung, sortiert nach Wirkung, und nur zu dem, was die Inhaberin weiß. Wie die Dateien zu lesen sind, entscheidet Physarum selbst; die Entscheidung steht als umkehrbarer Hinweis an der Liste.
 7. **Fester Kern:** Ausgestellte Rechnungen sind festgeschrieben (nur Storno), Datensätze mit Verweisen sind nicht löschbar, Regeln wirken nur nach Zustimmung.
@@ -74,7 +74,7 @@ physarum/
   billing.py       Rechnung aus dem Auftrag, Ausstellen, Storno; dunning.py: Zahlungserinnerung
   taxexport.py     Paket für die Steuerberatung (DATEV); procedure.py: Verfahrensdokumentation
   coverage.py      Abdeckung: wie vollständig die Firma abgebildet ist
-  physarum.py      Tero-Modell + Layout + Salienz
+  physarum.py      Fluss durch die Verbindungen, Layout, Salienz
   questions.py     Fragen und Antworten (als Randbedingungen)
   ops.py           Schreiben mit Regeln (Festschreibung, Storno, Zahlungen, Protokoll)
   store.py         SQLite: Substrat, Modellversionen, Datensätze, Protokoll, Suche (FTS5)

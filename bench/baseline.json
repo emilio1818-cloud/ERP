@@ -6,7 +6,7 @@
   "lists": 0.531,
   "schema_questions": 0,
   "errors": 0,
-  "lines": 18678,
+  "lines": 18495,
   "word_rules": 743,
   "regexes": 164
  },
@@ -80,7 +80,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.1,
+     "seconds": 3.2,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -222,7 +222,7 @@
        "fn": 0
       }
      },
-     "seconds": 8.5,
+     "seconds": 7.9,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -325,7 +325,7 @@
        "fn": 0
       }
      },
-     "seconds": 35.6,
+     "seconds": 36.2,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -410,7 +410,7 @@
        "fn": 1
       }
      },
-     "seconds": 38.7,
+     "seconds": 38.1,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -495,7 +495,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.6,
+     "seconds": 3.0,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -580,7 +580,7 @@
        "fn": 0
       }
      },
-     "seconds": 4.5,
+     "seconds": 4.7,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -825,7 +825,7 @@
        "fn": 0
       }
      },
-     "seconds": 33.1,
+     "seconds": 32.3,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -919,7 +919,7 @@
        "fn": 0
       }
      },
-     "seconds": 40.4,
+     "seconds": 39.8,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -995,7 +995,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.8,
+     "seconds": 2.6,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1070,7 +1070,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.2,
+     "seconds": 3.0,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1145,7 +1145,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.7,
+     "seconds": 2.9,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1226,7 +1226,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.3,
+     "seconds": 1.1,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1307,7 +1307,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.1,
+     "seconds": 1.0,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1520,7 +1520,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.3,
+     "seconds": 0.2,
      "delivery": 1,
      "today": "2026-10-29"
     }

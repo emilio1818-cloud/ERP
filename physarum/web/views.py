@@ -310,7 +310,7 @@ def organism_svg(rt, w: int = 900, h: int = 520, highlight: str | None = None) -
         path = f"M{x1:.0f},{y1:.0f} Q{cx:.0f},{cy:.0f} {x2:.0f},{y2:.0f}"
         width = 1.2 + 11 * d
         op = 0.25 + 0.75 * d
-        parts.append(f'<path class="tube" d="{path}" stroke-width="{width:.1f}" opacity="{op:.2f}"><title>Leitfähigkeit {d:.2f}</title></path>')
+        parts.append(f'<path class="tube" d="{path}" stroke-width="{width:.1f}" opacity="{op:.2f}"><title>Fluss {d:.2f}</title></path>')
         if d > 0.35:
             parts.append(f'<path class="flow" d="{path}" stroke-width="{max(1.2, width / 3):.1f}"/>')
     for t in types:

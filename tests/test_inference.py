@@ -5,7 +5,7 @@ from physarum.infer.normalize import normalize
 from physarum.infer.observe import obs_from_table
 from physarum.infer.relations import MentionIndex, discover, discover_mentions
 from physarum.infer.unify import unify
-from physarum.physarum import tero
+from physarum.physarum import flows
 from physarum.values import profile_table
 
 
@@ -146,13 +146,14 @@ class TestUnifyIdentityRelations(unittest.TestCase):
 
 
 class TestPhysarum(unittest.TestCase):
-    def test_redundant_tubes_survive_but_main_path_is_thicker(self):
-        # triangle a-b-c plus a long detour d; nutrients at a and c
-        edges = [(0, 1, 1.0), (1, 2, 1.0), (0, 2, 1.0), (0, 3, 3.0), (3, 2, 3.0)]
-        D, Q = tero(4, edges, [0.5, 0.0, 0.5, 0.0])
-        self.assertGreater(D[2], D[0])          # direct tube a-c carries most flow
-        self.assertGreater(D[0], 1e-3)          # the redundant path is thinner, not gone
-        self.assertLess(D[3], D[2])             # the long detour is weakest
+    def test_a_tube_is_as_thick_as_what_flows_through_it(self):
+        # a-c between two big lists, well linked; a-b to a small one; a-d linked loosely; b-c used often
+        edges = [(0, 2, 1.0), (0, 1, 1.0), (0, 3, 3.0), (1, 2, 1.0)]
+        q = flows(edges, [0.4, 0.05, 0.4, 0.15], usage=[0.0, 0.0, 0.0, 0.2])
+        self.assertEqual(max(q), q[0])          # food at both ends, short: the main tube
+        self.assertLess(q[2], q[0])             # loosely linked: thinner
+        self.assertGreater(q[3], q[1])          # the way people go grows
+        self.assertTrue(all(x > 0 for x in q))  # thin, never gone
 
 
 if __name__ == "__main__":

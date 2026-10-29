@@ -378,12 +378,20 @@ _UMLAUTS = {"strasse": "Straße", "groesse": "Größe", "gebaeude": "Gebäude", 
             "loeschen": "löschen", "geaendert": "geändert", "kuerzel": "Kürzel"}
 
 
+# an old program's short numbers, written the way people write them
+_SHORT_NUMBERS = {"kdnr": "Kd.-Nr.", "kundennr": "Kunden-Nr.", "artnr": "Art.-Nr.", "renr": "Re.-Nr.",
+                  "rechnr": "Rechn.-Nr.", "liefnr": "Lief.-Nr.", "auftrnr": "Auftr.-Nr.", "persnr": "Pers.-Nr.",
+                  "belegnr": "Beleg-Nr.", "angnr": "Ang.-Nr.", "vertrnr": "Vertr.-Nr."}
+
+
 def _calm(name: str) -> str:
     """'KUNDE_SEIT' is how an old program shouts a header: 'Kunde seit'. Abbreviations stay."""
     letters = [ch for ch in name if ch.isalpha()]
     if len(letters) < 3 or not all(ch.isupper() for ch in letters):
         return name
     words = [w for w in re.split(r"[_\s]+", name.strip()) if w]
+    if len(words) == 1 and fold(words[0]).replace(".", "") in _SHORT_NUMBERS:
+        return _SHORT_NUMBERS[fold(words[0]).replace(".", "")]  # "KDNR" is the Kd.-Nr.
     if len(words) == 1 and fold(words[0]) in _KEEP_CAPS:
         return name
     out = [{"nr": "Nr.", "id": "ID"}.get(fold(w)) or (w if fold(w) in _KEEP_CAPS else _UMLAUTS.get(fold(w), w.lower()))

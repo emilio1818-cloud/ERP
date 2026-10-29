@@ -42,7 +42,8 @@ class RelDraft:
 
 
 class IdentIndex:
-    def __init__(self, groups: list[Group], title: str | None = None, alt: dict | None = None):
+    def __init__(self, groups: list[Group], title: str | None = None, alt: dict | None = None,
+                 parts: list[str] | None = None):
         self.alt = alt or {}
         self.by: dict[str, int] = {}
         self.names: dict[str, list[tuple[str, int]]] = defaultdict(list)
@@ -63,6 +64,9 @@ class IdentIndex:
             spoken = {norm_name(g.values[title])} if title and g.values.get(title) else set()
             spoken |= {norm_name(v) for v, _ in (g.alts.get(title) or [])} if title else set()
             spoken |= {x[2:] for x in g.idents if x.startswith("n:")}
+            # the rest of an old program's name fields: "Gaststätte Zum Kesselbrink" + "Inh. Uwe Kröger"
+            spoken |= {norm_name(f"{g.values[title]} {g.values[p]}") for p in parts or ()
+                       if title and g.values.get(title) and isinstance(g.values.get(p), str)}
             for nm in spoken - {""}:
                 ws = set(nm.split())
                 self.wordsets[i].append(ws)
@@ -102,17 +106,63 @@ class IdentIndex:
                     best, best_sim = ci, s
         if best_sim >= 0.9:
             return best, False
-        return self.short(nm), False
+        text = _PARENS.sub(" ", str(value))
+        if _CARE_OF.search(text):  # "WEG Jöllenbecker Str. 88 c/o Immobilienverwaltung Teutoburg GmbH"
+            text = _CARE_OF.split(text)[-1]
+            i = self.by.get("n:" + norm_name(text))
+            if i is not None:
+                return i, False
+        return self.short(norm_name(text)), False
 
     def short(self, nm: str) -> int | None:
         """A short name ("Elbkind", "Dr. Behrens") names the one thing whose name contains all its words –
-        if there is exactly one. Two Hafenkontors leave "Hafenkontor" unresolved."""
-        small = set(nm.split())
-        if not small or len(small) > 4 or sum(len(w) for w in small) < 6:
+        if there is exactly one. Two Hafenkontors leave "Hafenkontor" unresolved. People go by their
+        surname ("Fam. Tepe", "Peters") and by initials ("KD Meyer", "H. Schulze"); two Schulzes leave
+        "Fam. Schulze" unresolved."""
+        words = nm.split()
+        while len(words) > 1 and words[0] in _SALUTATIONS:
+            words = words[1:]
+        shorts = [w for w in words if len(w) <= 2 and w.isalpha() or w in _DESCRIPTORS]
+        small = set(words) - set(shorts)
+        size = sum(len(w) for w in small)
+        if not small or len(words) > 4 or size < 4:
             return None
         cands = set().union(*(self.words.get(w[:5], set()) for w in small))
-        hits = {i for i in cands if any(ws != small and _within(small, ws) for ws in self.wordsets[i])}
+
+        def fits(ws: set, exact: bool) -> bool:
+            if ws == set(words) or not (small <= ws if exact else _within(small, ws)):
+                return False
+            rest = sorted(ws - small)
+            for w in shorts:
+                if w in rest:  # "Dr.", "Am", "Ev." are words of the name
+                    rest.remove(w)
+                    continue
+                if w in _DESCRIPTORS:
+                    # "HV Kramer": a Hausverwaltung, if the name says so – the rest of the name must decide
+                    x = next((x for x in rest if x.endswith(_DESCRIPTORS[w])), None)
+                    if x is None and size < 6:
+                        return False
+                    if x is not None:
+                        rest.remove(x)
+                    continue
+                for ch in w:  # "KD" is Klaus-Dieter: one first name for each letter
+                    x = next((x for x in rest if x.startswith(ch)), None)
+                    if x is None:
+                        return False
+                    rest.remove(x)
+            return True
+
+        exact = {i for i in cands if any(fits(ws, True) for ws in self.wordsets[i])}
+        if exact or size < 6:
+            return next(iter(exact)) if len(exact) == 1 else None
+        hits = {i for i in cands if any(fits(ws, False) for ws in self.wordsets[i])}
         return next(iter(hits)) if len(hits) == 1 else None
+
+
+_SALUTATIONS = {"fam", "familie", "eheleute", "ehel", "herr", "herrn", "frau", "hr", "fr"}
+_DESCRIPTORS = {"hv": "verwaltung", "wg": "genossenschaft", "weg": "gemeinschaft"}  # what, not who
+_PARENS = re.compile(r"\([^)]*\)")  # "H. Schulze (Brackwede)": where, not who
+_CARE_OF = re.compile(r"\bc\s*/\s*o\b|\bper adresse\b", re.I)
 
 
 _MULTI = re.compile(r"\s*(?:[,;+/&]|\bund\b)\s*")
@@ -171,7 +221,8 @@ def discover(types: list[TypeDraft], groups: dict[int, list[Group]], obs_type: d
              decisions: dict | None = None, log: list | None = None, ask: list | None = None) -> list[RelDraft]:
     decisions = decisions or {}
     alts = {id(t): alternate_keys(t, groups[id(t)]) for t in types if t.kind == "master"}
-    idx = {id(t): IdentIndex(groups[id(t)], t.title.aid if t.title is not None else None, alts.get(id(t))) for t in types}
+    idx = {id(t): IdentIndex(groups[id(t)], t.title.aid if t.title is not None else None, alts.get(id(t)),
+                             [a.aid for a in t.attrs if a.role == "person_part"]) for t in types}
     rels: list[RelDraft] = []
     taken: set[tuple[int, int]] = set()  # (id(type), id(attr))
 

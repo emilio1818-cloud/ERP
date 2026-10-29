@@ -196,6 +196,7 @@ def obs_from_table(table_id: int, label: str, columns: list[str], profiles: list
     _add_embedded_keys(cols)
     _period_ends(cols)
     _full_name(cols, table_id)
+    _name_pair(cols, table_id)
     lines = [l if isinstance(l, tuple) else (table_id, l) for l in lines]
     n = len(lines)
     stem = label.split(" › ")[0]
@@ -237,6 +238,46 @@ def _full_name(cols: list[Col], table_id: int):
     keys = [norm_name(v) if v else None for v in vals]
     first.prof.role = last.prof.role = "person_part"
     cols.insert(cols.index(first), Col(name="Name", prof=prof, values=vals, keys=keys, origin=(table_id, -1)))
+
+
+_SALUTATION = {"anrede", "salutation", "briefanrede"}
+# "Herr", "Frau", "Eheleute", "Familie", "Herr Dr." – a person; "Firma" and an empty salutation – not
+_PERSON_SAL = {"herr", "herrn", "frau", "eheleute", "familie", "fam", "hr", "fr", "dr", "prof", "mr", "mrs", "ms"}
+_PAIR_NAMES = ("Nachname / Firma", "Vorname / Zusatz")
+
+
+def _name_pair(cols: list[Col], table_id: int):
+    """Older programs keep a customer as salutation, 'NAME1' (surname or firm) and 'NAME2' (first
+    names, or an addition such as 'z. Hd. Frau Kortenbruck'). A person is then 'Detlef u. Sabine
+    Rasche' – the way a bank statement or a letter names them; a firm keeps its name."""
+    if any(fold(c.name) == "name" for c in cols):
+        return
+    pair = [next((c for c in cols if c.kind == "text" and re.fullmatch(rf"name\s*[_-]?{i}", fold(c.name))), None)
+            for i in (1, 2)]
+    sal = next((c for c in cols if set(tokens(c.name)) & _SALUTATION), None)
+    if None in pair or sal is None:
+        return
+    n1, n2 = pair
+    vals, persons = [], 0
+    for s, a, b in zip(sal.values, n1.values, n2.values):
+        words = fold(str(s or "")).replace(".", " ").split()
+        person = bool(words) and words[0] in _PERSON_SAL
+        a = str(a).strip() if a not in (None, "") else ""
+        b = str(b).strip() if b not in (None, "") else ""
+        if person and a and b:
+            persons += 1
+            vals.append(f"{b} {a}")
+        else:
+            vals.append(a or None)
+    if not persons:
+        return
+    from ..values import profile_column
+    prof = profile_column("Name", vals)
+    prof.role = "name"
+    keys = [norm_name(v) if v else None for v in vals]
+    n1.name, n2.name = _PAIR_NAMES
+    n1.prof.role = n2.prof.role = "person_part"
+    cols.insert(cols.index(n1), Col(name="Name", prof=prof, values=vals, keys=keys, origin=(table_id, -1)))
 
 
 def pick_key(o: Obs) -> str | None:
@@ -326,7 +367,29 @@ def display_header(name: str) -> str:
                 return display_header(parts[-2])
             return display_header(parts[-1])
     key = " ".join(tokens(name))
-    return _EN_HEADERS.get(key, name)
+    if key in _EN_HEADERS:
+        return _EN_HEADERS[key]
+    return _calm(name)
+
+
+_KEEP_CAPS = {"kdnr", "plz", "iban", "bic", "ust", "ustid", "mwst", "nr", "id", "ean", "gtin", "sku", "eur", "usd", "chf",
+              "gmbh", "ag", "kg", "ok"}
+_UMLAUTS = {"strasse": "Straße", "groesse": "Größe", "gebaeude": "Gebäude", "faellig": "fällig", "maerz": "März",
+            "loeschen": "löschen", "geaendert": "geändert", "kuerzel": "Kürzel"}
+
+
+def _calm(name: str) -> str:
+    """'KUNDE_SEIT' is how an old program shouts a header: 'Kunde seit'. Abbreviations stay."""
+    letters = [ch for ch in name if ch.isalpha()]
+    if len(letters) < 3 or not all(ch.isupper() for ch in letters):
+        return name
+    words = [w for w in re.split(r"[_\s]+", name.strip()) if w]
+    if len(words) == 1 and fold(words[0]) in _KEEP_CAPS:
+        return name
+    out = [{"nr": "Nr.", "id": "ID"}.get(fold(w)) or (w if fold(w) in _KEEP_CAPS else _UMLAUTS.get(fold(w), w.lower()))
+           for w in words]
+    out[0] = out[0][:1].upper() + out[0][1:]
+    return " ".join(out)
 
 
 def clean_stem(label: str) -> str:

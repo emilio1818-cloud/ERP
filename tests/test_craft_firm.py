@@ -86,6 +86,51 @@ class CraftFirm(unittest.TestCase):
         letter = dunning.overdue_of(rt, rec["data"][next(a["id"] for a in inv["attrs"] if a["kind"] == "ref")], inv["id"])
         self.assertEqual([x["number"] for x in letter], [rows[3][0]])
 
+    def test_an_old_customer_list_names_people_as_people(self):
+        head = "KDNR;ANREDE;NAME1;NAME2;STRASSE;PLZ;ORT;ZAHLUNGSZIEL;KUNDE_SEIT"
+        custs = [["1001", "Herr", "Brockmann", "Wolfgang", "Am Brodhagen 12", "33613", "Bielefeld", "14", "03.05.2011"],
+                 ["1003", "Eheleute", "Rasche", "Detlef u. Sabine", "Talbrückenstr. 44", "33611", "Bielefeld", "14", "28.08.2017"],
+                 ["1004", "Herr", "Meyer", "Klaus-Dieter", "Herforder Str. 301", "33609", "Bielefeld", "14", "17.01.2015"],
+                 ["1006", "Familie", "Tepe", "Markus", "Osningstr. 5", "33605", "Bielefeld", "14", "22.02.2020"],
+                 ["1012", "Herr", "Schulze", "Gerd", "Stieghorster Str. 23", "33605", "Bielefeld", "14", "19.05.2014"],
+                 ["1031", "Frau", "Schulze", "Heike", "Treppenstr. 3", "33647", "Bielefeld", "14", "21.05.2024"],
+                 ["1005", "Frau", "Vogt", "Dr. Annette", "Lindenweg 2", "33602", "Bielefeld", "14", "01.02.2019"],
+                 ["1020", "Firma", "Immobilienverwaltung Teutoburg GmbH", "z. Hd. Frau Kortenbruck", "Niederwall 26",
+                  "33602", "Bielefeld", "30", "01.01.2008"],
+                 ["1028", "Firma", "Gaststätte Zum Kesselbrink", "Inh. Uwe Kröger", "Kesselbrink 9", "33602",
+                  "Bielefeld", "14", "05.06.2016"]]
+        orders = [["A26-001", "02.03.2026", "Fam. Tepe", "Heizkörper getauscht", "929,58"],
+                  ["A26-002", "03.03.2026", "KD Meyer", "Thermostatventile erneuert", "301,02"],
+                  ["A26-003", "05.03.2026", "Schulze, Gerd", "WC-Spülkasten erneuert", "563,52"],
+                  ["A26-004", "06.03.2026", "H. Schulze (Brackwede)", "Enthärtungsanlage gewartet", "270,30"],
+                  ["A26-005", "09.03.2026", "Fam. Schulze", "Badsanierung", "14850,00"],
+                  ["A26-006", "10.03.2026", "HV Teutoburg", "Wartung Heizung", "480,00"],
+                  ["A26-007", "11.03.2026", "Dr. Vogt", "Heizungsreparatur", "345,10"],
+                  ["A26-008", "12.03.2026", "WEG Bahnhofstr. 12 c/o Immobilienverwaltung Teutoburg GmbH",
+                   "Strangsanierung", "8400,00"],
+                  ["A26-009", "13.03.2026", "Kesselbrink Gaststätte Kröger", "Fettabscheider", "1200,00"],
+                  ["A26-010", "16.03.2026", "Rasche", "Wartung Heizung", "249,90"],
+                  ["A26-011", "17.03.2026", "Brockmann", "Heizungsreparatur", "297,50"],
+                  ["A26-012", "18.03.2026", "Tepe", "Thermostatventile erneuert", "520,91"]]
+        self.f.feed([("Kundenstamm_alt.csv", csv(head, custs)),
+                     ("Auftragsbuch_2026.csv", csv("Auftrag;Datum;Kunde;Leistung;Wert €", orders))])
+        rt = self.f.rt()
+        kunde = _type(rt, "Kunde")
+        names = {rt.title(r["id"]) for r in rt.records[kunde["id"]]}
+        self.assertTrue({"Wolfgang Brockmann", "Detlef u. Sabine Rasche", "Klaus-Dieter Meyer", "Markus Tepe",
+                         "Dr. Annette Vogt", "Immobilienverwaltung Teutoburg GmbH", "Gaststätte Zum Kesselbrink"} <= names)
+        self.assertIn("Kunde seit", {a["name"] for a in kunde["attrs"]})   # "KUNDE_SEIT" was shouted, not meant
+        auftrag = _type(rt, "Auftrag")
+        ref = next(a["id"] for a in auftrag["attrs"] if a["kind"] == "ref" and a.get("ref") == kunde["id"])
+        got = {r["data"][auftrag["key"]]: rt.title(r["data"][ref]) if isinstance(r["data"].get(ref), int) else None
+               for r in rt.records[auftrag["id"]]}
+        self.assertEqual(got, {"A26-001": "Markus Tepe", "A26-002": "Klaus-Dieter Meyer", "A26-003": "Gerd Schulze",
+                               "A26-004": "Heike Schulze", "A26-005": None,  # two Schulzes: nobody can tell
+                               "A26-006": "Immobilienverwaltung Teutoburg GmbH", "A26-007": "Dr. Annette Vogt",
+                               "A26-008": "Immobilienverwaltung Teutoburg GmbH",
+                               "A26-009": "Gaststätte Zum Kesselbrink", "A26-010": "Detlef u. Sabine Rasche",
+                               "A26-011": "Wolfgang Brockmann", "A26-012": "Markus Tepe"})
+
 
 if __name__ == "__main__":
     unittest.main()

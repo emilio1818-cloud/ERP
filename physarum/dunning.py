@@ -1,7 +1,8 @@
 """Reminders: one letter per customer with everything that is overdue.
 
 The level rises with every letter that was sent (reminder, first and second dunning letter) and is
-kept per invoice. A complaint about an invoice stops dunning it: first clarify, then remind.
+kept per invoice. A complaint about an invoice stops dunning it: first clarify, then remind. So does
+a transfer without a number that may have paid it: first confirm, then remind.
 """
 from __future__ import annotations
 
@@ -40,6 +41,7 @@ def overdue_of(rt, party_rid: int, tid: str, today: date | None = None) -> list[
     if not spec or not proc or not proc.get("party"):
         return []
     out = []
+    maybe = rt.payment_proposals()
     for r in rt.records.get(tid, []):
         if r["data"].get(proc["party"]) != party_rid:
             continue
@@ -53,7 +55,7 @@ def overdue_of(rt, party_rid: int, tid: str, today: date | None = None) -> list[
         out.append(dict(rid=r["id"], number=r["data"].get(spec.get("key")) or rt.title(r["id"]),
                         date=r["data"].get(proc["start"]["attr"]), due=due.isoformat(), due_how=e.get("due_how"),
                         gross=e["gross"], paid=e["paid"], open=e["open"], days=(today - due).days,
-                        level=min(lvl + 1, 3), complaint=complaint(rt, r["id"])))
+                        level=min(lvl + 1, 3), complaint=complaint(rt, r["id"]), maybe_paid=maybe.get(r["id"])))
     out.sort(key=lambda x: (x["due"], x["number"]))
     return out
 
@@ -62,7 +64,7 @@ def record_sent(rt, party_rid: int, tid: str, actor: str, today: date | None = N
     """The letter went out: every invoice in it gets its level, a log entry, and the status 'gemahnt'
     where the firm uses such a status. Invoices under complaint are left out."""
     today = today or date.today()
-    items = [x for x in overdue_of(rt, party_rid, tid, today) if not x["complaint"]]
+    items = [x for x in overdue_of(rt, party_rid, tid, today) if not x["complaint"] and not x["maybe_paid"]]
     if not items:
         return 0
     spec = rt.spec(tid)

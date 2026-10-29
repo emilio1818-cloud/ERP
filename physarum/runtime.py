@@ -71,15 +71,21 @@ class Runtime:
             self.mentions = defaultdict(lambda: defaultdict(list))
             self.backrefs = defaultdict(list)
             self.outrefs = defaultdict(list)
+            by_amount = {}
+            from .payments import BY_AMOUNT, CONFIRMED
             for row in self.store.q("SELECT from_id, attr, to_id, kind, how FROM refs"):
                 if row["kind"] == "mention" and row["attr"] != "doc":
                     self.mentions[row["attr"]][row["to_id"]].append(row["from_id"])
+                    if row["how"] in (BY_AMOUNT, CONFIRMED):
+                        by_amount[(row["from_id"], row["to_id"])] = (
+                            "Zahlung ohne Nummer – Betrag und Zahler stimmen" if row["how"] == BY_AMOUNT
+                            else "Zahlung ohne Nummer – von Ihnen zugeordnet")
                 self.backrefs[row["to_id"]].append((row["from_id"], row["attr"], row["kind"], row["how"]))
                 self.outrefs[row["from_id"]].append((row["to_id"], row["attr"], row["kind"], row["how"]))
             from .payments import apply_to_records, ledger, mail_sources, stale_statuses
             self.untrusted = mail_sources(self.store)
             try:
-                self.ledger = ledger(self.model, self.records, self.mentions, untrusted=self.untrusted)
+                self.ledger = ledger(self.model, self.records, self.mentions, untrusted=self.untrusted, by_amount=by_amount)
             except Exception:  # noqa: BLE001 - the pages must open even if the ledger cannot be built
                 self.ledger = {}
             apply_to_records(self.model, self.records, self.ledger)
@@ -110,6 +116,17 @@ class Runtime:
         """Records without those the newest version of their list no longer has: kept, but not worked on."""
         return {tid: [r for r in rs if not (r.get("meta") or {}).get("vanished")] for tid, rs in self.records.items()}
 
+    def payment_proposals(self) -> dict[int, dict]:
+        """{invoice rid: the open question} for transfers without a number that may pay it."""
+        from .store import loads
+        out = {}
+        for q in self.store.q("SELECT id, payload FROM questions WHERE kind='payment_match' AND status='open'"):
+            pl = loads(q["payload"]) or {}
+            recs = pl.get("records") or []
+            for inv in recs[1:]:
+                out[inv] = dict(qid=q["id"], bank=recs[0], text=pl.get("text"))
+        return out
+
     def work(self, today: date | None = None) -> list[dict]:
         from .process import compute_work
 
@@ -120,13 +137,7 @@ class Runtime:
             return self._work
         if not self.model:
             return []
-        pending = {}
-        from .store import loads
-        for q in self.store.q("SELECT id, payload FROM questions WHERE kind='payment_match' AND status='open'"):
-            pl = loads(q["payload"]) or {}
-            recs = pl.get("records") or []
-            for inv in recs[1:]:
-                pending[inv] = dict(qid=q["id"], bank=recs[0], text=pl.get("text"))
+        pending = self.payment_proposals()
         self.pending_payments = pending
         work = compute_work(self.model, self.active_records(), self.mentions, today, self.outrefs, self.titles,
                             pending_payments=pending, ledger=self.ledger,

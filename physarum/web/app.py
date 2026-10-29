@@ -786,6 +786,27 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         return JSONResponse(dict(reload=True, toast="Als bezahlt eingetragen.",
                                  undo=dict(url=f"/r/{rid}/bezahlt", body=dict(undo="1"))))
 
+    def record_unpay(request: Request, form):
+        """A transfer without a number was given to this invoice by its amount – the owner knows better."""
+        from ..payments import BY_AMOUNT, CONFIRMED
+        from ..questions import _stable_ident
+        rid = int(request.path_params["rid"])
+        bank = int(form.get("bank") or 0)
+        rt.ensure()
+        inv, row = rt.by_id.get(rid), rt.by_id.get(bank)
+        if not inv or not row:
+            return JSONResponse(dict(error="Diese Zahlung gibt es nicht mehr."), status_code=404)
+        with store.tx() as c:
+            gone = c.execute("DELETE FROM refs WHERE from_id=? AND to_id=? AND kind='mention' AND how IN (?, ?)",
+                             (bank, rid, BY_AMOUNT, CONFIRMED)).rowcount
+            bid, iid = _stable_ident(c, row["type"], bank), _stable_ident(c, inv["type"], rid)
+            if not gone or not bid or not iid:
+                return JSONResponse(dict(error="Diese Zahlung ist über eine Nummer zugeordnet, nicht über den Betrag."))
+            store.decide("payment_match", f"{row['type']}|{bid}|{inv['type']}|{iid}", "no", actor(request), c=c,
+                         note="Zuordnung an der Rechnung gelöst")
+            rt.bump(c)
+        return JSONResponse(dict(reload=True, toast="Gelöst – die Überweisung gehört zu keiner Rechnung, die Rechnung ist wieder offen."))
+
     def record_positions(request: Request, form):
         rid = int(request.path_params["rid"])
         rows = defaultdict(dict)
@@ -932,8 +953,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         cust = rt.by_id.get(pid)
         if not cust or not rt.spec(tid):
             return page(request, "message.html", dict(title="Nicht gefunden", text="Kunde oder Liste gibt es nicht."), 404)
-        send = [x for x in items if not x["complaint"]]
-        held = [x for x in items if x["complaint"]]
+        send = [x for x in items if not x["complaint"] and not x["maybe_paid"]]
+        held = [x for x in items if x["complaint"] or x["maybe_paid"]]
         level = max((x["level"] for x in send), default=1)
         addr = billing.recipient(rt, pid)
         lack = [n for k, n in (("street", "Straße"), ("zip", "PLZ"), ("city", "Ort")) if not addr.get(k)]
@@ -1701,6 +1722,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/r/{rid:int}/ausstellen", formed(record_issue), methods=["POST"]),
         Route("/r/{rid:int}/positionen", formed(record_positions), methods=["POST"]),
         Route("/r/{rid:int}/bezahlt", formed(record_paid), methods=["POST"]),
+        Route("/r/{rid:int}/zahlung-loesen", formed(record_unpay), methods=["POST"]),
         Route("/r/{rid:int}/uebernehmen", record_take_over, methods=["POST"]),
         Route("/r/{rid:int}/einblenden", record_unhide, methods=["POST"]),
         Route("/r/{rid:int}/xrechnung", record_xrechnung),

@@ -21,6 +21,8 @@ from .values import as_date, parse_duration
 _NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
 
 EPS = 0.01
+BY_AMOUNT = "Zahlung ohne Nummer – Betrag und Zahler stimmen"        # booked by the growth
+CONFIRMED = "Zuordnung über den Betrag (bestätigt)"                 # confirmed by a person
 SKONTO_MAX = 0.031      # up to 3 % less …
 SKONTO_DAYS = 21        # … paid within three weeks of the invoice date
 
@@ -163,9 +165,10 @@ def untrusted_rows(model: dict, records: dict, untrusted: set | None) -> set[int
 
 
 def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = None,
-           untrusted: set | None = None) -> dict:
+           untrusted: set | None = None, by_amount: dict | None = None) -> dict:
     """{invoice rid: entry}. An entry has gross, paid, open, state, paid_date, payments, notes.
-    `untrusted`: source ids whose rows do not move money (see mail_sources)."""
+    `untrusted`: source ids whose rows do not move money (see mail_sources).
+    `by_amount`: {(bank rid, invoice rid): how} for links made by the amount, not by a number."""
     from .reconcile import bank_amount
     today = today or date.today()
     banks = _bank_types(model)
@@ -272,6 +275,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             how = "Rückbuchung" if value < 0 else "Zahlung"
             if b in swapped:
                 how = f"Zahlung (Zahlendreher: der Zweck nennt {swapped[b]})"
+            elif by_amount and all((b, i) in by_amount for i in invs):
+                how = by_amount[(b, invs[0])]
             if value < 0:
                 # a chargeback undoes what was paid on the invoice(s) it names
                 left = -value
@@ -294,7 +299,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                     continue
                 e["paid"] += take
                 e["payments"].append(dict(rid=b, date=when, amount=round(take, 2), how=how,
-                                          shared=len(invs) > 1))
+                                          shared=len(invs) > 1, by_amount=bool(by_amount and (b, i) in by_amount)))
                 left -= take
         # book or manual paid date: paid in full when the bank does not speak
         pool = None

@@ -279,17 +279,27 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     led: dict = {}
     untrusted = mail_sources(store)
     _learn(model, "Zahlungen nach Betrag", lambda: led.update(pay_ledger(model, records, mention_map, untrusted=untrusted)))
+    matches = []
+    from .payments import untrusted_rows
+    skip = untrusted_rows(model, records, untrusted)
+    _learn(model, "Zahlungsabgleich", lambda: matches.extend(find_matches(model, records, mention_map, titles, led, skip)))
+    booked = []
+    sure = [m for m in matches if m.get("sure")]
+    if sure:
+        _learn(model, "Zahlungen ohne Nummer", lambda: booked.extend(_book_sure_matches(store, model, sure, mention_map)))
+    if booked:
+        led.clear()  # what the amounts paid counts in the ledger too
+        _learn(model, "Zahlungen nach Betrag", lambda: led.update(pay_ledger(model, records, mention_map, untrusted=untrusted)))
+        done = {id(m) for m in booked}
+        matches = [m for m in matches if id(m) not in done]
     if led:
         stale = stale_statuses(model, records, led)
         covered = {e["type"] for e in led.values()}
         for p in model.get("processes", []):
             if p["type"] in covered and p.get("status"):
                 p["status"]["stale"] = stale.get(p["type"], [])[:200]
-    matches = []
-    from .payments import untrusted_rows
-    skip = untrusted_rows(model, records, untrusted)
-    _learn(model, "Zahlungsabgleich", lambda: matches.extend(find_matches(model, records, mention_map, titles, led, skip)))
-    progress(f"{len(matches)} Zahlungen ohne Rechnungsnummer über den Betrag zugeordnet (zur Bestätigung)", 0.92)
+    progress(f"{len(booked)} Zahlungen ohne Rechnungsnummer über Betrag und Zahler zugeordnet, "
+             f"{len(matches)} zur Bestätigung", 0.92)
 
     from .questions import collect_questions
     with store.tx() as c:
@@ -802,7 +812,39 @@ def match_attr(model: dict, bank_tid: str, inv_tid: str) -> str:
     return rel["attr"] if rel else "match"
 
 
+def _match_relation(model: dict, attr: str, btid: str, itid: str, evidence: str):
+    """Bank rows that pay invoices by their amount need a relation to stand on."""
+    if attr == "match" and not any(r["id"] == f"m_{btid}_match_{itid}" for r in model["relations"]):
+        model["relations"].append(dict(id=f"m_{btid}_match_{itid}", src=btid, attr="match", dst=itid, targets=[itid],
+                                       kind="mention", via="amount", inclusion=0, coverage=0, structural=False,
+                                       evidence=evidence, fuzzy=0, unresolved=0))
+
+
+def _book_sure_matches(store: Store, model: dict, matches: list[dict], mention_map) -> list[dict]:
+    """A transfer without a number from the payer of exactly one open invoice of exactly that amount
+    pays it: booked on every growth, said so on the invoice, undone with one click (stored as "no")."""
+    from .payments import BY_AMOUNT
+    from .questions import _stable_ident
+    said = store.decisions("payment_match")
+    booked, rows = [], []
+    with store.tx() as c:
+        for m in matches:
+            bid = _stable_ident(c, m["bank_type"], m["bank"])
+            iids = [_stable_ident(c, m["invoice_type"], i) for i in m["invoices"]]
+            if not bid or not all(iids) or said.get(f"{m['bank_type']}|{bid}|{m['invoice_type']}|{','.join(iids)}"):
+                continue  # the owner has spoken about this transfer
+            attr = match_attr(model, m["bank_type"], m["invoice_type"])
+            _match_relation(model, attr, m["bank_type"], m["invoice_type"], "Zahlungen über Betrag und Zahler zugeordnet")
+            for inv in m["invoices"]:
+                rows.append((m["bank"], attr, inv, "mention", BY_AMOUNT))
+                mention_map[attr][inv].append(m["bank"])
+            booked.append(m)
+        c.executemany("INSERT OR IGNORE INTO refs(from_id,attr,to_id,kind,how) VALUES(?,?,?,?,?)", rows)
+    return booked
+
+
 def _accepted_matches(store: Store, model: dict, c) -> list[tuple]:
+    from .payments import CONFIRMED
     out = []
     for subj, val in store.decisions("payment_match").items():
         if val != "yes":
@@ -818,12 +860,8 @@ def _accepted_matches(store: Store, model: dict, c) -> list[tuple]:
         for iident in iidents.split(","):
             irow = c.execute("SELECT record_id FROM idents WHERE type=? AND ident=?", (itid, iident)).fetchone()
             if irow:
-                out.append((brow["record_id"], attr, irow["record_id"], "mention", "Zuordnung über den Betrag (bestätigt)"))
-        if attr == "match" and not any(r["id"] == f"m_{btid}_match_{itid}" for r in model["relations"]):
-            model["relations"].append(dict(id=f"m_{btid}_match_{itid}", src=btid, attr="match", dst=itid, targets=[itid],
-                                           kind="mention", via="amount", inclusion=0, coverage=0, structural=False,
-                                           evidence="Zahlungen über den Betrag zugeordnet (bestätigt)", fuzzy=0,
-                                           unresolved=0))
+                out.append((brow["record_id"], attr, irow["record_id"], "mention", CONFIRMED))
+        _match_relation(model, attr, btid, itid, "Zahlungen über den Betrag zugeordnet (bestätigt)")
     return out
 
 

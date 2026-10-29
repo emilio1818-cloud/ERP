@@ -128,10 +128,14 @@ class DemoCompany(unittest.TestCase):
         self.assertLessEqual(len(qs), 5)
         self.assertTrue(any("Feinkost Tidenhub" in q["payload"] for q in qs))
 
-    def test_payments_without_reference_are_proposed_by_amount(self):
+    def test_payments_without_reference_are_matched_by_amount(self):
+        # a transfer from the payer of exactly one open invoice of exactly that amount pays it ...
+        booked = [x for e in self.rt.ledger.values() for x in e["payments"] if x.get("by_amount")]
+        self.assertTrue(booked)
+        self.assertTrue(all("Betrag und Zahler" in x["how"] for x in booked))
+        # ... everything less certain is a question
         qs = [self.store.q1("SELECT payload FROM questions WHERE id=?", (r["id"],)) for r in
               self.store.q("SELECT id FROM questions WHERE kind='payment_match' AND status='open'")]
-        self.assertTrue(qs)
         self.assertTrue(all("keine Rechnungsnummer" in q["payload"] for q in qs))
 
     def test_fraud_warning_for_changed_bank_account(self):

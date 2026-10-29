@@ -131,6 +131,64 @@ class CraftFirm(unittest.TestCase):
                                "A26-009": "Gaststätte Zum Kesselbrink", "A26-010": "Detlef u. Sabine Rasche",
                                "A26-011": "Wolfgang Brockmann", "A26-012": "Markus Tepe"})
 
+    def test_a_transfer_without_number_pays_the_one_invoice_it_fits(self):
+        from starlette.testclient import TestClient
+        from physarum import dunning
+        from physarum.grow import regrow
+        from physarum.web.app import create_app
+        head = "KDNR;ANREDE;NAME1;NAME2;ORT"
+        custs = [[str(1000 + i), "Herr", f"Name{chr(65 + i)}mann", f"Vor{chr(65 + i)}", "Bielefeld"] for i in range(5)]
+        custs.append(["1005", "Eheleute", "Rasche", "Detlef u. Sabine", "Bielefeld"])
+        today = date.today()
+        rows = []
+        for i in range(24):
+            d = today - timedelta(days=100 - 3 * i)
+            k = custs[i % 6]
+            net = 300 + 17 * i
+            rows.append([f"RE-2026-{i + 1:04d}", d.strftime("%d.%m.%Y"), k[0], f"Arbeiten {i}", _eur(net), _eur(net * 0.19),
+                         _eur(net * 1.19), "", _eur(net * 1.19), (d + timedelta(days=14)).strftime("%d.%m.%Y")])
+        rasche = [r for r in rows if r[2] == "1005"]
+        rows[5][4:9] = ["210,00", "39,90", "249,90", "", "249,90"]              # Rasche's maintenance
+        twin = [r for r in rows if r[2] == "1001"][:2]
+        for r in twin:                                                          # two invoices of one amount
+            r[4:9] = ["300,00", "57,00", "357,00", "", "357,00"]
+        bank = [[r[1], f"{k} Kunde", r[0], r[8]] for r, k in zip(rows, range(len(rows)))
+                if r is not rows[5] and r not in twin]
+        bank.append([(today - timedelta(days=60)).strftime("%d.%m.%Y"), "DETLEF RASCHE", "Wartung Heizung", "249,90"])
+        bank.append([(today - timedelta(days=40)).strftime("%d.%m.%Y"), "VORB NAMEBMANN", "Danke", "357,00"])
+        self.f.feed([("Kundenstamm_alt.csv", csv(head, custs)),
+                     ("Rechnungsausgangsbuch.csv", csv("Rechnungsnr;Datum;Kd-Nr;Betreff;Netto;USt;Brutto;"
+                                                       "abzgl. Abschläge;Zahlbetrag;fällig am", rows)),
+                     ("Umsaetze_Girokonto.csv", csv(BANK_HEAD, bank))])
+        rt = self.f.rt()
+        inv = _type(rt, "Rechnung")
+        e = _states(rt, inv)
+        paid = e[rows[5][0]]
+        self.assertEqual(paid["state"], "bezahlt")                              # booked by payer and amount
+        self.assertIn("Betrag und Zahler", paid["payments"][0]["how"])
+        self.assertTrue(paid["payments"][0]["by_amount"])
+        self.assertEqual({e[r[0]]["state"] for r in twin}, {"offen"})          # which of the two? a question
+        q = rt.payment_proposals()
+        self.assertTrue(set(q) & {e[r[0]]["rid"] for r in twin})
+        held = dunning.overdue_of(rt, rt.by_id[e[twin[0][0]]["rid"]]["data"][next(
+            a["id"] for a in inv["attrs"] if a["kind"] == "ref")], inv["id"])
+        self.assertTrue([x for x in held if x["rid"] in q])
+        self.assertTrue(all(x["maybe_paid"] for x in held if x["rid"] in q))  # no letter before the answer
+        self.assertEqual(dunning.record_sent(rt, held[0] and rt.by_id[held[0]["rid"]]["data"][next(
+            a["id"] for a in inv["attrs"] if a["kind"] == "ref")], inv["id"], "Test"),
+            len([x for x in held if not x["maybe_paid"] and not x["complaint"]]))
+        # the owner knows better: the transfer was something else
+        c = TestClient(create_app(self.f.dir / "firma"))
+        r = c.post(f"/r/{paid['rid']}/zahlung-loesen", data={"bank": str(paid["payments"][0]["rid"])},
+                   headers={"origin": "http://testserver"})
+        self.assertEqual(r.status_code, 200, r.text)
+        rt = self.f.rt()
+        self.assertEqual(rt.by_id[paid["rid"]]["data"]["pay_state"], "überfällig")
+        regrow(self.f.store)
+        rt = self.f.rt()
+        self.assertEqual(rt.by_id[paid["rid"]]["data"]["pay_state"], "überfällig")  # and stays so
+        self.assertNotIn(paid["rid"], rt.payment_proposals())                  # without asking again
+
 
 if __name__ == "__main__":
     unittest.main()

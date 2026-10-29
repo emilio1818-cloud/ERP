@@ -92,7 +92,8 @@
   {% if pay.payments %}
   <table class="table"><thead><tr><th>Datum</th><th>Art</th><th class="num">Betrag</th></tr></thead><tbody>
     {% for x in pay.payments %}<tr><td>{{ display(x.date.isoformat(), 'date') if x.date else '–' }}</td>
-      <td>{% if x.rid %}<a href="/r/{{ x.rid }}">{{ x.how }}{% if x.shared %} (Sammelüberweisung){% endif %}</a>{% else %}{{ x.how }}{% endif %}</td>
+      <td>{% if x.rid %}<a href="/r/{{ x.rid }}">{{ x.how }}{% if x.shared %} (Sammelüberweisung){% endif %}</a>{% else %}{{ x.how }}{% endif %}
+        {% if x.by_amount %}<span class="faint noprint">·</span> <button class="linkish muted small noprint" data-post="/r/{{ rec.id }}/zahlung-loesen" data-body='{"bank": "{{ x.rid }}"}' title="Die Überweisung gehört nicht zu dieser Rechnung">Zuordnung lösen</button>{% endif %}</td>
       <td class="num">{{ money(x.amount) }}</td></tr>{% endfor %}
   </tbody><tfoot><tr><td colspan="2"><b>Bezahlt</b> von {{ money(pay.gross) }}</td><td class="num"><b>{{ money(pay.paid) }}</b></td></tr>
     {% if pay.open and pay.state not in ('bezahlt', 'storniert') %}<tr><td colspan="2"><b>Noch offen</b></td><td class="num"><b>{{ money(pay.open) }}</b></td></tr>{% endif %}</tfoot></table>

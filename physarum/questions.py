@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from .grow import record_title
 from .lexicon import dative_plural
+from .payments import BY_AMOUNT, CONFIRMED
 from .store import Store, dumps, loads, now_iso, pair_subject
 from .text import norm_key
 
@@ -46,12 +47,15 @@ def collect_questions(store: Store, model: dict, asks: list[dict], er: list[dict
     found = {}
     titles = titles or {}
     from .values import display
+    said = store.decisions("payment_match")
     for m in matches or []:
         bid = _stable_ident(c, m["bank_type"], m["bank"])
         iids = [_stable_ident(c, m["invoice_type"], i) for i in m["invoices"]]
         if not bid or not all(iids):
             continue
         subj_dec = f"{m['bank_type']}|{bid}|{m['invoice_type']}|{','.join(iids)}"
+        if said.get(subj_dec) == "no":
+            continue  # "this transfer is something else" – asked once
         inv_txt = " und ".join(titles.get(i, f"#{i}") for i in m["invoices"])
         found[f"payment_match|{subj_dec}"] = dict(
             kind="payment_match", subject=f"payment_match|{subj_dec}", impact=8 + m["amount"] / 200,
@@ -219,8 +223,8 @@ def answer(store: Store, qid: int, value: str, actor: str | None = None) -> dict
                 # changed one's mind: the transfer no longer pays these invoices
                 recs = payload.get("records") or []
                 if len(recs) >= 2:
-                    c.executemany("DELETE FROM refs WHERE from_id=? AND to_id=? AND kind='mention' AND how LIKE 'Zuordnung über den Betrag%'",
-                                  [(recs[0], i) for i in recs[1:]])
+                    c.executemany("DELETE FROM refs WHERE from_id=? AND to_id=? AND kind='mention' AND how IN (?, ?)",
+                                  [(recs[0], i, CONFIRMED, BY_AMOUNT) for i in recs[1:]])
                     store.kv_set("data_version", (store.kv_get("data_version", 0) or 0) + 1, c)
             if value == "yes":
                 from .grow import _accepted_matches

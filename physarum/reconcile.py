@@ -6,14 +6,16 @@ an invoice open, a matching transfer without reference), there is work or a miss
 1. Transfers that name an invoice number are linked by mention discovery already.
 2. For the rest, the amount speaks: an incoming transfer that equals exactly one open
    invoice of the same payer, the sum of two of them, or the invoice minus 2-3 % skonto.
-   These are proposals until a person confirms them; confirmed links are re-created on
-   every growth (stored as decisions).
+   A transfer from the payer of exactly one open invoice of exactly that amount pays it
+   (booked, said so on the invoice, undone with one click); the rest are proposals until a
+   person confirms them. Both are re-created on every growth (a "no" is stored as decision).
 3. Fraud check: a document from a known supplier that names a bank account the company
    has never paid to, or comes from a look-alike domain, is flagged before anyone pays.
 """
 from __future__ import annotations
 
 import re
+from collections import Counter
 from datetime import date
 
 from .billing import is_draft
@@ -73,18 +75,14 @@ def bank_specs(model: dict) -> list[dict]:
 
 
 def invoice_processes(model: dict) -> list[dict]:
-    out = []
-    for p in model.get("processes", []):
-        spec = next(t for t in model["types"] if t["id"] == p["type"])
-        if not p.get("gross") or not p.get("party"):
-            continue
-        pay = next((s for s in p["steps"] if fold(s["label"]) == "bezahlt"), None)
-        if pay:
-            out.append(dict(p=p, spec=spec, step=pay))
-    return out
+    """Invoices someone pays: the ledger's (a step 'bezahlt', or a due date), with a party."""
+    from .payments import invoice_specs
+    return [ip for ip in invoice_specs(model) if ip["p"].get("party")]
 
 
-def paid_dates(proc: dict, step: dict, records: dict, mentions: dict) -> dict[int, date]:
+def paid_dates(proc: dict, step: dict | None, records: dict, mentions: dict) -> dict[int, date]:
+    if step is None:
+        return {}  # the book keeps no paid date: only the money can tell
     recs = records.get(proc["type"], [])
     rid_set = {r["id"] for r in recs}
     by_id = {r["id"]: r for rs in records.values() for r in rs}
@@ -174,10 +172,11 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                     continue
                 gross = {r["id"]: rest.get(r["id"], _num(r["data"].get(p["gross"]))) for r in cands}
                 exact = [r for r in cands if abs(gross[r["id"]] - amount) < 0.005]
-                match, how = None, None
+                match, how, sure = None, None, False
                 if exact:
                     exact.sort(key=lambda r: str(r["data"].get(p["start"]["attr"]) or ""))
                     match, how = [exact[0]], "Betrag stimmt auf den Cent" + (" (älteste von mehreren)" if len(exact) > 1 else "")
+                    sure = len(exact) == 1  # the payer has exactly one open invoice of exactly this amount
                 else:
                     sk = [r for r in cands if 0.965 * gross[r["id"]] - 0.005 <= amount <= 0.985 * gross[r["id"]] + 0.005]
                     if len(sk) == 1:
@@ -194,9 +193,15 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                 if match:
                     out.append(dict(bank=row["id"], bank_type=b["spec"]["id"], invoices=[r["id"] for r in match],
                                     invoice_type=p["type"], amount=amount, when=when.isoformat(), how=how,
-                                    exact=how.startswith("Betrag stimmt"),
+                                    exact=how.startswith("Betrag stimmt"), sure=sure,
                                     payer=titles.get(party) if isinstance(party, int) else
                                     (row["data"].get(b["name"]["id"]) if b["name"] else None)))
+    # sure only alone: two transfers for one invoice, or one transfer fitting two lists, is a question
+    per_bank = Counter(m["bank"] for m in out)
+    per_inv = Counter(i for m in out for i in m["invoices"])
+    for m in out:
+        if per_bank[m["bank"]] > 1 or any(per_inv[i] > 1 for i in m["invoices"]):
+            m["sure"] = False
     return out
 
 

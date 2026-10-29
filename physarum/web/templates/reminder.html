@@ -15,7 +15,7 @@ tfoot td{font-weight:700;border-bottom:0}@media print{.noprint{display:none}body
   {% if company_missing %}<br>Es fehlen noch Ihre Firmendaten ({{ company_missing|join(', ') }}) – <a href="/firma?zurueck=/mahnung/{{ pid }}?typ={{ tid }}">eintragen</a>.{% endif %}
   {% if lack %}<br>Beim Kunden fehlt {{ lack|join(', ') }} – ohne vollständige Anschrift kommt der Brief nicht an. <a href="/r/{{ cust.id }}">Kunde öffnen</a>{% endif %}
   {% for x in items if x.due_how %}<br>{{ x.number }}: Im Buch steht kein Fälligkeitsdatum – berechnet mit {{ x.due_how }}. Bitte prüfen, bevor der Brief rausgeht.{% endfor %}
-  {% for h in held %}<br>Nicht in diesem Brief: {{ h.number }} – dazu gibt es <a href="/r/{{ h.complaint.rid }}">„{{ h.complaint.title }}“</a>; erst klären, dann mahnen.{% endfor %}
+  {% for h in held %}<br>Nicht in diesem Brief: {{ h.number }} – {% if h.complaint %}dazu gibt es <a href="/r/{{ h.complaint.rid }}">„{{ h.complaint.title }}“</a>; erst klären, dann mahnen.{% else %}eine Zahlung ohne Nummer passt dazu ({{ h.maybe_paid.text }}) – <a href="/fragen">erst bestätigen</a>.{% endif %}{% endfor %}
   <div class="row" style="margin-top:8px">{% if items %}<button class="small primary" data-post="/mahnung/{{ pid }}" data-body='{"typ": "{{ tid }}"}'>Als versendet protokollieren</button>{% endif %}
     <button type="button" class="small" data-print>Drucken</button><a class="btn small ghost" href="/r/{{ cust.id }}">zurück</a></div>
 </div>

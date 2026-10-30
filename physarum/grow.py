@@ -826,7 +826,7 @@ def _cancelled_numbers(spec: dict, groups: list) -> set:
     """Invoice numbers a cancellation document of the same list names ("Stornorechnung zu RE-2026-0463"):
     their status may say "storniert" – the storno document is there."""
     money = [a["id"] for a in spec["attrs"] if a["kind"] == "money"]
-    texts = [a["id"] for a in spec["attrs"] if a["kind"] == "text"]
+    texts = [a["id"] for a in spec["attrs"] if a["kind"] in ("text", "ref")]  # the words, also where they became a link
     out = set()
     for g in groups:
         if not any(isinstance(g.values.get(m), (int, float)) and g.values[m] < 0 for m in money):

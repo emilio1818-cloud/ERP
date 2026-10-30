@@ -164,12 +164,15 @@ class Runtime:
 
     def bank_changes(self, today: date) -> list[dict]:
         """A newer supplier list names another bank account than before: the classic invoice fraud
-        comes as a changed master record too, not only as a mail."""
+        comes as a changed master record too, not only as a mail. Only for those the firm pays – a customer
+        who changes banks for the direct debit is no risk."""
+        from .reconcile import _fmt_iban, payees
         out = []
         masters = {t["id"]: t for t in self.model["types"] if t["kind"] == "master"}
         ibans = {a["id"]: t for t in masters.values() for a in t["attrs"] if a["kind"] == "iban"}
         if not ibans:
             return out
+        to_pay = payees(self.model, self.records, self.ledger)
         since = (today - timedelta(days=60)).isoformat()
         marks = ",".join("?" * len(ibans))
         for c in self.store.q(f"SELECT record_id, ts, attr, old, new, source_id FROM changes WHERE kind='import' "
@@ -178,10 +181,9 @@ class Runtime:
             if not old or not new or "".join(str(old).split()).upper() == "".join(str(new).split()).upper():
                 continue
             rid = c["record_id"]
-            if rid not in self.by_id:
+            if rid not in self.by_id or rid not in to_pay:
                 continue
             src = self.store.q1("SELECT name FROM sources WHERE id=?", (c["source_id"],)) if c["source_id"] else None
-            from .reconcile import _fmt_iban
             out.append(dict(rid=rid, partner=rid, title=self.title(rid), party=None, days=0, money=None, type=ibans[c["attr"]]["id"],
                             reason=f"neue Bankverbindung im Stammsatz: {_fmt_iban(str(new))} statt {_fmt_iban(str(old))}"
                                    + (f" (laut „{src['name']}“)" if src else "")

@@ -53,6 +53,39 @@ def invoice_specs(model: dict) -> list[dict]:
     return out
 
 
+def billed_cases(model: dict, records: dict, invoice_types: set) -> dict[int, set]:
+    """{order rid: its invoices}, as the processes learned it ("berechnet"): the invoice names the order, or
+    the order its invoice; an offer has the invoices of the orders that took it up. Invoices are where this
+    ends – a list that is billed itself is not one of them."""
+    child = [(p, s) for p in model.get("processes", []) for s in p["steps"] if s["source"] == "child"]
+    bills = [(p, s) for p, s in child if fold(s["label"]) == "berechnet" and s.get("type") in invoice_types]
+    cases = {p["type"] for p, s in bills}
+    out: dict[int, set] = defaultdict(set)
+    for p, s in bills:
+        if s["type"] in cases:
+            continue
+        ids = {r["id"] for r in records.get(s["type"], [])}
+        if s["rel_kind"] == "ref":
+            for r in records.get(s["type"], []):
+                if isinstance(v := r["data"].get(s["rel_attr"]), int):
+                    out[v].add(r["id"])
+        elif s["rel_kind"] == "own_ref":
+            for r in records.get(p["type"], []):
+                if (v := r["data"].get(s["rel_attr"])) in ids:
+                    out[r["id"]].add(v)
+    for p, s in child:  # the offer an order took up
+        if s.get("type") in cases and p["type"] not in cases and s["rel_kind"] == "ref":
+            for r in records.get(s["type"], []):
+                if isinstance(v := r["data"].get(s["rel_attr"]), int) and out.get(r["id"]):
+                    out[v] |= out[r["id"]]
+    return out
+
+
+def _case_name(model: dict, rec: dict) -> str:
+    spec = next((t for t in model["types"] if t["id"] == rec["type"]), {})
+    return f"{spec.get('name', '')} {rec['data'].get(spec.get('key')) or _title_of(model, rec)}".strip()
+
+
 def _bank_types(model: dict) -> dict:
     from .reconcile import bank_specs
     return {b["spec"]["id"]: b for b in bank_specs(model)}
@@ -273,7 +306,10 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
     def debit(row) -> bool:  # the line carries a creditor id: a direct debit, or its return
         return any(isinstance(v, str) and _CREDITOR_ID.search(v) for v in row["data"].values())
     knows_debits = {tid for tid in banks if any(debit(row) for row in records.get(tid, []))}
-    for ip in invoice_specs(model):
+    procs = invoice_specs(model)
+    billed = billed_cases(model, records, {ip["p"]["type"] for ip in procs})
+    specs = {t["id"]: t for t in model["types"]}
+    for ip in procs:
         p, spec = ip["p"], ip["spec"]
         recs = records.get(p["type"], [])
         rid_set = {r["id"] for r in recs}
@@ -341,6 +377,26 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 rest = [i for i in invs if norm_key(by_id[i]["data"].get(key)) != own_no]
                 if rest and len(rest) < len(invs):
                     links[b] = rest
+        # money for an order or an offer pays the one invoice it has ("Anzahlung Angebot A-26-019"), also when
+        # the invoice was written after the money came: as far as the invoice goes, in the direction it is paid
+        case_no = defaultdict(set)
+        for c, invs in billed.items():
+            k = norm_key(by_id[c]["data"].get(specs[by_id[c]["type"]].get("key"))) if invs & rid_set else ""
+            if len(k) >= 6 or (len(k) >= 5 and not k.isdigit()):
+                case_no[k].add(c)
+        case_no = {k: next(iter(v)) for k, v in case_no.items() if len(v) == 1}
+        down = {}  # bank rid -> the orders and offers it pays
+        for btid, bs in banks.items() if case_no else ():
+            texts = [a["id"] for a in bs["spec"]["attrs"] if a["kind"] in ("text", "id") and not a.get("hidden")]
+            for b in records.get(btid, []):
+                cases = {case_no[k] for aid in texts if isinstance(v := b["data"].get(aid), str)
+                         for tok in _NUMBER_TOKEN.findall(v[:2000]) if (k := norm_key(tok)) in case_no}
+                invs = set().union(*(billed[c] & rid_set for c in cases))
+                amt = bank_amount(bs, b["data"]) if len(invs) == 1 and not links.get(b["id"]) else None
+                g = as_number(by_id[next(iter(invs))]["data"].get(p["gross"])) if amt else None
+                if g and (amt < 0) == ip["outgoing"] and abs(amt) <= g + EPS:
+                    links[b["id"]] = list(invs)
+                    down[b["id"]] = cases
         entries = {}
         payable, deduct = _payable_attrs(spec, p)
         rule = _due_rule(spec, p, recs)
@@ -348,8 +404,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         void_dates = [a["id"] for a in spec["attrs"] if a["kind"] in ("date", "datetime") and not a.get("virtual")
                       and set(tokens(a["name"])) & NEGATIVE_STATES]
         for r in recs:
-            if is_draft(r):
-                continue  # not issued: nobody owes anything yet
+            if is_draft(r) or billed.get(r["id"]):
+                continue  # not issued: nobody owes anything yet; an order with its invoice is paid through that
             g = as_number(r["data"].get(p["gross"]))
             if g is None:
                 continue
@@ -410,6 +466,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 how = swapped[b]
             elif by_amount and all((b, i) in by_amount for i in invs):
                 how = by_amount[(b, invs[0])]
+            elif b in down:
+                how = "Anzahlung zu " + ", ".join(sorted(_case_name(model, by_id[c]) for c in down[b]))
             if value < 0:
                 # money back. A chargeback undoes a payment – all of it, perhaps with the bank's fee on top: the
                 # claim is open again. Less than a payment is a refund: no longer owed, and it came in before
@@ -927,8 +985,8 @@ def _cut_off(invs: list[int], value: float, entries: dict, recs: list[dict], p: 
     it names is, on the cent, one more open invoice of the same payer that no transfer names – that one."""
     left = round(value - sum(max(entries[i]["gross"] - entries[i]["credit"] - entries[i]["paid"], 0.0) for i in invs), 2)
     who = {r["data"].get(p.get("party")) for r in recs if r["id"] in invs} if p.get("party") else set()
-    if left <= EPS or len(who) != 1 or not isinstance(next(iter(who)), int):
-        return None
+    if left <= EPS or left >= value - EPS or len(who) != 1 or not isinstance(next(iter(who)), int):
+        return None  # nothing left over, or nothing paid on what it names: the same invoice paid twice
     more = [r["id"] for r in recs if r["id"] in entries and r["id"] not in named_any and r["data"].get(p["party"]) in who
             and not entries[r["id"]]["paid"] and (entries[r["id"]]["start"] or date.min) <= (when or date.max)
             and abs(entries[r["id"]]["gross"] - entries[r["id"]]["credit"] - left) <= EPS]
@@ -954,8 +1012,8 @@ def _finish(e: dict):
         e["state"] = "verrechnet"  # a credit note or cancellation document, settled with its invoice
         return
     g, paid = round(e["gross"] - e.get("credit", 0.0), 2), round(e["paid"], 2)  # what is owed after credit notes
-    if e.get("refunded"):
-        paid = max(paid, round(min(e["refunded"], g), 2))  # nobody refunds what never came in
+    if e.get("refunded"):  # what was paid twice goes back first; nobody refunds what never came in
+        paid = max(round(paid - min(e["refunded"], max(paid - g, 0.0)), 2), round(min(e["refunded"], g), 2))
         e["notes"].append(f"{fmt_eur(e['refunded'])} erstattet")
     e["paid"] = paid
     e["open"] = round(g - max(paid, 0.0), 2)

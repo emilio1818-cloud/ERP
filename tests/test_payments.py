@@ -602,3 +602,150 @@ class Contracts(unittest.TestCase):
         a, b, held = self.advice
         self.assertEqual([self.state[x]["state"] for x in (a, b, held)], ["bezahlt", "bezahlt", "offen"])
         self.assertFalse(self.state[a]["notes"])  # paid in full, no skonto guessed
+
+
+def _iban(blz: str, konto: int) -> str:
+    bban = f"{blz}{konto:010d}"
+    return f"DE{98 - int(bban + '131400') % 97:02d}{bban}"
+
+
+class DownPayments(unittest.TestCase):
+    """Special jobs: an offer, the order that takes it up and names its invoice, the invoice written after the job.
+    The customer pays a deposit naming the offer before there is an invoice, and the rest naming the invoice.
+    One deposit has no invoice yet; one invoice was paid twice and the surplus refunded; a direct-debit customer
+    changes banks in a newer customer list."""
+
+    @classmethod
+    def setUpClass(cls):
+        import time
+        cls.tmp = Path(tempfile.mkdtemp(prefix="physarum-down-"))
+        custs = [(f"100{20 + i}", n, _iban("25050180", 4711 + i)) for i, n in enumerate(
+            ["Kinderarztpraxis Dr. Behrens", "Möbelhaus Sievers KG", "Autohaus Wendt GmbH", "Pension Domblick"])]
+        kunden = ["Kd.-Nr.;Firma;IBAN;Zahlungsart"] + [f"{k};{n};{i};{'Lastschrift' if k == '10023' else 'Überweisung'}"
+                                                         for k, n, i in custs]
+        offers = ["Angebot;Datum;Interessent / Kunde;Leistung;Preis netto;Status"]
+        orders = ["Auftrag;Eingang;Kd.-Nr.;Leistung;Angebot;Re.-Nr.;Preis netto;erledigt am"]
+        book = ["Re.-Nr.;Datum;Kd.-Nr.;Leistung;Netto;USt;Brutto;fällig am"]
+        bank = ["Buchungstag;Verwendungszweck;Beguenstigter/Zahlungspflichtiger;Kontonummer/IBAN;Betrag"]
+        start = TODAY - timedelta(days=150)
+        cls.inv = {}
+        for i in range(12):
+            k, name, iban = custs[i % 4]
+            d = start + timedelta(days=11 * i)
+            offer, order = f"A-26-{i + 1:03d}", f"SA-26-{i + 1:03d}"
+            net = 2900.0 if i == 10 else 400.0 + 35 * i
+            gross = round(net * 1.19, 2)
+            done = d + timedelta(days=12)
+            no = f"2026-{i + 1:04d}" if i < 11 else ""
+            offers.append(f"{offer};{de(d - timedelta(days=5))};{name};Sonderreinigung {i + 1};{eur(net)};angenommen")
+            orders.append(f"{order};{de(d)};{k};Sonderreinigung {i + 1};{offer};{no};{eur(net)};{de(done)}")
+            if no:
+                inv_day = done + timedelta(days=2)
+                book.append(f"{no};{de(inv_day)};{k};Sonderreinigung {i + 1} lt. Auftrag {order};{eur(net)};"
+                            f"{eur(gross - net)};{eur(gross)};{de(inv_day + timedelta(days=14))}")
+                cls.inv[i] = (no, gross)
+                if i == 10:  # the deposit before the job, naming the offer; the rest naming the invoice
+                    bank.append(f"{de(d + timedelta(days=3))};Anzahlung Bauendreinigung Angebot {offer} Dr. Behrens;"
+                                f"{name.upper()};{iban};{eur(1500.0)}")
+                    bank.append(f"{de(inv_day + timedelta(days=9))};RE {no} Restbetrag;{name.upper()};{iban};"
+                                f"{eur(gross - 1500.0)}")
+                elif inv_day + timedelta(days=8) < TODAY:  # the guesthouse by direct debit, the others by transfer
+                    debit = f"SEPA-BASISLASTSCHRIFT CRED DE98ZZZ09999999999 MREF M-{k} " if k == "10023" else ""
+                    bank.append(f"{de(inv_day + timedelta(days=8))};{debit}RE {no};{name.upper()};{iban};{eur(gross)}")
+                    if i == 4:  # paid twice, the second given back
+                        bank.append(f"{de(inv_day + timedelta(days=9))};RE {no};{name.upper()};{iban};{eur(gross)}")
+                        bank.append(f"{de(inv_day + timedelta(days=20))};Rueckerstattung Doppelzahlung RE {no};"
+                                    f"{name.upper()};{iban};-{eur(gross)}")
+            else:  # a deposit for a job nobody has invoiced yet
+                cls.waiting = offer
+                bank.append(f"{de(TODAY - timedelta(days=4))};Anzahlung {offer};{name.upper()};{iban};{eur(800.0)}")
+        files = {"Kunden_Export.csv": kunden, "Angebote_2026.csv": offers, "Sonderauftraege_2026.csv": orders,
+                 "Rechnungsausgangsbuch_2026.csv": book, "Sparkasse_Umsaetze_2026.csv": bank}
+        for f, rows in files.items():
+            (cls.tmp / f).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        cls.store = Store(cls.tmp / "firma")
+        ingest(cls.store, [(f, (cls.tmp / f).read_bytes()) for f in files], "T")
+        regrow(cls.store)
+        time.sleep(1)  # the newer customer list: the direct-debit customer's new account
+        newer = [r.replace(custs[3][2], _iban("25190088", 993311)) for r in kunden]
+        ingest(cls.store, [("Kunden_Export_neu.csv", ("\n".join(newer) + "\n").encode("utf-8"))], "T")
+        regrow(cls.store)
+        cls.rt = Runtime(cls.store)
+        cls.rt.ensure()
+        cls.spec = next(t for t in cls.rt.model["types"] if t["name"] == "Rechnung")
+        cls.state = {r["data"][cls.spec["key"]]: cls.rt.ledger[r["id"]] for r in cls.rt.records[cls.spec["id"]]}
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_a_deposit_naming_the_offer_pays_the_invoice_written_later(self):
+        no, gross = self.inv[10]
+        e = self.state[no]
+        self.assertEqual(e["state"], "bezahlt", e)
+        self.assertTrue(any(x["how"].startswith("Anzahlung zu Angebot A-26-011") for x in e["payments"]), e["payments"])
+        receipts = [x for g in self.rt.work() if g["kind"] == "receipt" for x in g["items"]]
+        self.assertEqual([x["money"] for x in receipts], [800.0])                     # only the one without an invoice
+        self.assertIn(f"Anzahlung zu {self.waiting}", receipts[0]["reason"])
+
+    def test_a_double_payment_given_back_is_paid(self):
+        no, _ = self.inv[4]
+        self.assertEqual(self.state[no]["state"], "bezahlt", self.state[no])
+
+    def test_a_customer_changing_banks_is_no_fraud(self):
+        risk = next((g for g in self.rt.work() if g["id"] == "risk:iban"), None)
+        self.assertIsNone(risk, risk and risk["items"])
+
+
+class DepositOnOrder(unittest.TestCase):
+    """A craft business: every other customer pays 30 % right after ordering, naming the order; the invoice names
+    the order and the rest names the invoice. A billed order is no claim of its own – its invoice is."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="physarum-deposit-"))
+        names = ["Müller, Hans", "Schulz, Petra", "Becker, Tom", "Wagner, Eva", "Koch, Lisa", "Wolf, Ben"]
+        orders = ["Auftrag;Datum;Kunde;Leistung;Auftragssumme;fertig am"]
+        inv = ["Rechnungsnr;Rechnungsdatum;Auftrag;Kunde;Brutto;Fällig am"]
+        bank = ["Buchungstag;Auftraggeber;Verwendungszweck;Betrag"]
+        start = TODAY - timedelta(days=170)
+        cls.inv = {}
+        for i in range(24):
+            d = start + timedelta(days=6 * i)
+            order, cust, total = f"A26-{100 + i:03d}", names[i % 6], round(2000 + 150 * i, 2)
+            done = d + timedelta(days=14)
+            payer = " ".join(reversed(cust.split(", ")))
+            orders.append(f"{order};{de(d)};{cust};Bad;{eur(total)};{de(done)}")
+            if i % 2 == 0:
+                bank.append(f"{de(d + timedelta(days=2))};{payer};Anzahlung {order};{eur(round(total * 0.3, 2))}")
+            no = f"RE-2026-{i + 1:04d}"
+            inv.append(f"{no};{de(done)};{order};{cust};{eur(total)};{de(done + timedelta(days=14))}")
+            cls.inv[i] = no
+            if done + timedelta(days=10) < TODAY:
+                rest = total * 0.7 if i % 2 == 0 else total
+                bank.append(f"{de(done + timedelta(days=10))};{payer};{no};{eur(round(rest, 2))}")
+            bank.append(f"{de(d + timedelta(days=1))};Großhandel Nord;Material;-{eur(800.0)}")
+        files = {"Auftragsbuch.csv": orders, "Rechnungsbuch.csv": inv, "Konto.csv": bank}
+        for f, rows in files.items():
+            (cls.tmp / f).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        cls.store = Store(cls.tmp / "firma")
+        ingest(cls.store, [(f, (cls.tmp / f).read_bytes()) for f in files], "T")
+        regrow(cls.store)
+        cls.rt = Runtime(cls.store)
+        cls.rt.ensure()
+        cls.spec = next(t for t in cls.rt.model["types"] if t["name"] == "Rechnung")
+        cls.state = {r["data"][cls.spec["key"]]: cls.rt.ledger[r["id"]] for r in cls.rt.records[cls.spec["id"]]}
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_deposit_and_rest_pay_the_invoice(self):
+        paid = [i for i in range(0, 20, 2) if self.state[self.inv[i]]["state"] == "bezahlt"]
+        self.assertEqual(paid, list(range(0, 20, 2)), {self.inv[i]: self.state[self.inv[i]]["notes"] for i in range(0, 20, 2)})
+        overdue = [x["title"] for g in self.rt.work() if g["kind"] == "overdue" for x in g["items"]]
+        self.assertEqual(overdue, [])
+
+    def test_a_billed_order_is_no_claim_of_its_own(self):
+        types = {self.rt.by_id[rid]["type"] for rid in self.rt.ledger}
+        self.assertEqual(types, {self.spec["id"]})

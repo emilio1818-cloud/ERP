@@ -119,6 +119,8 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
         return out
     inv_types = {ip["p"]["type"] for ip in procs}
     type_of = {r["id"]: tid for tid, rs in records.items() for r in rs}
+    from .payments import bank_allocations
+    skip = skip | set(bank_allocations(ledger or {}))  # what the ledger gave an invoice already
     linked_bank, about = set(), defaultdict(set)  # rows that name an invoice; what the others name
     for attr, m in mentions.items():
         for dst, srcs in m.items():
@@ -399,6 +401,26 @@ def _direct_debits(banks, records, open_inv, rest, p, taken) -> list[dict]:
     return out
 
 
+def payees(model: dict, records: dict, ledger: dict | None = None) -> set[int]:
+    """Whom the firm pays – only their accounts can be swapped on it (a customer's letter names the firm's own):
+    suppliers, those whose invoices it pays, those its money went to, those it owes (paid twice, a credit note)."""
+    by_id = {r["id"]: r for rs in records.values() for r in rs}
+    out = {r["id"] for t in model["types"] if t.get("concept") == "lieferant" for r in records.get(t["id"], [])}
+    for t, sup, _iban, _when in _incoming(model):
+        out |= {v for r in records.get(t["id"], []) if isinstance(v := r["data"].get(sup["id"]), int)}
+    party_of = {p["type"]: p.get("party") for p in model.get("processes", [])}
+    for rid, e in (ledger or {}).items():
+        rec = by_id.get(rid)
+        if rec and (0 < e["gross"] - e.get("credit", 0.0) < e["paid"] - 0.01 or (e["gross"] < -0.01 and not e.get("credit_to") and e["open"] < -0.01)) and \
+                isinstance(v := rec["data"].get(party_of.get(rec["type"])), int):
+            out.add(v)
+    for b in bank_specs(model):
+        for row in records.get(b["spec"]["id"], []) if b["party"] else ():
+            if isinstance(pv := row["data"].get(b["party"]["id"]), int) and (bank_amount(b, row["data"]) or 0) < 0:
+                out.add(pv)
+    return out
+
+
 def risk_items(model: dict, records: dict, outrefs: dict, titles: dict, ledger: dict | None = None) -> list[dict]:
     """Documents that name an unknown bank account of a known partner, or come from a look-alike domain."""
     specs = {t["id"]: t for t in model["types"]}
@@ -418,16 +440,7 @@ def risk_items(model: dict, records: dict, outrefs: dict, titles: dict, ledger: 
                 e = str(r["data"].get(a) or "").casefold()
                 if "@" in e and e.rsplit("@", 1)[1] not in FREEMAIL:
                     domains.setdefault(r["id"], set()).add(e.rsplit("@", 1)[1])
-    # whom the firm pays: only their accounts can be swapped on it (a customer's letter names the firm's own)
-    payees = {r["id"] for t in model["types"] if t.get("concept") == "lieferant" for r in records.get(t["id"], [])}
-    for t, sup, _iban, _when in _incoming(model):
-        payees |= {v for r in records.get(t["id"], []) if isinstance(v := r["data"].get(sup["id"]), int)}
-    party_of = {p["type"]: p.get("party") for p in model.get("processes", [])}
-    for rid, e in (ledger or {}).items():  # the firm owes them: paid twice, a credit note not paid out
-        rec = by_id.get(rid)
-        if rec and (0 < e["gross"] - e.get("credit", 0.0) < e["paid"] - 0.01 or (e["gross"] < -0.01 and not e.get("credit_to") and e["open"] < -0.01)) and \
-                isinstance(v := rec["data"].get(party_of.get(rec["type"])), int):
-            payees.add(v)
+    to_pay = payees(model, records, ledger)
     for b in bank_specs(model):
         if not b["iban"] or not b["party"]:
             continue
@@ -436,8 +449,6 @@ def risk_items(model: dict, records: dict, outrefs: dict, titles: dict, ledger: 
             iv = row["data"].get(b["iban"]["id"])
             if isinstance(pv, int) and iv:
                 known.setdefault(pv, set()).add(str(iv))
-                if (bank_amount(b, row["data"]) or 0) < 0:
-                    payees.add(pv)
     out = []
     for d in records.get("doc", []):
         text = f"{d['data'].get('doc_title') or ''}\n{d['data'].get('doc_text') or ''}"
@@ -450,7 +461,7 @@ def risk_items(model: dict, records: dict, outrefs: dict, titles: dict, ledger: 
         sdom = m.group(1).lower() if m else None
         for t in targets:
             reasons = []
-            unknown = sorted(x for x in found if t in payees and known.get(t) and x not in known[t])
+            unknown = sorted(x for x in found if t in to_pay and known.get(t) and x not in known[t])
             if unknown:
                 reasons.append(f"nennt die Bankverbindung {_fmt_iban(unknown[0])}, an die bisher nie gezahlt wurde "
                                f"(bekannt: {', '.join(_fmt_iban(x) for x in sorted(known[t])[:2])})")

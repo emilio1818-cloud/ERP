@@ -130,6 +130,9 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - Rechnungsnummern aus reinen Ziffern sucht Physarum in Verwendungszwecken und Mails ab fünf Stellen, wenn sie lückenlos hochzählen (31001, 31002, …). Vierstellige (1001 …) nicht: Sie sind von Jahreszahlen und Beträgen nicht zu unterscheiden.
 - Steht ein Kunde doppelt in der Kartei (zwei Kundennummern, eine mit Skontovereinbarung), gilt die Vereinbarung für den anderen Datensatz erst, wenn der Inhaber die Dublettenfrage beantwortet; bis dahin steht der Abzug als „nicht vereinbart“ da.
 - „Geld erhalten – wofür?“ zeigt die Eingänge der letzten zwei Monate; ältere unerklärte Eingänge stehen in der Kontoliste, nicht auf „Heute“.
+- Ein Dauerauftrag, der nach einer Preiserhöhung beim alten Betrag bleibt, bezahlt die Rechnung in Physarums Augen nicht: Hakt das Buch sie ab, gilt sie als bezahlt, sonst als offen. Die Differenz je Monat sieht nur, wer die Rechnung öffnet.
+- Vertragsmonate ohne Rechnung (ein Reinigungsvertrag ab Juli, die erste Rechnung im August) erkennt Physarum noch nicht.
+- Unter neutralen Dateinamen („export (3).csv“) ordnet Physarum die erste Lieferung eines Handwerksbetriebs schlechter (Stundenzettel je Monteur als eigene Listen); mit der zweiten Lieferung stimmt es wieder.
 
 ## 8. Was die unabhängigen Reviews verändert haben
 
@@ -213,5 +216,22 @@ Centgenau stimmen jetzt Agentur, Handwerk, Demo, Musikschule und Maler, die drei
 | Abstürze | 1 | 0 |
 | Zeilen Code | 18.564 | 18.867 |
 | Wort-Regeln / reguläre Ausdrücke | 696 / 164 | 708 / 174 |
+
+**Runde 8** prüfte wieder von zwei Seiten. Eine Gebäudereinigung, die niemand kannte (zwei Lieferungen, 40 Fallen), zeigte, wie wenig ein Prüfstand mit einer Firma je Art beweist: Ihr Sparkassen-Export hat vor der Betragsspalte eine „Lastschrift Ursprungsbetrag“, die nur bei Rücklastschriften gefüllt ist, und Physarum nahm die erste Geldspalte – kein Bankeingang schloss eine Rechnung, 29 von 40 offenen Posten waren falsch. Behoben wurde auch hier mit Struktur statt Wörtern: Der Betrag ist die Geldspalte, die jede Zeile füllt. Geld ohne Nummer tilgt die älteste offene Rechnung des Zahlers zuerst, wie § 366 Abs. 2 BGB es vorsieht; den Zahler erkennt Physarum auch an der IBAN seiner Kundenliste. Ein Avis zählt mit der Summe, die auf den Cent passt (auch wenn eine Rechnung einbehalten wird), eine SEPA-Einzugsdatei ist ein Avis, ein nach 140 Zeichen abgeschnittener Sammelzweck bezahlt mit seinem Rest die passende nächste Rechnung. Bestimmt die Objektnummer den Kunden und der Kunde seinen Namen, gehört der Name zum Kunden (dritte Normalform). Der Schlüssel einer Liste ist auch eine Spalte mit Nummern als Werten, nicht nur eine, die „Nr.“ heißt. Lieferanten-PDFs im üblichen Briefbogen werden gelesen, die eigene E-Rechnung ist keine Eingangsrechnung und füllt „Ihre Firma“.
+
+Die Code-Prüfung derselben Runde schaltete jede Regel der Runde 7 einzeln aus und maß den ganzen Prüfstand: 15 von 34 Stellen wirkten nur auf die Werkstatt – die Stopp-Regel war verletzt, weil der Prüfstand nur eine Firma dieser Art hatte. Sie fand zwölf Fehler, sechs davon Rückschritte (die Auftragssumme als Brutto, übliche Skonto-Schreibweisen, Umnummerierung 1001 → 10001, ein Avis mit fremdem Geld), und Regeln ohne jede Wirkung: Der Postleitzahl-Schutz griff nie, nahm aber Rechnungsnummern aus der Suche, die irgendwo als PLZ stehen. Behoben und gestrichen, ohne dass sich eine Kennzahl änderte. Der Prüfstand vergleicht fremde Namen jetzt in jeder Lieferung, nicht nur in der letzten; das deckte eine Abweichung beim Handwerk unter neutralen Dateinamen auf.
+
+Eine Regel ist bewusst wieder herausgekommen: „Die Bank zeigt weniger, als das Buch abhakt“ hätte beim Shop fünf bezahlte Rechnungen teilweise offen gemacht. Der Dauerauftrag, der nach einer Preiserhöhung beim alten Betrag bleibt, ist damit eine Grenze.
+
+| Kennzahl (Prüfstand mit Gebäudereinigung, alle Lieferungen unter fremden Namen) | vorher | nachher |
+|---|---:|---:|
+| Geld richtig | 0,664 | 0,877 |
+| Heute-Aufgaben richtig | 0,632 | 0,859 |
+| Gebäudereinigung allein: Geld / Heute | 0,218 / 0,163 | 0,846 / 0,575 |
+| gleiche offene Posten unter anderen Namen | 0,989 | 0,989 |
+| Listen gleich benannt | 0,694 | 0,707 |
+| Abstürze | 0 | 0 |
+| Zeilen Code | 18.970 | 19.198 |
+| Wort-Regeln / reguläre Ausdrücke | 709 / 174 | 716 / 176 |
 
 Wort-Regeln zählen seit Runde 7 nur echte Wortlisten (vorher auch Konstanten wie `EPS`: 746). Die Runde hat 300 Zeilen gekostet. Wieder gestrichen wurden toter Code, ungenutzte Importe und doppelte Mechanismen.

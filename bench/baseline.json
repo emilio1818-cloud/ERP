@@ -1,14 +1,14 @@
 {
  "summary": {
-  "money": 0.882,
-  "heute": 0.934,
-  "names": 1.0,
-  "lists": 0.671,
+  "money": 0.877,
+  "heute": 0.859,
+  "names": 0.989,
+  "lists": 0.707,
   "schema_questions": 0,
   "errors": 0,
-  "lines": 18916,
-  "word_rules": 709,
-  "regexes": 174
+  "lines": 19198,
+  "word_rules": 716,
+  "regexes": 176
  },
  "results": [
   {
@@ -33,9 +33,9 @@
       "Zeiteinträge",
       "Zeiteinträge (Tickets)"
      ],
-     "questions": 3,
+     "questions": 2,
      "schema_questions": 0,
-     "heute_groups": 5,
+     "heute_groups": 6,
      "heute_items": 16,
      "coverage": 0.883,
      "open": {
@@ -108,7 +108,7 @@
        "fn": 0
       }
      },
-     "seconds": 30.3,
+     "seconds": 28.0,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -134,8 +134,8 @@
      ],
      "questions": 2,
      "schema_questions": 0,
-     "heute_groups": 4,
-     "heute_items": 17,
+     "heute_groups": 5,
+     "heute_items": 18,
      "coverage": 0.9,
      "open": {
       "RE-2026-0311": 178.5,
@@ -193,7 +193,7 @@
        "fn": 1
       }
      },
-     "seconds": 38.9,
+     "seconds": 49.2,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -287,7 +287,7 @@
        "fn": 0
       }
      },
-     "seconds": 28.9,
+     "seconds": 22.5,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -376,7 +376,7 @@
        "fn": 0
       }
      },
-     "seconds": 39.6,
+     "seconds": 37.9,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -387,12 +387,13 @@
    "variant": "S1",
    "deliveries": [
     {
-     "types": 16,
+     "types": 17,
      "lists": [
       "Angebote",
       "Datensätze",
       "Dokumente",
       "Eingangsbuch",
+      "Eingangsrechnungen",
       "Export (7)",
       "Firmen",
       "Kontakte",
@@ -406,9 +407,9 @@
       "Zeiteinträge",
       "Zeiteinträge (Tickets)"
      ],
-     "questions": 2,
+     "questions": 1,
      "schema_questions": 0,
-     "heute_groups": 5,
+     "heute_groups": 6,
      "heute_items": 16,
      "coverage": 0.883,
      "open": {
@@ -481,18 +482,19 @@
        "fn": 0
       }
      },
-     "seconds": 32.5,
+     "seconds": 32.3,
      "delivery": 1,
      "today": "2026-09-15"
     },
     {
-     "types": 18,
+     "types": 19,
      "lists": [
       "Angebote",
       "Datensätze",
       "Datensätze (9)",
       "Dokumente",
       "Eingangsbuch",
+      "Eingangsrechnungen",
       "Export (1)",
       "Export (7)",
       "Firmen",
@@ -568,7 +570,7 @@
        "fn": 1
       }
      },
-     "seconds": 40.2,
+     "seconds": 53.1,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -579,10 +581,9 @@
    "variant": "S2",
    "deliveries": [
     {
-     "types": 15,
+     "types": 14,
      "lists": [
       "Angebote",
-      "Artikel",
       "Dokumente",
       "Eingangsrechnungen",
       "Kontakte",
@@ -597,10 +598,10 @@
       "Zeiteinträge",
       "Zeiteinträge (Tickets)"
      ],
-     "questions": 3,
+     "questions": 2,
      "schema_questions": 0,
-     "heute_groups": 9,
-     "heute_items": 19,
+     "heute_groups": 6,
+     "heute_items": 16,
      "coverage": 0.883,
      "open": {
       "RE-2026-0311": 178.5,
@@ -650,16 +651,13 @@
      ],
      "unbilled": [],
      "over_budget": [
-      "P-2024-090",
       "P-2025-008",
       "P-2025-010",
       "P-2025-020",
       "P-2025-042",
       "P-2026-016"
      ],
-     "receipts": [
-      7659.32
-     ],
+     "receipts": [],
      "eur_open": 39949.38,
      "score": {
       "open": {
@@ -675,16 +673,15 @@
        "fn": 0
       }
      },
-     "seconds": 43.8,
+     "seconds": 34.0,
      "delivery": 1,
      "today": "2026-09-15"
     },
     {
-     "types": 17,
+     "types": 16,
      "lists": [
       "Abwesenheiten",
       "Angebote",
-      "Artikel",
       "Dokumente",
       "Eingangsrechnungen",
       "Kontakte",
@@ -702,8 +699,8 @@
      ],
      "questions": 2,
      "schema_questions": 0,
-     "heute_groups": 8,
-     "heute_items": 20,
+     "heute_groups": 6,
+     "heute_items": 19,
      "coverage": 0.899,
      "open": {
       "RE-2026-0311": 178.5,
@@ -734,7 +731,6 @@
      ],
      "unbilled": [],
      "over_budget": [
-      "P-2024-090",
       "P-2025-008",
       "P-2025-010",
       "P-2025-020",
@@ -758,11 +754,11 @@
       },
       "over_budget": {
        "tp": 5,
-       "fp": 1,
+       "fp": 0,
        "fn": 1
       }
      },
-     "seconds": 53.0,
+     "seconds": 55.3,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -856,7 +852,7 @@
        "fn": 0
       }
      },
-     "seconds": 29.8,
+     "seconds": 35.4,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -945,7 +941,7 @@
        "fn": 0
       }
      },
-     "seconds": 40.7,
+     "seconds": 38.5,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -1040,7 +1036,7 @@
        "fn": 0
       }
      },
-     "seconds": 31.4,
+     "seconds": 35.6,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -1130,7 +1126,7 @@
        "fn": 0
       }
      },
-     "seconds": 42.2,
+     "seconds": 37.7,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -1205,7 +1201,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.7,
+     "seconds": 3.6,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1345,7 +1341,7 @@
        "fn": 0
       }
      },
-     "seconds": 5.3,
+     "seconds": 7.4,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1430,7 +1426,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.9,
+     "seconds": 2.8,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -1515,7 +1511,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.8,
+     "seconds": 3.4,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -1589,7 +1585,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.6,
+     "seconds": 1.2,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1655,7 +1651,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.2,
+     "seconds": 0.4,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1748,7 +1744,7 @@
        "fn": 1
       }
      },
-     "seconds": 1.6,
+     "seconds": 2.1,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -1838,9 +1834,187 @@
        "fn": 2
       }
      },
-     "seconds": 1.9,
+     "seconds": 2.8,
      "delivery": 2,
      "today": "2026-10-28"
+    }
+   ]
+  },
+  {
+   "firm": "gebaeude",
+   "variant": "S0",
+   "deliveries": [
+    {
+     "types": 12,
+     "lists": [
+      "Angebote",
+      "Artikel",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Kontobewegungen",
+      "Kunden",
+      "Mitarbeiter",
+      "Rechnungen",
+      "Sonderaufträge",
+      "Stundennachweise",
+      "Verträge"
+     ],
+     "questions": 0,
+     "schema_questions": 0,
+     "heute_groups": 8,
+     "heute_items": 22,
+     "coverage": 0.984,
+     "open": {
+      "2026-0299": 357.0,
+      "2026-0350": 357.0,
+      "2026-0353": 487.9,
+      "2026-0364": 562.28,
+      "2026-0373": 1059.1,
+      "2026-0394": 5771.5,
+      "2026-0397": 26.66,
+      "2026-0398": 1011.5,
+      "2026-0406": 357.0,
+      "2026-0409": 487.9,
+      "2026-0411": 428.4,
+      "2026-0415": 404.6
+     },
+     "overdue": [
+      "2026-0299",
+      "2026-0350",
+      "2026-0353",
+      "2026-0364",
+      "2026-0373",
+      "2026-0398",
+      "2026-0406",
+      "2026-0409",
+      "2026-0411"
+     ],
+     "unbilled": [
+      "SA-26-024",
+      "SA-26-027",
+      "SA-26-029"
+     ],
+     "over_budget": [],
+     "receipts": [
+      535.5,
+      535.5,
+      1500.0
+     ],
+     "eur_open": 11310.84,
+     "score": {
+      "open": {
+       "tp": 12,
+       "fp": 0,
+       "fn": 1,
+       "amount_ok": 11,
+       "eur_truth": 10802.12
+      },
+      "overdue": {
+       "tp": 9,
+       "fp": 0,
+       "fn": 1
+      },
+      "unbilled": {
+       "tp": 2,
+       "fp": 1,
+       "fn": 1
+      },
+      "receipts": {
+       "tp": 1,
+       "fp": 2,
+       "fn": 1
+      }
+     },
+     "seconds": 6.8,
+     "delivery": 1,
+     "today": "2026-09-17"
+    },
+    {
+     "types": 12,
+     "lists": [
+      "Angebote",
+      "Artikel",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Kontobewegungen",
+      "Kunden",
+      "Mitarbeiter",
+      "Rechnungen",
+      "Sonderaufträge",
+      "Stundennachweise",
+      "Verträge"
+     ],
+     "questions": 0,
+     "schema_questions": 0,
+     "heute_groups": 10,
+     "heute_items": 28,
+     "coverage": 0.991,
+     "open": {
+      "2026-0350": 357.0,
+      "2026-0397": 26.66,
+      "2026-0406": 357.0,
+      "2026-0417": 562.28,
+      "2026-0425": 1059.1,
+      "2026-0443": 285.6,
+      "2026-0445": 1475.6,
+      "2026-0453": 652.12,
+      "2026-0457": 357.0,
+      "2026-0465": 1500.0,
+      "2026-0467": 511.7
+     },
+     "overdue": [
+      "2026-0350",
+      "2026-0397",
+      "2026-0406",
+      "2026-0417",
+      "2026-0425",
+      "2026-0443",
+      "2026-0453",
+      "2026-0457",
+      "2026-0465"
+     ],
+     "unbilled": [
+      "SA-26-027",
+      "SA-26-029",
+      "SA-26-033"
+     ],
+     "over_budget": [],
+     "receipts": [
+      499.8,
+      535.5,
+      535.5,
+      1500.0
+     ],
+     "eur_open": 7144.06,
+     "score": {
+      "open": {
+       "tp": 10,
+       "fp": 1,
+       "fn": 2,
+       "amount_ok": 9,
+       "eur_truth": 5162.12
+      },
+      "overdue": {
+       "tp": 8,
+       "fp": 1,
+       "fn": 2
+      },
+      "unbilled": {
+       "tp": 2,
+       "fp": 1,
+       "fn": 3
+      },
+      "receipts": {
+       "tp": 1,
+       "fp": 3,
+       "fn": 1
+      }
+     },
+     "seconds": 9.1,
+     "delivery": 2,
+     "today": "2026-10-29"
     }
    ]
   },
@@ -1914,7 +2088,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.7,
+     "seconds": 3.5,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1989,7 +2163,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.9,
+     "seconds": 3.7,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2064,7 +2238,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.9,
+     "seconds": 3.9,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2203,7 +2377,7 @@
        "fn": 0
       }
      },
-     "seconds": 5.3,
+     "seconds": 7.7,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2343,7 +2517,7 @@
        "fn": 0
       }
      },
-     "seconds": 5.7,
+     "seconds": 8.1,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2441,12 +2615,12 @@
        "fn": 0
       }
      },
-     "seconds": 2.0,
+     "seconds": 2.7,
      "delivery": 1,
      "today": "2026-09-16"
     },
     {
-     "types": 22,
+     "types": 21,
      "lists": [
       "Angebote",
       "Aufträge",
@@ -2460,7 +2634,6 @@
       "Export (2) (2)",
       "Fahrzeuge",
       "Gekündigt",
-      "Kommissionen",
       "Kontobewegungen",
       "Mitarbeiter",
       "Nowak",
@@ -2533,7 +2706,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.5,
+     "seconds": 3.3,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -2620,7 +2793,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.2,
+     "seconds": 3.4,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -2708,7 +2881,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.1,
+     "seconds": 3.6,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -2782,7 +2955,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.7,
+     "seconds": 0.9,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2856,7 +3029,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.7,
+     "seconds": 1.3,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2930,7 +3103,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.8,
+     "seconds": 1.1,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2996,7 +3169,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.2,
+     "seconds": 0.3,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -3062,7 +3235,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.2,
+     "seconds": 0.4,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -3128,7 +3301,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.2,
+     "seconds": 0.3,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -3221,7 +3394,7 @@
        "fn": 1
       }
      },
-     "seconds": 1.6,
+     "seconds": 2.8,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -3311,7 +3484,7 @@
        "fn": 2
       }
      },
-     "seconds": 1.8,
+     "seconds": 2.6,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -3404,7 +3577,7 @@
        "fn": 1
       }
      },
-     "seconds": 1.6,
+     "seconds": 2.3,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -3495,9 +3668,368 @@
        "fn": 2
       }
      },
-     "seconds": 1.9,
+     "seconds": 3.0,
      "delivery": 2,
      "today": "2026-10-28"
+    }
+   ]
+  },
+  {
+   "firm": "gebaeude",
+   "variant": "S1",
+   "deliveries": [
+    {
+     "types": 14,
+     "lists": [
+      "Angebote",
+      "Artikel",
+      "Aufträge",
+      "Beendet",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Export (36)",
+      "Export (40)",
+      "Export (40) (40)",
+      "Kontobewegungen",
+      "Kunden",
+      "Objekte",
+      "Rechnungen"
+     ],
+     "questions": 0,
+     "schema_questions": 0,
+     "heute_groups": 8,
+     "heute_items": 22,
+     "coverage": 0.984,
+     "open": {
+      "2026-0299": 357.0,
+      "2026-0350": 357.0,
+      "2026-0353": 487.9,
+      "2026-0364": 562.28,
+      "2026-0373": 1059.1,
+      "2026-0394": 5771.5,
+      "2026-0397": 26.66,
+      "2026-0398": 1011.5,
+      "2026-0406": 357.0,
+      "2026-0409": 487.9,
+      "2026-0411": 428.4,
+      "2026-0415": 404.6
+     },
+     "overdue": [
+      "2026-0299",
+      "2026-0350",
+      "2026-0353",
+      "2026-0364",
+      "2026-0373",
+      "2026-0398",
+      "2026-0406",
+      "2026-0409",
+      "2026-0411"
+     ],
+     "unbilled": [
+      "SA-26-024",
+      "SA-26-027",
+      "SA-26-029"
+     ],
+     "over_budget": [],
+     "receipts": [
+      535.5,
+      535.5,
+      1500.0
+     ],
+     "eur_open": 11310.84,
+     "score": {
+      "open": {
+       "tp": 12,
+       "fp": 0,
+       "fn": 1,
+       "amount_ok": 11,
+       "eur_truth": 10802.12
+      },
+      "overdue": {
+       "tp": 9,
+       "fp": 0,
+       "fn": 1
+      },
+      "unbilled": {
+       "tp": 2,
+       "fp": 1,
+       "fn": 1
+      },
+      "receipts": {
+       "tp": 1,
+       "fp": 2,
+       "fn": 1
+      }
+     },
+     "seconds": 5.8,
+     "delivery": 1,
+     "today": "2026-09-17"
+    },
+    {
+     "types": 13,
+     "lists": [
+      "Angebote",
+      "Artikel",
+      "Aufträge",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Export (36)",
+      "Export (40)",
+      "Export (40) (40)",
+      "Kontobewegungen",
+      "Kunden",
+      "Objekte",
+      "Rechnungen"
+     ],
+     "questions": 0,
+     "schema_questions": 0,
+     "heute_groups": 10,
+     "heute_items": 28,
+     "coverage": 0.991,
+     "open": {
+      "2026-0350": 357.0,
+      "2026-0397": 26.66,
+      "2026-0406": 357.0,
+      "2026-0417": 562.28,
+      "2026-0425": 1059.1,
+      "2026-0443": 285.6,
+      "2026-0445": 1475.6,
+      "2026-0453": 652.12,
+      "2026-0457": 357.0,
+      "2026-0465": 1500.0,
+      "2026-0467": 511.7
+     },
+     "overdue": [
+      "2026-0350",
+      "2026-0397",
+      "2026-0406",
+      "2026-0417",
+      "2026-0425",
+      "2026-0443",
+      "2026-0453",
+      "2026-0457",
+      "2026-0465"
+     ],
+     "unbilled": [
+      "SA-26-027",
+      "SA-26-029",
+      "SA-26-033"
+     ],
+     "over_budget": [],
+     "receipts": [
+      499.8,
+      535.5,
+      535.5,
+      1500.0
+     ],
+     "eur_open": 7144.06,
+     "score": {
+      "open": {
+       "tp": 10,
+       "fp": 1,
+       "fn": 2,
+       "amount_ok": 9,
+       "eur_truth": 5162.12
+      },
+      "overdue": {
+       "tp": 8,
+       "fp": 1,
+       "fn": 2
+      },
+      "unbilled": {
+       "tp": 2,
+       "fp": 1,
+       "fn": 3
+      },
+      "receipts": {
+       "tp": 1,
+       "fp": 3,
+       "fn": 1
+      }
+     },
+     "seconds": 6.3,
+     "delivery": 2,
+     "today": "2026-10-29"
+    }
+   ]
+  },
+  {
+   "firm": "gebaeude",
+   "variant": "S2",
+   "deliveries": [
+    {
+     "types": 12,
+     "lists": [
+      "Angebote",
+      "Artikel",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Kontobewegungen",
+      "Kunden",
+      "Mitarbeiter",
+      "Rechnungen",
+      "Sonderaufträge",
+      "Stundennachweise",
+      "Verträge"
+     ],
+     "questions": 0,
+     "schema_questions": 0,
+     "heute_groups": 8,
+     "heute_items": 22,
+     "coverage": 0.983,
+     "open": {
+      "2026-0299": 357.0,
+      "2026-0350": 357.0,
+      "2026-0353": 487.9,
+      "2026-0364": 562.28,
+      "2026-0373": 1059.1,
+      "2026-0394": 5771.5,
+      "2026-0397": 26.66,
+      "2026-0398": 1011.5,
+      "2026-0406": 357.0,
+      "2026-0409": 487.9,
+      "2026-0411": 428.4,
+      "2026-0415": 404.6
+     },
+     "overdue": [
+      "2026-0299",
+      "2026-0350",
+      "2026-0353",
+      "2026-0364",
+      "2026-0373",
+      "2026-0398",
+      "2026-0406",
+      "2026-0409",
+      "2026-0411"
+     ],
+     "unbilled": [
+      "SA-26-024",
+      "SA-26-027",
+      "SA-26-029"
+     ],
+     "over_budget": [],
+     "receipts": [
+      535.5,
+      535.5,
+      1500.0
+     ],
+     "eur_open": 11310.84,
+     "score": {
+      "open": {
+       "tp": 12,
+       "fp": 0,
+       "fn": 1,
+       "amount_ok": 11,
+       "eur_truth": 10802.12
+      },
+      "overdue": {
+       "tp": 9,
+       "fp": 0,
+       "fn": 1
+      },
+      "unbilled": {
+       "tp": 2,
+       "fp": 1,
+       "fn": 1
+      },
+      "receipts": {
+       "tp": 1,
+       "fp": 2,
+       "fn": 1
+      }
+     },
+     "seconds": 6.5,
+     "delivery": 1,
+     "today": "2026-09-17"
+    },
+    {
+     "types": 12,
+     "lists": [
+      "Angebote",
+      "Artikel",
+      "Dokumente",
+      "Eingangsrechnungen",
+      "Eingangsrechnungspositionen",
+      "Kontobewegungen",
+      "Kunden",
+      "Mitarbeiter",
+      "Rechnungen",
+      "Sonderaufträge",
+      "Stundennachweise",
+      "Verträge"
+     ],
+     "questions": 0,
+     "schema_questions": 0,
+     "heute_groups": 10,
+     "heute_items": 28,
+     "coverage": 0.989,
+     "open": {
+      "2026-0350": 357.0,
+      "2026-0397": 26.66,
+      "2026-0406": 357.0,
+      "2026-0417": 562.28,
+      "2026-0425": 1059.1,
+      "2026-0443": 285.6,
+      "2026-0445": 1475.6,
+      "2026-0453": 652.12,
+      "2026-0457": 357.0,
+      "2026-0465": 1500.0,
+      "2026-0467": 511.7
+     },
+     "overdue": [
+      "2026-0350",
+      "2026-0397",
+      "2026-0406",
+      "2026-0417",
+      "2026-0425",
+      "2026-0443",
+      "2026-0453",
+      "2026-0457",
+      "2026-0465"
+     ],
+     "unbilled": [
+      "SA-26-027",
+      "SA-26-029",
+      "SA-26-033"
+     ],
+     "over_budget": [],
+     "receipts": [
+      499.8,
+      535.5,
+      535.5,
+      1500.0
+     ],
+     "eur_open": 7144.06,
+     "score": {
+      "open": {
+       "tp": 10,
+       "fp": 1,
+       "fn": 2,
+       "amount_ok": 9,
+       "eur_truth": 5162.12
+      },
+      "overdue": {
+       "tp": 8,
+       "fp": 1,
+       "fn": 2
+      },
+      "unbilled": {
+       "tp": 2,
+       "fp": 1,
+       "fn": 3
+      },
+      "receipts": {
+       "tp": 1,
+       "fp": 3,
+       "fn": 1
+      }
+     },
+     "seconds": 5.7,
+     "delivery": 2,
+     "today": "2026-10-29"
     }
    ]
   }

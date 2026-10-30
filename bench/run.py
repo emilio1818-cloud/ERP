@@ -44,11 +44,11 @@ def summary(results: list[dict]) -> dict:
                 bucket[0] += sc["tp"]
                 bucket[1] += sc["tp"] + sc["fp"] + sc["fn"]
     inv, lists = [], []
-    for r in results:
+    for r in results:  # every delivery: a first growth under other names can go wrong where the second does not
         if r.get("variant", "S0") != "S0" and not r.get("error") and r["firm"] in base:
-            b, v = base[r["firm"]]["deliveries"][-1], r["deliveries"][-1]
-            inv.append((_jaccard(b["open"], v["open"]) + _jaccard(b["overdue"], v["overdue"])) / 2)
-            lists.append(_jaccard(b.get("lists", []), v.get("lists", [])))
+            for b, v in zip(base[r["firm"]]["deliveries"], r["deliveries"]):
+                inv.append((_jaccard(b["open"], v["open"]) + _jaccard(b["overdue"], v["overdue"])) / 2)
+                lists.append(_jaccard(b.get("lists", []), v.get("lists", [])))
     return dict(money=round(money[0] / money[1], 3) if money[1] else None,
                 heute=round(tasks[0] / tasks[1], 3) if tasks[1] else None,
                 names=round(sum(inv) / len(inv), 3) if inv else None,

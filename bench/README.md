@@ -6,7 +6,7 @@ ihren Lieferungen und dem, was an jedem Liefertag wahr ist. Physarum wächst jed
 dieselben Dinge: S1 neutrale Dateinamen, S2 andere Spaltenüberschriften; die schnellen auch S3 (beides).
 
 ```bash
-python bench/run.py              # alle Firmen, auch als S1 und S2 (gut 2 Minuten)
+python bench/run.py              # alle Firmen, auch als S1 und S2 (rund 6 Minuten)
 python bench/run.py demo maler   # nur diese
 python bench/run.py --s0         # nur unter eigenen Namen: der schnelle Blick beim Arbeiten
 python bench/run.py --save       # das Ergebnis wird die neue Basis (bench/baseline.json)
@@ -26,8 +26,8 @@ python bench/run.py --save       # das Ergebnis wird die neue Basis (bench/basel
 
 Gemessen wird je Lieferung: offene Posten (richtig/zu viel/fehlend, Euro), überfällige Rechnungen,
 fertige Aufträge ohne Rechnung, Festpreis-Projekte deutlich über Budget, Geld ohne Rechnung, Einträge auf
-Heute, Fragen (davon zum Datenmodell). Unter S1–S3 zudem: dieselben offenen Posten wie im Original, und
-heißen die Listen gleich?
+Heute, Fragen (davon zum Datenmodell). Unter S1–S3 zudem, in jeder Lieferung: dieselben offenen Posten wie im
+Original, und heißen die Listen gleich?
 Dazu, was der Code kostet: Zeilen, Wort-Regeln (eine Bedingung, die ein Wort oder eine Wortliste prüft),
 reguläre Ausdrücke. „Listen gleich benannt“ misst nur, ob die Namen unter S1–S3 gleich bleiben, nicht ob sie
 gut sind.

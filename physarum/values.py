@@ -874,6 +874,7 @@ _PERIOD_NUM = re.compile(r"^(\d{1,2})\s*/\s*(\d{4})$")
 _PERIOD_TXT = re.compile(r"^([a-zäöü]+)\.?\s+(\d{4})$", re.I)
 _PERIOD_KW = re.compile(r"^(?:kw|kalenderwoche|woche|wk|cw|week)\s*\.?\s*(\d{1,2})\s*(?:[/.-]\s*|\s+)(\d{4})$", re.I)
 _PERIOD_Q = re.compile(r"^(?:q\s*([1-4])|([1-4])\s*\.\s*quartal)\s*(?:[/.-]\s*|\s+)?(\d{4})$", re.I)
+_PERIOD_SPAN = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{4})?\s*(?:[-–—]|bis)\s*(\d{1,2})\.(\d{1,2})\.(\d{4})$", re.I)
 
 
 def _month_span(y: int, mo: int) -> tuple[date, date]:
@@ -882,8 +883,9 @@ def _month_span(y: int, mo: int) -> tuple[date, date]:
 
 
 def parse_period(v) -> tuple[date, date] | None:
-    """'10/2026', 'Okt. 2026', 'KW 44/2026', 'Q4/2026' -> (first day, last day). Planned dates in
-    craft businesses are rarely days: "next maintenance in October"."""
+    """'10/2026', 'Okt. 2026', 'KW 44/2026', 'Q4/2026', '01.07.–30.09.2026' -> (first day, last day). Planned
+    dates in craft businesses are rarely days: "next maintenance in October"; a service period on an
+    invoice is a span."""
     if v is None or isinstance(v, (int, float)):
         return None
     s = " ".join(str(v).strip().split())
@@ -898,6 +900,13 @@ def parse_period(v) -> tuple[date, date] | None:
         if m:
             q, y = int(m.group(1) or m.group(2)), int(m.group(3))
             return _month_span(y, 3 * q - 2)[0], _month_span(y, 3 * q)[1]
+        m = _PERIOD_SPAN.match(s)
+        if m:
+            b = date(int(m.group(6)), int(m.group(5)), int(m.group(4)))
+            a = date(int(m.group(3) or b.year), int(m.group(2)), int(m.group(1)))
+            if a > b and not m.group(3):
+                a = a.replace(year=b.year - 1)  # "15.12.–14.01.2027"
+            return (a, b) if a <= b and (b - a).days <= 400 else None
         m = _PERIOD_NUM.match(s)
         if m:
             mo, y = int(m.group(1)), int(m.group(2))

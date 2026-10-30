@@ -899,6 +899,10 @@ def _read_xml(stem: str, data: bytes, d: Digest):
     from .einvoice import parse, to_tables
 
     root = fromstring(data)
+    camt = _camt_table(root, stem)
+    if camt is not None:
+        d.tables.append(camt)
+        return
     inv = parse(root)
     if inv and inv.get("number"):
         head, lines, doc = to_tables(inv, stem)
@@ -910,6 +914,84 @@ def _read_xml(stem: str, data: bytes, d: Digest):
     text = " ".join(t.strip() for t in root.itertext() if t and t.strip())
     if text:
         d.docs.append(RawDoc("xml", stem, text[:200000]))
+
+
+_CAMT_BODY = {"BkToCstmrStmt", "BkToCstmrAcctRpt", "BkToCstmrDbtCdtNtfctn"}
+
+
+def _camt_table(root, stem: str) -> RawTable | None:
+    """ISO 20022 bank statements (camt.053 statements, camt.052 reports, camt.054 notices), as banking
+    software and many online banks export them: the bookings become the table a CSV export would give –
+    one row per transaction (a batch splits into its transactions), the amount signed, the other party
+    named as payer or payee."""
+    def loc(el):
+        return el.tag.rsplit("}", 1)[-1]
+
+    def first(el, *path):
+        cur = [el]
+        for name in path:
+            cur = [x for c in cur for x in c if loc(x) == name]
+            if not cur:
+                return None
+        return cur[0]
+
+    def txt(el, *path):
+        x = first(el, *path) if el is not None else None
+        return x.text.strip() if x is not None and x.text and x.text.strip() else None
+
+    def day(s):
+        try:
+            return date.fromisoformat(s[:10]) if s else None
+        except ValueError:
+            return None
+
+    body = next((x for x in root if loc(x) in _CAMT_BODY), None) if loc(root) == "Document" else None
+    if body is None:
+        return None
+    cols = ["Buchungstag", "Valutadatum", "Buchungstext", "Verwendungszweck", "Zahlungspartner", "IBAN", "BIC", "Betrag",
+            "Währung", "Kundenreferenz (End-to-End)", "Mandatsreferenz", "Gläubiger-ID"]
+    rows, owner, iban = [], None, None
+    for st in (x for x in body if loc(x) in ("Stmt", "Rpt", "Ntfctn")):
+        iban = iban or txt(st, "Acct", "Id", "IBAN")
+        owner = owner or txt(st, "Acct", "Ownr", "Nm")
+        for e in (x for x in st if loc(x) == "Ntry"):
+            if (txt(e, "Sts", "Cd") or txt(e, "Sts") or "BOOK") != "BOOK":
+                continue  # pending or informational entries are no bookings yet
+            sign = -1 if txt(e, "CdtDbtInd") == "DBIT" else 1
+            booked = day(txt(e, "BookgDt", "Dt") or txt(e, "BookgDt", "DtTm"))
+            value = day(txt(e, "ValDt", "Dt") or txt(e, "ValDt", "DtTm"))
+            cur = first(e, "Amt")
+            txs = [t for nd in e if loc(nd) == "NtryDtls" for t in nd if loc(t) == "TxDtls"] or [None]
+            for tx in txs:
+                amt = (txt(tx, "Amt") or txt(tx, "AmtDtls", "TxAmt", "Amt")) if tx is not None else None
+                if amt is None or len(txs) == 1:
+                    amt = amt or txt(e, "Amt")
+                ind = txt(tx, "CdtDbtInd") if tx is not None else None
+                s = (-1 if ind == "DBIT" else 1) if ind in ("DBIT", "CRDT") else sign
+                side = "Dbtr" if s > 0 else "Cdtr"  # the other party: who paid us, whom we paid
+                name = (txt(tx, "RltdPties", "Ultmt" + side, "Pty", "Nm") or txt(tx, "RltdPties", side, "Pty", "Nm")
+                        or txt(tx, "RltdPties", side, "Nm"))
+                ib = txt(tx, "RltdPties", side + "Acct", "Id", "IBAN")
+                bic = txt(tx, "RltdAgts", side + "Agt", "FinInstnId", "BICFI") or \
+                    txt(tx, "RltdAgts", side + "Agt", "FinInstnId", "BIC")
+                purpose = " ".join(x.text.strip() for x in (tx.iter() if tx is not None else [])
+                                   if loc(x) == "Ustrd" and x.text and x.text.strip())
+                ref = txt(tx, "RmtInf", "Strd", "CdtrRefInf", "Ref")
+                if ref and ref not in purpose:
+                    purpose = (purpose + " " + ref).strip()
+                creditor = txt(tx, "RltdPties", "Cdtr", "Pty", "Id", "PrvtId", "Othr", "Id") or \
+                    txt(tx, "RltdPties", "Cdtr", "Id", "PrvtId", "Othr", "Id")
+                try:
+                    money = round(s * float(amt), 2) if amt else None
+                except ValueError:
+                    money = None
+                rows.append([booked, value, txt(tx, "AddtlTxInf") or txt(e, "AddtlNtryInf"), purpose or None, name, ib,
+                             bic, money, cur.get("Ccy") if cur is not None else None, txt(tx, "Refs", "EndToEndId"),
+                             txt(tx, "Refs", "MndtId"), creditor])
+    if not rows:
+        return None
+    return RawTable(name=f"Kontoauszug {iban or stem}", columns=cols, rows=rows, lines=list(range(1, len(rows) + 1)),
+                    meta={"format": "camt", "title": f"Kontoauszug {owner or ''} · IBAN {iban or ''}".strip()})
 
 
 def _pdf_attachments(data: bytes, d: Digest):

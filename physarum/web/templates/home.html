@@ -3,6 +3,7 @@
 {% macro reason(g, it) -%}
   {%- if g.kind == 'overdue' -%}seit {{ it.days }} {{ 'Tag' if it.days == 1 else 'Tagen' }} überfällig{% if it.due_how %} <span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">(Fälligkeit berechnet: {{ it.due_how }})</span>{% endif %}{% if it.claim %} · <span class="tag guess" title="Vor einer Erinnerung klären">{{ it.claim }}</span>{% endif %}
   {%- elif g.kind == 'late' -%}wartet seit {{ it.days }} Tagen <span class="faint">(üblich {{ after_days(it.usual or 0) }})</span>
+  {%- elif g.kind == 'ready' and it.period -%}{{ it.reason }}
   {%- elif g.kind == 'ready' -%}{{ 'seit heute' if it.days == 0 else 'seit ' ~ days_text(it.days) }} fertig{% if it.late %} <span class="faint">(üblich berechnet {{ after_days(it.usual or 0) }})</span>{% endif %}{% if it.reason %} · {{ it.reason }}{% endif %}
   {%- elif g.kind == 'soon' -%}{{ 'heute fällig' if it.days == 0 else 'fällig in ' ~ it.days ~ (' Tag' if it.days == 1 else ' Tagen') }}
   {%- elif g.kind == 'payable' -%}{{ 'heute fällig' if it.days == 0 else ('seit ' ~ (-it.days) ~ (' Tag' if it.days == -1 else ' Tagen') ~ ' fällig' if it.days < 0 else 'fällig in ' ~ it.days ~ (' Tag' if it.days == 1 else ' Tagen')) }}{% if it.due_how %} <span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">(berechnet: {{ it.due_how }})</span>{% endif %}{% if it.reason %} · {{ it.reason }}{% endif %}
@@ -27,7 +28,8 @@
 
 {% if bank_until %}
 <div class="notice warn" style="margin-bottom:14px">
-  <b>Stand Ihrer Daten: Kontoauszug bis {{ display(bank_until.day, 'date') }}</b> (vor {{ bank_until.days }} Tagen). Was seitdem bezahlt wurde, sieht Physarum noch nicht – erst den aktuellen Kontoauszug <a href="/quellen#einwerfen">einwerfen</a>, dann erinnern oder berechnen.
+  {% if bank_until.day %}<b>Stand Ihrer Daten: Kontoauszug bis {{ display(bank_until.day, 'date') }}</b> (vor {{ bank_until.days }} Tagen). Was seitdem bezahlt wurde, sieht Physarum noch nicht – erst den aktuellen Kontoauszug <a href="/quellen#einwerfen">einwerfen</a>, dann erinnern oder berechnen.
+  {% else %}<b>Kein Kontoauszug gefunden.</b> Was offen und überfällig ist, steht hier nur so, wie es Ihre Listen sagen. Den Kontoauszug aus dem Online-Banking (CSV oder camt.053) <a href="/quellen#einwerfen">einwerfen</a> – dann sagt die Bank, was bezahlt ist.{% endif %}
 </div>
 {% endif %}
 

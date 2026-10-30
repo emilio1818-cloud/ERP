@@ -191,8 +191,8 @@ def own_names(store, raw: list[dict]) -> set[str]:
             continue
         if str(t.get("source_name") or "").lower().endswith((".pdf", ".eml", ".msg")):
             continue
-        for n in set(_firm_names((t.get("meta") or {}).get("title") or "")):
-            titles[norm(n)] += 1
+        for n in {norm(x) for x in _firm_names((t.get("meta") or {}).get("title") or "")}:
+            titles[n] += 1  # once per title: "& Events GmbH" and "Events GmbH" are the same tail
     if titles:
         top = max(titles.values())
         out.add(max((n for n, c in titles.items() if c == top), key=len))

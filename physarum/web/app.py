@@ -214,7 +214,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         days = [d for b in bank_specs(rt.model) for r in rt.records.get(b["spec"]["id"], [])
                 if (d := as_date(r["data"].get(b["date"]["id"])))]
         last = max(days, default=None)
-        age = (date.today() - last).days if last else 0
+        if last is None:  # no statement at all: what is open and overdue is only what the lists say
+            return dict(day=None, days=None) if rt.ledger else None
+        age = (date.today() - last).days
         return dict(day=last, days=age) if age > 7 else None
 
     def suggestions() -> list[dict]:

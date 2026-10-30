@@ -786,11 +786,15 @@ class MentionIndex:
         self.names: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
         self.emails: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
         self.domains: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
+        self.keys: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)  # every number, short ones too
         for t in types:
             if t.kind == "line":
                 continue
             gs = groups[id(t)]
             key = t.key
+            for i, g in enumerate(gs) if key is not None and key.kind in ("id", "text") else []:
+                if g.values.get(key.aid) is not None:
+                    self.keys[_compact(str(g.values[key.aid]))].append((t, i))
             if key is not None and key.kind in ("id", "text"):  # a code written as text: "LP-PN 88"
                 keys = [(i, g.values.get(key.aid)) for i, g in enumerate(gs) if g.values.get(key.aid) is not None]
                 if keys and (sum(distinctive(str(k)) for _, k in keys) >= 0.8 * len(keys) or
@@ -821,6 +825,11 @@ class MentionIndex:
                             if dom not in FREEMAIL:
                                 self.domains[dom].append((t, i))
         self.max_name_len = max((len(k.split()) for k in self.names), default=0)
+
+    def whole(self, value: str) -> dict[tuple[int, int], tuple[TypeDraft, int, str]]:
+        """The one record whose number the whole value is ("MV-06" in a column of references)."""
+        hits = self.keys.get(_compact(value)) or []
+        return {(id(hits[0][0]), hits[0][1]): (hits[0][0], hits[0][1], "Nummer")} if len(hits) == 1 else {}
 
     def scan(self, text: str, names: bool = False) -> dict[tuple[int, int], tuple[TypeDraft, int, str]]:
         """Return {(id(type), group index): (type, group index, how)} for everything mentioned in text."""
@@ -903,8 +912,10 @@ def discover_mentions(types: list[TypeDraft], groups: dict[int, list[Group]], in
                 if r0 is None or a.kind not in ("text", "id", "ref"):
                     continue
                 resolved = (set(r0.targets) - r0.multi) | {gi for _d, hits in r0.extra for gi in hits}
-            elif a.kind != "text" or a.role not in ("notes", None, "category"):
+            elif not (a.kind == "text" and a.role in ("notes", None, "category")) and \
+                    not (a.kind == "id" and a is not t.key):
                 continue
+            whole = a.kind == "id" and not resolved  # a reference into several lists: "VA-26-042", "MV-06"
             gs = groups[id(t)]
             per_dst: dict[int, RelDraft] = {}
             rows_with = Counter()
@@ -914,7 +925,7 @@ def discover_mentions(types: list[TypeDraft], groups: dict[int, list[Group]], in
                 v = g.values.get(a.aid)
                 if not v or len(str(v)) < 5:
                     continue
-                hits = index.scan(str(v))
+                hits = index.whole(str(v)) if whole else index.scan(str(v))
                 for (_tid, _gi), (d, dgi, how) in hits.items():
                     if d is t:
                         continue

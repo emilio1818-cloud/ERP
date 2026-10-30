@@ -124,7 +124,17 @@ def gebaeude(tmp: Path) -> list[dict]:
     return [dict(files=_files(out / d["folder"]), today=d["today"], truth=d) for d in t["deliveries"]]
 
 
+def catering(tmp: Path) -> list[dict]:
+    """A catering and event business nobody had seen (review 9): events with deposits and final invoices after the guest
+    count, cancellation fees, Kita lunches billed monthly by meal counts, framework contracts billed per quarter, a lunch
+    subscription, cash at the office, the bank only as camt.053 statements (one XML per day, a ZIP per month); twice."""
+    out = tmp / "catering"
+    subprocess.run([sys.executable, str(HERE / "gen" / "catering.py"), str(out)], check=True, capture_output=True)
+    t = json.loads((out / "truth.json").read_text(encoding="utf-8"))
+    return [dict(files=_files(out / d["folder"]), today=d["today"], truth=d) for d in t["deliveries"]]
+
+
 FIRMS = dict(demo=demo, brenner=brenner, agentur=agentur, handwerk=handwerk, musikschule=musikschule, maler=maler,
-             shop=shop, werkstatt=werkstatt, gebaeude=gebaeude)
+             shop=shop, werkstatt=werkstatt, gebaeude=gebaeude, catering=catering)
 # every firm also runs with neutral file names (S1) and other headings (S2); the quick ones with both (S3)
 VARIED = ("demo", "maler", "musikschule")

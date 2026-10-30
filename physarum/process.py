@@ -19,7 +19,7 @@ from . import lexicon
 from .billing import is_draft
 from .dunning import WAIT, sent_on
 from .text import fold, tokens
-from .values import as_date, due_range, event_date, fmt_eur
+from .values import add_months, as_date, due_range, event_date, fmt_eur, parse_period
 
 RECURRING = {"monatlich", "monatspauschale", "pauschale", "mtl", "monthly", "abo", "miete", "monatsbeitrag",
              "monatsrate", "rate", "grundgebuehr", "wartungspauschale"}
@@ -1420,6 +1420,13 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 x["hold"] = m["rid"]
     groups += mail
     groups += _due_work(model, records, by_id, title, today)
+    periods = _period_work(model, records, by_id, title, today, outrefs, void)
+    shown = {x["rid"] for g in periods for x in g["items"]}
+    for g in groups if shown else []:  # a delivery note of an unbilled period is listed there, not twice
+        if g["kind"] in ("late", "ready") and shown & {x["rid"] for x in g["items"]}:
+            g["items"] = [x for x in g["items"] if x["rid"] not in shown]
+            g["count"], g["amount"] = len(g["items"]), round(sum(x["money"] or 0 for x in g["items"]), 2)
+    groups = [g for g in groups if g["count"]] + periods
     groups += _threshold_work(model, records, title)
     groups += _rhythm_work(model, records, by_id, title, today)
     groups += _reach_work(model, records, by_id, title, today)
@@ -1500,6 +1507,105 @@ def _budget_work(model, records, mention_refs, title) -> list[dict]:
                             explain=f"Summe der {' und '.join(dict.fromkeys(sources))} je {spec['name']} verglichen mit "
                                     f"„{budget['name']}“ – ab 120 %. Laufend abgerechnete (mehr als zwei Rechnungen) "
                                     f"bleiben außen vor."))
+    return out
+
+
+def _period_work(model, records, by_id, title, today, outrefs, void) -> list[dict]:
+    """A case billed period by period – a cleaning contract every month, a framework contract every quarter –
+    with a period nobody billed once its usual day has passed: money not asked for. Which period an invoice
+    bills, its service period says (§ 14 UStG wants it on the invoice); rhythm and usual day come from the
+    case's own invoices, the first period from its start when that lies within the data, the last from an
+    end date its invoices keep to. Two periods in a row without an invoice at the end: it has ended. Where
+    the period's invoice bills the case's delivery notes, those are what waits to be billed."""
+    procs = {p["type"]: p for p in model.get("processes", [])}
+    specs = {t["id"]: t for t in model["types"]}
+
+    def span(v):
+        s = parse_period(v)
+        return s if s and (s[1] - s[0]).days >= 25 else None  # a month or more: a period, not a day
+
+    def billing(tid):  # (process, its "berechnet" step) of a kind of case
+        q = procs.get(tid) or {}
+        return q, next((s for s in q.get("steps", []) if s["source"] == "child" and fold(s["label"]) == BILLED), None)
+    out = []
+    for p in model.get("processes", []):
+        _, st = billing(p["type"])
+        ip = procs.get(st["type"]) if st and st.get("rel_kind") in ("ref", "mention") else None
+        if not ip:
+            continue
+        linked = []
+        for r in records.get(st["type"], []):
+            if is_draft(r) or void(r):
+                continue
+            cs = [r["data"].get(st["rel_attr"])] if st["rel_kind"] == "ref" else \
+                [to for to, attr, k, how in (outrefs or {}).get(r["id"], []) if attr == st["rel_attr"]]
+            linked += [(c, r) for c in cs if c in by_id and by_id[c]["type"] == p["type"]]
+        hits = Counter(a["id"] for c, r in linked for a in specs[st["type"]]["attrs"] if span(r["data"].get(a["id"])))
+        pattr = hits.most_common(1)[0][0] if hits else None
+        if not pattr or hits[pattr] < 0.6 * len(linked):
+            continue
+        per = defaultdict(list)
+        for c, r in linked:
+            sp, d = span(r["data"].get(pattr)), as_date(r["data"].get(ip["start"]["attr"]))
+            if sp and d:
+                per[c].append((sp[0], sp[1], d, r))
+        if not per:
+            continue
+        since = min(d for rows in per.values() for a, b, d, r in rows)  # the first invoice the data holds
+        units = [(s, *billing(s["type"])) for s in p["steps"] if s is not st and s["source"] == "child"
+                 and s.get("rel_kind") == "ref"]
+        ks = {c: Counter(round((b - a).days / 30.4) for a, b, d, r in rows).most_common(1)[0][0] for c, rows in per.items()}
+        recurring = Counter(ks[c] for c, rows in per.items() if len(rows) >= 2)
+        items = []
+        for c, rows in per.items():
+            case, k = by_id[c], ks[c]
+            if k not in (1, 2, 3, 6, 12) or (len(rows) < 2 and recurring[k] < 3):
+                continue  # one invoice is a period of many only where others of its kind recur
+            lag = timedelta(days=statistics.median((d - b).days for a, b, d, r in rows) + 10)
+            first = min(a for a, b, d, r in rows).replace(day=1)
+            start = as_date(case["data"].get(p["start"]["attr"]))
+            while start and since < start < first:
+                first = add_months(first, -k)  # began within the data: its first period counts too
+            last = max(a for a, b, d, r in rows)
+            end = min((d for a in specs[p["type"]]["attrs"] if a["kind"] in ("date", "datetime") and a["id"] != p["start"]["attr"]
+                       and (d := as_date(case["data"].get(a["id"]))) and d >= last), default=None)  # "Vertragsende"
+            blocks, e = [], first
+            while add_months(e, k) - timedelta(days=1) + lag < today and not (end and e > end):
+                if add_months(e, k) - timedelta(days=1) + lag >= since:  # its invoice would be in the data
+                    mid = e + timedelta(days=15 * k)
+                    blocks.append((e, any(a <= mid <= b for a, b, d, r in rows)))
+                e = add_months(e, k)
+            tail = len(blocks)
+            while tail and not blocks[tail - 1][1]:
+                tail -= 1
+            missing = [e for e, billed in (blocks[:tail] if len(blocks) - tail >= 2 else blocks) if not billed]
+            if not missing:
+                continue
+            spans = [(e, add_months(e, k)) for e in missing]
+            when = ", ".join(e.strftime("%m/%Y") if k == 1 else f"{e:%m}–{add_months(e, k - 1):%m/%Y}" for e in missing)
+            billed = {r["id"] for a, b, d, r in rows}
+            waiting = []
+            for s, up, ub in units:  # delivery notes the period's invoice bills: those are what waits
+                kids = [u for u in records.get(s["type"], []) if u["data"].get(s["rel_attr"]) == c] if ub else []
+                if ub and ub.get("rel_kind") == "own_ref" and any(u["data"].get(ub["rel_attr"]) in billed for u in kids):
+                    waiting += [u for u in kids if not u["data"].get(ub["rel_attr"]) and any(
+                        a <= (as_date(u["data"].get(up["start"]["attr"])) or date.min) < b for a, b in spans)]
+            usual = statistics.median(_money(r, ip) or 0 for a, b, d, r in rows)
+            items += [dict(rid=u["id"], title=title(u["id"]), days=(today - missing[0]).days, money=_money(u, procs[u["type"]]),
+                           period=True, reason=f"{title(c)} {when} – noch ohne Rechnung") for u in waiting] or \
+                [dict(rid=c, title=title(c), days=(today - missing[0]).days, money=round(usual * len(missing), 2),
+                      party=title(pv) if isinstance(pv := case["data"].get(p.get("party")), int) and pv in by_id else None,
+                      period=True, reason=f"{when} ohne Rechnung")]
+        if items:
+            spec = specs[p["type"]]
+            items.sort(key=lambda x: -x["days"])
+            out.append(dict(id=f"{p['id']}:periods", type=p["type"], kind="ready", severity=2,
+                            title=f"{spec['plural']}: Zeitraum ohne Rechnung", count=len(items),
+                            amount=round(sum(x["money"] or 0 for x in items), 2), items=items, step=st["label"],
+                            action=dict(kind="create_child", type=st["type"], label=st["name"], attr=st["rel_attr"])
+                            if st["rel_kind"] == "ref" else None,
+                            explain=f"Diese {spec['plural']} werden Zeitraum für Zeitraum berechnet; für die genannten "
+                                    f"Zeiträume gibt es keine Rechnung, obwohl ihr üblicher Tag vorbei ist."))
     return out
 
 

@@ -169,8 +169,10 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                 listed_of.setdefault(pv, []).append(r)
         if not outgoing:
             out.extend(_direct_debits(banks, records, open_inv + listed, rest, p, linked_bank | skip))
-        iban_party = _iban_history(banks, records, ledger, p) if p.get("party") else {}
+        iban_party = _iban_history(banks, records, ledger, p, model) if p.get("party") else {}
         start = lambda r: as_date(r["data"].get(p["start"]["attr"]))  # noqa: E731
+        gross = {r["id"]: rest.get(r["id"], as_number(r["data"].get(p["gross"]))) for r in open_inv + listed}
+        known_payer = defaultdict(list)  # payer -> their transfers that name no invoice and no date
         for b in banks:
             for row in records.get(b["spec"]["id"], []):
                 if row["id"] in linked_bank or row["id"] in skip:
@@ -184,7 +186,7 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                 cands = by_party.get(party, []) if isinstance(party, int) else []
                 via_iban = False
                 if not cands and b["iban"] is not None:
-                    # the account paid this customer's invoices before, with their numbers: it is theirs
+                    # the account is the customer's: their list gives it, or it paid their invoices with numbers
                     known = iban_party.get(str(row["data"].get(b["iban"]["id"]) or "").replace(" ", "").upper())
                     if known and len(known) == 1:
                         party = next(iter(known))
@@ -203,63 +205,102 @@ def find_matches(model: dict, records: dict, mentions: dict, titles: dict, ledge
                         if not cands:  # the invoice names someone in no list: "Fischer, Jan und Petra" pays "Fam. Fischer"
                             cands = [r for r in open_inv if not isinstance(r["data"].get(p["party"]), int) and
                                      _named_alike(payer, ((r.get("meta") or {}).get("raw") or {}).get(p["party"]))]
+                text = " ".join(str(row["data"].get(a["id"]) or "") for a in b["spec"]["attrs"] if a["kind"] == "text")
+                named = {as_date(m) for m in _INVOICE_OF.findall(text)} - {None}
+                if named and isinstance(party, int):
+                    # "Ihre Rechnung vom 31.07.2026": that one, also when the book has ticked it off already
+                    dated = [r for r in by_party.get(party, []) + listed_of.get(party, []) if start(r) in named]
+                    if dated:
+                        out.append(_proposal(row, b, dated[:1], p, amount, when, "Rechnungsdatum wie im Zweck",
+                                             abs(gross[dated[0]["id"]] - amount) < 0.005, titles, party))
+                    continue  # a date of an invoice the lists do not have: not one of these
                 if not cands and about.get(row["id"]):
                     # the purpose names what an invoice was for – the car "LP-PN 88", the order –, not who pays
                     cands = [r for r in open_inv if about[row["id"]] & {v for v in r["data"].values() if isinstance(v, int)}]
-                text = " ".join(str(row["data"].get(a["id"]) or "") for a in b["spec"]["attrs"] if a["kind"] == "text")
-                named = {as_date(m) for m in _INVOICE_OF.findall(text)} - {None}
                 if not cands and named:
                     # "Ihre Rechnung vom 15.04.2026" from someone else (the owners' association pays for the manager)
                     cands = [r for r in open_inv if start(r) in named]
                 cands = [r for r in cands if (start(r) or date.min) <= when]
                 if not cands:
                     continue
-                gross = {r["id"]: rest.get(r["id"], as_number(r["data"].get(p["gross"]))) for r in cands}
+                if isinstance(party, int) and not named and not about.get(row["id"]) and \
+                        all(r["data"].get(p["party"]) == party for r in cands):
+                    known_payer[party].append((when, row["id"], row, b, amount, cands, via_iban, text))
+                    continue
                 exact = [r for r in cands if abs(gross[r["id"]] - amount) < 0.005]
                 if len(exact) > 1 and named:
                     exact = [r for r in exact if start(r) in named] or exact  # the date the purpose names decides
-                match, how, sure = None, None, False
                 if exact:
                     exact.sort(key=lambda r: str(r["data"].get(p["start"]["attr"]) or ""))
-                    match, how = [exact[0]], "Betrag stimmt auf den Cent" + (" (älteste von mehreren)" if len(exact) > 1 else "")
-                    if via_iban:
-                        how += ", das Konto hat früher Rechnungen dieses Kunden bezahlt"
-                    if named and start(exact[0]) in named:
-                        how += ", Rechnungsdatum wie im Zweck"
-                    sure = len(exact) == 1  # the payer has exactly one open invoice of exactly this amount
-                else:
-                    sk = [r for r in cands if 0.965 * gross[r["id"]] - 0.005 <= amount <= 0.985 * gross[r["id"]] + 0.005]
-                    if len(sk) == 1:
-                        pct = round((1 - amount / gross[sk[0]["id"]]) * 100, 1)
-                        match, how = sk, f"Betrag abzüglich {str(pct).replace('.', ',')} % Skonto"
-                    else:
-                        # a collective transfer may also pay an invoice the book already marks as paid
-                        both = cands + [r for r in listed_of.get(party, []) if (start(r) or date.min) <= when] \
-                            if isinstance(party, int) else cands
-                        gross.update({r["id"]: rest.get(r["id"], as_number(r["data"].get(p["gross"]))) for r in both})
-                        pairs = []
-                        for i in range(len(both)):
-                            for j in range(i + 1, len(both)):
-                                if abs(gross[both[i]["id"]] + gross[both[j]["id"]] - amount) < 0.005 and \
-                                        (both[i] in cands or both[j] in cands):
-                                    pairs.append([both[i], both[j]])
-                        if len(pairs) == 1:
-                            match, how = pairs[0], "Summe zweier offener Rechnungen"
-                            # "Sammelzahlung lt. Aufstellung": the payer says so, the cents agree
-                            sure = bool(_COLLECTIVE.search(text)) or len(cands) == 2
-                if match:
-                    out.append(dict(bank=row["id"], bank_type=b["spec"]["id"], invoices=[r["id"] for r in match],
-                                    invoice_type=p["type"], amount=amount, when=when.isoformat(), how=how,
-                                    exact=how.startswith("Betrag stimmt"), sure=sure,
-                                    payer=titles.get(party) if isinstance(party, int) else
-                                    (row["data"].get(b["name"]["id"]) if b["name"] else None)))
+                    out.append(_proposal(row, b, exact[:1], p, amount, when, "Betrag stimmt auf den Cent" +
+                                         (" (älteste von mehreren)" if len(exact) > 1 else ""), len(exact) == 1,
+                                         titles, party))
+                    continue
+                sk = [r for r in cands if 0.965 * gross[r["id"]] - 0.005 <= amount <= 0.985 * gross[r["id"]] + 0.005]
+                if len(sk) == 1:
+                    pct = round((1 - amount / gross[sk[0]["id"]]) * 100, 1)
+                    out.append(_proposal(row, b, sk, p, amount, when, f"Betrag abzüglich {str(pct).replace('.', ',')} % Skonto",
+                                         False, titles, party))
+        # a known payer who names nothing pays the oldest open first (§ 366 Abs. 2 BGB), in the order the
+        # money came: on the cent one invoice, the oldest of several alike, or the oldest few together
+        for party, rows in known_payer.items():
+            left = {r["id"]: gross[r["id"]] for x in rows for r in x[5]}
+            for when, _rid, row, b, amount, cands, via_iban, text in sorted(rows, key=lambda x: (x[0], x[1])):
+                open_ = sorted((r for r in cands if left[r["id"]] > 0.005),
+                               key=lambda r: (str(r["data"].get(p["start"]["attr"]) or ""), r["id"]))
+                if not open_:
+                    continue
+                exact = [r for r in open_ if abs(left[r["id"]] - amount) < 0.005]
+                sk = [r for r in open_ if 0.965 * left[r["id"]] - 0.005 <= amount <= 0.985 * left[r["id"]] + 0.005]
+                sure = True
+                if exact:
+                    take, how = exact[:1], "Betrag stimmt auf den Cent" + (" (älteste von mehreren)" if len(exact) > 1 else "")
+                elif len(sk) == 1 and sk[0] is open_[0]:
+                    pct = round((1 - amount / left[sk[0]["id"]]) * 100, 1)
+                    take, how, sure = sk, f"Betrag abzüglich {str(pct).replace('.', ',')} % Skonto", False
+                else:  # the oldest ones on the cent; less, or more, may be money for something else
+                    take, acc = [], 0.0
+                    for r in open_:
+                        if acc >= amount - 0.005:
+                            break
+                        take.append(r)
+                        acc += left[r["id"]]
+                    how = f"Summe der {len(take)} ältesten offenen Rechnungen"
+                    if abs(acc - amount) >= 0.005:
+                        # one transfer for two, one of them perhaps ticked off in the book already
+                        both = open_ + [r for r in listed_of.get(party, []) if (start(r) or date.min) <= when]
+                        pairs = [c for c in combinations(both, 2) if (c[0] in open_ or c[1] in open_) and
+                                 abs(left.get(c[0]["id"], gross[c[0]["id"]]) + left.get(c[1]["id"], gross[c[1]["id"]])
+                                     - amount) < 0.005]
+                        if len(pairs) != 1:
+                            continue
+                        take, how = list(pairs[0]), "Summe zweier Rechnungen"
+                        sure = bool(_COLLECTIVE.search(text)) or len(open_) == 2  # "Sammelzahlung lt. Aufstellung"
+                if via_iban:
+                    how += ", das Konto ist das des Kunden"
+                money = amount
+                for r in take:
+                    used = min(left.get(r["id"], gross[r["id"]]), money)
+                    left[r["id"]] = left.get(r["id"], gross[r["id"]]) - used
+                    money -= used
+                m = _proposal(row, b, take, p, amount, when, how, sure, titles, party)
+                m["in_turn"] = True  # one after the other: two of them may each pay part of the same invoice
+                out.append(m)
     # sure only alone: two transfers for one invoice, or one transfer fitting two lists, is a question
     per_bank = Counter(m["bank"] for m in out)
-    per_inv = Counter(i for m in out for i in m["invoices"])
+    per_inv = Counter(i for m in out if not m.get("in_turn") for i in m["invoices"])
+    turn_inv = {i for m in out if m.get("in_turn") for i in m["invoices"]}
     for m in out:
-        if per_bank[m["bank"]] > 1 or any(per_inv[i] > 1 for i in m["invoices"]):
+        if per_bank[m["bank"]] > 1 or any(per_inv[i] > 1 or (per_inv[i] and i in turn_inv) for i in m["invoices"]):
             m["sure"] = False
     return out
+
+
+def _proposal(row, b, invs, p, amount, when, how, sure, titles, party) -> dict:
+    return dict(bank=row["id"], bank_type=b["spec"]["id"], invoices=[r["id"] for r in invs], invoice_type=p["type"],
+                amount=amount, when=when.isoformat(), how=how, exact=how.startswith("Betrag stimmt"), sure=sure,
+                payer=titles.get(party) if isinstance(party, int) else
+                (row["data"].get(b["name"]["id"]) if b["name"] else None))
 
 
 _PEOPLE = SALUTATIONS | TITLES
@@ -278,8 +319,21 @@ _INVOICE_OF = re.compile(r"rechnung(?:en)?\s+(?:vom|v\.)\s*(\d{1,2}\.\d{1,2}\.\d
 _COLLECTIVE = re.compile(r"sammel|aufstellung|rechnungen\b|div\.\s*re", re.I)
 
 
-def _iban_history(banks, records, ledger, p) -> dict[str, set]:
-    """{IBAN: customers whose invoices it paid} – a payer is known by the account."""
+def master_ibans(model: dict, records: dict) -> dict[str, set]:
+    """{IBAN: the customers (or suppliers) whose own list gives that account} – for the direct debit, mostly."""
+    out: dict[str, set] = {}
+    for t in model["types"]:
+        if t["kind"] == "master":
+            for a in (a for a in t["attrs"] if a["kind"] == "iban"):
+                for r in records.get(t["id"], []):
+                    iv = re.sub(r"\s+", "", str(r["data"].get(a["id"]) or "")).upper()
+                    if len(iv) >= 15:
+                        out.setdefault(iv, set()).add(r["id"])
+    return out
+
+
+def _iban_history(banks, records, ledger, p, model) -> dict[str, set]:
+    """{IBAN: customers whose invoices it paid, or whose list gives it} – a payer is known by the account."""
     party_of = {r["id"]: r["data"].get(p["party"]) for r in records.get(p["type"], [])}
     rows = {r["id"]: (b, r) for b in banks for r in records.get(b["spec"]["id"], []) if b["iban"] is not None}
     out: dict[str, set] = {}
@@ -293,6 +347,8 @@ def _iban_history(banks, records, ledger, p) -> dict[str, set]:
                 iv = str(r["data"].get(b["iban"]["id"]) or "").replace(" ", "").upper()
                 if len(iv) >= 15:
                     out.setdefault(iv, set()).add(pv)
+    for iv, rids in master_ibans(model, records).items():
+        out.setdefault(iv, set(rids))  # what the account paid says more than a list (two records of one customer)
     return out
 
 

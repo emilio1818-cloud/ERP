@@ -145,6 +145,7 @@ ROLE_TERMS: dict[str, list[str]] = {
     "vat_id": ["ustid", "ustidnr", "vatid", "steuernummer", "steuernr"],
     "url": ["url", "web", "website", "homepage", "link"],
     "unit": ["einheit", "unit", "me", "mengeneinheit"],
+    "duration": ["tage", "days"],  # "Skonto Tage": a number of days, whatever else the heading says
 }
 # phrases (folded, space separated) with fixed meaning; checked before single tokens
 ROLE_PHRASES: dict[str, str] = {
@@ -361,7 +362,7 @@ def _header_role(toks: list[str]) -> str | None:
     # last token is the head of the header in German and English ("Kunden-Nr", "Order ID")
     order = list(reversed(toks))
     for t in order:
-        for role in ("id", "email", "phone", "zip", "iban", "bic", "vat_id", "url", "due", "status", "percent",
+        for role in ("id", "email", "phone", "zip", "iban", "bic", "vat_id", "url", "due", "status", "duration", "percent",
                      "money", "quantity", "date", "street", "city", "country", "notes", "person", "category",
                      "name", "unit"):
             if t in ROLE_TERMS[role]:

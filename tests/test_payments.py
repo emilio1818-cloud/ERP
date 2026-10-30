@@ -493,3 +493,112 @@ class UntilTheMoney(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Contracts(unittest.TestCase):
+    """A cleaning firm: objects under contract, a customer with several of them, the account the customer list
+    gives, a statement whose first money column is only filled on returns, money that names no invoice (the
+    oldest first, § 366 BGB), an advice that holds one invoice back, a purpose cut off after 140 characters."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="physarum-contract-"))
+        custs = [("10001", "Kanzlei Lotse PartG", "DE89251933316843135158"), ("10002", "Hausverwaltung Kai GmbH", "DE53259400333432537529"),
+                 ("10003", "Kirchengemeinde St. Anna", "DE94520604101809531276"), ("10004", "Praxis am Markt GbR", "DE22300606013064489528"),
+                 ("10005", "Bistro Anker", "DE12259700740256736020")]
+        kunden = ["Kundennr;Firma;IBAN;Zahlungsart"] + [f"{k};{n};{i};Überweisung" for k, n, i in custs]
+        objekte = ["Obj.-Nr.;Kd.-Nr.;Objekt;Pauschale"]
+        objs = {"10001": ["OB-101"], "10002": ["OB-102", "OB-103", "OB-104"], "10003": ["OB-105"], "10004": ["OB-106"],
+                "10005": ["OB-107"]}
+        price = {"OB-101": 357.0, "OB-102": 809.2, "OB-103": 618.8, "OB-104": 285.6, "OB-105": 487.9, "OB-106": 547.4,
+                 "OB-107": 214.2}
+        for k, os in objs.items():
+            objekte += [f"{o};{k};Objekt {o};{eur(price[o] / 1.19)}" for o in os]
+        book = ["Re.-Nr.;Datum;Kd.-Nr.;Obj.-Nr.;Kunde;Zahlart;Brutto;fällig am"]
+        bank = ["Buchungstag;Verwendungszweck;Lastschrift Ursprungsbetrag;Beguenstigter/Zahlungspflichtiger;Kontonummer/IBAN;Betrag"]
+        name, iban = {k: n for k, n, _ in custs}, {k: i for k, _, i in custs}
+        cls.no, n = {}, 0
+        months = [TODAY.replace(day=1) - timedelta(days=31 * m) for m in (5, 4, 3, 2, 1)]
+        for m in months:
+            day = (m.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)  # the last of the month
+            for k, os in objs.items():
+                for o in os:
+                    n += 1
+                    no = f"2026-{n:04d}"
+                    cls.no[(o, m.month)] = no
+                    book.append(f"{no};{de(day)};{k};{o};{name[k]};Überweisung;{eur(price[o])};{de(day + timedelta(days=14))}")
+        cls.months = [m.month for m in months]
+        first, second, third, fourth, last = cls.months
+        pay = lambda d, text, k, amount: bank.append(f"{de(d)};{text};;{name[k].upper()};{iban[k]};{eur(amount)}")  # noqa: E731
+        later = lambda mon, days: [m for m in months if m.month == mon][0] + timedelta(days=31 + days)  # noqa: E731
+        for mon in cls.months[:-1]:  # the manager pays its three objects with numbers – but in August the purpose is cut off
+            nos = [cls.no[(o, mon)] for o in objs["10002"]]
+            text = "Sammelzahlung " + " ".join(f"Wohnanlage Objekt Nummer {o} RE {x}," for o, x in zip(objs["10002"], nos))
+            pay(later(mon, 9), text[:140] if mon == third else text, "10002", sum(price[o] for o in objs["10002"]))
+        # the last month: an advice names all three, holds one back, the transfer is for two
+        nos = [cls.no[(o, last)] for o in objs["10002"]]
+        cls.advice = (nos[0], nos[1], nos[2])
+        pay(later(last, 9), "Zahlungsavis 3 Belege", "10002", price["OB-102"] + price["OB-103"])
+        # the parish pays a quarter at once, naming nothing
+        pay(later(third, 12), "Reinigung Gemeindehaus", "10003", 3 * price["OB-105"])
+        # the law firm's two oldest invoices are alike; one transfer of that amount, no number
+        pay(later(first, 20), "Danke", "10001", price["OB-101"])
+        for mon in cls.months:  # the practice and the bistro pay with numbers
+            pay(later(mon, 5), f"RE {cls.no[('OB-106', mon)]}", "10004", price["OB-106"])
+            pay(later(mon, 6), f"Rechnung {cls.no[('OB-107', mon)]}", "10005", price["OB-107"])
+        # the bistro's debit came back once: only that line fills the first money column
+        bank.append(f"{de(later(second, 8))};RUECKLASTSCHRIFT RE {cls.no[('OB-107', second)]};{eur(price['OB-107'])};"
+                    f"BISTRO ANKER;{iban['10005']};-{eur(price['OB-107'])}")
+        mail = (f"From: Buchhaltung <buchhaltung@hv-kai.example>\nTo: info@reinigung.example\nSubject: Zahlungsavis\n"
+                f"Date: {later(last, 9).strftime('%a, %d %b %Y')} 09:00:00 +0200\nContent-Type: text/plain; charset=utf-8\n\n"
+                f"mit Valuta heute haben wir beglichen:\n  {nos[0]}   {eur(price['OB-102'])} €\n  {nos[1]}   {eur(price['OB-103'])} €\n"
+                f"Die Rechnung {nos[2]} behalten wir wegen der Reklamation ein.\n")
+        files = {"Kunden_Export.csv": kunden, "Objektliste.csv": objekte, "Rechnungsausgangsbuch.csv": book,
+                 "Sparkasse_Umsaetze.csv": bank}
+        for f, rows in files.items():
+            (cls.tmp / f).write_text("\n".join(rows) + "\n", encoding="utf-8")
+        (cls.tmp / "Zahlungsavis.eml").write_text(mail, encoding="utf-8")
+        cls.store = Store(cls.tmp / "firma")
+        ingest(cls.store, [(f, (cls.tmp / f).read_bytes()) for f in list(files) + ["Zahlungsavis.eml"]], "T")
+        regrow(cls.store)
+        cls.rt = Runtime(cls.store)
+        cls.rt.ensure()
+        cls.spec = next(t for t in cls.rt.model["types"] if t["name"] == "Rechnung")
+        cls.state = {r["data"][cls.spec["key"]]: cls.rt.ledger[r["id"]] for r in cls.rt.records[cls.spec["id"]]}
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def states(self, obj, months=None):
+        return [self.state[self.no[(obj, m)]]["state"] for m in (months or self.months)]
+
+    def test_the_invoice_names_its_customer_by_number(self):
+        party = next(a for a in self.spec["attrs"] if a["kind"] == "ref" and
+                     next(t for t in self.rt.model["types"] if t["id"] == a["ref"])["name"] == "Kunde")
+        kunde = next(t for t in self.rt.model["types"] if t["name"] == "Kunde")
+        self.assertEqual(party["orig_name"] if party.get("orig_name") else party["name"], "Kd.-Nr.")
+        self.assertFalse([a for a in kunde["attrs"] if a.get("orig_name") == "Obj.-Nr."])  # an object is no customer field
+        names = {self.rt.title(r["data"][party["id"]]) for r in self.rt.records[self.spec["id"]]}
+        self.assertIn("Hausverwaltung Kai GmbH", names)
+
+    def test_the_amount_of_a_statement_line_is_the_column_filled_on_every_line(self):
+        self.assertEqual(self.states("OB-106"), ["bezahlt"] * 5)
+        second = self.months[1]
+        self.assertEqual(self.state[self.no[("OB-107", second)]]["state"], "offen")  # the returned debit
+
+    def test_money_that_names_nothing_pays_the_oldest_first(self):
+        first, second = self.months[:2]
+        self.assertEqual(self.states("OB-101", [first, second]), ["bezahlt", "offen"])
+        self.assertEqual(self.states("OB-105", self.months[:3]), ["bezahlt"] * 3)  # a quarter at once
+        self.assertEqual(self.states("OB-105", self.months[3:]), ["offen"] * 2)
+
+    def test_a_cut_off_purpose_still_pays_all_three(self):
+        third = self.months[2]
+        self.assertEqual([self.state[self.no[(o, third)]]["state"] for o in ("OB-102", "OB-103", "OB-104")],
+                         ["bezahlt"] * 3)
+
+    def test_the_advice_says_which_and_holds_one_back(self):
+        a, b, held = self.advice
+        self.assertEqual([self.state[x]["state"] for x in (a, b, held)], ["bezahlt", "bezahlt", "offen"])
+        self.assertFalse(self.state[a]["notes"])  # paid in full, no skonto guessed

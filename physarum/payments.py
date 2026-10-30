@@ -22,6 +22,7 @@ from .values import as_date, as_number, fmt_eur, parse_duration, skonto_terms
 _NUMBER_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9\-/_.]*[0-9]")
 _GLUED = re.compile(r"(?<=[A-Za-z.])\d{5}$")
 _DAY = re.compile(r"\b\d{1,2}\.\d{1,2}\.(?:19|20)\d{2}\b")
+_ISO_DAY = re.compile(r"\b(?:19|20)\d{2}-\d{2}-\d{2}\b")
 _CREDITOR_ID = re.compile(r"\b[A-Z]{2}\d{2}ZZZ[A-Z0-9]{8,28}\b")  # SEPA creditor id: on a debit and on its return
 
 EPS = 0.01
@@ -378,6 +379,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             row = by_id[b]
             return as_date(row["data"].get(banks[row["type"]]["date"]["id"])) or date.min
 
+        named_any = {i for invs in links.values() for i in invs}
         for b in sorted(links, key=lambda b: (when_of(b), b)):
             invs = links[b]
             row = by_id[b]
@@ -433,6 +435,9 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             if any(_RETENTION.search(str(row["data"].get(a["id"]) or "")) for a in bs["spec"]["attrs"] if a["kind"] == "text"):
                 for i in invs:
                     entries[i]["retention_hint"] = True  # "abzgl. 5% Sicherheitseinbehalt"
+            more = _cut_off(invs, value, entries, recs, p, named_any, when) if not book else None
+            if more:
+                invs = invs + [more]
             left = value
             for k, i in enumerate(invs):
                 e = entries[i]
@@ -441,8 +446,9 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 if take <= 0 and k != len(invs) - 1:
                     continue
                 e["paid"] += take
-                e["payments"].append(dict(rid=b, date=when, amount=round(take, 2), how=how,
-                                          shared=len(invs) > 1, by_amount=bool(by_amount and (b, i) in by_amount)))
+                e["payments"].append(dict(rid=b, date=when, amount=round(take, 2), shared=len(invs) > 1,
+                                          how="Rest der Sammelzahlung – ihr Zweck ist abgeschnitten, der Betrag passt"
+                                          if i == more else how, by_amount=bool(by_amount and (b, i) in by_amount)))
                 left -= take
         _net_overpayments(entries, links, {r["id"]: r["data"].get(key) for r in recs} if key else {}, when_of)
         # money the owner entered by hand: cash, a cheque, an offset – next to what the bank says
@@ -457,9 +463,10 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                                               how=f"{CASH_KINDS.get(m.get('how'), 'Zahlung')} (von Hand eingetragen)"))
         pool = iban_party = None
 
-        def pool_of():  # bank lines that name no invoice, and the accounts that paid a customer's invoices before
-            nonlocal pool, iban_party
+        def pool_of():  # bank lines that name no invoice, and the accounts that are a customer's: the account
+            nonlocal pool, iban_party  # their list gives, the accounts that paid their invoices before
             if pool is None:
+                from .reconcile import master_ibans
                 pool = _bank_pool(model, banks, records, by_id, set(links) | claimed, ip["outgoing"])
                 iban_party = {}
                 for bb, invs in links.items():
@@ -469,6 +476,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                         pv = by_id[i]["data"].get(p.get("party")) if i in by_id and p.get("party") else None
                         if len(iv) >= 15 and isinstance(pv, int):
                             iban_party.setdefault(iv, set()).add(pv)
+                for iv, rids in master_ibans(model, records).items():
+                    iban_party.setdefault(iv, set(rids))
             return pool, iban_party
 
         # the book's "erhalten" beyond what the bank shows: the customer's transfer without a number (a down
@@ -620,8 +629,8 @@ def _iban_of(b: dict, row: dict) -> str:
 def _listed_payment(model, pool, iban_party, owed, paid_on, r, p, spec, by_id, window=(7, 7)) -> dict | None:
     """The invoice book says "bezahlt am 13.01."; on the statement, the same customer transferred
     exactly that amount within a few days (`window`: days before, days after), without a number: that is the
-    payment. "The same customer" is its name, an account that paid its invoices before, or a purpose naming
-    the invoice's date."""
+    payment. "The same customer" is its name, an account that is theirs (in their list, or it paid their
+    invoices before), or a purpose naming the invoice's date."""
     cands = [x for x in pool.get(round(owed, 2), []) if -window[0] <= (x["date"] - paid_on).days <= window[1]]
     if not cands:
         return None
@@ -646,7 +655,7 @@ def _listed_payment(model, pool, iban_party, owed, paid_on, r, p, spec, by_id, w
 
 
 def _listed_together(alone, pool, model, p, by_id, claimed, iban_party):
-    """Two invoices the book marks paid within a few days of each other, and one transfer of the payer
+    """Two invoices the book marks paid within a month of each other, and one transfer of the payer
     over exactly their sum ("Sammelzahlung lt. Aufstellung August"): that transfer paid both. The book
     may give each invoice its own day; two pairs that would fit the same transfer leave it alone."""
     if not pool or len(alone) < 2:
@@ -662,10 +671,10 @@ def _listed_together(alone, pool, model, p, by_id, claimed, iban_party):
         cust = norm_name(_title_of(model, by_id.get(pv), by_id)) if isinstance(pv, int) else pv
         options = defaultdict(list)  # transfer -> the pairs it would pay
         for (r1, e1, d1), (r2, e2, d2) in combinations(items, 2):
-            if abs((d1 - d2).days) > 7 or e1["payments"][0]["rid"] is not None or e2["payments"][0]["rid"] is not None:
+            if abs((d1 - d2).days) > 31 or e1["payments"][0]["rid"] is not None or e2["payments"][0]["rid"] is not None:
                 continue
             total = round(e1["paid"] + e2["paid"], 2)
-            fit = [x for x in pool.get(total, []) if all(abs((x["date"] - d).days) <= 7 for d in (d1, d2)) and
+            fit = [x for x in pool.get(total, []) if all(abs((x["date"] - d).days) <= 31 for d in (d1, d2)) and
                    ((x["party"] == pv) or (cust and x["name"] and name_similarity(cust, x["name"]) >= 0.6) or
                     (iban_party or {}).get(x["iban"]) == {pv})]
             if len(fit) == 1:
@@ -828,6 +837,7 @@ def _skonto_agreed(model: dict, by_id: dict, p: dict, r: dict) -> tuple | bool:
     for rec in (r, by_id.get(r["data"].get(p.get("party"))) if p.get("party") else None):
         if not rec:
             continue
+        given = []
         for a in specs.get(rec["type"], {}).get("attrs", []):
             v = rec["data"].get(a["id"])
             terms = skonto_terms(v)
@@ -835,39 +845,70 @@ def _skonto_agreed(model: dict, by_id: dict, p: dict, r: dict) -> tuple | bool:
                 return terms
             if "skonto" in fold(a["name"]):
                 if v not in (None, "", 0, 0.0, False) and fold(str(v)) not in ("nein", "kein", "keins", "0"):
-                    return True
+                    given.append(as_number(v))
+        if len(given) == 2 and None not in given:  # "Skonto %" 2 and "Skonto Tage" 8: the share is the smaller
+            pct, days = sorted(given)
+            pct = pct * 100 if pct < 1 else pct
+            if 0 < pct <= 10 and 1 <= days <= 60 and float(days).is_integer():
+                return int(days), pct
+        if given:
+            return True
     return False
 
 
 def _payment_advice(records: dict, banks: dict, by_no: dict, entries: dict, links: dict) -> dict[int, float]:
     """A letter that names several open invoices ("Zahlungsavis", a reminder), and within two weeks one
-    transfer of exactly their sum – or of their sum less the same skonto on each: the transfer pays them.
+    transfer of exactly their sum – or of the sum of some of them (one is held back: "behalten wir ein"), or of
+    their sum less the same skonto on each: the transfer pays them. On the cent comes before a skonto.
     Linked in `links`; returns {bank rid: the share deducted}."""
     from .reconcile import bank_amount
     out, used = {}, set()
     rows = [(b, row) for b in banks for row in records.get(b, []) if row["id"] not in links]
     for d in records.get("doc", []):
         text = str(d["data"].get("doc_text") or "")[:5000]
-        written = _DAY.search(f"{d['data'].get('doc_title') or ''} {text}")  # a PDF without a date of its own
-        when = as_date(d["data"].get("doc_date")) or (as_date(written.group(0)) if written else None)
+        written = _DAY.search(f"{d['data'].get('doc_title') or ''} {text}") or _ISO_DAY.search(text)  # a PDF, a SEPA
+        when = as_date(d["data"].get("doc_date")) or (as_date(written.group(0)) if written else None)  # file (pain.008)
         named = sorted({i for tok in _NUMBER_TOKEN.findall(text) if (i := by_no.get(norm_key(tok))) in entries})
         if not when or len(named) < 2:
             continue
-        total = round(sum(entries[i]["gross"] - entries[i]["credit"] for i in named), 2)
-        fits = []
+        owed = {i: round(entries[i]["gross"] - entries[i]["credit"], 2) for i in named}
+        total = round(sum(owed.values()), 2)
+        groups = [c for n in range(2, len(named) + 1) for c in combinations(named, n)] if len(named) <= 10 \
+            else [tuple(named)]
+        sums = defaultdict(list)
+        for c in groups:
+            sums[round(sum(owed[i] for i in c), 2)].append(c)
+        sums = {v: cs[0] for v, cs in sums.items() if len(cs) == 1}  # two ways to the same sum: neither
+        exact, cuts = [], []
         for btid, row in rows:
             amount = bank_amount(banks[btid], row["data"]) or 0.0
             day = as_date(row["data"].get(banks[btid]["date"]["id"]))
             if row["id"] in used or amount <= EPS or not day or not 0 <= (day - when).days <= 14:
                 continue
             cut = round(1 - amount / total, 4) if total > EPS else 1.0
-            if abs(amount - total) <= EPS or 0.005 <= cut <= SKONTO_MAX:
-                fits.append((row["id"], max(cut, 0.0)))
+            if round(amount, 2) in sums:
+                exact.append((row["id"], list(sums[round(amount, 2)]), 0.0))
+            elif 0.005 <= cut <= SKONTO_MAX:
+                cuts.append((row["id"], list(named), cut))
+        fits = exact if exact else cuts
         if len(fits) == 1:
-            links[fits[0][0]] = list(named)
-            out[fits[0][0]] = fits[0][1]
+            links[fits[0][0]] = fits[0][1]
+            out[fits[0][0]] = fits[0][2]
             used.add(fits[0][0])
     return out
+
+
+def _cut_off(invs: list[int], value: float, entries: dict, recs: list[dict], p: dict, named_any: set, when) -> int | None:
+    """A collective transfer whose purpose ends mid-number (140 characters): what is left after the invoices
+    it names is, on the cent, one more open invoice of the same payer that no transfer names – that one."""
+    left = round(value - sum(max(entries[i]["gross"] - entries[i]["credit"] - entries[i]["paid"], 0.0) for i in invs), 2)
+    who = {r["data"].get(p.get("party")) for r in recs if r["id"] in invs} if p.get("party") else set()
+    if left <= EPS or len(who) != 1 or not isinstance(next(iter(who)), int):
+        return None
+    more = [r["id"] for r in recs if r["id"] in entries and r["id"] not in named_any and r["data"].get(p["party"]) in who
+            and not entries[r["id"]]["paid"] and (entries[r["id"]]["start"] or date.min) <= (when or date.max)
+            and abs(entries[r["id"]]["gross"] - entries[r["id"]]["credit"] - left) <= EPS]
+    return min(more, key=lambda i: (entries[i]["start"] or date.min, i)) if more else None
 
 
 def _fitting(invs: list[int], entries: dict, value: float) -> list[int]:
@@ -938,8 +979,10 @@ def _finish(e: dict):
         if share <= SKONTO_MAX and timely and not e.get("skonto_ok"):
             e["state"] = "teilbezahlt"
             e["deducted"] = True  # taken off, not paid later: to claim, whether due or not
-            e["notes"].append(f"{str(round(share * 100, 1)).replace('.', ',')} % ({fmt_eur(e['open'])}) abgezogen, ohne dass "
-                              f"Skonto vereinbart ist – nachfordern oder bewusst ausbuchen")
+            late = terms and share <= terms[1] / 100 + 0.001
+            e["notes"].append(f"{str(round(share * 100, 1)).replace('.', ',')} % ({fmt_eur(e['open'])}) abgezogen, "
+                              + (f"aber erst nach {(last - e['start']).days} Tagen gezahlt – Skonto gilt {terms[0]} Tage"
+                                 if late else "ohne dass Skonto vereinbart ist") + " – nachfordern oder bewusst ausbuchen")
             return
         if share <= SKONTO_MAX and timely:
             e["state"] = "bezahlt"

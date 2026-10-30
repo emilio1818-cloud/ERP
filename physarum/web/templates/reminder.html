@@ -10,13 +10,16 @@ table{width:100%;border-collapse:collapse;margin:14px 0}th{text-align:left;color
 td{padding:5px 4px;border-bottom:1px solid #ddd}.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 tfoot td{font-weight:700;border-bottom:0}@media print{.noprint{display:none}body{padding:0}}</style>
 </head><body>
-<div class="noprint notice" style="margin-bottom:20px">
-  <b>Entwurf – bitte prüfen.</b> Ein Brief an {{ addr.name }} mit allen überfälligen Rechnungen{% if items %} ({{ items|length }}){% endif %}.
+<div class="noprint notice{{ ' good' if sent }}" style="margin-bottom:20px">
+  {% if sent %}<b>Versendet am {{ display(sent.on, 'date') }}.</b> So ging der Brief an {{ addr.name }} hinaus. Bis {{ display(sent.until, 'date') }} hat der Kunde Zeit; was dann noch offen ist, steht wieder auf „Heute“ – mit der nächsten Stufe.
+  {% else %}<b>Entwurf – bitte prüfen.</b> Ein Brief an {{ addr.name }} mit allen überfälligen Rechnungen{% if items %} ({{ items|length }}){% endif %}.{% endif %}
+  {% if talk %}<br>Zuletzt geschrieben{% if not sent %} – vor dem Versand lesen{% endif %}: {% for t in talk %}<a href="/r/{{ t.rid }}">„{{ t.title }}“</a> ({{ display(t.day, 'date') }}){{ ', ' if not loop.last }}{% endfor %}{% endif %}
   {% if company_missing %}<br>Es fehlen noch Ihre Firmendaten ({{ company_missing|join(', ') }}) – <a href="/firma?zurueck=/mahnung/{{ pid }}?typ={{ tid }}">eintragen</a>.{% endif %}
   {% if lack %}<br>Beim Kunden fehlt {{ lack|join(', ') }} – ohne vollständige Anschrift kommt der Brief nicht an. <a href="/r/{{ cust.id }}">Kunde öffnen</a>{% endif %}
   {% for x in items if x.due_how %}<br>{{ x.number }}: Im Buch steht kein Fälligkeitsdatum – berechnet mit {{ x.due_how }}. Bitte prüfen, bevor der Brief rausgeht.{% endfor %}
   {% for h in held %}<br>Nicht in diesem Brief: {{ h.number }} – {% if h.complaint %}dazu gibt es <a href="/r/{{ h.complaint.rid }}">„{{ h.complaint.title }}“</a>; erst klären, dann mahnen.{% else %}eine Zahlung ohne Nummer passt dazu ({{ h.maybe_paid.text }}) – <a href="/fragen">erst bestätigen</a>.{% endif %}{% endfor %}
-  <div class="row" style="margin-top:8px">{% if items %}<button class="small primary" data-post="/mahnung/{{ pid }}" data-body='{"typ": "{{ tid }}"}'>Als versendet protokollieren</button>{% endif %}
+  {% for w in waiting %}<br>Nicht in diesem Brief: {{ w.number }} – am {{ display(w.sent, 'date') }} erinnert, Frist bis {{ display(w.wait, 'date') }}.{% endfor %}
+  <div class="row" style="margin-top:8px">{% if items and not sent %}<button class="small primary" data-post="/mahnung/{{ pid }}" data-body='{"typ": "{{ tid }}"}'>Als versendet protokollieren</button>{% endif %}
     <button type="button" class="small" data-print>Drucken</button><a class="btn small ghost" href="/r/{{ cust.id }}">zurück</a></div>
 </div>
 <div class="sender"><b>{{ company.name or 'Ihre Firma' }}</b><br>{{ company.street }}<br>{{ company.zip }} {{ company.city }}

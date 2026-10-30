@@ -1076,21 +1076,36 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             return page(request, "message.html", dict(title="Nicht gefunden", text="Kunde oder Liste gibt es nicht."), 404)
         send = [x for x in items if not x["complaint"] and not x["maybe_paid"]]
         held = [x for x in items if x["complaint"] or x["maybe_paid"]]
+        waiting = [x for x in send if x["wait"]]
+        send = [x for x in send if not x["wait"]]
+        sent = None
+        if waiting and not send:  # the letter that went out, as it went out – the next one waits for its day
+            send, waiting = waiting, []
+            sent = dict(on=max(x["sent"] for x in send), until=max(x["wait"] for x in send))
         level = max((x["level"] for x in send), default=1)
         addr = billing.recipient(rt, pid)
         lack = [n for k, n in (("street", "Straße"), ("zip", "PLZ"), ("city", "Ort")) if not addr.get(k)]
+        # what the customer wrote lately, about these invoices or at all: read before a letter goes out
+        talk = {}
+        for frm, attr, kind, how in rt.backrefs.get(pid, []) + [b for x in items for b in rt.backrefs.get(x["rid"], [])]:
+            d = rt.by_id.get(frm)
+            day = as_date(str(d["data"].get("doc_date") or "")[:10]) if d and d["type"] == "doc" else None
+            if day and 0 <= (date.today() - day).days <= 90:
+                talk[frm] = dict(rid=frm, title=rt.title(frm), day=day)
         return templates.TemplateResponse(request, "reminder.html", dict(
-            request=request, items=send, held=held, cust=cust, addr=addr, lack=lack, level=level,
-            title_text=dunning.LEVELS[level], company=billing.company(store), company_missing=billing.company_missing(store),
-            total=round(sum(x["open"] for x in send), 2), tid=tid, pid=pid, today=views.today_text(),
-            spec=rt.spec(tid)))
+            request=request, items=send, held=held, waiting=waiting, sent=sent, cust=cust, addr=addr, lack=lack,
+            level=level, title_text=dunning.LEVELS[level], company=billing.company(store),
+            company_missing=billing.company_missing(store), total=round(sum(x["open"] for x in send), 2), tid=tid,
+            pid=pid, today=views.today_text(sent["on"] if sent else None), spec=rt.spec(tid),
+            talk=sorted(talk.values(), key=lambda x: x["day"], reverse=True)[:5]))
 
     def reminder_sent(request: Request, form):
         from .. import dunning
         pid = int(request.path_params["pid"])
         n = dunning.record_sent(rt, pid, form.get("typ") or "", actor(request))
         if not n:
-            return JSONResponse(dict(error="Nichts zu protokollieren – keine überfällige Rechnung (ohne Reklamation)."))
+            return JSONResponse(dict(error="Nichts zu protokollieren – keine überfällige Rechnung ohne Reklamation, "
+                                           "deren letzter Brief schon abgelaufen ist."))
         return JSONResponse(dict(reload=True, toast=f"Versand protokolliert: {n} {'Rechnung' if n == 1 else 'Rechnungen'}, "
                                                      f"jede mit Eintrag im Verlauf."))
 

@@ -17,6 +17,7 @@ from datetime import date, timedelta
 
 from . import lexicon
 from .billing import is_draft
+from .dunning import WAIT, sent_on
 from .text import fold, tokens
 from .values import as_date, due_range, event_date, fmt_eur
 
@@ -840,7 +841,7 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
                 act = dict(href=f"/t/{tid}/neu?a_{pattr}={party}", label=f"+ {specs[tid]['name']}")
         items.append(dict(rid=d["id"], title=subject or "E-Mail", party=title(party) if party else None,
                           days=(today - when).days, money=None, reason=reason, mail=what, act=act,
-                          invoice=invoice, when=when.isoformat()))
+                          invoice=invoice, when=when.isoformat(), who=party))
     bank = [x for x in items if x["mail"] == "bank"]
     items = [x for x in items if x["mail"] != "bank"]
     if not items:
@@ -1144,6 +1145,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             if len(reached) >= 5 and sum(1 for r in reached if r["data"].get(dl["attr"]) is not None) >= 0.7 * len(reached):
                 planned[sid] = dl["attr"]
         buckets = defaultdict(list)
+        reminded = defaultdict(list)  # step -> until when each case reminded of it has to pay
         for r in recs:
             if sattr and str(r["data"].get(sattr)) in negative:
                 continue
@@ -1203,7 +1205,10 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                                                    reason=cut["text"] if cut else None,
                                                                    skonto=cut["days"] if cut else None))
                     break
-                if due and due < today:
+                sent = sent_on(r) if due and due < today and fold(st["label"]) == "bezahlt" else None
+                if sent and (today - sent).days < WAIT:
+                    reminded[st["id"]].append(sent + timedelta(days=WAIT))  # the customer has until then
+                elif due and due < today:
                     buckets[(st["id"], "overdue")].append(dict(rid=r["id"], days=(today - due).days, money=money,
                                                                due=due.isoformat(), paid=paid_part, due_how=due_how))
                 elif st.get("p80_days") is not None and st.get("n", 0) >= 5 and \
@@ -1267,6 +1272,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 x["title"] = title(x["rid"])
                 pv = r["data"].get(party) if party else None
                 x["party"] = title(pv) if isinstance(pv, int) and pv in by_id else (pv if isinstance(pv, str) else None)
+                x["who"] = pv if isinstance(pv, int) else None
                 if pending_payments and x["rid"] in pending_payments:
                     x["maybe_paid"] = pending_payments[x["rid"]]  # a transfer without reference fits: do not dun
                 if x["rid"] in draft_of and st and st["source"] == "child":
@@ -1303,11 +1309,14 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             elif st and st["source"] == "child" and (specs.get(st["type"]) or {}).get("concept") not in _FACTS:
                 action = dict(kind="create_child", type=st["type"], label=st["name"],
                               attr=st["rel_attr"] if st.get("rel_kind") != "own_ref" else None)  # else: from the case
+            wait = reminded.get(sid) if kind == "overdue" else None
             groups.append(dict(id=f"{p['id']}:{sid}:{kind}", type=p["type"], kind=kind, severity=sev, title=head,
                                count=len(items), amount=total, items=items[:50], action=action,
                                top=kind == "payable" and sev == 2,  # a deadline before what is merely large
                                step=st["label"] if st else None,
-                               explain=_explain(p, st, kind)))
+                               explain=_explain(p, st, kind) + (f" {len(wait)} erinnert, Frist bis {max(wait).strftime('%d.%m.')} – "
+                                                                f"{'steht' if len(wait) == 1 else 'stehen'} bis dahin nicht hier."
+                                                                if wait else "")))
     if drafts:
         items = []
         for r, p in drafts:
@@ -1393,11 +1402,21 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                count=len(risks), amount=at_stake, items=risks, action=None,
                                explain="Vor einer Zahlung telefonisch beim bekannten Ansprechpartner prüfen. "
                                        "So sieht Rechnungsbetrug typischerweise aus."))
-    claims = {x["invoice"]: x for g in mail for x in g["items"] if x.get("mail") == "claim"}
+    # what a reminder waits for: the customer's word that it is paid, a complaint, an objection – about the
+    # invoice, or from the customer without naming one
+    asks = {}
+    for g in mail:
+        for x in g["items"]:
+            if x["mail"] in ("claim", "complaint") and (x.get("invoice") or x.get("who")):
+                asks.setdefault(x.get("invoice") or ("who", x["who"]), x)
     for g in groups:
         for x in g["items"] if g["kind"] == "overdue" else []:
-            if x["rid"] in claims:  # the customer says it is paid: look before reminding
-                x["claim"] = f"Kunde sagt: bezahlt (Mail vom {_short_day(date.fromisoformat(claims[x['rid']]['when']).strftime('%d.%m.%Y'))})"
+            m = asks.get(x["rid"]) or asks.get(("who", x.get("who")))
+            if m:  # look before reminding
+                day = date.fromisoformat(m["when"]).strftime("%d.%m.")
+                x["claim"] = f"Kunde sagt: bezahlt (Mail vom {day})" if m["mail"] == "claim" else \
+                    f"Kunde schreibt am {day}: „{m['title']}“ – erst klären"
+                x["hold"] = m["rid"]
     groups += mail
     groups += _due_work(model, records, by_id, title, today)
     groups += _threshold_work(model, records, title)

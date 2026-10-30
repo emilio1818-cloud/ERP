@@ -4,7 +4,7 @@ import tempfile
 import time
 import unittest
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from starlette.testclient import TestClient
@@ -317,7 +317,17 @@ class WebPages(unittest.TestCase):
         h = {"origin": "http://testserver", "x-requested-with": "fetch"}
         self.assertIn("toast", self.c.post(f"/mahnung/{pid}", data={"typ": typ}, headers=h).json())
         self.assertEqual(len(store.record(rid)["meta"].get("dunning") or []), 1)
-        self.assertIn("1. Mahnung", self.c.get(url).text)            # the next letter is one level up
+        page = self.c.get(url).text                                  # the letter as it went out, not the next one
+        self.assertIn("Versendet am", page)
+        self.assertNotIn("1. Mahnung", page)
+        self.assertIn("error", self.c.post(f"/mahnung/{pid}", data={"typ": typ}, headers=h).json())  # not twice
+        from physarum import dunning
+        rt = Runtime(store)
+        rt.ensure()
+        later = [x for x in dunning.overdue_of(rt, int(pid), typ, date.today() + timedelta(days=dunning.WAIT))
+                 if x["rid"] == rid]
+        self.assertEqual([x["level"] for x in later], [2])          # once its time is up: one level up
+        self.assertFalse([x for g in rt.work() if g["kind"] == "overdue" for x in g["items"] if x["rid"] == rid])
 
     def test_odd_input_never_breaks_a_page(self):
         m = Store(self.tmp / "firma").model()

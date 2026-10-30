@@ -693,6 +693,48 @@ class CraftFirm(unittest.TestCase):
         home = TestClient(create_app(self.f.dir / "firma")).get("/").text            # the statement ends 10.09.
         self.assertIn("Stand Ihrer Daten: Kontoauszug bis 10.09.2026", home)
 
+    def test_a_reminder_waits_for_an_objection_and_counts_what_the_book_says(self):
+        """Review 9: „Erinnern“ offered to a customer who had objected by mail, a first reminder where the book said
+        „gemahnt“, and after the letter at once the next level while Heute stayed as it was."""
+        from email.message import EmailMessage
+        from physarum import dunning
+        today, rows, bank = date.today(), [], []
+        for i in range(24):
+            d = today - timedelta(days=150 - 5 * i)
+            gross = 952 + 29.75 * i
+            rows.append([f"RE-{i + 1:04d}", d.strftime("%d.%m.%Y"), f"Kunde {i % 4}", _eur(gross),
+                         (d + timedelta(days=14)).strftime("%d.%m.%Y"), {20: "offen", 21: "offen", 22: "gemahnt"}.get(i, "bezahlt")])
+            if i < 20 or i == 23:
+                bank.append([(d + timedelta(days=10)).strftime("%d.%m.%Y"), f"Kunde {i % 4}", f"Rechnung RE-{i + 1:04d}", _eur(gross)])
+        msg = EmailMessage()
+        msg["From"], msg["To"], msg["Subject"] = "Kunde 1 <post@kunde1.example>", "info@muster.example", "Widerspruch Lastschrift"
+        msg["Date"] = (today - timedelta(days=5)).strftime("%a, %d %b %Y 10:00:00 +0200")
+        msg.set_content("Wir haben der Lastschrift widersprochen – Widerspruch wegen der Preiserhöhung. Bitte rufen Sie uns an.")
+        self.f.feed([("Rechnungen.csv", csv("Rechnungsnr;Datum;Kunde;Brutto;fällig am;Status", rows)),
+                     ("Kunden.csv", csv("Kd.-Nr.;Name;E-Mail", [[f"K{i}", f"Kunde {i}", f"post@kunde{i}.example"] for i in range(4)])),
+                     ("Umsaetze.csv", csv(BANK_HEAD, bank)), ("widerspruch.eml", msg.as_bytes())])
+        rt = self.f.rt()
+        inv = _type(rt, "Rechnung")
+        overdue = {x["title"]: x for g in rt.work() if g["kind"] == "overdue" for x in g["items"]}
+        self.assertEqual(sorted(overdue), ["RE-0021", "RE-0022", "RE-0023"])
+        self.assertIn("Widerspruch Lastschrift", overdue["RE-0022"]["claim"])          # the customer's objection,
+        self.assertTrue(overdue["RE-0022"]["hold"])                                      # so no reminder from Heute
+        party = next(a["id"] for a in inv["attrs"] if a["kind"] == "ref")
+        who = {k: rt.by_id[overdue[k]["rid"]]["data"][party] for k in overdue}
+        self.assertTrue(dunning.overdue_of(rt, who["RE-0022"], inv["id"])[0]["complaint"])  # nor in the letter
+        self.assertEqual([x["level"] for x in dunning.overdue_of(rt, who["RE-0023"], inv["id"])], [2])  # „gemahnt“
+        self.assertEqual(dunning.record_sent(rt, who["RE-0021"], inv["id"], "T"), 1)
+        rt = self.f.rt()
+        sent = dunning.overdue_of(rt, who["RE-0021"], inv["id"])
+        self.assertEqual([(x["level"], x["wait"]) for x in sent], [(1, today + timedelta(days=dunning.WAIT))])
+        self.assertEqual(dunning.record_sent(rt, who["RE-0021"], inv["id"], "T"), 0)      # not twice
+        g = next(g for g in rt.work() if g["kind"] == "overdue")
+        self.assertNotIn("RE-0021", [x["title"] for x in g["items"]])                    # waits for its day
+        self.assertIn("1 erinnert, Frist bis", g["explain"])
+        later = today + timedelta(days=dunning.WAIT)
+        self.assertIn("RE-0021", [x["title"] for g in rt.work(later) if g["kind"] == "overdue" for x in g["items"]])
+        self.assertEqual([x["level"] for x in dunning.overdue_of(rt, who["RE-0021"], inv["id"], later)], [2])
+
     def test_mails_that_wait_for_an_answer(self):
         from email.message import EmailMessage
 

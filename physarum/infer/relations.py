@@ -765,7 +765,6 @@ def d_plural(t: TypeDraft) -> str:
 # --- mentions in free text ---------------------------------------------------------------------
 
 _TOKEN = re.compile(r"[A-Za-zÄÖÜäöüß#]*[\-./]?\d[\w\-./]*")
-_GLUED = re.compile(r"(?<=[a-z])\d{5}$")
 _LONG_WORD = 200
 
 
@@ -787,9 +786,6 @@ class MentionIndex:
         self.names: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
         self.emails: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
         self.domains: dict[str, list[tuple[TypeDraft, int]]] = defaultdict(list)
-        # a five-digit number that is a postcode in the firm's own data stands in addresses, not for a record
-        self.zips = {_compact(str(g.values[a.aid])) for t in types for a in t.attrs if a.kind == "zip"
-                     for g in groups[id(t)] if g.values.get(a.aid) is not None}
         for t in types:
             if t.kind == "line":
                 continue
@@ -846,13 +842,10 @@ class MentionIndex:
         for c, prev in cands:
             cc = _compact(c)
             hit = False
-            # "Rg.Nr.31098", "RE31098": a short plain number glued to its word
-            tail = m.group(0) if (m := _GLUED.search(cc)) and m.group(0) != cc else None
-            for k in (cc, tail):
-                if k and len(k) >= 5 and not (len(k) == 5 and k in self.zips):
-                    for t, gi in self.compact.get(k, []):
-                        found[(id(t), gi)] = (t, gi, "Nummer")
-                        hit = True
+            if len(cc) >= 5:
+                for t, gi in self.compact.get(cc, []):
+                    found[(id(t), gi)] = (t, gi, "Nummer")
+                    hit = True
             if hit or any(ch.isalpha() for ch in cc):
                 continue
             dg = re.sub(r"\D", "", c)

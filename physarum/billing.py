@@ -932,11 +932,13 @@ def _letterhead(rt, name: str | None) -> dict:
         return {}
     own = {norm(name)}
     seen = defaultdict(Counter)
+    letters = 0
     for d in rt.records.get("doc", []):
         text = str(d["data"].get("doc_text") or "")
         lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
         if not lines or not is_own(lines[0], own):
             continue
+        letters += 1
         head = "\n".join(lines[:4])
         if (m := _ADDRESS.search(head)):
             seen["street"][m.group(1).strip()] += 1
@@ -947,7 +949,7 @@ def _letterhead(rt, name: str | None) -> dict:
             if (m := rx.search(where)):
                 v = m.group(1) if m.groups() else m.group(0)
                 seen[key][v.replace(" ", "") if key in ("vat_id", "iban") else v.strip()] += 1
-    return {k: c.most_common(1)[0][0] for k, c in seen.items() if c}
+    return {k: v for k, c in seen.items() if c for v, n in [c.most_common(1)[0]] if n >= max(2, 0.8 * letters)}
 
 
 def company_missing(store) -> list[str]:

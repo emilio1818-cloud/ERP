@@ -273,10 +273,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
     def debit(row) -> bool:  # the line carries a creditor id: a direct debit, or its return
         return any(isinstance(v, str) and _CREDITOR_ID.search(v) for v in row["data"].values())
     knows_debits = {tid for tid in banks if any(debit(row) for row in records.get(tid, []))}
-    zips = {norm_key(r["data"][a["id"]]) for t in model["types"] for a in t["attrs"] if a["kind"] == "zip"
-            for r in records.get(t["id"], []) if r["data"].get(a["id"]) is not None}  # postcodes, not invoices
     for ip in invoice_specs(model):
-        p, spec, step = ip["p"], ip["spec"], ip["step"]
+        p, spec = ip["p"], ip["spec"]
         recs = records.get(p["type"], [])
         rid_set = {r["id"] for r in recs}
         st = p.get("status") or {}
@@ -309,7 +307,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         nos = {r["id"]: norm_key(r["data"].get(key)) for r in recs if key and r["data"].get(key) is not None}
         plain = counts_up(nos.values())  # "31076": short, but one of a range that counts up
         for rid, k in nos.items():
-            if len(k) >= 6 or (len(k) >= 5 and ((plain and k not in zips) or not k.isdigit())):
+            if len(k) >= 6 or (len(k) >= 5 and (plain or not k.isdigit())):
                 by_no.setdefault(k, []).append(rid)
         by_no = {k: v[0] for k, v in by_no.items() if len(v) == 1}
         loose = _loose_numbers(by_no)
@@ -330,6 +328,19 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                         for inv in found:
                             if inv is not None and inv not in links[b["id"]]:
                                 links[b["id"]].append(inv)
+        # the payer's own customer number next to an invoice number ("Kd-Nr. 10012 Rg 10060", both numberings
+        # counting from 10001): not an invoice of somebody else, where the purpose names another one
+        masters = {t["id"]: t for t in model["types"] if t["kind"] == "master" and t.get("key")}
+        for b, invs in links.items():
+            row = by_id.get(b)
+            bs = banks.get(row["type"]) if row else None
+            pv = row["data"].get(bs["party"]["id"]) if bs and bs.get("party") else None
+            rec = by_id.get(pv) if isinstance(pv, int) else None
+            own_no = norm_key(rec["data"].get(masters[rec["type"]]["key"])) if rec and rec["type"] in masters else None
+            if own_no and len(invs) > 1 and key:
+                rest = [i for i in invs if norm_key(by_id[i]["data"].get(key)) != own_no]
+                if rest and len(rest) < len(invs):
+                    links[b] = rest
         entries = {}
         payable, deduct = _payable_attrs(spec, p)
         rule = _due_rule(spec, p, recs)
@@ -371,7 +382,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         _settle_credits(spec, recs, entries, by_no)
         received = _received_attr(spec, p, recs, own_paid)
         got = {r["id"]: v for r in recs if received and (v := as_number(r["data"].get(received)))}
-        advised = _payment_advice(records, banks, by_no, entries, links) if by_no else {}
+        advised = _payment_advice(records, banks, by_no, entries, links, model, by_id, p) if by_no else {}
         swapped = _transposed_numbers(model, spec, p, recs, entries, links, banks, by_id, ip["outgoing"])
         # allocate every bank row over the invoices it names, in the order the money moved:
         # oldest invoice first, whatever is left stays with the last one
@@ -413,7 +424,6 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                     # a returned debit carries the creditor id like the debit did; a refund is a transfer of the firm's
                     returned = debit(row) if row["type"] in knows_debits else seen or EPS < take - owed <= CHARGEBACK_FEE
                     if returned:
-                        seen = seen or any(x["amount"] > 0 for x in e["payments"])
                         undone = min(take, owed)
                         if seen:
                             e["paid"] -= undone
@@ -501,16 +511,21 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                                       how="Zahlung ohne Nummer – Betrag und Zahler passen zum Buch") if hit else
                                  dict(rid=None, date=min(ds) if ds else e["start"], amount=extra,
                                       how="laut Buch erhalten (bar oder Karte)"))
-        # paid at the counter the day of the invoice (the book says so), and a transfer of it days later: twice
+        # paid at the counter the day of the invoice (the book says so), and a transfer of it days later: twice –
+        # an exception; where most such invoices go that way, the book notes a payment in advance (a direct debit)
+        twice, counter = [], 0
         for r in recs:
             e = entries.get(r["id"])
             ds = [d for a in own_paid if (d := as_date(r["data"].get(a)))] if e and e["start"] else []
+            counter += bool(ds) and min(ds) <= e["start"]
             bank = [x for x in e["payments"] if x.get("rid") and x["amount"] > 0] if ds else []
             if bank and min(ds) <= e["start"] and min(x["date"] for x in bank) > min(ds) + timedelta(days=3) \
                     and not any(x["how"].startswith("laut Buch") for x in e["payments"]):
-                owed = round(e["gross"] - e["credit"], 2)
-                e["paid"] += owed
-                e["payments"].append(dict(rid=None, date=min(ds), amount=owed, how="laut Buch an der Kasse bezahlt"))
+                twice.append((e, min(ds)))
+        for e, day in twice if len(twice) <= max(2, 0.1 * counter) else []:
+            owed = round(e["gross"] - e["credit"], 2)
+            e["paid"] += owed
+            e["payments"].append(dict(rid=None, date=day, amount=owed, how="laut Buch an der Kasse bezahlt"))
         # book or manual paid date: paid in full when the bank does not speak
         alone = []  # paid by the list, no transfer of their own amount: perhaps one transfer for several
         for r in recs:
@@ -856,7 +871,8 @@ def _skonto_agreed(model: dict, by_id: dict, p: dict, r: dict) -> tuple | bool:
     return False
 
 
-def _payment_advice(records: dict, banks: dict, by_no: dict, entries: dict, links: dict) -> dict[int, float]:
+def _payment_advice(records: dict, banks: dict, by_no: dict, entries: dict, links: dict, model: dict, by_id: dict,
+                    p: dict) -> dict[int, float]:
     """A letter that names several open invoices ("Zahlungsavis", a reminder), and within two weeks one
     transfer of exactly their sum – or of the sum of some of them (one is held back: "behalten wir ein"), or of
     their sum less the same skonto on each: the transfer pays them. On the cent comes before a skonto.
@@ -879,12 +895,20 @@ def _payment_advice(records: dict, banks: dict, by_no: dict, entries: dict, link
         for c in groups:
             sums[round(sum(owed[i] for i in c), 2)].append(c)
         sums = {v: cs[0] for v, cs in sums.items() if len(cs) == 1}  # two ways to the same sum: neither
+        parties = {v for i in named if isinstance(v := by_id[i]["data"].get(p.get("party")), int)} if p.get("party") else set()
+        names = {norm_name(_title_of(model, by_id.get(v), by_id)) for v in parties} - {""}
+        collection = len(parties) >= 3  # a SEPA file of the firm's own: many customers, one credit of the bank
         exact, cuts = [], []
         for btid, row in rows:
             amount = bank_amount(banks[btid], row["data"]) or 0.0
             day = as_date(row["data"].get(banks[btid]["date"]["id"]))
             if row["id"] in used or amount <= EPS or not day or not 0 <= (day - when).days <= 14:
                 continue
+            bs = banks[btid]
+            pv = row["data"].get(bs["party"]["id"]) if bs.get("party") else None
+            payer = norm_name(str(row["data"].get(bs["name"]["id"]) or "")) if bs.get("name") else ""
+            if not collection and not (pv in parties or (payer and any(name_similarity(payer, n) >= 0.6 for n in names))):
+                continue  # somebody else's money: the advice is about the customer's invoices
             cut = round(1 - amount / total, 4) if total > EPS else 1.0
             if round(amount, 2) in sums:
                 exact.append((row["id"], list(sums[round(amount, 2)]), 0.0))

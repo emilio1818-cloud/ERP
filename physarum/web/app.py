@@ -11,7 +11,7 @@ import threading
 import traceback
 import zipfile
 from collections import Counter, defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 from starlette.applications import Starlette
@@ -437,7 +437,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         """For a bank line that pays nothing (or not all): the open invoices it may pay, the likeliest first –
         the same amount, then the same payer."""
         from ..reconcile import bank_specs
-        from ..text import name_similarity, norm_name
+        from ..text import name_similarity
         b = next((x for x in bank_specs(rt.model) if x["spec"]["id"] == spec["id"]), None)
         amount = data.get(b["money"]["id"]) if b else None
         if not b or not isinstance(amount, (int, float)) or isinstance(amount, bool) or abs(amount) < 0.005:
@@ -1193,7 +1193,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         more.sort(key=lambda a: order[a["id"]])
         later.sort(key=lambda a: order[a["id"]])
         line = line_child(spec)
-        lcols, lformulas, ltotal, prices = [], [], None, {}
+        lcols, lformulas, ltotal = [], [], None
         if line:
             lspec = line["spec"]
             lcols = [a for a in lspec["attrs"] if not a.get("hidden") and a["id"] != line["rel"]["attr"] and not a.get("virtual")]

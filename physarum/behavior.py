@@ -465,7 +465,6 @@ def virtual_sums(model: dict):
 
 def apply_virtual(model: dict, records: dict):
     """Fill computed totals into the in-memory records (never stored)."""
-    specs = {t["id"]: t for t in model["types"]}
     for t in model["types"]:
         for a in t["attrs"]:
             v = a.get("virtual")

@@ -14,7 +14,7 @@ import re
 from datetime import date, datetime, timedelta
 
 from .store import dumps, loads, now_iso
-from .text import fold, norm_key, norm_name
+from .text import norm_key, norm_name
 from .values import _EMAIL, add_months, as_date, as_number, iban_ok, interval_months, parse_date, parse_duration, parse_number, period_text
 
 LOCKED_CONCEPTS = {"rechnung"}

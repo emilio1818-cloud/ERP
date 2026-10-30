@@ -789,7 +789,6 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
 
     # 5. refs + mentions + search index
     c.execute("DELETE FROM refs")
-    type_spec = {t["id"]: t for t in model["types"]}
     ref_attrs = {(t["id"], a["id"]) for t in model["types"] for a in t["attrs"] if a["kind"] == "ref"}
     live = {}  # rid -> (type, data) for every live record; written ones come from memory
     for row in c.execute("SELECT id, type, data FROM records WHERE deleted=0 AND merged_into IS NULL").fetchall():

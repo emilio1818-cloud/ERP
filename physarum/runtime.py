@@ -10,7 +10,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 
 from .behavior import apply_virtual
-from .grow import _de_date, record_title, record_titles
+from .grow import _de_date, record_titles
 from .store import Store, loads
 
 

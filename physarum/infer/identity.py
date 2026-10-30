@@ -94,6 +94,8 @@ def build_protos(t: TypeDraft) -> list[Proto]:
 def _key_shape(k: str) -> str:
     """How a number is built, not how long its parts are: "LP-TB 412" and "SO-TB 77" are both A-A9 (two
     plates), "K-1001" and "10001" are not (a new numbering)."""
+    if str(k).isdigit():
+        return "9" * len(str(k))  # 1001 and 10001: the firm changed its numbering
     out = []
     for ch in str(k):
         c = "9" if ch.isdigit() else "A" if ch.isalpha() else ch

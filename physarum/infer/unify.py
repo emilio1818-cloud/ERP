@@ -256,11 +256,11 @@ def obs_similarity(a: Obs, b: Obs) -> dict:
     # master data next to business cases; or two kinds of business case (bank lines and invoices name
     # the same customers – that makes them related, not the same)
     kind_conflict = conflict and (len(kinds) == 2 or (kinds == {"transaction"} and "kontobewegung" in (ca, cb)))
-    if {_shape_kind(a), _shape_kind(b)} == {"master", "transaction"}:
+    ka, kb = (a.col(a.key) if a.key else None), (b.col(b.key) if b.key else None)
+    same_keys = bool(ka and kb) and KIND_GROUP.get(ka.kind) == KIND_GROUP.get(kb.kind) and value_overlap(ka, kb) >= 0.8
+    if {_shape_kind(a), _shape_kind(b)} == {"master", "transaction"} and not same_keys:
         conflict = kind_conflict = True  # suppliers named in invoices are not more suppliers
         same_concept = False
-    if "kontobewegung" in (ca, cb) and ca != cb:
-        conflict = kind_conflict = True  # a statement (known by its columns) and a list that is none are two lists
     for x, y in ((a, b), (b, a)):
         if x.kind_hint == "party" and y.kind_hint != "party" and y.concept in lexicon.CONCEPTS and \
                 lexicon.CONCEPTS[y.concept]["kind"] == "transaction" and x.concept != y.concept:

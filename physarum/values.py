@@ -288,8 +288,8 @@ def shape(s: str) -> str:
     return "".join(out)
 
 
-_SKONTO_TERMS = (re.compile(r"(\d{1,2})\s*tage?n?\W{0,3}(\d{1,2}(?:[.,]\d+)?)\s*%\s*skonto"),
-                 re.compile(r"skonto\W{0,3}(\d{1,2}(?:[.,]\d+)?)\s*%\D{0,30}?(\d{1,2})\s*tage?n?"))
+_SKONTO_PCT = re.compile(r"(\d{1,2}(?:[.,]\d+)?)\s*%\s*skonto|skonto\W{0,3}(\d{1,2}(?:[.,]\d+)?)\s*%")
+_TERM_DAYS = re.compile(r"(\d{1,3})\s*tage?n?\b")
 
 
 def skonto_terms(v) -> tuple[int, float] | None:
@@ -297,11 +297,10 @@ def skonto_terms(v) -> tuple[int, float] | None:
     if not isinstance(v, str):
         return None
     s = fold(v)
-    m = _SKONTO_TERMS[0].search(s)
-    if m:
-        return int(m.group(1)), float(m.group(2).replace(",", "."))
-    m = _SKONTO_TERMS[1].search(s)
-    return (int(m.group(2)), float(m.group(1).replace(",", "."))) if m else None
+    m, days = _SKONTO_PCT.search(s), [int(x) for x in _TERM_DAYS.findall(s)]
+    if not m or not days:
+        return None
+    return min(days), float((m.group(1) or m.group(2)).replace(",", "."))  # the skonto's days are the shorter ones
 
 
 def parse_duration(v) -> int | None:

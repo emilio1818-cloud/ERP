@@ -400,7 +400,6 @@ def cards(work: list[dict], plural_of) -> list[dict]:
 
 def at_a_glance(rt, open_items: dict | None, n_files: int) -> str:
     """The firm in one plain paragraph: what there is, since when, how fast money comes in."""
-    from ..values import as_date
     m = rt.model or {}
     procs = {p["type"]: p for p in m.get("processes", [])}
     kinds = [t for t in m.get("types", []) if t["kind"] in ("master", "transaction") and rt.records.get(t["id"])

@@ -399,7 +399,7 @@ def _direct_debits(banks, records, open_inv, rest, p, taken) -> list[dict]:
     return out
 
 
-def risk_items(model: dict, records: dict, outrefs: dict, titles: dict) -> list[dict]:
+def risk_items(model: dict, records: dict, outrefs: dict, titles: dict, ledger: dict | None = None) -> list[dict]:
     """Documents that name an unknown bank account of a known partner, or come from a look-alike domain."""
     specs = {t["id"]: t for t in model["types"]}
     by_id = {r["id"]: r for rs in records.values() for r in rs}
@@ -422,6 +422,12 @@ def risk_items(model: dict, records: dict, outrefs: dict, titles: dict) -> list[
     payees = {r["id"] for t in model["types"] if t.get("concept") == "lieferant" for r in records.get(t["id"], [])}
     for t, sup, _iban, _when in _incoming(model):
         payees |= {v for r in records.get(t["id"], []) if isinstance(v := r["data"].get(sup["id"]), int)}
+    party_of = {p["type"]: p.get("party") for p in model.get("processes", [])}
+    for rid, e in (ledger or {}).items():  # the firm owes them: paid twice, a credit note not paid out
+        rec = by_id.get(rid)
+        if rec and (0 < e["gross"] - e.get("credit", 0.0) < e["paid"] - 0.01 or (e["gross"] < -0.01 and not e.get("credit_to") and e["open"] < -0.01)) and \
+                isinstance(v := rec["data"].get(party_of.get(rec["type"])), int):
+            payees.add(v)
     for b in bank_specs(model):
         if not b["iban"] or not b["party"]:
             continue

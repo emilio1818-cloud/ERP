@@ -92,8 +92,20 @@ def money_attrs(spec: dict, recs: list[dict] | None = None) -> tuple[dict | None
                 k += a["id"] in vs and vs[a["id"]] >= max(vs.values()) - 0.005
             return k / n if n else 0.0
         share = {a["id"]: top(a) for a in ms}
-        gross = max(ms, key=lambda a: share[a["id"]])
-        if share[gross["id"]] >= 0.9:
+
+        def summed(a) -> float:  # share of the rows where two other amounts add up to this one (Netto + MwSt)
+            n = k = 0
+            for r in recs:
+                v = r["data"].get(a["id"])
+                if not isinstance(v, (int, float)) or abs(v) < 0.005:
+                    continue
+                o = [r["data"][b["id"]] for b in ms if b is not a and isinstance(r["data"].get(b["id"]), (int, float))]
+                n += 1
+                k += any(abs(x + y - v) <= 0.011 for i, x in enumerate(o) for y in o[i + 1:])
+            return k / n if n else 0.0
+        sums = {a["id"]: summed(a) for a in ms}
+        gross = max(ms, key=lambda a: (sums[a["id"]] >= 0.8, share[a["id"]]))
+        if share[gross["id"]] >= 0.9 or sums[gross["id"]] >= 0.8:
             rest = [a for a in ms if a is not gross]
             fill = lambda a: sum(1 for r in recs if isinstance(r["data"].get(a["id"]), (int, float)))
 
@@ -268,6 +280,27 @@ def _instance_dates(spec, recs, cand_steps, records, mention_map, start_attr: st
     return out
 
 
+def _pays_whole(st: dict, rids: list, spec: dict, recs: list, records: dict, mention_map: dict, by_id: dict) -> float:
+    """Share of the cases whose bank lines for this step carry (nearly) their whole amount, not a deposit."""
+    _net, gross = money_attrs(spec, recs)
+    if not gross:
+        return 1.0
+    if st["rel_kind"] == "mention":
+        lines = {k: mention_map.get(st["rel_attr"], {}).get(k, []) for k in rids}
+    else:
+        lines = defaultdict(list)
+        for c in records.get(st["type"], []):
+            if c["data"].get(st["rel_attr"]) in rids:
+                lines[c["data"][st["rel_attr"]]].append(c["id"])
+    n = 0
+    for k in rids:
+        g = abs((by_id.get(k) or {"data": {}})["data"].get(gross["id"]) or 0)
+        vals = [abs(v) for b in lines.get(k, []) for v in (by_id.get(b) or {"data": {}})["data"].values()
+                if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        n += bool(g) and any(0.969 * g - 0.01 <= v <= g + 0.01 for v in vals)
+    return n / len(rids) if rids else 0.0
+
+
 def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: dict | None = None,
                banks: set | None = None) -> dict | None:
     specs_of = specs_of or {}
@@ -309,14 +342,22 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
         after = sum(1 for x in deltas if x >= -1) / len(deltas)
         if after < 0.8 or (max(deltas) <= 0 and min(deltas) < 0):
             continue  # never after the start, now and then before: where a case came from (its order), no step
-        if sum(1 for x in deltas if x == 0) / len(deltas) >= 0.9 and st["source"] == "own":
-            continue  # "Valutadatum" next to "Buchungstag": the same moment, not a step
+        if sum(1 for x in deltas if x == 0) / len(deltas) >= 0.9 and st["source"] == "own" and \
+                len(deltas) >= 0.97 * len(starts):
+            continue  # "Valutadatum" next to "Buchungstag": the same moment, always – not a step
         st["median"] = statistics.median(deltas)
         st["share"] = round(len(deltas) / len(starts), 3)
         # coverage window: the step can only be expected where its data exists
         ds = sorted(d.values())
         st["window"] = [ds[0].isoformat(), ds[-1].isoformat()]
         steps.append(st)
+    # a date the book fills where a money column holds the gross ("bez. am" next to "Betrag erh."): the payment
+    from .payments import _received_attr
+    net0, gross0 = money_attrs(spec, recs)
+    paying = [st for st in steps if st["source"] == "own" and gross0 and
+              _received_attr(spec, dict(gross=gross0["id"], net=(net0 or {}).get("id")), recs, [st["attr"]])]
+    if len(paying) == 1 and not any(fold(st["label"]) == PAID and st["source"] == "own" for st in steps):
+        paying[0]["label"] = PAID  # one date only, and no other says it
     # equivalent steps (own "Bezahlt am" and the bank transfer) collapse into one
     merged = []
     for st in sorted(steps, key=lambda s: (s["source"] != "own", -s["share"])):
@@ -338,7 +379,8 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
             near = sum(1 for k in both if abs((a[k] - b[k]).days) <= 3) / len(both)
             same = sum(1 for k in both if a[k] == b[k]) / len(both)
             # the book notes the money after it came: the same day, or when the month's books are done
-            follows = paying and sum(1 for k in both if 0 <= (a[k] - b[k]).days <= 35) / len(both) >= 0.9
+            follows = paying and sum(1 for k in both if 0 <= (a[k] - b[k]).days <= 35) / len(both) >= 0.9 and \
+                _pays_whole(st, both, spec, recs, records, mention_map, by_id) >= 0.8
             # an invoice of its own is a step of its own, though written the day the job was done
             apart = st["source"] == "child" and st.get("type") not in banks
             if ((fold(m["label"]) == fold(st["label"]) or paying) and near >= 0.8) or follows or \
@@ -1030,7 +1072,6 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         spec = specs[p["type"]]
         drafts += [(r, p) for r in records.get(p["type"], []) if is_draft(r)]
         recs = [r for r in records.get(p["type"], []) if not is_draft(r)]
-        rid_set = {r["id"] for r in recs}
 
         def start_of(rid, _p=p):
             return as_date(by_id[rid]["data"].get(_p["start"]["attr"])) or today
@@ -1258,7 +1299,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
     if outrefs is not None:
         from .reconcile import risk_items, supplier_items
         tmap = titles_in or {r: title(r) for r in by_id}
-        risks = risk_items(model, records, outrefs, tmap)
+        risks = risk_items(model, records, outrefs, tmap, ledger)
         more, checks = supplier_items(model, records, outrefs, tmap, ledger, today,
                                       reported={(x["partner"], x.get("iban")) for x in risks})
         risks += more
@@ -1545,7 +1586,6 @@ def _threshold_work(model, records, title) -> list[dict]:
                 if isinstance(v, (int, float)) and isinstance(m, (int, float)) and v < m:
                     items.append(dict(rid=r["id"], title=title(r["id"]), days=0, money=None, value=v, min=m))
             if items:
-                a = next(x for x in spec["attrs"] if x["id"] == th["attr"])
                 mn = next(x for x in spec["attrs"] if x["id"] == th["min"])
                 out.append(dict(id=f"th:{spec['id']}:{th['attr']}", type=spec["id"], kind="threshold", severity=2,
                                 title=f"{spec['plural']} unter {mn['name']}", count=len(items), amount=None,

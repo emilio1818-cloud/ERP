@@ -543,6 +543,9 @@ class UnseenFirm(unittest.TestCase):
         files.append(("E-Rechnungen/SCH-1.xml", self._ubl("SOB-2026-1", today - timedelta(days=1), n, "DE44500105175407324931",
                                                          [(1, 890.0)], vat=None)))
         files.append(("Konto.csv", csv("Buchungstag;Empfänger;IBAN;Verwendungszweck;Betrag", bank)))
+        # 5. the firm's own e-invoice to the city, dropped in with the rest (review 9): no received invoice
+        files.append(("E-Rechnungen/EB-42.xml", self._ubl("EB-2026-42", today - timedelta(days=5), "Elektro Brandt GmbH",
+                                                         "DE27100777770209299700", [(2, 400.0)], buyer="Stadt Hildesheim")))
         found = check(parse(fromstring(bad)))
         self.assertTrue(any("Netto 310,00 €" in x for x in found), found)
         self.assertTrue(any("19 % von 310,00 €" in x for x in found), found)
@@ -562,6 +565,7 @@ class UnseenFirm(unittest.TestCase):
         self.assertIn("erste Rechnung dieses Lieferanten", why)
         self.assertIn("Weder USt-IdNr. noch Steuernummer", why)
         self.assertFalse(any("ELE-2026-0" in it["title"] for it in risk["items"] + checks["items"]))  # the paid, normal ones
+        self.assertNotIn("Stadt Hildesheim", why)
 
 
     def test_a_reference_may_speak_another_programs_number(self):

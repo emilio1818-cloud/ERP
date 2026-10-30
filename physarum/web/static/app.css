@@ -11,6 +11,7 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: light;
 }
+[hidden] { display: none !important; }  /* "… und 4 weitere zeigen" hides what it says, whatever the layout */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #171612; --panel: #201f1a; --ink: #f1ede3; --muted: #b0aa9b; --faint: #847e70;

@@ -733,7 +733,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
             stats["records"] += 1
 
     # 3. documents
-    own_name = (store.kv_get("company_profile") or {}).get("name")
+    me = store.kv_get("company_profile") or {}
     doc_rids = []
     existing = {r["ident"]: r["record_id"] for r in
                 c.execute("SELECT ident, record_id FROM idents WHERE type=?", (DOC_TYPE,)).fetchall()}
@@ -749,7 +749,7 @@ def _materialize(store: Store, model: dict, types: list[TypeDraft], groups: dict
         done[ident] = [d["source_id"]]
         data = {"doc_title": d["title"], "doc_kind": DOC_KIND_LABEL.get(d["kind"], d["kind"]), "doc_from": d["sender"],
                 "doc_to": d["recipients"], "doc_date": (d["date"] or "")[:16] or None, "doc_text": d["body"],
-                "doc_file": d["source_name"], "doc_check": _doc_check(d, own_name)}
+                "doc_file": d["source_name"], "doc_check": _doc_check(d, me)}
         data = {k: v for k, v in data.items() if v}
         if ident in existing:
             rid = existing[ident]
@@ -1114,14 +1114,25 @@ def _reindex(c, model: dict, live: dict | None = None):
                   [(record_text(specs[t], d, titles), rid, t) for rid, (t, d) in live.items() if t in specs])
 
 
-def _doc_check(d, own_name: str | None) -> str | None:
-    """What does not add up in a received e-invoice, and whether it is addressed to this firm at all."""
-    meta = loads(d["meta"]) if isinstance(d["meta"], str) else (d["meta"] or {})
-    problems = list((meta or {}).get("problems") or [])
-    buyer = (meta or {}).get("buyer")
-    if own_name and buyer and name_similarity(norm_name(own_name), norm_name(buyer)) < 0.85 and \
-            not set(norm_name(own_name).split()) <= set(norm_name(buyer).split()):
-        problems.append(f"Adressiert an „{buyer}“, nicht an {own_name}")
+def _doc_check(d, me: dict) -> str | None:
+    """What does not add up in a received e-invoice, and whether it is addressed to this firm at all. The
+    firm's own e-invoice – its name, VAT id or account as the seller – is no received one: nothing to check."""
+    meta = (loads(d["meta"]) if isinstance(d["meta"], str) else d["meta"]) or {}
+    seller = meta.get("seller") if isinstance(meta.get("seller"), dict) else {}
+
+    def named(a, b):
+        a, b = norm_name(a or ""), norm_name(b or "")
+        return bool(a and b) and (name_similarity(a, b) >= 0.85 or set(a.split()) <= set(b.split()))
+
+    def same(a, b):
+        return bool(a and b) and re.sub(r"\s+", "", str(a)).upper() == re.sub(r"\s+", "", str(b)).upper()
+    if named(me.get("name"), seller.get("name")) or same(me.get("vat_id"), seller.get("vat")) or \
+            same(me.get("iban"), seller.get("iban")):
+        return None
+    problems = list(meta.get("problems") or [])
+    buyer = meta.get("buyer")
+    if me.get("name") and buyer and not named(me["name"], buyer):
+        problems.append(f"Adressiert an „{buyer}“, nicht an {me['name']}")
     return "; ".join(problems) or None
 
 

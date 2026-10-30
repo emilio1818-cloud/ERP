@@ -168,7 +168,6 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         pref = {"rechnung": 0, "auftrag": 1, "bestellung": 2, "einkauf": 4}
         ks.sort(key=lambda k: (pref.get(k.get("concept") or "", 3), -(k.get("salience") or 0)))
         open_amount = sum(g["amount"] or 0 for g in work if g["kind"] == "overdue" and g.get("step") == "bezahlt")
-        n_items = sum(g["count"] for g in work if g.get("severity", 2) >= 2)  # hints (a quiet customer) wait
         open_items = None
         by_type = defaultdict(list)
         for e in rt.ledger.values():
@@ -198,6 +197,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         n_files = store.q1("SELECT COUNT(*) n FROM sources WHERE active=1 AND parent_id IS NULL")["n"]
         glance = views.at_a_glance(rt, open_items, n_files)
         shown = views.cards(work[:40], lambda tid: (rt.spec(tid) or {}).get("plural", ""))
+        n_items = sum(c["count"] for c in shown if c["severity"] >= 2)  # what the cards hold; hints (a quiet customer) wait
         return page(request, "home.html", dict(work=shown, more_work=sum(1 for c in shown if c["hidden"]), kpis=ks[:1], cov=cov,
                                                glance=glance,
                                                consequences=CONSEQUENCES,
@@ -583,6 +583,14 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             return bool(p) and any(x.get("type") == spec["id"] for st in p["steps"] for x in [st] + st.get("also", []))
         children = [r for r in rt.model["relations"] if r["dst"] == spec["id"] and r["kind"] == "ref"
                     and rt.spec(r["src"]) and rt.spec(r["src"])["kind"] == "transaction" and not comes_before(r["src"])]
+        # two columns naming the customer (who orders, who pays): one button, by the column the process follows
+        party_of = {p["type"]: p.get("party") for p in rt.model.get("processes", [])}
+        children = list({r["src"]: r for r in sorted(children, key=lambda r: r["attr"] == party_of.get(r["src"]))}.values())
+        offered = {r["src"] for r in children}
+        for g in related:  # and none again above each list
+            g["add"] = g["kind"] == "ref" and g["spec"]["kind"] != "line" and g["spec"]["id"] not in offered
+            if g["add"]:
+                offered.add(g["spec"]["id"])
         refs = [a for a in spec["attrs"] if a["kind"] == "ref" and data.get(a["id"]) and a["id"] != spec.get("key")]
         party = next((a for a in refs if (rt.spec(a.get("ref")) or {}).get("kind") == "master"), None) or (refs[0] if refs else None)
         money_attr = next((a for a in spec["attrs"] if a["kind"] == "money" and not a.get("hidden")

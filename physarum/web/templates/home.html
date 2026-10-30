@@ -59,7 +59,7 @@
           {% for it in g['items'] %}{% set ig = it._g or g %}
           <li{{ ' class=more-li hidden' if loop.index > 8 }}>
             <div class="t">
-              <div><a href="/r/{{ it.rid }}">{{ it.title }}</a>{% if it.party %} <span class="muted">· {{ it.party }}</span>{% endif %}</div>
+              <div><a href="/r/{{ it.rid }}">{{ it.title }}</a>{% if it.party and it.party not in it.title %} <span class="muted">· {{ it.party }}</span>{% endif %}</div>
               <div class="r">{{ reason(ig, it) }}{% if it.paid %} · <span class="tag guess" title="Teilzahlung erhalten">{{ money(it.paid) }} erhalten</span>{% endif %}
                 {% if it.maybe_paid %} · <span class="tag guess">vielleicht schon bezahlt</span> <a class="faint" href="/r/{{ it.maybe_paid.bank }}">passende Zahlung</a>{% endif %}</div>
             </div>

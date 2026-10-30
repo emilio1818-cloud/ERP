@@ -243,7 +243,7 @@
   <div class="row between">
     <h2>{{ g.label }} <span class="muted" style="font-weight:500">{{ g.n }}</span></h2>
     <div class="row">{% if g.total is not none and g.total_attr %}<span class="muted">{{ g.total_attr.name }}</span> <b>{{ money(g.total, g.total_attr.currency) }}</b>{% endif %}
-      {% if g.kind == 'ref' and g.spec.kind != 'line' %}<a class="btn small ghost noprint" href="/t/{{ g.spec.id }}/neu?a_{{ g.attr }}={{ rec.id }}">+ {{ g.spec.name }}</a>{% endif %}</div>
+      {% if g.add %}<a class="btn small ghost noprint" href="/t/{{ g.spec.id }}/neu?a_{{ g.attr }}={{ rec.id }}">+ {{ g.spec.name }}</a>{% endif %}</div>
   </div>
   <div style="overflow-x:auto">
   <table class="table">

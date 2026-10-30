@@ -1933,12 +1933,8 @@ def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
         latest = max(d for d, _ in valid)
         ref = latest if latest < date(today.year, today.month, 1) else today
         months = defaultdict(float)
-        prev_mtd = 0.0
-        py, pm = (ref.year, ref.month - 1) if ref.month > 1 else (ref.year - 1, 12)
         for d, v in valid:
             months[(d.year, d.month)] += v
-            if (d.year, d.month) == (py, pm) and d.day <= ref.day:
-                prev_mtd += v
         series = []
         y, m = ref.year, ref.month
         for _ in range(13):
@@ -1947,15 +1943,13 @@ def kpis(model: dict, records: dict, today: date | None = None) -> list[dict]:
             if m == 0:
                 y, m = y - 1, 12
         series.reverse()
-        cur = series[-1]["value"]
-        # same day-of-month progress last month, for a fair comparison
-        prev_full = series[-2]["value"]
+        # the last month that is over: half a month says nothing yet where invoices go out at its end
         import calendar
-        last = calendar.monthrange(ref.year, ref.month)[1]
+        y, m = map(int, series[-2]["month"].split("-"))
         out.append(dict(type=p["type"], name=spec["plural"], attr=aid, attr_name=aspec["name"], series=series,
-                        current=cur, previous=prev_full, previous_mtd=round(prev_mtd, 2), day=ref.day,
+                        current=series[-2]["value"], previous=series[-3]["value"], month=series[-2]["month"],
                         currency=aspec.get("currency") or "EUR", concept=spec.get("concept"),
                         salience=spec.get("salience", 0), date_attr=p["start"]["attr"],
-                        month_end=f"{ref.year}-{ref.month:02d}-{last:02d}",
+                        month_end=f"{y}-{m:02d}-{calendar.monthrange(y, m)[1]:02d}",
                         asof=ref.isoformat() if ref != today else None))
     return out

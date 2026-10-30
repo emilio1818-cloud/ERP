@@ -25,9 +25,8 @@
       {% if model %}
       <div class="nav-label">Ihre Daten</div>
       {% for t in nav_active %}
-      <a href="/t/{{ t.id }}" class="{{ 'on' if path == '/t/' ~ t.id }}" title="Je länger der Balken, desto mehr hängt in Ihren Abläufen daran">
-        <span>{{ t.plural }}{% if t.is_new %} <span class="new">neu</span>{% endif %}</span>
-        <span class="row" style="gap:6px"><span class="count">{{ t.count }}</span><span class="tube" aria-hidden="true"><i style="width:{{ [100, ((t.salience or 0) * 130)|int]|min }}%"></i></span></span>
+      <a href="/t/{{ t.id }}" class="{{ 'on' if path == '/t/' ~ t.id }}">
+        <span>{{ t.plural }}{% if t.is_new %} <span class="new">neu</span>{% endif %}</span><span class="count">{{ t.count }}</span>
       </a>
       {% endfor %}
       {% if nav_dormant %}
@@ -39,9 +38,8 @@
       </details>
       {% endif %}
       <div class="nav-label">Rund um</div>
-      <a href="/quellen" class="{{ 'on' if path.startswith('/quellen') }}"><span>Dateien</span></a>
+      <a href="/quellen" class="{{ 'on' if path.startswith('/quellen') or path.startswith('/organismus') or path.startswith('/ablaeufe') }}"><span>Dateien</span></a>
       <a href="/firma" class="{{ 'on' if path.startswith('/firma') or path.startswith('/steuerberatung') or path.startswith('/verfahrensdoku') }}"><span>Ihre Firma</span></a>
-      <a href="/organismus" class="{{ 'on' if path.startswith('/organismus') or path.startswith('/ablaeufe') }}"><span>Wie Physarum Ihre Firma sieht</span></a>
       {% endif %}
     </nav>
     <div class="bottom">

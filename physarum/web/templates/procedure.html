@@ -20,7 +20,7 @@
   {% if srcs|length > 200 %}<p class="muted">… und {{ srcs|length - 200 }} weitere.</p>{% endif %}
   <p style="margin-top:10px"><b>Eingaben von Hand.</b> {{ (by_kind.create or 0)|de }} Neuanlagen und {{ (by_kind.edit or 0)|de }} Bearbeitungen, jede mit Name, Zeitpunkt, altem und neuem Wert.</p>
   <p><b>Rechnungen.</b> {{ issued|de }} Rechnungen wurden in Physarum ausgestellt: Die Nummer wird beim Ausstellen fortlaufend vergeben, nie eine, die es in Ihren Dateien oder hier schon gab. Das Dokument (Druckansicht und XRechnung) wird archiviert und nie überschrieben; sein Prüfwert steht im versiegelten Protokoll.
-  {% if files.docs_changed %}<span class="tag bad">Achtung</span> {{ files.docs_changed|length }} archivierte(s) Dokument(e) passen nicht mehr zu ihrem Prüfwert ({{ files.docs_changed[:3]|join(', ') }}).{% elif files.archived %}<span class="tag calc">geprüft</span> {{ files.archived|de }} archivierte Dokumente unverändert.{% endif %}</p>
+  {% if files.docs_changed %}<span class="tag bad">Achtung</span> {{ '1 archiviertes Dokument passt' if files.docs_changed|length == 1 else files.docs_changed|length ~ ' archivierte Dokumente passen' }} nicht mehr zu ihrem Prüfwert ({{ files.docs_changed[:3]|join(', ') }}).{% elif files.archived %}<span class="tag calc">geprüft</span> {{ files.archived|de }} archivierte Dokumente unverändert.{% endif %}</p>
   <p><b>Zahlungen.</b> Zahlungseingänge und -ausgänge werden aus den eingeworfenen Kontoauszügen nach Betrag und Verwendungszweck den Rechnungen zugeordnet; unsichere Zuordnungen werden erst nach Bestätigung übernommen.</p></section>
 
 <section class="card"><h2>3. Datenmodell und Regeln</h2>

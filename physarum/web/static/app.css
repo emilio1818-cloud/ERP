@@ -52,8 +52,6 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
 .nav a:hover { background: var(--hover); text-decoration: none; }
 .nav a.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
 .nav a .count { font-size: .78rem; color: var(--faint); font-variant-numeric: tabular-nums; }
-.nav a .tube { display: inline-block; width: 22px; height: 6px; border-radius: 3px; background: var(--soft); position: relative; overflow: hidden; flex: 0 0 auto; }
-.nav a .tube i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; }
 .nav details summary { list-style: none; cursor: pointer; padding: 7px 10px; color: var(--muted); font-size: .9rem; border-radius: 8px; }
 .nav details summary::-webkit-details-marker { display: none; }
 .nav details summary:hover { background: var(--hover); }

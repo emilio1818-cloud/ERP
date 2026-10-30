@@ -185,7 +185,8 @@ def facet_key(v) -> str:
 def facets(rt, spec: dict, recs: list[dict], limit: int = 2) -> list[dict]:
     """Filter chips. "Café" and "Cafe", "Office" and "Büro" are one chip."""
     out = []
-    cands = [a for a in spec["attrs"] if a.get("enum") and not a.get("hidden") and 2 <= len(a["enum"]) <= 14]
+    cands = [a for a in spec["attrs"] if a.get("enum") and not a.get("hidden") and 2 <= len(a["enum"]) <= 14
+             and (a.get("role") == "status" or a["id"] == "pay_state")]  # a BIC or a weekday is no way to look
     if any(a["id"] == "pay_state" for a in cands):
         cands = [a for a in cands if a["id"] == "pay_state" or a.get("role") != "status"]
     cands.sort(key=lambda a: (0 if a["id"] == "pay_state" else 1 if a.get("role") == "status" else 2,

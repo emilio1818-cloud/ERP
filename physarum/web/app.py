@@ -192,13 +192,11 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 quality.append(dict(type=t, issue=iss))
         summ = store.q1("SELECT summary, created_at FROM models ORDER BY version DESC LIMIT 1")
         summary = loads(summ["summary"]) if summ else {}
-        from ..coverage import coverage
-        cov = coverage(rt)
         n_files = store.q1("SELECT COUNT(*) n FROM sources WHERE active=1 AND parent_id IS NULL")["n"]
         glance = views.at_a_glance(rt, open_items, n_files)
         shown = views.cards(work[:40], lambda tid: (rt.spec(tid) or {}).get("plural", ""))
         n_items = sum(c["count"] for c in shown if c["severity"] >= 2)  # what the cards hold; hints (a quiet customer) wait
-        return page(request, "home.html", dict(work=shown, more_work=sum(1 for c in shown if c["hidden"]), kpis=ks[:1], cov=cov,
+        return page(request, "home.html", dict(work=shown, more_work=sum(1 for c in shown if c["hidden"]), kpis=ks[:1],
                                                glance=glance,
                                                consequences=CONSEQUENCES,
                                                questions=qs, suggestions=sugg, quality=quality, summary=summary,
@@ -1523,7 +1521,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         versions = [dict(v=r["version"], at=r["created_at"], summary=loads(r["summary"]) or {}) for r in store.models()[:20]]
         from ..coverage import coverage
         return page(request, "organism.html", dict(svg=views.organism_svg(rt), learned=learned, versions=versions,
-                                                   cov=coverage(rt)))
+                                                   cov=coverage(rt), hints=hints(store)))
 
     def learned_items() -> list[dict]:
         m = rt.model
@@ -1645,7 +1643,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             summ = loads(s["summary"]) or {}
             rows.append(dict(s=s, summary=summ, types=list({t["id"]: t for t in became.get(s["name"], [])}.values()),
                              notes=loads(s["notes"]) or [], docs=docs.get(s["id"], 0)))
-        return page(request, "sources.html", dict(rows=rows))
+        from ..coverage import coverage
+        return page(request, "sources.html", dict(rows=rows, cov=coverage(rt) if rt.model else None))
 
     def locked_in_sources(sids: list[int]) -> int:
         """Issued invoices whose every source would be taken out."""

@@ -25,6 +25,17 @@
 </section>
 {% endif %}
 
+{% if hints %}
+<section class="card" style="margin-bottom:14px">
+  <h2>Wie Physarum Ihre Dateien gelesen hat</h2>
+  <p class="muted" style="font-size:.86rem; margin-top:0">Stellen, an denen es auch anders hätte lesen können. Entschieden ist, was hier steht – ändern lässt es sich mit einem Klick.</p>
+  {% for h in hints %}
+  <p class="notice row between" style="margin-top:8px"><span title="{{ h.detail }}">{{ h.text }}</span>
+    <button class="small ghost" data-post="/fragen/{{ h.id }}" data-body='{"value": "{{ h.options[0][0] }}", "back": "/organismus"}' data-confirm="{{ h.options[0][1] }}? {{ consequences_of(h.kind, h.options[0][0]) }}">{{ h.options[0][1] }}</button></p>
+  {% endfor %}
+</section>
+{% endif %}
+
 <div class="card">{{ svg }}</div>
 
 <div class="grid g2" style="margin-top:14px; align-items:start">

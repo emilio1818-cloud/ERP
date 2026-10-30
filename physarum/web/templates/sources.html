@@ -2,7 +2,8 @@
 {% block title %}Dateien{% endblock %}
 {% block content %}
 <div class="pagehead"><div><h1>Dateien</h1>
-  <p>Alles, was Physarum bekommen hat – unverändert aufbewahrt. Jede Quelle lässt sich wieder herausnehmen; Physarum wächst dann ohne sie neu.</p></div></div>
+  <p>Alles, was Physarum bekommen hat – unverändert aufbewahrt. Jede Quelle lässt sich wieder herausnehmen; Physarum wächst dann ohne sie neu.</p>
+  <p class="muted">Für Neugierige: <a href="/organismus">Wie Physarum Ihre Firma aus diesen Dateien sieht</a>{% if cov and cov.parts %} – es kennt sie zu {{ (cov.score * 100)|round|int }} %{% endif %}.</p></div></div>
 <form class="drop" id="einwerfen" style="margin-bottom:18px">
   <h2>Neue Dateien hierher ziehen</h2>
   <p class="drop-msg muted">Neue Exporte, weitere Listen, der nächste Kontoauszug – Physarum fügt sie in das Bestehende ein.</p>
@@ -17,8 +18,8 @@
     <tr class="{{ 'faint' if not r.s.active }}">
       <td><a href="/quellen/{{ r.s.id }}/datei">{{ r.s.name }}</a>{% if r.s.parent_id %}<br><span class="faint" style="font-size:.78rem">Anhang/Inhalt von Quelle {{ r.s.parent_id }}</span>{% endif %}</td>
       <td style="white-space:nowrap">{{ ago(r.s.added_at) }}<br><span class="faint" style="font-size:.78rem">{{ r.s.added_by or '' }}</span></td>
-      <td style="font-size:.86rem">{% for t in r.summary.tables or [] %}{{ t.rows|de }} Zeilen{% if t.name %} <span class="faint">({{ t.name }})</span>{% endif %}<br>{% endfor %}
-          {% if r.docs %}{{ r.docs }} Dokument(e){% endif %}
+      <td style="font-size:.86rem">{% for t in r.summary.tables or [] %}{{ t.rows|de }} {{ 'Zeile' if t.rows == 1 else 'Zeilen' }}{% if t.name %} <span class="faint">({{ t.name }})</span>{% endif %}<br>{% endfor %}
+          {% if r.docs %}{{ r.docs }} {{ 'Dokument' if r.docs == 1 else 'Dokumente' }}{% endif %}
           {% for n in r.notes %}<div class="notice warn" style="margin-top:4px; font-size:.82rem">{{ n }}</div>{% endfor %}</td>
       <td>{% for t in r.types %}<a class="pill" href="/t/{{ t.id }}">{{ t.plural }}</a> {% endfor %}{% if r.docs %}<a class="pill" href="/t/doc">Dokumente</a>{% endif %}</td>
       <td>{% if r.s.active %}<button class="small ghost danger" data-post="/quellen/{{ r.s.id }}/entfernen" data-confirm="„{{ r.s.name }}“ herausnehmen? Was nur aus dieser Datei stammt, verschwindet (bleibt im Protokoll). Ihre eigenen Eingaben bleiben erhalten.">herausnehmen</button>

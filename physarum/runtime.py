@@ -393,20 +393,11 @@ class Runtime:
             quiet = set(saved.get("quiet") or [])
         else:
             # the menu keeps its places (people find things where they were); a new kind of thing joins
-            # where its weight puts it, and only a list that became far more important moves up
+            # where its weight puts it
             order = list(prev)
             for t in sorted((t for t in types if t["id"] not in prev), key=lambda t: -sal[t["id"]]):
                 pos = next((i for i, x in enumerate(order) if sal[x] < sal[t["id"]]), len(order))
                 order.insert(pos, t["id"])
-            changed, guard = True, 0
-            while changed and guard < 50:
-                changed = False
-                guard += 1
-                for i in range(len(order) - 1):
-                    a, b = order[i], order[i + 1]
-                    if sal[b] > sal[a] * 2 + 0.05:
-                        order[i], order[i + 1] = b, a
-                        changed = True
             quiet = {t["id"] for t in types if sal[t["id"]] < 0.22 and flux.get(f"type:{t['id']}", 0) <= 0.5
                      and len(self.records.get(t["id"], [])) < 30 and t["kind"] != "document"}
             self.store.kv_set("nav_order", dict(order=order, model=self._mv, quiet=sorted(quiet)))

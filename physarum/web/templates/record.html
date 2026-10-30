@@ -71,6 +71,7 @@
 {% if request.query_params.get('gespeichert') %}<div class="notice good" style="margin-bottom:12px">Gespeichert.</div>{% endif %}
 
 {% if invoice and company_missing %}<div class="notice warn row between" style="margin-bottom:12px"><span>Für Druck und E-Rechnung fehlen noch Ihre Firmendaten: {{ company_missing|join(', ') }}{{ '' if (company_missing|last).endswith('.') else '.' }}</span><a class="btn small" href="/firma?zurueck=/r/{{ rec.id }}">Firmendaten eintragen</a></div>{% endif %}
+{% for c in caution %}<div class="notice bad row between" style="margin-bottom:12px"><span><b>Vorsicht:</b> {{ c.reason }}{% if c.mail and c.mail != rec.id %} · <a href="/r/{{ c.mail }}">Mail ansehen</a>{% endif %}</span>{% if c.mail %}<button class="small" data-post="/post/{{ c.mail }}/erledigt" title="Unter einer bekannten Nummer beim Lieferanten nachgefragt">✓ Nachgefragt</button>{% endif %}</div>{% endfor %}
 {% if lock and not lock.cancelled %}<div class="notice" style="margin-bottom:12px">{{ lock.reason }}</div>{% endif %}
 {% if rec.meta and rec.meta.joins %}<div class="notice" style="margin-bottom:12px">
   {% for j in rec.meta.joins %}<div class="row between"><span>Zusammengeführt mit „{{ j.name }}“{% if j.other and j.other != title(rec.id) %} und „{{ j.other }}“{% endif %} – {{ 'kürzere Schreibweise desselben Namens' if j.why == 'Kurzform' else j.why }}.</span>

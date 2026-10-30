@@ -202,6 +202,19 @@ class EveryAction(unittest.TestCase):
         j = self.done(self.post(f"/post/{doc}/erledigt"))
         self.done(self.post(j["undo"]["url"], j["undo"]["body"]))
 
+    def test_a_fraud_warning_until_the_supplier_is_asked(self):
+        x = next(x for g in self.rt.work() if g["kind"] == "risk" for x in g["items"] if x.get("mail"))
+        home = self.get("/").text
+        self.assertIn(f'data-post="/post/{x["mail"]}/erledigt"', home)
+        self.assertNotIn("Stand Ihrer Daten", home)                    # the statement reaches into this week
+        page = self.get(f"/r/{x['rid']}").text
+        self.assertIn("Vorsicht:", page)
+        self.assertIn(f'href="/r/{x["mail"]}"', page)
+        j = self.done(self.post(f"/post/{x['mail']}/erledigt"))
+        self.assertNotIn("Vorsicht:", self.get(f"/r/{x['rid']}").text)
+        self.done(self.post(j["undo"]["url"], j["undo"]["body"]))
+        self.assertIn("Vorsicht:", self.get(f"/r/{x['rid']}").text)
+
     def test_questions_can_wait_and_come_back(self):
         q = self.store.q1("SELECT id FROM questions WHERE status='open' ORDER BY id")
         if not q:

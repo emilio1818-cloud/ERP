@@ -25,6 +25,12 @@
   </div>
 </div>
 
+{% if bank_until %}
+<div class="notice warn" style="margin-bottom:14px">
+  <b>Stand Ihrer Daten: Kontoauszug bis {{ display(bank_until.day, 'date') }}</b> (vor {{ bank_until.days }} Tagen). Was seitdem bezahlt wurde, sieht Physarum noch nicht – erst den aktuellen Kontoauszug <a href="/quellen#einwerfen">einwerfen</a>, dann erinnern oder berechnen.
+</div>
+{% endif %}
+
 {% if growth_file %}
 <div class="notice good" style="margin-bottom:14px">
   <div class="row between"><span><b>Ausprobieren, wie es wächst:</b> Die Rösterei hat später noch eine Liste „Wartungsverträge.xlsx“ gefunden (Kaffeemaschinen bei Kunden).</span>
@@ -81,6 +87,8 @@
             {% elif ig.kind == 'mail' %}
               {% if it.act %}<a class="btn small" href="{{ it.act.href }}">{{ it.act.label }}</a>{% endif %}
               <button class="small ghost" data-post="/post/{{ it.rid }}/erledigt" title="Diese Mail ist beantwortet oder erledigt">✓ Erledigt</button>
+            {% elif ig.kind == 'risk' and it.mail %}
+              <button class="small ghost" data-post="/post/{{ it.mail }}/erledigt" title="Unter einer bekannten Nummer beim Lieferanten nachgefragt – die Rechnung kommt zurück auf „zu bezahlen“">✓ Nachgefragt</button>
             {% elif it.seen %}
               <button class="small ghost" data-post="{{ it.seen }}" title="Die Änderung ist bekannt und richtig">✓ Gesehen</button>
             {% endif %}

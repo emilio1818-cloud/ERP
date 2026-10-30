@@ -174,8 +174,13 @@ class DemoCompany(unittest.TestCase):
     def test_fraud_warning_for_changed_bank_account(self):
         risks = [g for g in self.rt.work(TODAY) if g["kind"] == "risk"]
         self.assertEqual(len(risks), 1)
-        self.assertEqual(len(risks[0]["items"]), 1)  # the phishing mail, not the genuine invoice
-        self.assertIn("nie gezahlt", risks[0]["items"][0]["reason"])
+        self.assertEqual(len(risks[0]["items"]), 1)  # one warning: the invoice the phishing mail is after
+        x = risks[0]["items"][0]
+        self.assertIn("kündigt eine neue Bankverbindung an", x["reason"])
+        self.assertIn("nie gezahlt", x["reason"])                         # with what is wrong with the mail
+        self.assertEqual(self.rt.spec(self.rt.by_id[x["rid"]]["type"]).get("concept"), "rechnung")
+        self.assertFalse([y for g in self.rt.work(TODAY) if g["kind"] == "payable" for y in g["items"]
+                          if y["rid"] == x["rid"]])                       # and not on the list to pay
 
     def test_data_freshness(self):
         k = self.t("Kunde")

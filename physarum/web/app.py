@@ -205,7 +205,17 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                                                payments=payments, pay_exact=len(pay_exact),
                                                grown_at=summ["created_at"] if summ else None, greeting=views.greeting(),
                                                overdue_amount=open_amount, growth_file=_growth_file_exists(),
-                                               n_items=n_items, open_items=open_items))
+                                               n_items=n_items, open_items=open_items, bank_until=bank_until()))
+
+    def bank_until() -> dict | None:
+        """The newest day the bank statements reach, when it lies more than a week back: what is overdue may be
+        paid since – the owner should know before reminding anyone."""
+        from ..reconcile import bank_specs
+        days = [d for b in bank_specs(rt.model) for r in rt.records.get(b["spec"]["id"], [])
+                if (d := as_date(r["data"].get(b["date"]["id"])))]
+        last = max(days, default=None)
+        age = (date.today() - last).days if last else 0
+        return dict(day=last, days=age) if age > 7 else None
 
     def suggestions() -> list[dict]:
         out = []
@@ -622,6 +632,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     issued_here=bool(meta.get("issued")), incoming=bool(spec.get("incoming")), **issue_ctx,
                     draft_lines=bool(draft and meta.get("positions") is not None),
                     maybe_paid=maybe_paid, pay=pay, alloc=alloc, assign=assign, cash_kinds=CASH_KINDS,
+                    caution=[x for g in rt.work() if g["kind"] == "risk" for x in g["items"] if x["rid"] == rid],
                     invoice=inv, draft=draft, doc=doc,
                     missing=billing.missing_for_issue(rt, spec, rec) if draft else [],
                     company_missing=billing.company_missing(store) if inv else [], conflicts=conflicts,

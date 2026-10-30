@@ -706,12 +706,12 @@ def _short_day(s: str) -> str:
 
 
 def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outrefs: dict | None,
-               done: set | None, ledger: dict | None = None) -> list[dict]:
+               done: set | None, ledger: dict | None = None) -> tuple[list[dict], list[dict]]:
     """The inbox as part of the firm's processes: an order, an inquiry or a complaint that came by mail
     and has nothing yet that answers it – no order, no offer for that customer since. A complaint
-    waits until somebody marks it done."""
+    waits until somebody marks it done. Apart: the mails that announce a new bank account."""
     if not outrefs:
-        return []
+        return [], []
     specs = {t["id"]: t for t in model["types"]}
     procs = {p["type"]: p for p in model.get("processes", [])}
     concept = {t["id"]: (t.get("concept") or "") for t in model["types"]}
@@ -777,7 +777,7 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
             continue  # an old mail – unless it says an invoice is paid that still is not
         if _NEW_BANK.search(body) or _NEW_BANK.search(subject):
             items.append(dict(rid=d["id"], title=subject or "E-Mail", party=None, days=(today - when).days, money=None,
-                              mail="bank", act=None,
+                              mail="bank", act=None, when=when.isoformat(),
                               reason=f"kündigt am {when.strftime('%d.%m.')} eine neue Bankverbindung an – vor jeder "
                                      f"Zahlung beim bekannten Ansprechpartner anrufen, nicht unter der Nummer aus der Mail"))
             continue
@@ -841,15 +841,54 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
         items.append(dict(rid=d["id"], title=subject or "E-Mail", party=title(party) if party else None,
                           days=(today - when).days, money=None, reason=reason, mail=what, act=act,
                           invoice=invoice, when=when.isoformat()))
+    bank = [x for x in items if x["mail"] == "bank"]
+    items = [x for x in items if x["mail"] != "bank"]
     if not items:
-        return []
-    order = {"bank": 0, "complaint": 1, "claim": 2, "order": 3, "request": 4, "cancel": 5, "ask": 6}
+        return [], bank
+    order = {"complaint": 1, "claim": 2, "order": 3, "request": 4, "cancel": 5, "ask": 6}
     items.sort(key=lambda x: (order[x["mail"]], -x["days"]))
-    urgent = any(x["mail"] in ("bank", "complaint", "claim", "order") for x in items)
+    urgent = any(x["mail"] in ("complaint", "claim", "order") for x in items)
     return [dict(id="mail:open", type="doc", kind="mail", severity=2 if urgent else 1,
                  title="E-Mails, die auf Sie warten", count=len(items), amount=None, items=items[:30], action=None,
                  explain="Reklamationen, Bitten, Kündigungen, Bestellungen und Anfragen aus den eingeworfenen Mails, "
-                         "zu denen noch nichts geschehen ist. Was erledigt ist, lässt sich abhaken.")]
+                         "zu denen noch nichts geschehen ist. Was erledigt ist, lässt sich abhaken.")], bank
+
+
+def _announced(mails: list[dict], risks: list[dict], model: dict, records: dict, by_id: dict, outrefs: dict,
+               ledger: dict | None, title) -> list[dict]:
+    """A mail that announces a new bank account – the classic opening of invoice fraud – stands under
+    „Vorsicht“: as the open supplier invoices it names, by number or through the supplier, which wait there
+    instead of on the list to pay until somebody has asked the supplier at a number they already knew; as
+    itself when it names none. What speaks against the mail (an account never paid to, a look-alike sender)
+    goes with the invoice: one warning, where the money would go."""
+    from .reconcile import _incoming
+    parties = {t["id"]: party["id"] for t, party, *_ in _incoming(model)}
+    kinds = {t["id"]: t["kind"] for t in model["types"]}
+    risks = list(risks)
+    for m in mails:
+        named = [to for to, attr, k, how in outrefs.get(m["rid"], []) if to in by_id]
+        invs = [to for to in named if by_id[to]["type"] in parties]
+        if not invs:
+            who = {to for to in named if kinds.get(by_id[to]["type"]) == "master"}
+            invs = [r["id"] for t, pa in parties.items() for r in records.get(t, []) if r["data"].get(pa) in who]
+        invs = [rid for rid in dict.fromkeys(invs) if ((ledger or {}).get(rid) or {}).get("state") in ("offen", "teilbezahlt")]
+        own = next((x for x in risks if x["rid"] == m["rid"]), None)
+        new = [rid for rid in invs if all(x["rid"] != rid for x in risks)]  # else in doubt for its own account
+        if not invs and own is None:
+            risks.append(dict(m, partner=None, mail=m["rid"]))
+        if not new:
+            continue
+        why = f"Mail vom {date.fromisoformat(m['when']).strftime('%d.%m.')} kündigt eine neue Bankverbindung an"
+        why += (f"; sie {own['reason']}" if own else "") + (" – erst bezahlen, wenn der Lieferant sie unter einer "
+                                                            "Ihnen bekannten Telefonnummer bestätigt hat")
+        if own is not None:
+            risks.remove(own)
+        for rid in new:
+            pv = by_id[rid]["data"].get(parties[by_id[rid]["type"]])
+            risks.append(dict(rid=rid, partner=pv if isinstance(pv, int) else None, title=title(rid),
+                              party=title(pv) if isinstance(pv, int) and pv in by_id else pv, days=0,
+                              money=ledger[rid]["open"], mail=m["rid"], reason=why))
+    return risks
 
 
 def step_dates_of(p: dict, spec: dict, records: dict, by_id: dict, mention_refs: dict, ledger: dict | None,
@@ -1161,7 +1200,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     if due and ((due - today).days <= 14 or (cut and cut["days"] <= 7)):
                         buckets[(st["id"], "payable")].append(dict(rid=r["id"], days=(due - today).days, money=money,
                                                                    due=due.isoformat(), name=dl["name"], due_how=due_how,
-                                                                   reason=cut["text"] if cut else None))
+                                                                   reason=cut["text"] if cut else None,
+                                                                   skonto=cut["days"] if cut else None))
                     break
                 if due and due < today:
                     buckets[(st["id"], "overdue")].append(dict(rid=r["id"], days=(today - due).days, money=money,
@@ -1215,7 +1255,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     buckets[(dl["attr"], kind)].append(dict(rid=r["id"], days=(due - today).days,
                                                             money=e["open"] if e else _money(r, p),
                                                             due=due.isoformat(), name=dl["name"], due_how=due_how,
-                                                            reason=cut["text"] if cut else None))
+                                                            reason=cut["text"] if cut else None,
+                                                            skonto=cut["days"] if cut else None))
         for (sid, kind), items in buckets.items():
             st = next((s for s in p["steps"] if s["id"] == sid), None)
             items.sort(key=lambda x: (-x["days"] if kind in ("overdue", "late", "ready") else x["days"]))
@@ -1248,7 +1289,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 sev = 1
             elif kind == "payable":
                 head = f"{spec['plural']} zu bezahlen"
-                sev = 2 if any(x["days"] < 0 for x in items) else 1
+                # what has to go out today or tomorrow – by its due date or by the last day of the discount
+                sev = 2 if any(x["days"] <= 2 or x.get("skonto") in (0, 1, 2) for x in items) else 1
             else:
                 dname = items[0].get("name", "Termin")
                 head = f"{spec['plural']}: {dname} steht an"
@@ -1263,6 +1305,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                               attr=st["rel_attr"] if st.get("rel_kind") != "own_ref" else None)  # else: from the case
             groups.append(dict(id=f"{p['id']}:{sid}:{kind}", type=p["type"], kind=kind, severity=sev, title=head,
                                count=len(items), amount=total, items=items[:50], action=action,
+                               top=kind == "payable" and sev == 2,  # a deadline before what is merely large
                                step=st["label"] if st else None,
                                explain=_explain(p, st, kind)))
     if drafts:
@@ -1300,6 +1343,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                    amount=round(sum(x["money"] or 0 for x in items), 2), items=items[:50], action=None,
                                    explain="Teilzahlungen, doppelte Zahlungen, Rücklastschriften und Geld auf stornierten "
                                            "Rechnungen – nach Betrag aus dem Kontoauszug, nicht nach Nummer."))
+    mail, announced = _mail_work(model, records, by_id, title, today, outrefs, mails_done, ledger)
     if outrefs is not None:
         from .reconcile import risk_items, supplier_items
         tmap = titles_in or {r: title(r) for r in by_id}
@@ -1307,6 +1351,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
         more, checks = supplier_items(model, records, outrefs, tmap, ledger, today,
                                       reported={(x["partner"], x.get("iban")) for x in risks})
         risks += more
+        risks = _announced(announced, risks, model, records, by_id, outrefs, ledger, title)
         if checks:
             groups.append(dict(id="check:incoming", type=checks[0].get("type") or "doc", kind="risk", severity=2,
                                title="Eingangsrechnungen vor dem Bezahlen prüfen", count=len(checks), amount=None,
@@ -1329,9 +1374,12 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                amount=round(sum(x["money"] for x in got), 2), items=got[:30], action=None,
                                explain="Eingänge der letzten zwei Monate, die keine Rechnung bezahlen. Eine Anzahlung "
                                        "braucht ihre Anzahlungsrechnung, eine Gutschrift gehört zum Lieferanten."))
-        risky = {x["rid"] for x in risks}
+        risky = {x["rid"]: x for x in risks}
         for g in groups:
             held = [x for x in g["items"] if x["rid"] in risky] if g["kind"] == "payable" else []
+            for x in held:  # the deadline goes with it: "Skonto nur noch bis 31.10." makes the call urgent
+                if x.get("reason"):
+                    risky[x["rid"]]["reason"] += "; " + x["reason"]
             if held:  # never on the list of what to pay while the account is in doubt
                 g["items"] = [x for x in g["items"] if x["rid"] not in risky]
                 g["count"], g["amount"] = len(g["items"]), round(sum(x["money"] or 0 for x in g["items"]), 2)
@@ -1345,7 +1393,6 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                count=len(risks), amount=at_stake, items=risks, action=None,
                                explain="Vor einer Zahlung telefonisch beim bekannten Ansprechpartner prüfen. "
                                        "So sieht Rechnungsbetrug typischerweise aus."))
-    mail = _mail_work(model, records, by_id, title, today, outrefs, mails_done, ledger)
     claims = {x["invoice"]: x for g in mail for x in g["items"] if x.get("mail") == "claim"}
     for g in groups:
         for x in g["items"] if g["kind"] == "overdue" else []:

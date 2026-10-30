@@ -653,6 +653,46 @@ class CraftFirm(unittest.TestCase):
         self.assertIn("zweimal eingegangen (RE_4471004.pdf, Scan_0001.pdf)", pay[0]["reason"])
         self.assertEqual(pay[0]["party"], "Grosshandel Nord GmbH")
 
+    def test_a_mail_announcing_a_new_account_holds_the_invoice_it_names(self):
+        """Review 9: the mail stood folded away among the others, the invoice it names on the list to pay with its
+        discount ending tomorrow. The invoice waits under „Vorsicht“ until somebody has asked the supplier."""
+        from email.message import EmailMessage
+        today, good = date(2026, 10, 29), "DE89370400440532013000"
+        rows = _book(24, start=date(2026, 6, 1))
+        bank = [[r[1], r[2], "DE02120300000000202051", f"Rechnung {r[0]} vielen Dank", r[8]] for r in rows]
+        files = [("Eingangsrechnungen/RE_4471003.pdf", _supplier_invoice("4471003", date(2026, 10, 20), 1500.0, good))]
+        for no, day, net in (("4471001", date(2026, 8, 3), 1000.0), ("4471002", date(2026, 9, 1), 2000.0)):
+            files.append((f"Eingangsrechnungen/RE_{no}.pdf", _supplier_invoice(no, day, net, good)))
+            bank.append([(day + timedelta(days=9)).strftime("%d.%m.%Y"), "GROSSHANDEL NORD", good, f"RG {no} KD 55120",
+                         "-" + _eur(net * 1.19 * 0.98)])
+        msg = EmailMessage()
+        msg["From"], msg["To"] = "Grosshandel Nord Buchhaltung <buchhaltung@gh-nord.example>", "info@muster.example"
+        msg["Subject"], msg["Date"] = "WICHTIG: Neue Bankverbindung – Rechnung 4471003", "Mon, 26 Oct 2026 07:41:00 +0100"
+        msg.set_content("Bitte überweisen Sie den Betrag der Rechnung 4471003 ausschließlich auf unser neues Konto "
+                        "LT41 3250 0247 1938 4410.")
+        self.f.feed([("Rechnungsausgangsbuch.csv", csv(BOOK_HEAD, rows)), ("bank.eml", msg.as_bytes()),
+                     ("Umsaetze_Girokonto.csv", csv("Buchungstag;Auftraggeber/Empfänger;IBAN;Verwendungszweck;Betrag", bank))]
+                    + files)
+        rt = self.f.rt()
+        work = rt.work(today)
+        self.assertEqual(work[0]["kind"], "risk")                                    # on top, not folded away
+        self.assertEqual([x["title"] for x in work[0]["items"]], ["4471003"])
+        why = work[0]["items"][0]["reason"]
+        self.assertIn("Mail vom 26.10. kündigt eine neue Bankverbindung an", why)
+        self.assertIn("Skonto (35,70 €) nur noch bis 30.10.", why)                  # the deadline goes with it
+        self.assertFalse([x for g in work if g["kind"] in ("payable", "mail") for x in g["items"]])
+        rt.store.decide("mail_done", str(work[0]["items"][0]["mail"]), "done", "T")  # asked at the known number
+        rt.bump()
+        work = rt.work(today)
+        self.assertFalse([g for g in work if g["kind"] == "risk"])
+        pay = next(g for g in work if g["kind"] == "payable")                        # back on the list to pay,
+        self.assertEqual([x["title"] for x in pay["items"]], ["4471003"])
+        self.assertEqual((pay["severity"], pay["top"]), (2, True))                  # and up front: Skonto ends tomorrow
+        from starlette.testclient import TestClient
+        from physarum.web.app import create_app
+        home = TestClient(create_app(self.f.dir / "firma")).get("/").text            # the statement ends 10.09.
+        self.assertIn("Stand Ihrer Daten: Kontoauszug bis 10.09.2026", home)
+
     def test_mails_that_wait_for_an_answer(self):
         from email.message import EmailMessage
 
@@ -690,9 +730,11 @@ class CraftFirm(unittest.TestCase):
         work = rt.work(today)
         g = next(g for g in work if g["kind"] == "mail")
         got = {x["title"]: x for x in g["items"]}
-        self.assertEqual(set(got), {"AW: Zahlungserinnerung RE-2026-0004", "Kündigung", "Rohrbruch – Danke!",
-                                    "WICHTIG: neue Bankverbindung"})               # not the thanks, not the paid one
-        self.assertEqual(g["items"][0]["title"], "WICHTIG: neue Bankverbindung")   # the risk first
+        self.assertEqual(set(got), {"AW: Zahlungserinnerung RE-2026-0004", "Kündigung", "Rohrbruch – Danke!"})
+        # not the thanks, not the paid one – and the new bank account not among the mails but on top, as a risk
+        risk = next(g for g in work if g["kind"] == "risk")
+        self.assertEqual([x["title"] for x in risk["items"]], ["WICHTIG: neue Bankverbindung"])
+        self.assertEqual(work[0]["kind"], "risk")
         self.assertIn("RE-2026-0004 sei am 12.08. bezahlt", got["AW: Zahlungserinnerung RE-2026-0004"]["reason"])
         self.assertIn("WV-0102 zum 31.12.", got["Kündigung"]["reason"])
         self.assertIn("noch nicht in der Vertragsliste", got["Kündigung"]["reason"])

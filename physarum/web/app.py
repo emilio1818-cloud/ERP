@@ -604,13 +604,13 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             t_now = billing.tax_by_lines(pos_now) if pos_now else None
             from ..einvoice import xrechnung_problems
             issue_ctx = dict(
-                problems=[p for p in billing.issue_problems(rt, spec, rec, extra_ok=True) if not p.startswith("Leistungsdatum")
+                problems=[p for p in billing.issue_problems(rt, spec, rec, extra_ok=True, here_ok=True) if not p.startswith("Leistungsdatum")
                           and not p.startswith("Grund für 0 %")],
                 xr_problems=[p for p in xrechnung_problems(dict(doc or {}, number="x", delivery="x"))],
                 edit_positions=pos_now, delivery_value=dv.isoformat() if dv else None,
                 delivery_hint="aus dem Auftrag" if dv else "bitte angeben",
                 zero_rate=bool(t_now and any(abs(g["rate"]) < 1e-9 for g in t_now["groups"])),
-                other_invoices=billing.other_invoices(rt, spec, rec))
+                other_invoices=billing.other_invoices(rt, spec, rec), handover=billing.handover(rt, spec))
         effort = _effort(spec, rec)
         owes = _owes(spec, rec) if spec["kind"] == "master" else None
         # one status in the header: where the file's status speaks of payment ("offen", "bezahlt"), the bank has the say
@@ -743,8 +743,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     item["action"] = dict(kind="set_date", attr=own["attr"], label=f"Als {st['label']} markieren"
                                           if fold(st["label"]) in ("bezahlt", "geliefert", "versendet", "eingegangen",
                                                                    "erledigt", "berechnet") else f"{st['name']} eintragen")
-                elif child and child.get("rel_kind") == "ref":
-                    item["action"] = dict(kind="create_child", type=child["type"], attr=child["rel_attr"],
+                elif child and child.get("rel_kind") in ("ref", "own_ref"):
+                    item["action"] = dict(kind="create_child", type=child["type"],
+                                          attr=child["rel_attr"] if child["rel_kind"] == "ref" else None,
                                           label=f"{rt.spec(child['type'])['name']} anlegen")
             steps.append(item)
         status = proc.get("status")
@@ -857,7 +858,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             number = billing.issue(rt, rid, actor(request), delivery=form.get("leistung") or None,
                                    delivery_end=form.get("leistung_bis") or None,
                                    tax_note=form.get("steuerhinweis") or None, extra_ok=bool(form.get("zusatz")),
-                                   render=render_invoice)
+                                   render=render_invoice, here_ok=bool(form.get("hier")))
         except billing.BillingError as e:
             return JSONResponse(dict(error=str(e)))
         return JSONResponse(dict(reload=True, toast=f"Ausgestellt als {number}, festgeschrieben und archiviert."))
@@ -1141,6 +1142,12 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             return page(request, "message.html", dict(title="Nicht gefunden", text="Diese Art gibt es nicht."), 404)
         data = ops.prefill(rt, spec)
         why = []
+        case = rt.by_id.get(int(request.query_params["aus"])) if request.query_params.get("aus", "").isdigit() else None
+        if case and billing.is_invoice(spec) and billing.billed_by_own_ref(rt, case, spec):
+            vals, _lines, why = billing.from_case(rt, spec, case)  # the order names its invoice: from the order
+            data.update(vals)
+        else:
+            case = None
         for k, v in request.query_params.items():
             if k.startswith("a_"):
                 data[k[2:]] = int(v) if v.isdigit() else v
@@ -1164,6 +1171,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         ctx = form_context(spec, data, why=why)
         ctx["hints"] = hints
         ctx["readonly"] = readonly
+        ctx["case"] = case["id"] if case else None
         if readonly:
             ctx["formulas"] = [f for f in ctx["formulas"] if f["attr"] not in readonly]
         return page(request, "form.html", ctx)
@@ -1233,11 +1241,16 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                 if not lines[int(n)].get(aid):
                     lines[int(n)][aid] = v
         line = line_child(spec)
+        case = rt.by_id.get(int(form["aus"])) if (form.get("aus") or "").isdigit() else None
         try:
             rid = ops.create(rt, tid, raw, actor(request), [lines[n] for n in sorted(lines)] if line else None,
                              line["spec"]["id"] if line else None)
+            if case and billing.is_invoice(spec) and billing.billed_by_own_ref(rt, case, spec):
+                billing.link_case(rt, rid, case["id"], actor(request))
         except ops.OpError as e:
-            ctx = form_context(spec, {k: v for k, v in raw.items()}, str(e), [lines[n] for n in sorted(lines)])
+            shown = {k: (int(v) if isinstance(v, str) and v.isdigit() and int(v) in rt.by_id else v) for k, v in raw.items()}
+            ctx = form_context(spec, shown, str(e), [lines[n] for n in sorted(lines)])
+            ctx["case"] = case["id"] if case else None
             return page(request, "form.html", ctx, 400)
         except Exception as e:  # noqa: BLE001 - never lose what was typed
             traceback.print_exc()

@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 from .. import lexicon
-from ..text import name_similarity, plural_de, singular_de, slug, tokens
+from ..text import fold, name_similarity, plural_de, singular_de, slug, tokens
 from ..values import Profile
 from .observe import ENTITY_ROLES, NEVER_DETERMINANT, SILENT_HEADERS, Col, Obs, display_header, heading_name, pick_key
 
@@ -147,6 +147,8 @@ def candidate_extractions(o: Obs) -> list[dict]:
                     lexicon.CONCEPTS[y.prof.concept]["kind"] == "transaction":
                 continue  # the project a ticket is about belongs to the ticket, not to the customer
             ok, cons = depends(groups, y, g)
+            if ok and y.kind != "id" and y.origin != x.origin and _inside(x, y):
+                continue  # "Unterhaltsreinigung lt. Vertrag 01/2026" and "01/2026": part of the words, not of a thing
             if ok:
                 deps.append((y, cons))
             elif ok is None:
@@ -201,6 +203,12 @@ def candidate_extractions(o: Obs) -> list[dict]:
                 out.insert(0, e)
                 break
     return out
+
+
+def _inside(x: Col, y: Col) -> bool:
+    """On most rows the dependent's value stands written in the determinant's own text."""
+    pairs = [(fold(str(a)), fold(str(b))) for a, b, k in zip(x.values, y.values, y.keys) if k is not None and a is not None]
+    return len(pairs) >= 4 and sum(1 for a, b in pairs if b and b in a) >= 0.8 * len(pairs)
 
 
 def _own_events(o: Obs, x: Col, groups: dict[str, list[int]] | None) -> bool:

@@ -26,6 +26,7 @@
 {% if error %}<div class="notice bad" style="margin-bottom:12px">{{ error }}</div>{% endif %}
 <p class="notice" id="derive-why" style="margin-bottom:12px{{ '' if why else '; display:none' }}">{{ why|join(' · ') }}</p>
 <form method="post" class="stack" data-type="{{ spec.id }}" data-formulas="{{ formulas|json|e }}" data-line-formulas="{{ lformulas|json|e }}" data-line-total="{{ ltotal or '' }}">
+  {% if case %}<input type="hidden" name="aus" value="{{ case }}">{% endif %}
   <section class="card">
     <div class="form-grid head-fields">
       {% for a in main %}

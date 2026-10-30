@@ -73,7 +73,7 @@
             {% elif ig.action and ig.action.kind == 'create_child' and it.draft %}
               <a class="btn small ghost" href="/r/{{ it.draft }}" title="Für diesen Vorgang liegt schon ein Entwurf bereit">Entwurf öffnen</a>
             {% elif ig.action and ig.action.kind == 'create_child' %}
-              <a class="btn small" href="/t/{{ ig.action.type }}/neu?a_{{ ig.action.attr }}={{ it.rid }}">+ {{ ig.action.label }}</a>
+              <a class="btn small" href="/t/{{ ig.action.type }}/neu?{% if ig.action.attr %}a_{{ ig.action.attr }}{% else %}aus{% endif %}={{ it.rid }}">+ {{ ig.action.label }}</a>
             {% elif ig.kind == 'draft' %}
               <a class="btn small" href="/r/{{ it.rid }}">Prüfen und ausstellen</a>
             {% elif ig.kind == 'receipt' %}

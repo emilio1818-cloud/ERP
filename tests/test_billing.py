@@ -70,7 +70,7 @@ class InvoiceFromOrder(unittest.TestCase):
         self.assertAlmostEqual(d[self.attr(inv, "MwSt")["id"]], tax, places=2)  # by the articles' rates
         self.assertIsNone(d.get(inv["key"]))                                     # a draft has no number yet
         self.assertIsNone(ops.lock_state(self.rt, inv, self.store.record(rid)))  # and can be changed
-        number = billing.issue(self.rt, rid, "Test")
+        number = billing.issue(self.rt, rid, "Test", here_ok=True)
         self.rt.ensure()
         full = self.store.record(rid)
         self.assertEqual(full["data"][inv["key"]], number)
@@ -84,26 +84,26 @@ class InvoiceFromOrder(unittest.TestCase):
         inv = self.spec("Rechnung")
         order_rid, _ = self.new_order([(self.rt.records[self.spec("Artikel")["id"]][0]["id"], 1)])
         a = ops.create(self.rt, inv["id"], {self.attr(inv, "Auftrag")["id"]: str(order_rid)}, "Test")
-        n1 = billing.issue(self.rt, a, "Test")
+        n1 = billing.issue(self.rt, a, "Test", here_ok=True)
         nid = ops.storno(self.rt, a, "Test-Storno", "Test")
         self.rt.ensure()
         n_storno = self.rt.by_id[nid]["data"][inv["key"]]
         b = ops.create(self.rt, inv["id"], {self.attr(inv, "Auftrag")["id"]: str(order_rid)}, "Test")
-        n2 = billing.issue(self.rt, b, "Test")
+        n2 = billing.issue(self.rt, b, "Test", here_ok=True)
         self.assertEqual(len({n1, n_storno, n2}), 3)
 
     def test_issue_needs_customer_and_amount(self):
         inv = self.spec("Rechnung")
         rid = ops.create(self.rt, inv["id"], {}, "Test")
         with self.assertRaises(billing.BillingError):
-            billing.issue(self.rt, rid, "Test")
+            billing.issue(self.rt, rid, "Test", here_ok=True)
 
     def issued(self, articles=None):
         inv = self.spec("Rechnung")
         art = self.rt.records[self.spec("Artikel")["id"]]
         order_rid, _ = self.new_order(articles or [(art[4]["id"], 2)])
         rid = ops.create(self.rt, inv["id"], {self.attr(inv, "Auftrag")["id"]: str(order_rid)}, "Test")
-        number = billing.issue(self.rt, rid, "Test")
+        number = billing.issue(self.rt, rid, "Test", here_ok=True)
         self.rt.ensure()
         return inv, rid, number
 
@@ -132,7 +132,7 @@ class InvoiceFromOrder(unittest.TestCase):
         off = round(sum(p["total"] for p in pos) * 0.1, 2)
         rows = [dict(p) for p in pos] + [dict(text="Rabatt 10 %", qty="1", price=f"-{off}", rate=str(rate * 100))]
         billing.set_positions(self.rt, rid, rows, "Test")
-        number = billing.issue(self.rt, rid, "Test")
+        number = billing.issue(self.rt, rid, "Test", here_ok=True)
         self.rt.ensure()
         rec = self.store.record(rid)
         doc = billing.document(self.rt, rec)
@@ -149,16 +149,16 @@ class InvoiceFromOrder(unittest.TestCase):
         rid = ops.create(self.rt, inv["id"], {self.attr(inv, "Kunde")["id"]:
                                               str(self.rt.records[self.spec("Kunde")["id"]][2]["id"])}, "Test")
         with self.assertRaises(billing.BillingError):
-            billing.issue(self.rt, rid, "Test", delivery="2026-10-01")             # no lines yet
+            billing.issue(self.rt, rid, "Test", delivery="2026-10-01", here_ok=True)             # no lines yet
         billing.set_positions(self.rt, rid, [dict(text="Barista-Schulung", qty="2", unit="Std", price="85,00", rate="19")], "Test")
         self.rt.ensure()
         rec = self.store.record(rid)
         self.assertAlmostEqual(rec["data"][self.attr(inv, "Brutto")["id"]], 202.30, places=2)
         with self.assertRaises(ops.OpError):
             ops.update(self.rt, rid, {self.attr(inv, "Netto")["id"]: "100"}, "Test")  # amounts come from the lines
-        number = billing.issue(self.rt, rid, "Test", delivery="2026-10-01")
+        number = billing.issue(self.rt, rid, "Test", delivery="2026-10-01", here_ok=True)
         with self.assertRaises(billing.BillingError):
-            billing.issue(self.rt, rid, "Test", delivery="2026-10-01")             # never twice
+            billing.issue(self.rt, rid, "Test", delivery="2026-10-01", here_ok=True)             # never twice
         self.assertTrue(number)
 
     def test_issued_invoice_is_dated_today_and_archived(self):
@@ -210,7 +210,7 @@ class InvoiceFromOrder(unittest.TestCase):
         inv, order = self.spec("Rechnung"), self.spec("Auftrag")
         order_rid, _ = self.new_order([(self.rt.records[self.spec("Artikel")["id"]][1]["id"], 1)])
         rid = ops.create(self.rt, inv["id"], {self.attr(inv, "Auftrag")["id"]: str(order_rid)}, "Test")
-        billing.issue(self.rt, rid, "Test")
+        billing.issue(self.rt, rid, "Test", here_ok=True)
         ops.storno(self.rt, rid, "falsch", "Test")
         self.rt.ensure()
         later = date.today() + timedelta(days=60)
@@ -252,7 +252,7 @@ class InvoiceFromOrder(unittest.TestCase):
                                               str(self.rt.records[self.spec("Kunde")["id"]][5]["id"])}, "Test")
         billing.set_positions(self.rt, rid, [dict(text="Hafenmischung 1 kg", qty="4", price="18,50", rate="7"),
                                              dict(text="Barista-Schulung", qty="2", unit="Std", price="85,00", rate="19")], "Test")
-        number = billing.issue(self.rt, rid, "Test", delivery=date.today().isoformat())
+        number = billing.issue(self.rt, rid, "Test", delivery=date.today().isoformat(), here_ok=True)
         _, rid2, number2 = self.issued([(coffee["id"], 3)])
         billing.cancel(self.rt, rid2, "Falscher Kunde", "Test")
         self.rt.ensure()
@@ -314,7 +314,7 @@ class NewBookAfterIssuing(unittest.TestCase):
             oref = next(a for a in inv["attrs"] if a["name"] == "Auftrag")
             store.kv_set("company_profile", COMPANY)
             mine = ops.create(rt, inv["id"], {oref["id"]: str(rt.records[order["id"]][0]["id"])}, "Test")
-            number = billing.issue(rt, mine, "Test", delivery="2026-10-01", extra_ok=True)
+            number = billing.issue(rt, mine, "Test", delivery="2026-10-01", extra_ok=True, here_ok=True)
             rt.ensure()
             my_net = rt.by_id[mine]["data"][net["id"]]
             src = next(p for p in res["initial"] if p.name == "Rechnungsausgangsbuch.csv")
@@ -469,3 +469,81 @@ class OwnEInvoice(unittest.TestCase):
                          dict(name="Ostermeier Gebäudedienste GmbH", street="Bavenstedter Straße 48", zip="31135",
                               city="Hildesheim", vat_id="DE312456789", email="buchhaltung@ostermeier-gd.example",
                               phone="05121 99876-0", iban="DE57259501300912345678"))
+
+
+class OrderNamesItsInvoice(unittest.TestCase):
+    """A cleaning firm's special jobs: the order list has a column for the invoice's number, the invoice book
+    knows nothing of orders. "+ Rechnung" on a finished job gives a filled draft, the job then names it; the
+    first invoice written here asks whether the old program stops writing invoices."""
+
+    @classmethod
+    def setUpClass(cls):
+        from datetime import date, timedelta
+        from starlette.testclient import TestClient
+        from physarum.web.app import create_app
+        cls.tmp = Path(tempfile.mkdtemp(prefix="physarum-ownref-"))
+        today = date.today()
+        de = lambda d: d.strftime("%d.%m.%Y")  # noqa: E731
+        kunden = ["Kd.-Nr.;Firma;Straße;PLZ;Ort"] + [f"{10001 + i};{n};Markt {i + 1};31134;Hildesheim" for i, n in enumerate(
+            ["Kita Sonnenblume", "Autohaus Wendt GmbH", "Praxis am Markt", "Pension Domblick"])]
+        orders = ["Auftrag;Eingang;Kd.-Nr.;Leistung;erledigt am;Preis netto;Re.-Nr."]
+        book = ["Re.-Nr.;Datum;Kd.-Nr.;Leistung;Netto;USt;Brutto;fällig am"]
+        eur = lambda x: f"{x:.2f}".replace(".", ",")  # noqa: E731
+        for i in range(20):
+            d = today - timedelta(days=200 - 9 * i)
+            kd, net, sa = 10001 + i % 4, 300.0 + 40 * i, f"SA-26-{i + 1:03d}"
+            no = f"2026-{i + 1:04d}" if i not in (17, 19) else ""
+            orders.append(f"{sa};{de(d)};{kd};Grundreinigung Objekt {i + 1};{de(d + timedelta(days=5))};{eur(net)};{no}")
+            if no:
+                book.append(f"{no};{de(d + timedelta(days=6))};{kd};{('Glas', 'Teppich', 'Bau')[i % 3]}reinigung;{eur(net)};"
+                            f"{eur(net * 0.19)};{eur(net * 1.19)};{de(d + timedelta(days=20))}")
+        files = {"Kunden.csv": kunden, "Sonderauftraege.csv": orders, "Rechnungsausgangsbuch.csv": book}
+        cls.store = Store(cls.tmp / "firma")
+        ingest(cls.store, [(n, ("\n".join(rows) + "\n").encode("utf-8")) for n, rows in files.items()], "Test")
+        regrow(cls.store)
+        cls.store.kv_set("company_profile", COMPANY)
+        cls.client = TestClient(create_app(cls.tmp / "firma"))
+        cls.rt = Runtime(cls.store)
+        cls.rt.ensure()
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_a_finished_job_is_invoiced_from_its_order(self):
+        import re
+        rt = self.rt
+        heute = self.client.get("/").text
+        links = re.findall(r'href="/t/(\w+)/neu\?aus=(\d+)"', heute)
+        self.assertEqual(len(links), 2, "the two finished jobs without an invoice")
+        tid, case = links[0][0], int(links[0][1])
+        form = self.client.get(f"/t/{tid}/neu?aus={case}").text
+        self.assertIn("Kunde, Leistung, Preis und Leistungsdatum übernommen", form)
+        self.assertIn(f'name="aus" value="{case}"', form)
+        spec = rt.spec(tid)
+        values = dict(re.findall(r'name="(a_\w+)" (?:[^>]*?)value="([^"]*)"', form))
+        r = self.client.post(f"/t/{tid}/neu", data=dict(values, aus=str(case)), headers={"origin": "http://testserver"},
+                             follow_redirects=False)
+        self.assertEqual(r.status_code, 303, r.text[:500])
+        rid = int(re.search(r"/r/(\d+)", r.headers["location"]).group(1))
+        rt = Runtime(self.store)
+        rt.ensure()
+        draft = rt.by_id[rid]
+        self.assertTrue(billing.is_draft(draft))
+        party = billing.party_attr(rt, spec)
+        self.assertEqual(draft["data"][party["id"]], next(rt.by_id[case]["data"][a["id"]] for a in rt.spec(
+            rt.by_id[case]["type"])["attrs"] if a.get("ref") == party["ref"]))           # the job's customer
+        pos = billing.draft_positions(rt, draft)
+        self.assertEqual([(p["text"], p["price"], p["rate"]) for p in pos], [("Grundreinigung Objekt 18", 980.0, 0.19)])
+        self.assertIn(rid, rt.by_id[case]["data"].values())                      # the job names its invoice now
+        self.assertIn(f"/r/{rid}", self.client.get("/").text)                    # Heute: "Entwurf öffnen", no 2nd draft
+        with self.assertRaises(billing.BillingError) as e:
+            billing.issue(rt, rid, "Test")                                       # the old program numbered so far
+        self.assertIn("Ab jetzt schreiben Sie Rechnungen hier", str(e.exception))
+        number = billing.issue(rt, rid, "Test", here_ok=True)
+        self.assertEqual(number, "2026-0020")                                    # after the last one of the book
+        self.assertEqual(self.store.decisions("invoicing").get(tid), "hier")
+        rt = Runtime(self.store)
+        rt.ensure()
+        self.assertIsNone(billing.handover(rt, spec))                            # asked once
+        self.assertNotIn(f"aus={case}", self.client.get("/").text)               # no longer "not invoiced"

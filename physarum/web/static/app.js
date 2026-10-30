@@ -59,21 +59,40 @@
   // drop zones -----------------------------------------------------------------------------
   $$(".drop").forEach((zone) => {
     const input = $("input[type=file]", zone);
-    const form = zone.closest("form") || zone;
+    const msg = $(".drop-msg", zone), said = msg && msg.textContent;
+    const failed = (text) => { zone.classList.remove("over"); msg && (msg.textContent = said); toast(text); };
     const send = (files) => {
-      if (!files || !files.length) return;
+      const list = [...(files || [])].map((f) => (Array.isArray(f) ? f : [f, f.webkitRelativePath || f.name]));
+      if (!list.length) return;
       const fd = new FormData();
-      for (const f of files) fd.append("files", f, f.webkitRelativePath || f.name);
+      for (const [f, name] of list) fd.append("files", f, name);
       zone.classList.add("over");
-      $(".drop-msg", zone) && ($(".drop-msg", zone).textContent = `${files.length} Datei(en) werden übertragen …`);
+      msg && (msg.textContent = `${list.length} Datei${list.length === 1 ? "" : "en"} werden übertragen …`);
       fetch("/einwerfen", { method: "POST", body: fd }).then((r) => r.json()).then((j) => {
         if (j.job) location.href = `/wachsen/${j.job}`;
-        else toast(j.error || "Fehler beim Hochladen");
-      }).catch(() => toast("Fehler beim Hochladen"));
+        else failed(j.error || "Fehler beim Hochladen");
+      }).catch(() => failed("Fehler beim Hochladen"));
+    };
+    // a dropped folder arrives as one unreadable "file": walk its entries, as "Ordner wählen" would give them
+    const walk = async (entry, out) => {
+      if (entry && entry.isFile) {
+        out.push([await new Promise((ok, no) => entry.file(ok, no)), entry.fullPath.replace(/^\//, "")]);
+      } else if (entry && entry.isDirectory) {
+        const reader = entry.createReader();
+        for (let batch; (batch = await new Promise((ok, no) => reader.readEntries(ok, no))).length;) {
+          for (const e of batch) await walk(e, out);
+        }
+      }
+      return out;
     };
     ["dragenter", "dragover"].forEach((e) => zone.addEventListener(e, (ev) => { ev.preventDefault(); zone.classList.add("over"); }));
     ["dragleave", "drop"].forEach((e) => zone.addEventListener(e, (ev) => { ev.preventDefault(); zone.classList.remove("over"); }));
-    zone.addEventListener("drop", (ev) => send(ev.dataTransfer.files));
+    zone.addEventListener("drop", (ev) => {
+      const entries = [...(ev.dataTransfer.items || [])].map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry());
+      if (!entries.some((e) => e && e.isDirectory)) return send(ev.dataTransfer.files);
+      entries.reduce((p, e) => p.then((out) => walk(e, out)), Promise.resolve([])).then(send)
+        .catch(() => failed("Der Ordner ließ sich nicht lesen – bitte „Ordner wählen“ oder ein ZIP einwerfen"));
+    });
     $$("[data-pick]", zone).forEach((b) => b.addEventListener("click", (ev) => {
       ev.preventDefault();
       const which = b.dataset.pick === "folder" ? $("input[data-folder]", zone) : input;

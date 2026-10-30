@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections import Counter
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
@@ -466,20 +467,94 @@ def delivery_of(rt, spec: dict, rec: dict):
         return as_date(meta["delivery"])
     src = source_attr(rt, spec)
     order = rt.by_id.get(rec["data"].get(src["id"])) if src else None
-    if not order:
-        return None
-    oproc = next((p for p in rt.model.get("processes", []) if p["type"] == order["type"]), None)
+    return done_on(rt, rt.by_id.get(meta.get("from")) or order)
+
+
+def done_on(rt, order: dict | None):
+    """The day an order was delivered or done, by its own date column."""
+    oproc = next((p for p in rt.model.get("processes", []) if order and p["type"] == order["type"]), None)
     best = None
     for st in (oproc or {}).get("steps", []):
-        if fold(st["label"]) in ("geliefert", "versendet", "erledigt", "ausgeliefert"):
+        if fold(st["label"]) in ("geliefert", "versendet", "erledigt", "ausgeliefert", "fertig"):
             for s2 in [st] + st.get("also", []):
                 if s2["source"] == "own":
                     best = as_date(order["data"].get(s2["attr"])) or best
     return best
 
 
+def billed_by_own_ref(rt, case: dict, spec: dict) -> str | None:
+    """The column in which an order names its invoice ("Re.-Nr."), as its process learned it."""
+    p = next((p for p in rt.model.get("processes", []) if p["type"] == case["type"]), None)
+    return next((s["rel_attr"] for s in (p or {}).get("steps", []) if s["source"] == "child"
+                 and s.get("rel_kind") == "own_ref" and s.get("type") == spec["id"]), None)
+
+
+def from_case(rt, spec: dict, case: dict) -> tuple[dict, list[dict], list[str]]:
+    """An invoice for an order that names its invoice itself: its customer and the lists both point to, its
+    text as the one line, its price (net, at the rate the firm's invoices usually carry) and the day it was
+    done. Returns (values, lines, explanations)."""
+    cspec = rt.spec(case["type"]) or {}
+    data = {}
+    for a in spec["attrs"]:
+        if a["kind"] == "ref" and not a.get("virtual"):
+            v = next((case["data"][b["id"]] for b in cspec.get("attrs", []) if b["kind"] == "ref" and
+                      b.get("ref") == a.get("ref") and isinstance(case["data"].get(b["id"]), int)), None)
+            if v is not None:
+                data[a["id"]] = v
+    text = rt.title(case["id"])
+    name = next((b for b in cspec.get("attrs", []) if b.get("role") == "name" and b["kind"] == "text"
+                 and case["data"].get(b["id"])), None)
+    if name:
+        text = str(case["data"][name["id"]])
+    rates = Counter(round(t / n, 2) for r in rt.records.get(spec["id"], []) if not is_draft(r)
+                    for n, t in [(as_number(r["data"].get((money_fields(spec)["net"] or {}).get("id"))),
+                                  as_number(r["data"].get((money_fields(spec)["tax"] or {}).get("id"))))] if n and t is not None)
+    rate = rates.most_common(1)[0][0] if rates else 0.19
+    money = next((b for b in cspec.get("attrs", []) if b["kind"] == "money" and as_number(case["data"].get(b["id"]))), None)
+    lines, why = [], []
+    if money:
+        amount = as_number(case["data"][money["id"]])
+        net = round(amount / (1 + rate) if words(money["name"]) & {"brutto", "gross"} else amount, 2)
+        lines = [dict(text=text, sku=None, qty=1.0, unit=None, price=net, rate=rate, total=net)]
+        mf = money_fields(spec)
+        for k, v in (("net", net), ("tax", round(net * rate, 2)), ("gross", round(net * (1 + rate), 2))):
+            if mf[k]:
+                data[mf[k]["id"]] = v
+    title_attr = next((a for a in spec["attrs"] if a["id"] == spec.get("title") and a["kind"] == "text"), None)
+    if title_attr:
+        data[title_attr["id"]] = text
+    why.append(f"Aus {cspec.get('name', 'Auftrag')} {rt.title(case['id'])}: Kunde, Leistung"
+               + (", Preis" if lines else "") + (" und Leistungsdatum" if done_on(rt, case) else "") + " übernommen")
+    return data, lines, why
+
+
+def link_case(rt, rid: int, case_id: int, actor: str):
+    """The draft written for an order that names its invoice: the order now names this one (so it is no longer
+    "not invoiced"), and the draft takes the order's text, price and day of service."""
+    from .ops import update
+
+    rt.ensure()
+    rec, case = rt.store.record(rid), rt.by_id.get(case_id)
+    spec = rt.spec(rec["type"]) if rec else None
+    attr = billed_by_own_ref(rt, case, spec) if case and spec else None
+    if not attr or not is_draft(rec):
+        return
+    _vals, lines, _why = from_case(rt, spec, case)
+    meta = dict(rec["meta"] or {}, **{"from": case_id})
+    with rt.store.tx() as c:
+        c.execute("UPDATE records SET meta=? WHERE id=?", (dumps(meta), rid))
+        rt.bump(c)
+    pos = meta.get("positions") or []
+    if pos and lines and not any((p.get("text") or "").strip() for p in pos):  # the amount as typed, the order's words
+        set_positions(rt, rid, [dict(pos[0], text=lines[0]["text"])] + pos[1:], actor)
+    elif not pos and lines:
+        set_positions(rt, rid, lines, actor)
+    update(rt, case_id, {attr: rid}, actor, note="Rechnung als Entwurf angelegt", allow={attr})
+
+
 def other_invoices(rt, spec: dict, rec: dict) -> list[str]:
-    """Issued, valid invoices for the same order (a second invoice is a decision, not an accident)."""
+    """Issued, valid invoices for the same order (a second invoice is a decision, not an accident). A contract
+    billed month by month is not asked about."""
     src = source_attr(rt, spec)
     oid = rec["data"].get(src["id"]) if src else None
     if not isinstance(oid, int):
@@ -493,7 +568,7 @@ def other_invoices(rt, spec: dict, rec: dict) -> list[str]:
                 m.get("storno_by") or str(r["data"].get(st.get("attr"))) in (st.get("negative") or []):
             continue
         out.append(str(r["data"].get(spec["key"]) or f"#{r['id']}"))
-    return out
+    return out if len(out) == 1 else []
 
 
 TAX_NOTES = {
@@ -505,8 +580,22 @@ TAX_NOTES = {
 }
 
 
+def handover(rt, spec: dict) -> dict | None:
+    """Before the first invoice written here, while the invoices so far come from files of another program:
+    where it numbered them, so that both never give out the same number."""
+    if rt.store.decisions("invoicing").get(spec["id"]) or \
+            rt.store.q1("SELECT 1 FROM numbers WHERE type=? LIMIT 1", (spec["id"],)):
+        return None
+    issued = [r for r in rt.records.get(spec["id"], []) if r.get("origin") == "import" and r["data"].get(spec.get("key"))]
+    if not issued:
+        return None
+    last = max(issued, key=lambda r: (str(r["data"].get(date_attr(rt, spec)) or ""), norm_key(r["data"][spec["key"]])))
+    src = rt.store.q1("SELECT name FROM sources WHERE id=?", (((last.get("meta") or {}).get("src") or [0])[0],))
+    return dict(last=str(last["data"][spec["key"]]), next=next_free_number(rt, spec), source=src["name"] if src else None)
+
+
 def issue_problems(rt, spec: dict, rec: dict, delivery=None, tax_note: str | None = None,
-                   extra_ok: bool = False) -> list[str]:
+                   extra_ok: bool = False, here_ok: bool = False) -> list[str]:
     """Everything that keeps a draft from becoming an invoice (§ 14 Abs. 4 UStG)."""
     out = list(missing_for_issue(rt, spec, rec))
     pos = draft_positions(rt, rec)
@@ -537,11 +626,13 @@ def issue_problems(rt, spec: dict, rec: dict, delivery=None, tax_note: str | Non
     others = other_invoices(rt, spec, rec)
     if others and not extra_ok:
         out.append(f"Bestätigung: Zu diesem Auftrag gibt es schon {', '.join(others)}")
+    if handover(rt, spec) and not here_ok:
+        out.append("Bestätigung: Ab jetzt schreiben Sie Rechnungen hier, nicht mehr im alten Programm")
     return out
 
 
 def issue(rt, rid: int, actor: str, today: date | None = None, delivery=None, delivery_end=None,
-          tax_note: str | None = None, extra_ok: bool = False, render=None) -> str:
+          tax_note: str | None = None, extra_ok: bool = False, render=None, here_ok: bool = False) -> str:
     """Turn a draft into an issued, locked invoice. Returns its number. The invoice date is the
     day of issue; recipient, lines, firm data and delivery date are fixed as they are now, and the
     printed and the electronic invoice are archived unchangeably (§ 14b UStG, GoBD)."""
@@ -555,9 +646,11 @@ def issue(rt, rid: int, actor: str, today: date | None = None, delivery=None, de
         raise BillingError("Nur ein Entwurf kann ausgestellt werden.")
     delivery = as_date(delivery) if delivery else None
     delivery_end = as_date(delivery_end) if delivery_end else None
-    problems = issue_problems(rt, spec, rec, delivery, tax_note, extra_ok)
+    problems = issue_problems(rt, spec, rec, delivery, tax_note, extra_ok, here_ok)
     if problems:
         raise BillingError("Zum Ausstellen fehlt noch: " + "; ".join(problems))
+    if here_ok and handover(rt, spec):
+        rt.store.decide("invoicing", spec["id"], "hier", actor, "Rechnungen ab jetzt in Physarum")
     data = dict(rec["data"])
     proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
     da = date_attr(rt, spec)

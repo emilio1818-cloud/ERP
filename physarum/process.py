@@ -881,7 +881,10 @@ def step_dates_of(p: dict, spec: dict, records: dict, by_id: dict, mention_refs:
                     if c and c["type"] == src["type"] and void(c):
                         if cancelled:
                             cancelled(st["id"], r["id"], c, src["attr"])
-                    elif c and c["type"] == src["type"] and not is_draft(c):
+                    elif c and c["type"] == src["type"] and is_draft(c):
+                        if draft_of is not None:
+                            draft_of[r["id"]] = c["id"]  # drafted, not yet issued
+                    elif c and c["type"] == src["type"]:
                         v = as_date(c["data"].get(src["attr"]))
                         if v:
                             d[r["id"]] = min(v, d.get(r["id"], v))
@@ -1256,7 +1259,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             elif st and st["source"] == "own":
                 action = dict(kind="set_date", attr=st["attr"], label=st["label"])
             elif st and st["source"] == "child" and (specs.get(st["type"]) or {}).get("concept") not in _FACTS:
-                action = dict(kind="create_child", type=st["type"], attr=st["rel_attr"], label=st["name"])
+                action = dict(kind="create_child", type=st["type"], label=st["name"],
+                              attr=st["rel_attr"] if st.get("rel_kind") != "own_ref" else None)  # else: from the case
             groups.append(dict(id=f"{p['id']}:{sid}:{kind}", type=p["type"], kind=kind, severity=sev, title=head,
                                count=len(items), amount=total, items=items[:50], action=action,
                                step=st["label"] if st else None,

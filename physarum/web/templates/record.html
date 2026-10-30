@@ -143,7 +143,7 @@
             <button class="small primary">✓ {{ s.action.label }}</button>
           </form>
         {% else %}
-          <a class="btn small noprint" style="margin-top:6px" href="/t/{{ s.action.type }}/neu?a_{{ s.action.attr }}={{ rec.id }}">+ {{ s.action.label }}</a>
+          <a class="btn small noprint" style="margin-top:6px" href="/t/{{ s.action.type }}/neu?{% if s.action.attr %}a_{{ s.action.attr }}{% else %}aus{% endif %}={{ rec.id }}">+ {{ s.action.label }}</a>
         {% endif %}
       {% endif %}
     </div>
@@ -215,6 +215,8 @@
       <option value="eu">innergemeinschaftliche Lieferung</option><option value="ausfuhr">Ausfuhrlieferung</option>
       <option value="steuerfrei">steuerfrei nach § 4 UStG</option></select></div>{% endif %}
     {% if other_invoices %}<div class="field" style="grid-column:1/-1"><label><input type="checkbox" name="zusatz" value="1"> Zu diesem Auftrag gibt es schon {{ other_invoices|join(', ') }} – trotzdem eine weitere Rechnung ausstellen</label></div>{% endif %}
+    {% if handover %}<div class="field notice warn" style="grid-column:1/-1">Ihre Rechnungen kommen bisher aus {% if handover.source %}„{{ handover.source }}“{% else %}einem anderen Programm{% endif %} (zuletzt {{ handover.last }}). Diese wäre {{ handover.next }}. Schreibt das alte Programm weiter, vergibt es dieselbe Nummer noch einmal.
+      <label style="margin-top:6px"><input type="checkbox" name="hier" value="1"> Ab jetzt schreibe ich Rechnungen hier und im alten Programm keine mehr</label></div>{% endif %}
     <div class="field"><button class="primary">Jetzt ausstellen</button></div>
   </form>
   <p class="faint" style="font-size:.82rem; margin-bottom:0">Rechnungsdatum ist der heutige Tag. Beim Ausstellen bekommt die Rechnung ihre Nummer, wird festgeschrieben und als Druck und E-Rechnung unveränderlich archiviert.</p>

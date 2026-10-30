@@ -181,7 +181,7 @@ class EveryAction(unittest.TestCase):
                                                      "pos_1_text": "Versand", "pos_1_qty": "1",
                                                      "pos_1_price": "5,90", "pos_1_rate": "19"}))
         self.assertAlmostEqual(self.store.record(rid)["data"][self.attr(inv, "Netto")["id"]], 62.6, places=2)
-        j = self.done(self.post(f"/r/{rid}/ausstellen", {"leistung": "2026-06-01"}))
+        j = self.done(self.post(f"/r/{rid}/ausstellen", {"leistung": "2026-06-01", "hier": "1"}))
         self.assertIn("Ausgestellt", j["toast"])
         self.assertIn("Espresso Bohne", self.get(f"/r/{rid}/druck").text)
         x = self.get(f"/r/{rid}/xrechnung")

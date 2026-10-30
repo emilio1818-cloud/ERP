@@ -9,3 +9,4 @@ __pycache__/
 *.db-wal
 *.db-shm
 bench/last.json
+/flow/

@@ -56,7 +56,7 @@ class Invoicing(unittest.TestCase):
         kunde = next(r["id"] for r in rt.records[cust["ref"]] if rt.title(r["id"]).startswith(customer))
         rid = ops.create(rt, inv["id"], {cust["id"]: str(kunde)}, "Test")
         billing.set_positions(rt, rid, [dict(text=t, qty="1", price=str(p), rate=str(r)) for t, p, r in lines], "Test")
-        billing.issue(rt, rid, "Test", delivery=TODAY.isoformat(), **kw)
+        billing.issue(rt, rid, "Test", delivery=TODAY.isoformat(), **kw, here_ok=True)
         rt.ensure()
         return rid
 
@@ -124,7 +124,7 @@ class Invoicing(unittest.TestCase):
         kunde = next(r["id"] for r in rt.records[cust["ref"]] if rt.title(r["id"]).startswith("Elektro"))
         rid = ops.create(rt, inv["id"], {cust["id"]: str(kunde), deduct["id"]: "9520,00"}, "Test")
         billing.set_positions(rt, rid, [dict(text="Dachstuhl", qty="1", price="10000", rate="19")], "Test")
-        billing.issue(rt, rid, "Test", delivery=TODAY.isoformat())
+        billing.issue(rt, rid, "Test", delivery=TODAY.isoformat(), here_ok=True)
         rt.ensure()
         von, bis, label = taxexport.period("monat", TODAY.year, TODAY.month)
         data = taxexport.collect(rt, von, bis)

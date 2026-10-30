@@ -87,6 +87,7 @@ const problems = [];
     await page.goto(back);
     console.log('issue problems after:', JSON.stringify(await page.$$eval('#ausstellen .notice li', (li) => li.map((x) => x.textContent.trim()))));
   }
+  if (await page.locator('#ausstellen input[name=hier]').count()) await page.check('#ausstellen input[name=hier]');  // the first one here
   await page.click('#ausstellen button.primary');
   await page.waitForTimeout(1500);
   await shot('07-ausgestellt');

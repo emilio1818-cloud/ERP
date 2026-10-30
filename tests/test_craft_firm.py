@@ -960,7 +960,7 @@ class CraftFirm(unittest.TestCase):
         def invoice(no, kind):
             rid = ops.create(rt, inv["id"], {ref["id"]: str(order[no]), art["id"]: kind}, "Test")
             billing.set_positions(rt, rid, [dict(text="Badsanierung", qty="1", price="4000", rate="19")], "Test")
-            billing.issue(rt, rid, "Test", delivery="2026-10-20")
+            billing.issue(rt, rid, "Test", delivery="2026-10-20", here_ok=True)
             rt.ensure()
         invoice("A26-027", "Abschlagsrechnung")                               # a down payment: still working
         self.assertEqual(rt.by_id[order["A26-027"]]["data"][status["id"]], "in Arbeit")

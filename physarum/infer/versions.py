@@ -21,6 +21,8 @@ _ID_WORDS = {"nr", "nummer", "id", "no", "number", "code", "kennung"}
 _POS_WORDS = {"pos", "position", "zeile", "lfd", "posnr", "line", "positionsnr"}
 _VOLATILE = {"info", "status", "valuta", "valutadatum", "vermerk", "saldo", "kategorie"}
 _NAME_WORDS = {"firma", "name", "firmenname", "lieferant", "kunde", "company", "supplier", "customer", "bezeichnung"}
+# sa-26-001, re-2026-0042, 2026-0042 – with a separator: an IBAN or a mail address is no number of the thing
+_CODE = re.compile(r"[a-z]{1,6}[-/.]\d[\w\-/.]*|\d{2,6}[-/]\d{2,6}")
 
 
 def _cell(v) -> str:
@@ -117,6 +119,12 @@ def key_columns(ts: list[dict], columns: list[str], volatile: set[int] | None = 
         for k in pos:
             if k != j and _unique(ts, [j, k], volatile, sig_of):
                 return [j, k]
+    # a number its heading does not call one: "Auftrag" SA-26-001, "Beleg" RE-2026-0042 – coded in every row
+    for j in range(len(columns)):
+        vals = [c for t in ts for r in t["rows"] if j < len(r) and (c := _cell(r[j]))]
+        if j not in idlike and j not in (volatile or set()) and vals and \
+                sum(1 for v in vals if _CODE.fullmatch(v)) >= 0.9 * len(vals) and _unique(ts, [j], volatile, sig_of):
+            return [j]
     # a list of suppliers or customers without numbers is kept by name: in the next version, the row
     # with the same name is the same supplier (with a new bank account), not a second one
     concept = lexicon.concept_of(str(ts[0].get("name") or ""))
@@ -200,12 +208,14 @@ def merge_group(ts: list[dict]) -> dict:
                 ti, ri = first[kv]
                 if sig_of(ts[ti]["rows"][ri]) != sig and len(info["changed"]) < 200:
                     info["changed"].append(" / ".join(str(r[j]) for j in key))
-        # rows the newest full snapshot no longer contains (an updated export, not the next period)
+        # rows the newest full snapshot no longer contains (an updated export, not the next period); an
+        # invoice that came as a file of its own is no snapshot of anything – the next file is another invoice
         newest, second = newest_first[0], newest_first[1]
         kn = {tuple(_cell(r[j]) if j < len(r) else "" for j in key) for r in newest["rows"]}
         ks = {tuple(_cell(r[j]) if j < len(r) else "" for j in key) for r in second["rows"]}
         ks.discard(tuple("" for _ in key))
-        if ks and len(ks & kn) >= 0.8 * len(ks) and newest.get("source_id") != second.get("source_id"):
+        documents = all((t.get("meta") or {}).get("structured") for t in ts)
+        if ks and len(ks & kn) >= 0.8 * len(ks) and newest.get("source_id") != second.get("source_id") and not documents:
             gone = []
             src = newest.get("source_name") or newest.get("name")
             for t in newest_first[1:]:

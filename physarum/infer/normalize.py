@@ -176,8 +176,21 @@ def candidate_extractions(o: Obs) -> list[dict]:
         score = net * (1.15 if x.kind == "id" else 1.0) * (1.1 if x.prof.concept else 1.0)
         out.append(dict(x=x, deps=dep_cols, groups=groups, g=g, savings=savings, cost=cost, net=net, score=score,
                         consistency={y.name: c for y, c in deps}))
-    out = [e for e in out if e["net"] > 0]
-    out.sort(key=lambda e: -e["score"])
+    every = out
+    out = sorted((e for e in out if e["net"] > 0), key=lambda e: -e["score"])
+    if out:
+        # a chain: the object's number determines its customer's number, and that one the customer's name and
+        # terms – those belong to the customer (third normal form), the object only points to it; what the
+        # object's columns save pays for the customer, however few rows there are
+        best, names = out[0], lambda cols: {c.name for c in cols}
+        for e in every:
+            rest = names(best["deps"]) - {e["x"].name}
+            if e is not best and e["x"].kind == "id" and e["x"].name in names(best["deps"]) and \
+                    best["x"].name not in names(e["deps"]) and rest and len(rest & names(e["deps"])) >= 0.8 * len(rest):
+                if e in out:
+                    out.remove(e)
+                out.insert(0, e)
+                break
     if len(out) > 1:
         best = out[0]
         for e in out[1:]:

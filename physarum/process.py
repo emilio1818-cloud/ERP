@@ -1131,13 +1131,15 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     # a word where the invoice's number goes ("Kulanz", "intern"): decided, nothing to invoice
                     decided = any(((r.get("meta") or {}).get("raw") or {}).get(x["rel_attr"]) not in (None, "")
                                   for x in [st] + st.get("also", []) if x.get("rel_kind") == "own_ref")
+                    free = isinstance(money, (int, float)) and abs(money) < 0.005  # "Nachreinigung – kostenlos"
                     if reached and st.get("source") == "child" and fold(st["label"]) == BILLED and not decided \
-                            and 0 <= waited < 1100:
+                            and 0 <= waited < 1100 and not free:
                         # finished and not invoiced: money waiting to be asked for – all of it, the oldest first
                         buckets[(st["id"], "ready")].append(dict(
                             rid=r["id"], days=waited, money=money, usual=st["median_days"], late=waited > limit,
                             reason=f"{title(gone[1])} storniert, noch keine neue" if gone else None))
-                    elif waited > limit and waited < 1100 and not optional and not decided:
+                    elif waited > limit and waited < 1100 and not optional and not decided and not free and \
+                            not (due and due >= today and fold(st["label"]) != PAID):  # work planned for a later day
                         # claims become time-barred after three years; a step most cases never reach (an offer
                         # that is never ordered) is nothing one waits for
                         buckets[(st["id"], "late")].append(dict(rid=r["id"], days=waited, money=money,
@@ -1335,7 +1337,7 @@ def _budget_work(model, records, mention_refs, title) -> list[dict]:
         recs = records.get(spec["id"], [])
         effort = defaultdict(float)
         sources = []
-        invoices = defaultdict(int)
+        invoices = defaultdict(set)  # invoice rids per thing: two columns naming it are still one invoice
         for rel in model["relations"]:
             src = specs.get(rel["src"])
             if not src or rel["dst"] != spec["id"] or src["kind"] != "transaction":
@@ -1346,11 +1348,11 @@ def _budget_work(model, records, mention_refs, title) -> list[dict]:
                 # how often the thing is invoiced: a retainer every month, a fixed price once or twice
                 if rel["kind"] == "mention":
                     for to, frm in mention_refs.get(rel["attr"], {}).items():
-                        invoices[to] += len(frm)
+                        invoices[to].update(frm)
                 else:
                     for r in records.get(src["id"], []):
                         if isinstance(r["data"].get(rel["attr"]), int):
-                            invoices[r["data"][rel["attr"]]] += 1
+                            invoices[r["data"][rel["attr"]]].add(r["id"])
                 continue
             if src.get("concept") != "zeiteintrag" or rel["kind"] not in ("ref", "parent"):
                 continue
@@ -1371,7 +1373,7 @@ def _budget_work(model, records, mention_refs, title) -> list[dict]:
         for r in recs:
             b = r["data"].get(budget["id"])
             e = effort.get(r["id"], 0.0)
-            if not isinstance(b, (int, float)) or b <= 0 or e <= 1.2 * b or invoices.get(r["id"], 0) > 2:
+            if not isinstance(b, (int, float)) or b <= 0 or e <= 1.2 * b or len(invoices.get(r["id"], ())) > 2:
                 continue
             if any(set(tokens(str(r["data"].get(a) or ""))) & _RUNNING for a in cats):
                 continue  # a retainer's budget is per month

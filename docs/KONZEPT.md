@@ -131,9 +131,12 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - Steht ein Kunde doppelt in der Kartei (zwei Kundennummern, eine mit Skontovereinbarung), gilt die Vereinbarung für den anderen Datensatz erst, wenn der Inhaber die Dublettenfrage beantwortet; bis dahin steht der Abzug als „nicht vereinbart“ da.
 - „Geld erhalten – wofür?“ zeigt die Eingänge der letzten zwei Monate; ältere unerklärte Eingänge stehen in der Kontoliste, nicht auf „Heute“.
 - Ein Dauerauftrag, der nach einer Preiserhöhung beim alten Betrag bleibt, bezahlt die Rechnung in Physarums Augen nicht: Hakt das Buch sie ab, gilt sie als bezahlt, sonst als offen. Die Differenz je Monat sieht nur, wer die Rechnung öffnet.
-- Vertragsmonate ohne Rechnung (ein Reinigungsvertrag ab Juli, die erste Rechnung im August) erkennt Physarum noch nicht.
+- Eine Pause, die nur eine Mengenliste zeigt (eine Schule ohne Essen in den Sommerferien, in einer Liste mit einer Spalte je Einrichtung), meldet Physarum als Vertragsmonat ohne Rechnung.
+- Ein vergangener Leistungstag (eine Veranstaltung) gilt nicht als „erledigt“: Fertige, nicht berechnete Veranstaltungen ohne Erledigt-Datum oder -Status meldet Physarum nicht.
+- Ein Entwurf ohne Nummer im Rechnungsexport eines anderen Programms zählt als offener Posten, und eine Teilzahlung, die nur das Buch kennt (aufs alte Konto, „teilbezahlt“ mit offenem Rest), zählt als ganz bezahlt.
+- Eine Anzahlung ohne eigene Rechnung, die die Schlussrechnung abzieht, verbindet Physarum nicht mit ihr; nach zwei Monaten steht sie nicht mehr unter „Geld erhalten – wofür?“.
+- Eigene Mails und solche, die schon beantwortet sind, stehen noch als Anliegen unter den Mails (Physarum liest den Mail-Faden nicht).
 - Eine Kundendublette mit stark abweichendem Namen („Physiotherapie am Markt GbR“ / „Physio am Markt Brinkmann & Vogel GbR“), die nur das gleiche Konto, die gleiche Adresse und Telefonnummer verraten, fragt Physarum nicht ab. Ähnliche Namen fragt es ab.
-- Eine Betrugs-Mail („neue Bankverbindung“, Absender mit ähnlicher Domain) steht mit Warnhinweis unter den Mails. In den Kasten „Vorsicht“ kommt sie, wenn der Lieferant in einer Liste steht oder die gefälschte Rechnung als Eingangsrechnung gelesen wird. Kennt Physarum den Lieferanten nur aus seinen Rechnungen und nennt die Mail kein gültiges Konto, bleibt es beim Warnhinweis.
 - Zahlt ein Kunde eine Rechnung doppelt, steht sie als „zu viel gezahlt“ bei der Rechnung, nicht unter „Geld erhalten – wofür?“.
 - Unter neutralen Dateinamen („export (3).csv“) ordnet Physarum die erste Lieferung eines Handwerksbetriebs schlechter (Stundenzettel je Monteur als eigene Listen); mit der zweiten Lieferung stimmt es wieder.
 
@@ -192,7 +195,7 @@ Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kann
 
 Nach sechs Runden fragte eine strategische Prüfung, ob das System noch das schlankeste ist, das den Auftrag erfüllt. Befund: Es wuchs nur noch, jede Runde fügte Regeln für die eine geprüfte Firma hinzu, und der Geldkern hing an den Wörtern „bezahlt“ und „fällig“. Seitdem gilt:
 
-- **Der Prüfstand ist die Belohnung.** Neun Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Jede läuft zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
+- **Der Prüfstand ist die Belohnung.** Zehn Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Jede läuft zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
 - **Die Stopp-Regel:** Eine Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
 - **Erst löschen.** Weg sind der Abgleich-Ablauf (zwei Wahrheiten für „bezahlt“), die Fragen zum Datenmodell (jetzt umkehrbare Hinweise an der Liste), doppelte Hilfsfunktionen, tote Funktionen und der Tero-Löser.
 
@@ -251,3 +254,34 @@ Ein zweiter Durchgang nahm sich die übrigen Befunde der Gebäudereinigung vor, 
 | Wort-Regeln / reguläre Ausdrücke | 716 / 176 | 724 / 176 |
 
 Vier Befunde blieben nach der Stopp-Regel draußen, weil sie nur bei der Gebäudereinigung vorkommen (siehe Abschnitt 7): eine Kundendublette, die nur das gleiche Konto verrät, die Betrugs-Mail eines Lieferanten, den keine Liste führt, Vertragsmonate ohne Rechnung und die Doppelzahlung als „Geld erhalten“.
+
+**Runde 9** prüfte zum ersten Mal den Alltag selbst. Eine Inhaberin arbeitete zwei Lieferungen lang mit den Daten der Gebäudereinigung (131 Bildschirmfotos). Ihr Urteil: Verstehen stark, Handeln schwach. Der Ordner ließ sich nicht hineinziehen. „+ Rechnung“ am fertigen Auftrag öffnete ein leeres Formular, und die eigene Nummer lief in den Nummernkreis des alten Programms. Betrugsmail und Skonto-Frist von morgen standen eingeklappt. Nach „versendet“ zeigte die Briefseite sofort die 1. Mahnung. Eine Handzahlung und derselbe Betrag im späteren Kontoauszug ergaben „doppelt überwiesen“, und „Rückgängig“ sperrte das Feld gegen die nächste Datei. Die eigene XRechnung galt als verdächtige Eingangsrechnung, und eine gelernte „Formel“ überschrieb einen vereinbarten Termin. Das sind Bedienfehler, keine Erkennungsregeln; sie sind allgemein behoben.
+
+- Heute nennt den Datenstand der Bank.
+- Eine Mail über eine neue Bankverbindung setzt die Rechnungen, die sie nennt, oben unter „Vorsicht“, bis jemand nachgefragt hat.
+- Ein Brief wartet nach dem Versand seine Frist ab. Wer reklamiert, widerspricht oder „schon bezahlt“ schreibt, wird erst gefragt.
+- Eine vorab eingetragene Überweisung bestätigt der spätere Kontoauszug, statt sie doppelt zu zählen.
+- „Rückgängig“ gibt das Feld seiner Datei zurück.
+- Ein gelernter Datumsabstand füllt nur Lücken.
+
+Aus ihrer Streichliste ist gestrichen, was die Inhaberin nur störte: die wandernde Seitenleiste mit Fluss-Balken, der Organismus im Menü (jetzt „für Neugierige“ bei den Dateien), technische Filter und Lesart-Hinweise auf jeder Liste, die Halbmonats-Kachel und zwei von drei Wegen zu „bezahlt“.
+
+Die zweite Prüfung brachte eine Firma neuer Art: einen Caterer mit Veranstaltungen, Kita-Essen nach Essenszahlen und Rahmenverträgen. Seine Bank kam nur als camt.053, ein XML je Buchungstag. Physarum las das nicht und sagte es auch nicht – ohne Bank mahnte Heute bezahlte Rechnungen über 34.000 € an. Mit dem Leser für das Standardformat stimmen die offenen Posten fast. Dazu kam ein Zählfehler beim eigenen Firmennamen („& Events GmbH“), der alle Eingangsrechnungen verwarf.
+
+Die Lücke, die beide Prüfungen teilen, besteht die Stopp-Regel: Vertragszeiträume ohne Rechnung (Gebäudereinigung OB-107 und OB-132, Caterer MV-06 und das Quartal von RV-02). Physarum liest den Leistungszeitraum der Rechnungen (§ 14 UStG verlangt ihn) und lernt je Vertrag Takt und üblichen Tag. Ein fälliger Zeitraum ohne Rechnung steht unter „nicht berechnet“; rechnet er Lieferscheine ab, stehen diese dort. Damit der Caterer seine Verträge überhaupt findet, verweist eine Spalte „Referenz“ mit Nummern mehrerer Listen je Zeile auf den Datensatz, dessen ganze Nummer sie ist. Beim Brenner zeigt dieselbe Spalte jetzt, dass Termine Wartungsverträge betreffen, und Wartungen, die seit Monaten fällig und nie eingetragen sind, stehen jetzt auf Heute.
+
+Fünf Befunde des Caterers blieben nach der Stopp-Regel draußen (Abschnitt 7): der Entwurf im fremden Export, die Teilzahlung, die nur das Buch kennt, die Veranstaltung ohne Erledigt-Datum, die Anzahlung, die die Schlussrechnung abzieht, und eigene oder beantwortete Mails. Ein Fehlalarm ist neu und bewusst stehen geblieben: Die Schulferien des Caterers zeigt nur seine Essensliste, also meldet Physarum den August der Schule als Monat ohne Rechnung.
+
+| Kennzahl (Prüfstand mit Caterer, zehn Firmen) | vorher | nachher |
+|---|---:|---:|
+| Geld richtig | 0,816 | 0,884 |
+| Heute-Aufgaben richtig | 0,734 | 0,844 |
+| Caterer allein: Geld / Heute | 0,421 / 0,140 | 0,833 / 0,629 |
+| Gebäudereinigung allein: Heute | 0,605 | 0,684 |
+| gleiche offene Posten unter anderen Namen | 0,963 | 0,990 |
+| Listen gleich benannt | 0,702 | 0,707 |
+| Abstürze | 0 | 0 |
+| Zeilen Code | 19.272 | 19.707 |
+| Wort-Regeln / reguläre Ausdrücke | 724 / 176 | 767 / 179 |
+
+Die Runde hat gut 400 Zeilen gekostet, fast alle für Dinge, die eine Inhaberin täglich anfasst (Mahnen, Zahlungen, Warnungen). Die neuen Wort-Regeln sind zum größten Teil Kennzeichen des Bankformats und die Mahnstufen-Wörter des Buchs. Gestrichen wurde, was nur Technik zeigte.

@@ -646,30 +646,6 @@ def assign_payment(rt, bank_rid: int, inv_rid: int, actor: str) -> bool:
     return attr == "match"
 
 
-def paid_by_hand(rt, rid: int, when: str | None, actor: str):
-    """Mark an invoice as paid without a bank line (or take that back with when=None)."""
-    rt.ensure()
-    rec = rt.store.record(rid)
-    if not rec or rec["deleted"]:
-        raise OpError("Datensatz nicht gefunden")
-    meta = dict(rec["meta"] or {})
-    old = meta.get("paid_by_hand")
-    if when:
-        d = as_date(when)
-        if not d:
-            raise OpError("Bitte ein Datum angeben")
-        meta["paid_by_hand"] = d.isoformat()
-    else:
-        meta.pop("paid_by_hand", None)
-    ts = now_iso()
-    with rt.store.tx() as c:
-        c.execute("UPDATE records SET meta=?, updated_at=? WHERE id=?", (dumps(meta), ts, rid))
-        c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
-                  (rid, ts, actor, "edit", None, dumps(old), dumps(meta.get("paid_by_hand")),
-                   "als bezahlt eingetragen (ohne Kontoauszug)" if when else "„bezahlt“ zurückgenommen"))
-        rt.bump(c)
-
-
 def revert(rt, rid: int, attrs: list[str], actor: str) -> list[str]:
     """Undo the last change of these attributes (the "Rückgängig" after a quick action)."""
     rt.ensure()

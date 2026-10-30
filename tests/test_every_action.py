@@ -113,7 +113,7 @@ class EveryAction(unittest.TestCase):
                     "/steuerberatung?art=woche&jahr=x&nr=y", "/steuerberatung?art=monat&jahr=99999&nr=13"):
             self.get(url, ok=None)
         for url, data in (("/r/0", {"a_x": "1"}), ("/r/0/einblenden", {}), ("/r/0/notiz", {"text": "x"}),
-                          ("/r/0/positionen", {"pos_0_text": "x"}), ("/r/0/bezahlt", {}), ("/r/0/trennen", {"key": "x"}),
+                          ("/r/0/positionen", {"pos_0_text": "x"}), ("/r/0/trennen", {"key": "x"}),
                           ("/r/0/korrektur-gesehen", {}), ("/r/0/schritt", {"attr": "x"}), ("/r/0/nachfassen", {}),
                           ("/r/0/zahlung", {"amount": "x"}), ("/r/0/zahlung-entfernen", {}), ("/r/0/zuordnen", {}),
                           ("/r/0/storno", {}), ("/r/0/loeschen", {}), ("/r/0/rueckgaengig", {}), ("/r/0/ausstellen", {}),
@@ -192,7 +192,7 @@ class EveryAction(unittest.TestCase):
     def test_money_by_hand_and_sources_of_payments(self):
         er = self.spec("Eingangsrechnung")
         rid = self.rt.records[er["id"]][0]["id"]
-        j = self.done(self.post(f"/r/{rid}/bezahlt", {"date": "2026-06-02"}))
+        j = self.done(self.post(f"/r/{rid}/zahlung", {"amount": "10,00", "date": "2026-06-02", "how": "ueberweisung"}))
         self.done(self.post(j["undo"]["url"], j["undo"]["body"]))
         sid = self.store.q1("SELECT id FROM sources WHERE active=1 ORDER BY id")["id"]
         j = self.done(self.post(f"/zahlungsquelle/{sid}"))

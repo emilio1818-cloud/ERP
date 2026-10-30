@@ -53,9 +53,6 @@
       {% if invoice and not issued_here %}<a class="btn ghost" href="/r/{{ rec.id }}/druck" target="_blank" title="Erstellt in einem anderen Programm – hier nur die Zahlen aus Ihrer Datei">Abschrift</a>
       {% else %}<a class="btn ghost" href="/r/{{ rec.id }}/druck" target="_blank">Drucken</a>{% endif %}
       {% if invoice and issued_here %}<a class="btn ghost" href="/r/{{ rec.id }}/xrechnung" title="E-Rechnung im Format XRechnung (Pflicht im B2B ab 2027/28)">E-Rechnung</a>{% endif %}
-      {% if incoming and pay and pay.state in ('offen', 'teilbezahlt') %}
-        <form class="step-form" data-step="/r/{{ rec.id }}/bezahlt" style="margin:0"><input type="date" name="date" value="{{ today_iso }}" aria-label="bezahlt am"><button class="small">✓ bezahlt</button></form>
-      {% endif %}
     {% endif %}
     {% if timeline and timeline.next and timeline.next.late and timeline.next.label == 'bezahlt' and not timeline.negative and not maybe_paid and not draft %}
       <a class="btn" href="/r/{{ rec.id }}/erinnerung" target="_blank">Zahlungserinnerung</a>{% endif %}
@@ -100,10 +97,10 @@
   {% elif pay.state == 'offen' %}<p class="muted">Noch keine Zahlung gefunden.</p>{% endif %}
   {% if pay.state in ('offen', 'teilbezahlt') and pay.open > 0 %}
   <form class="step-form row noprint" data-step="/r/{{ rec.id }}/zahlung" style="margin-top:10px; gap:8px; flex-wrap:wrap"
-        title="Was der Kontoauszug nicht zeigt: bar, per Scheck, verrechnet – oder ein Teil davon">
+        title="Eine Zahlung, die der Kontoauszug noch nicht zeigt – oder nie zeigen wird (bar, verrechnet). Eine Überweisung zählt einmal, auch wenn sie später im Kontoauszug steht.">
     <input name="amount" inputmode="decimal" value="{{ '%.2f'|format(pay.open)|replace('.', ',') }}" aria-label="Betrag" style="width:8em">
     <input type="date" name="date" value="{{ today_iso }}" aria-label="Datum">
-    <select name="how" aria-label="Art">{% for k, label in cash_kinds.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select>
+    <select name="how" aria-label="Art">{% for k, label in cash_kinds.items() if k != 'erstattung' %}<option value="{{ k }}"{{ ' selected' if k == 'ueberweisung' }}>{{ label }}</option>{% endfor %}</select>
     <button class="small">Zahlung eintragen</button>
   </form>{% endif %}
 </section>
@@ -136,7 +133,7 @@
              {% elif s.by_status %}laut Status „{{ rec.data.get(status_attr.id) }}“
              {% elif s.due %}{{ 'überfällig seit ' ~ display(s.due.isoformat(), 'date') if s.late else 'bis ' ~ display(s.due.isoformat(), 'date') }}{% if s.due_how %}<br><span class="faint" title="Im Buch steht kein Fälligkeitsdatum.">berechnet: {{ s.due_how }}</span>{% endif %}
              {% elif s.usual is not none %}üblich {{ after_days(s.usual) }}{% else %}offen{% endif %}</small>
-      {% if s.action and not timeline.negative %}
+      {% if s.action and not timeline.negative and not (pay and s.label == 'bezahlt') %}
         {% if s.action.kind == 'set_date' %}
           <form class="step-form noprint" data-step="/r/{{ rec.id }}/schritt">
             <input type="hidden" name="attr" value="{{ s.action.attr }}">

@@ -882,19 +882,6 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             return JSONResponse(dict(error=str(e)))
         return JSONResponse(dict(reload=True, toast=f"Ausgestellt als {number}, festgeschrieben und archiviert."))
 
-    def record_paid(request: Request, form):
-        """A supplier's invoice paid outside the bank statements Physarum knows (cash, another account)."""
-        rid = int(request.path_params["rid"])
-        try:
-            ops.paid_by_hand(rt, rid, None if form.get("undo") else (form.get("date") or date.today().isoformat()),
-                             actor(request))
-        except ops.OpError as e:
-            return JSONResponse(dict(error=str(e)))
-        if form.get("undo"):
-            return JSONResponse(dict(reload=True, toast="Rückgängig gemacht."))
-        return JSONResponse(dict(reload=True, toast="Als bezahlt eingetragen.",
-                                 undo=dict(url=f"/r/{rid}/bezahlt", body=dict(undo="1"))))
-
     def record_unpay(request: Request, form):
         """A transfer without a number was given to this invoice by its amount – the owner knows better."""
         from ..payments import BY_AMOUNT, CONFIRMED
@@ -1886,7 +1873,6 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         Route("/r/{rid:int}/rueckgaengig", formed(record_undo), methods=["POST"]),
         Route("/r/{rid:int}/ausstellen", formed(record_issue), methods=["POST"]),
         Route("/r/{rid:int}/positionen", formed(record_positions), methods=["POST"]),
-        Route("/r/{rid:int}/bezahlt", formed(record_paid), methods=["POST"]),
         Route("/r/{rid:int}/zahlung-loesen", formed(record_unpay), methods=["POST"]),
         Route("/r/{rid:int}/korrektur-gesehen", formed(correction_seen), methods=["POST"]),
 

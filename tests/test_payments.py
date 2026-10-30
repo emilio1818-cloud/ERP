@@ -749,3 +749,61 @@ class DepositOnOrder(unittest.TestCase):
     def test_a_billed_order_is_no_claim_of_its_own(self):
         types = {self.rt.by_id[rid]["type"] for rid in self.rt.ledger}
         self.assertEqual(types, {self.spec["id"]})
+
+
+class ByHandAndLater(unittest.TestCase):
+    """Review 9: what the owner enters by hand and what a later delivery says agree – a transfer entered before
+    the statement came counts once, a double payment paid back is settled, an undone click leaves the field
+    to its file, and a learned date offset does not move a date that was set."""
+
+    def test_by_hand_then_the_next_delivery(self):
+        from physarum import ops
+        from tests.test_unseen_firm import Firm
+        f = Firm()
+        self.addCleanup(f.close)
+        start, rows, bank, later = TODAY - timedelta(days=150), [], ["Buchungstag;Verwendungszweck;Zahlungspartner;Betrag"], []
+        for i in range(24):
+            d, g, no = start + timedelta(days=5 * i), round(300 + 17.5 * i, 2), f"RE-{i + 1:04d}"
+            paid = d + timedelta(days=9)
+            rows.append([no, de(d), f"Kunde {i % 4}", eur(g), de(d + timedelta(days=14)), de(paid) if i < 21 else ""])
+            if i != 21 and i != 23:
+                bank.append(f"{de(paid)};{no};Kunde {i % 4};{eur(g)}")
+            if i == 22:
+                bank.append(f"{de(d + timedelta(days=11))};{no};Kunde {i % 4};{eur(g)}")      # paid twice
+            if i == 21:
+                later.append(f"{de(paid)};{no};Kunde {i % 4};{eur(g)}")                         # the transfer, late seen
+            if i == 22:
+                later.append(f"{de(TODAY - timedelta(days=2))};Erstattung {no};Kunde {i % 4};-{eur(g)}")
+
+        def book(rs):
+            return "\n".join(["Rechnungsnr;Rechnungsdatum;Kunde;Brutto;Fällig am;Bezahlt am"] + [";".join(r) for r in rs]) + "\n"
+        f.feed([("Rechnungen.csv", book(rows)), ("Konto.csv", "\n".join(bank) + "\n")])
+        rt = f.rt()
+        spec = next(t for t in rt.model["types"] if t["name"] == "Rechnung")
+        rid = {r["data"][spec["key"]]: r["id"] for r in rt.records[spec["id"]]}
+        attr = {a["name"]: a["id"] for a in spec["attrs"]}
+        due, day, paid_on = attr["Fällig am"], attr["Rechnungsdatum"], attr["Bezahlt am"]
+        self.assertTrue(any(x["op"] == "date_add" and x["attr"] == due for x in spec.get("formulas") or []))
+        data = dict(rt.by_id[rid["RE-0024"]]["data"], **{day: TODAY.isoformat()})
+        ops.apply_formulas(rt, spec, data, {day})                                              # a set date stays,
+        self.assertEqual(data[due], rt.by_id[rid["RE-0024"]]["data"][due])
+        data = {day: TODAY.isoformat()}
+        ops.apply_formulas(rt, spec, data, {day})                                              # an empty one is filled
+        self.assertEqual(data[due], (TODAY + timedelta(days=14)).isoformat())
+        self.assertEqual(rt.ledger[rid["RE-0023"]]["state"], "überzahlt")
+        g22, g23 = rt.ledger[rid["RE-0022"]]["gross"], rt.ledger[rid["RE-0023"]]["gross"]
+        ops.record_payment(rt, rid["RE-0022"], g22, TODAY.isoformat(), "ueberweisung", "T")   # the customer says so
+        ops.record_payment(rt, rid["RE-0023"], g23, TODAY.isoformat(), "erstattung", "T")     # paid back
+        rt = f.rt()
+        self.assertEqual([rt.ledger[rid[k]]["state"] for k in ("RE-0022", "RE-0023")], ["bezahlt", "bezahlt"])
+        changed = ops.set_step(rt, rid["RE-0024"], paid_on, None, "T")                         # clicked by mistake
+        ops.revert(f.rt(), rid["RE-0024"], changed, "T")                                       # and taken back
+        rows[23][5] = de(TODAY - timedelta(days=3))                                            # the book has it later
+        f.feed([(f"Rechnungen Stand {de(TODAY - timedelta(days=1))}.csv", book(rows)),
+                ("Konto November.csv", "\n".join([bank[0]] + later) + "\n")])
+        rt = f.rt()
+        e22, e23 = rt.ledger[rid["RE-0022"]], rt.ledger[rid["RE-0023"]]
+        self.assertEqual((e22["state"], e22["paid"]), ("bezahlt", g22))                       # once, not twice
+        self.assertIn("bestätigt Ihre Eintragung", " ".join(x["how"] for x in e22["payments"]))
+        self.assertEqual((e23["state"], e23["open"]), ("bezahlt", 0.0))
+        self.assertEqual(rt.by_id[rid["RE-0024"]]["data"][paid_on], (TODAY - timedelta(days=3)).isoformat())

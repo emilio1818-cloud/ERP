@@ -29,7 +29,8 @@ EPS = 0.01
 BY_AMOUNT = "Zahlung ohne Nummer – Betrag und Zahler stimmen"        # booked by the growth
 CONFIRMED = "Zuordnung über den Betrag (bestätigt)"                 # confirmed by a person
 CASH_KINDS = {"bar": "Barzahlung", "ueberweisung": "Überweisung", "lastschrift": "Lastschrift", "scheck": "Scheck",
-              "verrechnung": "Verrechnung", "karte": "Kartenzahlung"}
+              "verrechnung": "Verrechnung", "karte": "Kartenzahlung", "erstattung": "Erstattung"}
+_BANKED = {"ueberweisung", "lastschrift", "scheck", "erstattung"}  # what a later bank statement shows again
 SKONTO_MAX = 0.031      # up to 3 % less …
 SKONTO_DAYS = 21        # … paid within three weeks of the invoice date
 
@@ -519,16 +520,27 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                                           if i == more else how, by_amount=bool(by_amount and (b, i) in by_amount)))
                 left -= take
         _net_overpayments(entries, links, {r["id"]: r["data"].get(key) for r in recs} if key else {}, when_of)
-        # money the owner entered by hand: cash, a cheque, an offset – next to what the bank says
+        # money the owner entered by hand: cash, a cheque, an offset, a double payment paid back – next to what
+        # the bank says. A transfer entered before the statement came is the statement's payment once it shows.
         for r in recs:
             e = entries.get(r["id"])
             for m in ((r.get("meta") or {}).get("cash") or []) if e else []:
-                amount = as_number(m.get("amount"))
-                when = as_date(m.get("date"))
-                if amount and when:
+                amount, when, kind = as_number(m.get("amount")), as_date(m.get("date")), m.get("how")
+                if not amount or not when:
+                    continue
+                signed = round(-amount if kind == "erstattung" else amount, 2)
+                twin = next((x for x in e["payments"] if x.get("rid") and kind in _BANKED and not x.get("confirms")
+                             and abs(x["amount"] - signed) <= EPS), None)
+                if twin:
+                    twin["confirms"] = m.get("id")
+                    twin["how"] += f" – bestätigt Ihre Eintragung vom {when.strftime('%d.%m.')}"
+                    continue
+                if kind == "erstattung":
+                    e["refunded"] = e.get("refunded", 0.0) + amount
+                else:
                     e["paid"] += amount
-                    e["payments"].append(dict(rid=None, date=when, amount=round(amount, 2), by_hand=m.get("id"),
-                                              how=f"{CASH_KINDS.get(m.get('how'), 'Zahlung')} (von Hand eingetragen)"))
+                e["payments"].append(dict(rid=None, date=when, amount=signed, by_hand=m.get("id"),
+                                          how=f"{CASH_KINDS.get(kind, 'Zahlung')} (von Hand eingetragen)"))
         pool = iban_party = None
 
         def pool_of():  # bank lines that name no invoice, and the accounts that are a customer's: the account

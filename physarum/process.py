@@ -1345,7 +1345,8 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 pv = r["data"].get(p.get("party")) if p.get("party") else None
                 items.append(dict(rid=e["rid"], title=title(e["rid"]), days=0, money=e["open"] if e["open"] > 0 else None,
                                   party=title(pv) if isinstance(pv, int) and pv in by_id else None,
-                                  reason="; ".join(e["notes"]) or e["state"], state=e["state"]))
+                                  reason="; ".join(e["notes"]) or e["state"], state=e["state"],
+                                  surplus=-e["open"] if e["state"] == "überzahlt" else None))
             if items:
                 groups.append(dict(id="pay:problems", type=bad[0]["type"], kind="payment", severity=3,
                                    title="Zahlungen, die nicht aufgehen", count=len(items),

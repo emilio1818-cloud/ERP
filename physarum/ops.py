@@ -136,6 +136,8 @@ def apply_formulas(rt, spec: dict, data: dict, given: set) -> list[str]:
                 continue
             if f.get("on_change") and data.get(f["attr"]) is not None and not set(f["args"]) & given:
                 continue  # "next maintenance" moves only when the maintenance is entered
+            if f["op"].startswith("date_") and data.get(f["attr"]) is not None:
+                continue  # an agreed date stays: a learned offset fills a gap, it does not move what was set
             v = eval_formula(rt, f, data)
             if v is not None and data.get(f["attr"]) != v:
                 data[f["attr"]] = v
@@ -683,7 +685,19 @@ def revert(rt, rid: int, attrs: list[str], actor: str) -> list[str]:
             raw[aid] = "" if old is None else (_to_input(a, old) if a else old)
     if not raw:
         return []
-    return update(rt, rid, raw, actor, note="rückgängig gemacht", allow=set(raw))
+    changed = update(rt, rid, raw, actor, note="rückgängig gemacht", allow=set(raw))
+    rec = rt.store.record(rid)
+    meta = rec["meta"] or {}
+    w = meta.get("w", {})
+    back = [aid for aid in changed if len(w.get(aid) or []) > 2 and rec["data"].get(aid) == w[aid][2]]
+    if back:  # what the files said again: theirs again – the next delivery may change it
+        for aid in back:
+            w[aid] = ["import", w[aid][1]]
+            meta.get("shadow", {}).pop(aid, None)
+        with rt.store.tx() as c:
+            c.execute("UPDATE records SET meta=? WHERE id=?", (dumps(meta), rid))
+            rt.bump(c)
+    return changed
 
 
 def _to_input(attr: dict, v):

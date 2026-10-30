@@ -91,6 +91,8 @@
               <button class="small ghost" data-post="/post/{{ it.rid }}/erledigt" title="Diese Mail ist beantwortet oder erledigt">✓ Erledigt</button>
             {% elif ig.kind == 'risk' and it.mail %}
               <button class="small ghost" data-post="/post/{{ it.mail }}/erledigt" title="Unter einer bekannten Nummer beim Lieferanten nachgefragt – die Rechnung kommt zurück auf „zu bezahlen“">✓ Nachgefragt</button>
+            {% elif it.surplus %}
+              <button class="small ghost" data-post="/r/{{ it.rid }}/zahlung" data-body='{{ {"amount": ("%.2f"|format(it.surplus))|replace(".", ","), "how": "erstattung"}|tojson }}' title="Das zu viel Gezahlte ging zurück oder wurde mit einer anderen Rechnung verrechnet">✓ Erstattet oder verrechnet</button>
             {% elif it.seen %}
               <button class="small ghost" data-post="{{ it.seen }}" title="Die Änderung ist bekannt und richtig">✓ Gesehen</button>
             {% endif %}

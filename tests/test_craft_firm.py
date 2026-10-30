@@ -225,6 +225,7 @@ class CraftFirm(unittest.TestCase):
                 if r is not rows[5] and r not in twin]
         bank.append([(today - timedelta(days=60)).strftime("%d.%m.%Y"), "DETLEF RASCHE", "Wartung Heizung", "249,90"])
         bank.append([(today - timedelta(days=40)).strftime("%d.%m.%Y"), "VORB NAMEBMANN", "Danke", "357,00"])
+        bank.append([(today - timedelta(days=20)).strftime("%d.%m.%Y"), "VORB NAMEBMANN", "Rest", "349,86"])
         self.f.feed([("Kundenstamm_alt.csv", csv(head, custs)),
                      ("Rechnungsausgangsbuch.csv", csv("Rechnungsnr;Datum;Kd-Nr;Betreff;Netto;USt;Brutto;"
                                                        "abzgl. Abschläge;Zahlbetrag;fällig am", rows)),
@@ -236,9 +237,11 @@ class CraftFirm(unittest.TestCase):
         self.assertEqual(paid["state"], "bezahlt")                              # booked by payer and amount
         self.assertIn("Betrag und Zahler", paid["payments"][0]["how"])
         self.assertTrue(paid["payments"][0]["by_amount"])
-        self.assertEqual({e[r[0]]["state"] for r in twin}, {"offen"})          # which of the two? a question
+        older, younger = twin
+        self.assertEqual(e[older[0]]["state"], "bezahlt")                       # of two alike the older (§ 366 BGB)
+        self.assertEqual(e[younger[0]]["state"], "offen")                       # 2 % less: skonto? a question
         q = rt.payment_proposals()
-        self.assertTrue(set(q) & {e[r[0]]["rid"] for r in twin})
+        self.assertIn(e[younger[0]]["rid"], q)
         held = dunning.overdue_of(rt, rt.by_id[e[twin[0][0]]["rid"]]["data"][next(
             a["id"] for a in inv["attrs"] if a["kind"] == "ref")], inv["id"])
         self.assertTrue([x for x in held if x["rid"] in q])
@@ -584,6 +587,24 @@ class CraftFirm(unittest.TestCase):
         # a letter about an invoice is no invoice
         self.assertIsNone(read("Sehr geehrte Damen und Herren,\nzu Ihrer Rechnung Nr. 4471288 über 7.854,00 EUR:\n"
                                "Gesamtbetrag 7.854,00 EUR haben wir überwiesen."))
+
+    def test_the_usual_letter_layout_reads_too(self):
+        """DIN 5008: the address field and the information block side by side, so a line of text holds both;
+        the heading carries the number; the terms say "ohne Abzug"; a copy is stamped above the letterhead."""
+        from physarum.pdfinvoice import read
+        letter = ["Nordhaus Hygiene-Großhandel GmbH", "Lister Damm 112 · 30163 Hannover · Tel. 0511 647330",
+                  "Nordhaus Hygiene-Großhandel GmbH, Lister Damm 112, 30163 Hannover",
+                  "Ostermeier Gebäudedienste GmbH Rechnung Nr. 2026-34102",
+                  "z. Hd. Buchhaltung Rechnungsdatum 21.10.2026", "Bavenstedter Straße 48 Kunden-Nr. 48812",
+                  "31135 Hildesheim Leistungsdatum 21.10.2026", "Rechnung 2026-34102",
+                  "Summe netto 2.227,60", "zzgl. 19 % USt 423,24", "Rechnungsbetrag 2.650,84 €",
+                  "Zahlbar ohne Abzug bis 20.11.2026."]
+        inv = read("\n".join(letter))
+        self.assertEqual((inv["number"], inv["seller"], inv["buyer"], inv["gross"], inv["due"]),
+                         ("2026-34102", "Nordhaus Hygiene-Großhandel GmbH", "Ostermeier Gebäudedienste GmbH", 2650.84,
+                          date(2026, 11, 20)))
+        copy = read("\n".join(["KOPIE"] + letter))
+        self.assertEqual((copy["seller"], copy["buyer"]), (inv["seller"], inv["buyer"]))
 
     def test_supplier_invoices_from_pdf_paid_twice_received_and_a_fraud(self):
         from email.message import EmailMessage

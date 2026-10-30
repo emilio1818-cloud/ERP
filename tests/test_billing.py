@@ -410,3 +410,62 @@ class SealedLog(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OwnEInvoice(unittest.TestCase):
+    """The firm sent one invoice as XRechnung, and the file is in its folder: it is no invoice from a supplier,
+    and what it says about the seller is what the firm's own data page needs."""
+
+    CII = """<?xml version="1.0" encoding="UTF-8"?>
+<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
+  xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
+  xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
+ <rsm:ExchangedDocument><ram:ID>2026-0394</ram:ID><ram:TypeCode>380</ram:TypeCode>
+  <ram:IssueDateTime><udt:DateTimeString format="102">20260831</udt:DateTimeString></ram:IssueDateTime></rsm:ExchangedDocument>
+ <rsm:SupplyChainTradeTransaction>
+  <ram:ApplicableHeaderTradeAgreement>
+   <ram:SellerTradeParty><ram:Name>Ostermeier Gebäudedienste GmbH</ram:Name>
+    <ram:DefinedTradeContact><ram:TelephoneUniversalCommunication><ram:CompleteNumber>05121 99876-0</ram:CompleteNumber>
+    </ram:TelephoneUniversalCommunication></ram:DefinedTradeContact>
+    <ram:PostalTradeAddress><ram:PostcodeCode>31135</ram:PostcodeCode><ram:LineOne>Bavenstedter Straße 48</ram:LineOne>
+     <ram:CityName>Hildesheim</ram:CityName><ram:CountryID>DE</ram:CountryID></ram:PostalTradeAddress>
+    <ram:URIUniversalCommunication><ram:URIID schemeID="EM">buchhaltung@ostermeier-gd.example</ram:URIID></ram:URIUniversalCommunication>
+    <ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">DE312456789</ram:ID></ram:SpecifiedTaxRegistration>
+   </ram:SellerTradeParty>
+   <ram:BuyerTradeParty><ram:Name>Stadt Hildesheim</ram:Name></ram:BuyerTradeParty>
+  </ram:ApplicableHeaderTradeAgreement>
+  <ram:ApplicableHeaderTradeSettlement><ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
+   <ram:SpecifiedTradeSettlementPaymentMeans><ram:TypeCode>58</ram:TypeCode>
+    <ram:PayeePartyCreditorFinancialAccount><ram:IBANID>DE57259501300912345678</ram:IBANID></ram:PayeePartyCreditorFinancialAccount>
+   </ram:SpecifiedTradeSettlementPaymentMeans>
+   <ram:ApplicableTradeTax><ram:CalculatedAmount>921.50</ram:CalculatedAmount><ram:TypeCode>VAT</ram:TypeCode>
+    <ram:BasisAmount>4850.00</ram:BasisAmount><ram:CategoryCode>S</ram:CategoryCode><ram:RateApplicablePercent>19</ram:RateApplicablePercent>
+   </ram:ApplicableTradeTax>
+   <ram:SpecifiedTradeSettlementHeaderMonetarySummation><ram:LineTotalAmount>4850.00</ram:LineTotalAmount>
+    <ram:TaxBasisTotalAmount>4850.00</ram:TaxBasisTotalAmount><ram:TaxTotalAmount currencyID="EUR">921.50</ram:TaxTotalAmount>
+    <ram:GrandTotalAmount>5771.50</ram:GrandTotalAmount><ram:DuePayableAmount>5771.50</ram:DuePayableAmount>
+   </ram:SpecifiedTradeSettlementHeaderMonetarySummation>
+  </ram:ApplicableHeaderTradeSettlement>
+ </rsm:SupplyChainTradeTransaction>
+</rsm:CrossIndustryInvoice>
+"""
+
+    def test_it_is_ours_and_says_who_we_are(self):
+        tmp = Path(tempfile.mkdtemp(prefix="physarum-own-xr-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        book = ["Rechnungsausgangsbuch 2026 · Ostermeier Gebäudedienste GmbH", "",
+                "Re.-Nr.;Datum;Kunde;Brutto;fällig am"]
+        book += [f"2026-{390 + i:04d};{i + 1:02d}.08.2026;Kunde {i % 3};{100 + i},00;{i + 15:02d}.08.2026" for i in range(4)]
+        book.append("2026-0394;31.08.2026;Stadt Hildesheim;5.771,50;30.09.2026")
+        store = Store(tmp / "firma")
+        ingest(store, [("Rechnungsausgangsbuch.csv", "\n".join(book).encode("utf-8")),
+                       ("Stadt_XRechnung/XRechnung_2026-0394.xml", self.CII.encode("utf-8"))], "T")
+        regrow(store)
+        rt = Runtime(store)
+        rt.ensure()
+        self.assertFalse([t for t in rt.model["types"] if t.get("incoming")])  # no supplier: the firm itself
+        firm = billing.guess_company(rt)
+        self.assertEqual({k: firm.get(k) for k in ("name", "street", "zip", "city", "vat_id", "email", "phone", "iban")},
+                         dict(name="Ostermeier Gebäudedienste GmbH", street="Bavenstedter Straße 48", zip="31135",
+                              city="Hildesheim", vat_id="DE312456789", email="buchhaltung@ostermeier-gd.example",
+                              phone="05121 99876-0", iban="DE57259501300912345678"))

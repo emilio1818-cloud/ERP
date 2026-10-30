@@ -19,7 +19,7 @@ _NUMBER = re.compile(r"\b(?:rechnungs?\s?-?\s?(?:nr|nummer|no)\.?|rechnung\s+nr\
                      r"gutschrift\s+nr\.?|invoice\s+(?:no|number)\.?)\s*[:#]?\s*([A-Z0-9][A-Z0-9\-/._]{2,30})", re.I)
 _INV_DATE = re.compile(r"\b(?:rechnungsdatum|belegdatum|invoice date|datum)\s*:?\s*" + _DATE, re.I)
 _HEADING = re.compile(r"^\s*((?:schluss|abschlags|teil|sammel|storno)?rechnung|gutschrift|invoice|rechnungskorrektur)"
-                      r"(?:\s*$|\s+(?:nr|nummer|no)\b)", re.I)
+                      r"(?:\s*$|\s+(?:nr|nummer|no)\b|\s+[A-Z]{0,4}[-/]?\d[\w\-/.]*\s*$)", re.I)  # also "Rechnung 2026-0588"
 _GROSS = re.compile(r"^.*\b(rechnungsbetrag|gesamtbetrag(?:\s+brutto)?|summe\s+brutto|bruttobetrag|endbetrag|"
                     r"gesamt\s+brutto|zu\s+zahlen|zahlbetrag|restforderung)\b[^\n]*?" + _AMT + r"\s*(?:€|eur)?\s*$",
                     re.I | re.M)
@@ -27,7 +27,8 @@ _NET = re.compile(r"^.*\b(?:warenwert\s+netto|summe\s+netto|nettobetrag|netto\s*
                   r"zwischensumme\s+netto|netto)\b[^\n]*?" + _AMT + r"\s*(?:€|eur)?\s*$", re.I | re.M)
 _TAX = re.compile(r"^.*\b(?:mwst|ust|umsatzsteuer|mehrwertsteuer)\b\.?[^\n]*?" + _AMT + r"\s*(?:€|eur)?\s*$",
                   re.I | re.M)
-_PAY_BY = re.compile(r"\b(?:zahlbar|fällig|faellig|zahlungsziel)\s+(?:bis\s+(?:zum\s+)?|am\s+)?" + _DATE, re.I)
+_PAY_BY = re.compile(r"\b(?:zahlbar|fällig|faellig|zahlungsziel)\b[^\n\d]{0,30}?(?:bis\s+(?:zum\s+)?|am\s+)?" + _DATE,
+                     re.I)  # "Zahlbar ohne Abzug bis 14.08.2026"
 _SKONTO = re.compile(r"\bbis\s+(?:zum\s+)?" + _DATE + r"[^\n%]{0,40}?(\d{1,2}(?:,\d{1,2})?)\s*%\s*skonto"
                      r"(?:[^\n(]{0,20}\(\s*" + _AMT + r")?", re.I)
 _NET_BY = re.compile(r"\bbis\s+(?:zum\s+)?" + _DATE + r"\s+(?:rein\s+)?netto\b", re.I)
@@ -83,8 +84,11 @@ def _buyer(lines: list[str]) -> str | None:
     if head is None or head < 2:
         return None
     for ln in lines[1:head]:
-        if not _CONTACT.search(ln) and not re.match(r"^\s*\d", ln) and len(ln) <= 80:
-            return ln.strip()
+        # the address field and the info block beside it share a line: "Firma GmbH  Rechnung Nr. 2026-0588"
+        cut = min((m.start() for rx in (_NUMBER, _INV_DATE, _THEIR_NO) if (m := rx.search(ln))), default=len(ln))
+        ln = ln[:cut].strip()
+        if ln and not _CONTACT.search(ln) and not re.match(r"^\s*\d", ln) and len(ln) <= 80:
+            return ln
     return None
 
 
@@ -94,6 +98,8 @@ def read(text: str | None, sender: str | None = None) -> dict | None:
     if not text or len(text) > 60000:
         return None
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if len(lines) > 1 and lines[0].isupper() and " " not in lines[0]:
+        lines = lines[1:]  # a stamp above the letterhead: "KOPIE"
     heading = next((m for ln in lines[:25] if (m := _HEADING.match(ln))), None)
     number = _NUMBER.search(text)
     gross = None
@@ -190,7 +196,7 @@ def own_names(store, raw: list[dict]) -> set[str]:
     if titles:
         top = max(titles.values())
         out.add(max((n for n, c in titles.items() if c == top), key=len))
-    heads = [t["meta"] for t in raw if (t.get("meta") or {}).get("structured") == "pdf-invoice-header"]
+    heads = [t["meta"] for t in raw if (t.get("meta") or {}).get("structured") in _HEADS]
     if len(heads) >= 3:
         on = Counter()
         for m in heads:
@@ -217,26 +223,30 @@ def is_own(name: str | None, own: set[str]) -> bool:
     return bool(n) and any(n == o or (len(o) >= 6 and (n.startswith(o) or o.startswith(n))) for o in own)
 
 
+_HEADS = ("pdf-invoice-header", "einvoice-header")
+
+
 def received_only(store, raw: list[dict]) -> list[dict]:
-    """Drop the firm's own invoices read from PDF: they are in its invoice book, and as received
-    invoices they would turn the firm into its own supplier. Kept as documents all the same."""
-    if not any((t.get("meta") or {}).get("structured") == "pdf-invoice-header" for t in raw):
+    """Drop the firm's own invoices read from a PDF or an e-invoice: they are in its invoice book, and as
+    received invoices they would turn the firm into its own supplier. Kept as documents all the same."""
+    if not any((t.get("meta") or {}).get("structured") in _HEADS for t in raw):
         return raw
     own = own_names(store, raw)
-    numbers = {str(m.get("number")) for t in raw if (m := t.get("meta") or {}).get("structured") == "pdf-invoice-header"
+    numbers = {str(m.get("number")) for t in raw if (m := t.get("meta") or {}).get("structured") in _HEADS
                and len(str(m.get("number") or "")) >= 5}
     listed = set()  # numbers the firm's own lists carry: its invoice book has them already
     for t in raw:
-        if not (t.get("meta") or {}).get("structured", "").startswith("pdf-invoice"):
+        if not (t.get("meta") or {}).get("structured", "").startswith(("pdf-invoice", "einvoice")):
             for row in t["rows"]:
                 listed.update(x for v in row if v is not None and (x := str(v).strip()) in numbers)
     drop = set()
     for t in raw:
         m = t.get("meta") or {}
-        if m.get("structured") != "pdf-invoice-header":
+        if m.get("structured") not in _HEADS:
             continue
-        if is_own(m.get("seller"), own) or (own and m.get("buyer") and not is_own(m.get("buyer"), own)) \
-                or str(m.get("number") or "") in listed:
+        to_us = own and m.get("buyer") and is_own(m.get("buyer"), own)  # a purchase list names its number too
+        if is_own(m.get("seller"), own) or (own and m.get("buyer") and not to_us) \
+                or (str(m.get("number") or "") in listed and not to_us):
             drop.add(t["id"])
     if not drop:
         return raw
@@ -247,5 +257,5 @@ def received_only(store, raw: list[dict]) -> list[dict]:
 def _lines_of(raw: list[dict], heads: set) -> set:
     """The position tables that came with the dropped headers (same source)."""
     srcs = {t["source_id"] for t in raw if t["id"] in heads}
-    return {t["id"] for t in raw if (t.get("meta") or {}).get("structured") == "pdf-invoice-lines"
+    return {t["id"] for t in raw if (t.get("meta") or {}).get("structured") in ("pdf-invoice-lines", "einvoice-lines")
             and t["source_id"] in srcs}

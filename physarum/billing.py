@@ -867,6 +867,8 @@ def guess_company(rt) -> dict:
         out["name"] = max((n for n, c in pool.items() if c == top), key=len)
     for k, v in _letterhead(rt, out.get("name")).items():
         out.setdefault(k, v)
+    for k, v in _own_einvoice(rt, out.get("name")).items():
+        out.setdefault(k, v)
     if not out.get("iban"):
         from .reconcile import bank_specs
         for b in bank_specs(rt.model):
@@ -876,6 +878,21 @@ def guess_company(rt) -> dict:
                     if r["data"].get(own["id"]):
                         out["iban"] = r["data"][own["id"]]
     return out
+
+
+def _own_einvoice(rt, name: str | None) -> dict:
+    """An e-invoice the firm sent says who it is, field by field."""
+    from .pdfinvoice import is_own, norm
+    from .store import loads
+    if not name:
+        return {}
+    keys = dict(street="street", zip="zip", city="city", vat_id="vat", tax_no="tax_no", email="mail", phone="phone",
+                iban="iban")
+    for d in rt.store.q("SELECT meta FROM documents WHERE kind='e-rechnung' ORDER BY id DESC"):
+        seller = (loads(d["meta"]) or {}).get("seller")
+        if isinstance(seller, dict) and is_own(seller.get("name"), {norm(name)}):
+            return {k: str(seller[f]).strip() for k, f in keys.items() if seller.get(f)}
+    return {}
 
 
 def _account_holder(rt) -> dict:

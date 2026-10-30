@@ -112,6 +112,10 @@ def _ubl(r, credit=False) -> dict:
         seller=_text(r, sup + ["PartyLegalEntity", "RegistrationName"]) or _text(r, sup + ["PartyName", "Name"]),
         seller_vat=vat or tax_no, seller_tax_no=tax_no,
         seller_mail=_text(r, sup + ["Contact", "ElectronicMail"]),
+        seller_phone=_text(r, sup + ["Contact", "Telephone"]),
+        seller_street=_text(r, sup + ["PostalAddress", "StreetName"]),
+        seller_zip=_text(r, sup + ["PostalAddress", "PostalZone"]),
+        seller_city=_text(r, sup + ["PostalAddress", "CityName"]),
         buyer=_text(r, cus + ["PartyLegalEntity", "RegistrationName"]) or _text(r, cus + ["PartyName", "Name"]),
         iban=_text(r, ["PaymentMeans", "PayeeFinancialAccount", "ID"]),
         order=_text(r, ["OrderReference", "ID"]),
@@ -169,6 +173,11 @@ def _cii(r) -> dict:
         seller=_text(agr, ["SellerTradeParty", "Name"]) if agr is not None else None,
         seller_vat=vat or tax_no, seller_tax_no=tax_no,
         seller_mail=_text(agr, ["SellerTradeParty", "URIUniversalCommunication", "URIID"]) if agr is not None else None,
+        seller_phone=_text(agr, ["SellerTradeParty", "DefinedTradeContact", "TelephoneUniversalCommunication",
+                                 "CompleteNumber"]) if agr is not None else None,
+        seller_street=_text(agr, ["SellerTradeParty", "PostalTradeAddress", "LineOne"]) if agr is not None else None,
+        seller_zip=_text(agr, ["SellerTradeParty", "PostalTradeAddress", "PostcodeCode"]) if agr is not None else None,
+        seller_city=_text(agr, ["SellerTradeParty", "PostalTradeAddress", "CityName"]) if agr is not None else None,
         buyer=_text(agr, ["BuyerTradeParty", "Name"]) if agr is not None else None,
         iban=_text(stl, ["SpecifiedTradeSettlementPaymentMeans", "PayeePartyCreditorFinancialAccount", "IBANID"]) if stl is not None else None,
         order=_text(agr, ["BuyerOrderReferencedDocument", "IssuerAssignedID"]) if agr is not None else None,
@@ -243,7 +252,8 @@ def to_tables(inv: dict, source_name: str):
                     rows=[[inv["number"], inv["date"], inv["due"], inv["seller"], inv["seller_vat"], inv["iban"],
                            inv["order"], _s(inv["net"], sign), _s(inv["tax"], sign), _s(inv["gross"], sign), art]],
                     lines=[1], meta={"format": f"E-Rechnung ({inv['syntax']})", "structured": "einvoice-header",
-                                     "number_formats": {}})
+                                     "number_formats": {}, "seller": inv.get("seller"), "buyer": inv.get("buyer"),
+                                     "number": inv.get("number")})
     rows = []
     for i, ln in enumerate(inv["lines"], start=1):
         rows.append([inv["number"], ln.get("pos") or str(i), ln.get("sku"), ln.get("name"), ln.get("qty"),
@@ -257,7 +267,9 @@ def to_tables(inv: dict, source_name: str):
             f"Betrag: {inv['gross']} {inv['currency']}\nIBAN: {inv['iban'] or '–'}\nBestellung: {inv['order'] or '–'}")
     doc = RawDoc("e-rechnung", f"E-Rechnung {inv['number']} · {inv['seller']}", text,
                  sender=inv.get("seller_mail") or inv.get("seller"),
-                 meta={"syntax": inv["syntax"], "problems": check(inv), "buyer": inv.get("buyer")})
+                 meta={"syntax": inv["syntax"], "problems": check(inv), "buyer": inv.get("buyer"),
+                       "seller": {k: inv.get(f"seller_{k}") for k in ("street", "zip", "city", "vat", "tax_no", "mail", "phone")}
+                       | {"name": inv.get("seller"), "iban": inv.get("iban")}})
     return head, lines if rows else None, doc
 
 

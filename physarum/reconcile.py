@@ -423,37 +423,40 @@ def payees(model: dict, records: dict, ledger: dict | None = None) -> set[int]:
 
 def risk_items(model: dict, records: dict, outrefs: dict, titles: dict, ledger: dict | None = None) -> list[dict]:
     """Documents that name an unknown bank account of a known partner, or come from a look-alike domain."""
+    from .payments import _CREDITOR_ID
     specs = {t["id"]: t for t in model["types"]}
     by_id = {r["id"]: r for rs in records.values() for r in rs}
-    known: dict[int, set] = {}
-    domains: dict[int, set] = {}
+    known: dict[int, set] = defaultdict(set)
+    domains: dict[int, set] = defaultdict(set)
+
+    def iban_of(v) -> str:
+        return re.sub(r"\s+", "", str(v or "")).upper()
+
     for t in model["types"]:
         if t["kind"] != "master":
             continue
-        ibans = [a["id"] for a in t["attrs"] if a["kind"] == "iban"]
-        mails = [a["id"] for a in t["attrs"] if a["kind"] == "email"]
         for r in records.get(t["id"], []):
-            for a in ibans:
-                if r["data"].get(a):
-                    known.setdefault(r["id"], set()).add(str(r["data"][a]))
-            for a in mails:
-                e = str(r["data"].get(a) or "").casefold()
-                if "@" in e and e.rsplit("@", 1)[1] not in FREEMAIL:
-                    domains.setdefault(r["id"], set()).add(e.rsplit("@", 1)[1])
+            for a in t["attrs"]:
+                e = str(r["data"].get(a["id"]) or "").casefold()
+                if a["kind"] == "iban" and e:
+                    known[r["id"]].add(iban_of(e))
+                elif a["kind"] == "email" and "@" in e and e.rsplit("@", 1)[1] not in FREEMAIL:
+                    domains[r["id"]].add(e.rsplit("@", 1)[1])
     to_pay = payees(model, records, ledger)
+    own = set()  # the firm's own accounts: the statement's other IBAN column
     for b in bank_specs(model):
-        if not b["iban"] or not b["party"]:
-            continue
+        mine = [a["id"] for a in b["spec"]["attrs"] if a["kind"] == "iban" and a["id"] != (b["iban"] or {}).get("id")]
         for row in records.get(b["spec"]["id"], []):
-            pv = row["data"].get(b["party"]["id"])
-            iv = row["data"].get(b["iban"]["id"])
-            if isinstance(pv, int) and iv:
-                known.setdefault(pv, set()).add(str(iv))
+            own |= {iban_of(row["data"].get(a)) for a in mine} - {""}
+            pv = row["data"].get(b["party"]["id"]) if b["party"] else None
+            if isinstance(pv, int) and b["iban"] and (iv := iban_of(row["data"].get(b["iban"]["id"]))):
+                known[pv].add(iv)
     out = []
     for d in records.get("doc", []):
         text = f"{d['data'].get('doc_title') or ''}\n{d['data'].get('doc_text') or ''}"
-        found = {re.sub(r"\s+", "", m).upper() for m in IBAN_RE.findall(text)}
-        found = {x for x in found if iban_ok(x)}
+        if _CREDITOR_ID.search(text):
+            continue  # a direct debit – the firm's own collection, or a supplier's notice: nobody asks to be paid
+        found = {x for x in (iban_of(m) for m in IBAN_RE.findall(text)) if iban_ok(x)} - own
         targets = [to for to, attr, kind, how in outrefs.get(d["id"], [])
                    if attr == "doc" and to in by_id and specs.get(by_id[to]["type"], {}).get("kind") == "master"]
         sender = str(d["data"].get("doc_from") or "")

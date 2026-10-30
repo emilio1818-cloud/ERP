@@ -642,6 +642,27 @@ class UnseenFirm(unittest.TestCase):
         self.assertTrue(any("DE75 5121 0800 1245 1261 99" in it["reason"] and "DE89 3704" in it["reason"]
                             for it in risk["items"]))
 
+    def test_a_supplier_naming_its_known_account_and_ours_is_no_risk(self):
+        """The supplier list writes the account with spaces, the letter without; the letter also names the
+        firm's own account, the one it debits – neither is a new account to pay to."""
+        head = "Firma;IBAN;E-Mail"
+        sup = [["Kaffee Kontor Nord GmbH", "DE89 3704 0044 0532 0130 00", "info@kaffeekontor-nord.de"],
+               ["Elbe Verpackungen GmbH", "DE12 5001 0517 0648 4898 90", "info@elbe-verpackungen.de"]]
+        bank = [[(date.today() - timedelta(days=60 - 7 * i)).strftime("%d.%m.%Y"), "DE02120300000000202051",
+                 *(("Kaffee Kontor Nord GmbH", "DE89370400440532013000") if i % 2 else
+                   ("Elbe Verpackungen GmbH", "DE12500105170648489890")), f"Rechnung R-{i}", f"-{480 + 37 * i},00"]
+                for i in range(8)]
+        msg = EmailMessage()
+        msg["From"], msg["To"] = "Kaffee Kontor Nord GmbH <info@kaffeekontor-nord.de>", "einkauf@roesterei.example"
+        msg["Subject"], msg["Date"] = "Lastschrift Rechnung KK-9", date.today().strftime("%a, %d %b %Y 09:00:00 +0200")
+        msg.set_content("Guten Tag,\nwir ziehen den Betrag am Monatsende von Ihrem Konto DE02 1203 0000 0000 2020 51 "
+                        "ein. Unsere Bankverbindung bleibt DE89 3704 0044 0532 0130 00.\nKaffee Kontor Nord GmbH")
+        self.f.feed([("Lieferanten.csv", csv(head, sup)),
+                     ("Konto.csv", csv("Buchungstag;Auftragskonto;Empfänger;IBAN;Verwendungszweck;Betrag", bank)),
+                     ("Lastschrift.eml", msg.as_bytes())])
+        risk = next((g for g in self.f.rt().work() if g["id"] == "risk:iban"), None)
+        self.assertIsNone(risk, risk and risk["items"])
+
 
 if __name__ == "__main__":
     unittest.main()

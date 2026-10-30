@@ -132,6 +132,9 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - „Geld erhalten – wofür?“ zeigt die Eingänge der letzten zwei Monate; ältere unerklärte Eingänge stehen in der Kontoliste, nicht auf „Heute“.
 - Ein Dauerauftrag, der nach einer Preiserhöhung beim alten Betrag bleibt, bezahlt die Rechnung in Physarums Augen nicht: Hakt das Buch sie ab, gilt sie als bezahlt, sonst als offen. Die Differenz je Monat sieht nur, wer die Rechnung öffnet.
 - Vertragsmonate ohne Rechnung (ein Reinigungsvertrag ab Juli, die erste Rechnung im August) erkennt Physarum noch nicht.
+- Eine Kundendublette mit stark abweichendem Namen („Physiotherapie am Markt GbR“ / „Physio am Markt Brinkmann & Vogel GbR“), die nur das gleiche Konto, die gleiche Adresse und Telefonnummer verraten, fragt Physarum nicht ab. Ähnliche Namen fragt es ab.
+- Eine Betrugs-Mail („neue Bankverbindung“, Absender mit ähnlicher Domain) steht mit Warnhinweis unter den Mails. In den Kasten „Vorsicht“ kommt sie, wenn der Lieferant in einer Liste steht oder die gefälschte Rechnung als Eingangsrechnung gelesen wird. Kennt Physarum den Lieferanten nur aus seinen Rechnungen und nennt die Mail kein gültiges Konto, bleibt es beim Warnhinweis.
+- Zahlt ein Kunde eine Rechnung doppelt, steht sie als „zu viel gezahlt“ bei der Rechnung, nicht unter „Geld erhalten – wofür?“.
 - Unter neutralen Dateinamen („export (3).csv“) ordnet Physarum die erste Lieferung eines Handwerksbetriebs schlechter (Stundenzettel je Monteur als eigene Listen); mit der zweiten Lieferung stimmt es wieder.
 
 ## 8. Was die unabhängigen Reviews verändert haben
@@ -189,7 +192,7 @@ Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kann
 
 Nach sechs Runden fragte eine strategische Prüfung, ob das System noch das schlankeste ist, das den Auftrag erfüllt. Befund: Es wuchs nur noch, jede Runde fügte Regeln für die eine geprüfte Firma hinzu, und der Geldkern hing an den Wörtern „bezahlt“ und „fällig“. Seitdem gilt:
 
-- **Der Prüfstand ist die Belohnung.** Acht Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Jede läuft zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
+- **Der Prüfstand ist die Belohnung.** Neun Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Jede läuft zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
 - **Die Stopp-Regel:** Eine Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
 - **Erst löschen.** Weg sind der Abgleich-Ablauf (zwei Wahrheiten für „bezahlt“), die Fragen zum Datenmodell (jetzt umkehrbare Hinweise an der Liste), doppelte Hilfsfunktionen, tote Funktionen und der Tero-Löser.
 
@@ -235,3 +238,16 @@ Eine Regel ist bewusst wieder herausgekommen: „Die Bank zeigt weniger, als das
 | Wort-Regeln / reguläre Ausdrücke | 709 / 174 | 716 / 176 |
 
 Wort-Regeln zählen seit Runde 7 nur echte Wortlisten (vorher auch Konstanten wie `EPS`: 746). Die Runde hat 300 Zeilen gekostet. Wieder gestrichen wurden toter Code, ungenutzte Importe und doppelte Mechanismen.
+
+Ein zweiter Durchgang nahm sich die übrigen Befunde der Gebäudereinigung vor, jeden nur, wenn er die Stopp-Regel besteht. Geld, das einen Auftrag oder ein Angebot nennt („Anzahlung Angebot A-26-019“), zahlt die eine Rechnung, die dieser Fall hat – so, wie die Abläufe „berechnet“ gelernt haben, beim Angebot über den Auftrag, der es angenommen hat –, auch wenn die Rechnung erst Wochen später geschrieben wird. Ein berechneter Auftrag ist keine eigene Forderung mehr; sein Geld gehört der Rechnung. Das greift bei der Gebäudereinigung und bei einer Handwerksfirma des Code-Prüfers, die Anzahlungen auf Aufträge nimmt (16 falsche „überfällig“ fallen weg), und nimmt beim Shop eine falsch offene Bestellung heraus. Eine Bankzeile, die das Hauptbuch schon einer Rechnung gegeben hat, schlägt der Abgleich nicht noch einmal vor. Bisher zählte sie dann zweimal, und das verdeckte drei alte Fehler: Eine Doppelzahlung bezahlte als „Rest einer Sammelzahlung“ eine fremde Rechnung, eine Erstattung nahm das zu viel Gezahlte nicht zurück, und ein Stornobeleg blieb unerkannt, wenn sein Betreff unter fremden Spaltennamen zum Verweis geworden war. Beim Brenner steht so wieder offen, was das Buch „gemahnt“ nennt: Die Zahlung „Re 73/2026“ gehört zur Rechnung 73. Eine neue Bankverbindung im Stammsatz ist nur bei Zahlungsempfängern ein Risiko, nicht beim Kunden, der für die Lastschrift die Bank wechselt; die eigene Lastschriftdatei und das eigene Konto in einem Lieferantenbrief sind kein Betrugsversuch.
+
+| Kennzahl (Prüfstand, zweiter Durchgang der Runde 8) | vorher | nachher |
+|---|---:|---:|
+| Geld richtig | 0,877 | 0,891 |
+| Heute-Aufgaben richtig | 0,859 | 0,868 |
+| Gebäudereinigung allein: Geld / Heute | 0,846 / 0,575 | 0,880 / 0,605 |
+| gleiche offene Posten unter anderen Namen | 0,989 | 0,989 |
+| Zeilen Code | 19.198 | 19.272 |
+| Wort-Regeln / reguläre Ausdrücke | 716 / 176 | 724 / 176 |
+
+Vier Befunde blieben nach der Stopp-Regel draußen, weil sie nur bei der Gebäudereinigung vorkommen (siehe Abschnitt 7): eine Kundendublette, die nur das gleiche Konto verrät, die Betrugs-Mail eines Lieferanten, den keine Liste führt, Vertragsmonate ohne Rechnung und die Doppelzahlung als „Geld erhalten“.

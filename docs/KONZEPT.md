@@ -198,7 +198,7 @@ Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kann
 
 Nach sechs Runden fragte eine strategische Prüfung, ob das System noch das schlankeste ist, das den Auftrag erfüllt. Befund: Es wuchs nur noch, jede Runde fügte Regeln für die eine geprüfte Firma hinzu, und der Geldkern hing an den Wörtern „bezahlt“ und „fällig“. Seitdem gilt:
 
-- **Der Prüfstand ist die Belohnung.** Elf Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Jede läuft zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
+- **Der Prüfstand ist die Belohnung.** Zwölf Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Jede läuft zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
 - **Die Stopp-Regel:** Eine Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
 - **Erst löschen.** Weg sind der Abgleich-Ablauf (zwei Wahrheiten für „bezahlt“), die Fragen zum Datenmodell (jetzt umkehrbare Hinweise an der Liste), doppelte Hilfsfunktionen, tote Funktionen und der Tero-Löser.
 

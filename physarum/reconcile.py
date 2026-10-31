@@ -72,7 +72,9 @@ def bank_specs(model: dict) -> list[dict]:
             if money and date_a:
                 party = next((a for a in t["attrs"] if a["kind"] == "ref"), None)
                 text = next((a for a in t["attrs"] if a.get("role") == "notes" and not a.get("hidden")), None)
-                name = next((a for a in t["attrs"] if a.get("role") in ("name", "person") and a["kind"] == "text"), None)
+                # the other party's name, not the statement's own label ("Bezeichnung Auftragskonto" repeats on every line)
+                name = next((a for a in t["attrs"] if a.get("role") in ("name", "person") and a["kind"] == "text"
+                             and not a.get("hidden") and not a.get("constant")), None)
                 out.append(dict(spec=t, money=split[1] if split else money, split=split, date=date_a, party=party,
                                 iban=iban, text=text, name=name))
     return out
@@ -636,7 +638,8 @@ def received_twice(model: dict, records: dict, outrefs: dict) -> dict[int, list[
 
 
 _KEYLIKE = re.compile(r"\b[A-Z]{1,4}-?\d{2,4}-\d{2,5}\b|\b[A-Z]{1,3}\d{2}-\d{3,4}\b")
-_OWN_MOVES = ("umbuchung", "uebertrag", "kontouebertrag", "eigene", "sparbuch", "tagesgeld", "bareinzahlung")
+_OWN_MOVES = ("umbuchung", "uebertrag", "kontouebertrag", "eigene", "sparbuch", "tagesgeld", "bareinzahlung",
+              "bargeldeinzahlung")
 
 
 def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict, today: date,

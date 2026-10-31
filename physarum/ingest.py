@@ -121,6 +121,12 @@ def read_file(name: str, data: bytes, sender: str | None = None) -> Digest:
             text, enc = decode_text(data)
             if "\x00" in text[:2000]:
                 d.notes.append(f"Unbekanntes Binärformat ({ext or 'ohne Endung'}) – Datei wurde aufbewahrt.")
+            elif _MT940.search(text[:5000]):
+                mt = _mt940_table(text, stem)
+                if mt is not None:
+                    d.tables.append(mt)
+                else:
+                    d.notes.append(f"{stem}: ein Kontoauszug (MT940) ohne Buchungen")
             else:
                 _read_text(stem, text, enc, ext, d)
     except zipfile.BadZipFile:
@@ -1015,6 +1021,94 @@ def _camt_table(root, stem: str) -> RawTable | None:
         iban = None
     return RawTable(name=f"Kontoauszug {iban or stem}", columns=cols, rows=rows, lines=list(range(1, len(rows) + 1)),
                     meta={"format": "camt", "title": f"Kontoauszug {owner or ''} · IBAN {iban or ''}".strip()})
+
+
+_MT940 = re.compile(r"^:20:.*\n(?:.*\n){0,6}?:25:", re.M)
+_MT61 = re.compile(r"^(\d{6})(\d{4})?(R?[CD])[A-Z]?(\d+,\d{0,2})(?:[NF][A-Z0-9]{3})?(.*)$")
+_SEPA_TAG = re.compile(r"\b(EREF|MREF|CRED|SVWZ|KREF|ABWA|ABWE|DEBT|COAM|OAMT|IBAN|BIC)\+")
+
+
+def _mt940_table(text: str, stem: str) -> RawTable | None:
+    """SWIFT MT940 statements, as banking programs (StarMoney, SFirm, Hibiscus) and many online banks export
+    them (.sta): the bookings become the table a CSV export gives, columns as for camt – one row per :61:
+    line, the amount signed, the :86: field split into booking text, purpose, the other side's name, IBAN
+    and BIC, and the SEPA references of the purpose (EREF, MREF, CRED)."""
+    cols = ["Buchungstag", "Valutadatum", "Buchungstext", "Verwendungszweck", "Zahlungspartner", "IBAN", "BIC", "Betrag",
+            "Währung", "Kundenreferenz (End-to-End)", "Mandatsreferenz", "Gläubiger-ID"]
+    fields, cur = [], None
+    for line in text.splitlines():
+        m = re.match(r"^:(\d{2}[A-Z]?):(.*)$", line)
+        if m:
+            cur = [m.group(1), m.group(2)]
+            fields.append(cur)
+        elif line.strip() == "-" or line.startswith("-}"):
+            cur = None
+        elif cur is not None:
+            cur[1] += line if cur[0] == "86" else "\n" + line
+    rows, account, currency, last, acct, accounts = [], None, "EUR", None, None, []
+    for tag, val in fields:
+        if tag == "25":
+            acct = val.strip()
+            account = account or acct
+        elif tag in ("60F", "60M"):
+            currency = val[7:10] or currency
+        elif tag == "61":
+            m = _MT61.match(val.split("\n")[0].strip())
+            if not m:
+                last = None
+                continue
+            try:
+                value = date(2000 + int(m.group(1)[:2]), int(m.group(1)[2:4]), int(m.group(1)[4:6]))
+                booked = value
+                if m.group(2):
+                    booked = date(value.year, int(m.group(2)[:2]), int(m.group(2)[2:]))
+                    if (booked - value).days > 180:  # booked in December for a value in January, or the reverse
+                        booked = booked.replace(year=booked.year - 1)
+                    elif (value - booked).days > 180:
+                        booked = booked.replace(year=booked.year + 1)
+            except ValueError:
+                last = None
+                continue
+            sign = -1 if m.group(3) in ("D", "RC") else 1
+            amount = round(sign * float(m.group(4).replace(",", ".")), 2)
+            ref = m.group(5).split("//")[0].strip()
+            last = [booked, value, None, None, None, None, None, amount, currency,
+                    ref if ref and ref != "NONREF" else None, None, None]
+            rows.append(last)
+            accounts.append(acct)
+        elif tag == "86" and last is not None:
+            sub = dict.fromkeys(("00", "30", "31", "32", "33"), "")
+            purpose = []
+            if re.match(r"^\d{3}\?", val):  # structured: GVC, then ?NN subfields
+                for code, part in re.findall(r"\?(\d{2})([^?]*)", val):
+                    if code in sub:
+                        sub[code] += part
+                    elif "20" <= code <= "29" or "60" <= code <= "63":  # a SEPA tag opens its own subfield
+                        purpose.append((" " if _SEPA_TAG.match(part) else "") + part)
+            else:
+                purpose.append(val)
+            text86 = "".join(purpose)
+            tags = {}
+            pieces = _SEPA_TAG.split(text86)
+            if len(pieces) > 1:
+                for k in range(1, len(pieces) - 1, 2):
+                    tags[pieces[k]] = pieces[k + 1].strip()
+                text86 = tags.get("SVWZ") or " ".join(f"{k}+{v}" for k, v in tags.items())
+            last[2] = sub["00"].strip() or None
+            last[3] = text86.strip() or None
+            last[4] = (sub["32"] + sub["33"]).strip() or tags.get("ABWA") or None
+            last[5] = sub["31"].strip() if len(sub["31"].strip()) >= 15 else None
+            last[6] = sub["30"].strip() if re.match(r"^[A-Z]{6}[A-Z0-9]{2,5}$", sub["30"].strip()) else None
+            last[9] = tags.get("EREF") or last[9]
+            last[10] = tags.get("MREF")
+            last[11] = tags.get("CRED")
+            last = None
+    if not rows:
+        return None
+    if len(set(accounts)) > 1:  # several accounts in one file: which account a booking is on (as for camt)
+        cols, rows, account = ["Auftragskonto"] + cols, [[a] + r for a, r in zip(accounts, rows)], None
+    return RawTable(name=f"Kontoauszug {account or stem}", columns=cols, rows=rows, lines=list(range(1, len(rows) + 1)),
+                    meta={"format": "mt940", "title": f"Kontoauszug · Konto {account or ''}".strip()})
 
 
 def _pdf_attachments(data: bytes, d: Digest):

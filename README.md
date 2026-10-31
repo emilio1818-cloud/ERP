@@ -90,10 +90,10 @@ e2e/screens.cjs    Playwright-Rundgang mit Screenshots
 python -m unittest discover -s tests -t .
 node e2e/screens.cjs http://127.0.0.1:8000 docs/screenshots   # bei laufendem Server, leere Firma
 node e2e/flow.cjs http://127.0.0.1:8000                       # Alltag: Rechnung, Zahlung, Mahnung
-python bench/run.py                                           # der Prüfstand, rund 8 Minuten
+python bench/run.py                                           # der Prüfstand, rund 9 Minuten
 ```
 
-Der **Prüfstand** (`bench/`, siehe [bench/README.md](bench/README.md)) ist der Maßstab jeder Änderung: elf Firmen, die unabhängige Prüfer gebaut haben, wachsen an ihrem Liefertag und werden gegen das gemessen, was an diesem Tag wahr ist – offene Posten, überfällige Rechnungen, fertige Aufträge ohne Rechnung, Geld ohne Rechnung. Jede Firma läuft zusätzlich unter neutralen Dateinamen und anderen Spaltenüberschriften. Eine neue Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
+Der **Prüfstand** (`bench/`, siehe [bench/README.md](bench/README.md)) ist der Maßstab jeder Änderung: zwölf Firmen, die unabhängige Prüfer gebaut haben, wachsen an ihrem Liefertag und werden gegen das gemessen, was an diesem Tag wahr ist – offene Posten, überfällige Rechnungen, fertige Aufträge ohne Rechnung, Geld ohne Rechnung. Jede Firma läuft zusätzlich unter neutralen Dateinamen und anderen Spaltenüberschriften. Eine neue Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
 
 ## Rechnungen, Geld und Steuerberatung
 

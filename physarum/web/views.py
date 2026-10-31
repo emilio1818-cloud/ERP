@@ -446,7 +446,9 @@ def at_a_glance(rt, open_items: dict | None, n_files: int) -> str:
         out += (f"; offen sind {display(open_items['n'] + open_items.get('partial', 0), 'number')} über "
                 f"{money(open_items['amount'])}." if open_items else ".")
     elif open_items:
-        out += f" Offen sind {display(open_items['n'] + open_items.get('partial', 0), 'number')} Rechnungen über {money(open_items['amount'])}."
+        k = open_items["n"] + open_items.get("partial", 0)
+        out += (f" Offen {'ist' if k == 1 else 'sind'} {display(k, 'number')} "
+                f"{open_items['name'] if k == 1 else open_items['plural']} über {money(open_items['amount'])}.")
     return out
 
 

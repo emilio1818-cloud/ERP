@@ -6,7 +6,7 @@ ihren Lieferungen und dem, was an jedem Liefertag wahr ist. Physarum wächst jed
 dieselben Dinge: S1 neutrale Dateinamen, S2 andere Spaltenüberschriften; die schnellen auch S3 (beides).
 
 ```bash
-python bench/run.py              # alle Firmen, auch als S1 und S2 (rund 8 Minuten)
+python bench/run.py              # alle Firmen, auch als S1 und S2 (rund 9 Minuten)
 python bench/run.py demo maler   # nur diese
 python bench/run.py --s0         # nur unter eigenen Namen: der schnelle Blick beim Arbeiten
 python bench/run.py --save       # das Ergebnis wird die neue Basis (bench/baseline.json)
@@ -28,6 +28,7 @@ python bench/keep.py catering /tmp/cat && python -m physarum /tmp/cat --port 880
 | gebaeude | Gebäudereinigung, Review 8, zwei Lieferungen (`gen/gebaeude.py`) | Sparkassen-CSV (CAMT), Monatsrechnungen je Vertrag, SEPA-Sammellastschrift mit Rücklastschriften, Hausverwaltung zahlt mehrere Objekte, eigene XRechnung, Briefbogen-PDFs |
 | catering | Catering und Veranstaltungen, Review 9, zwei Lieferungen (`gen/catering.py`) | Bank nur als camt.053 (ein XML je Tag, Monats-ZIPs), Kontowechsel, Anzahlungen ohne Rechnung, Schlussrechnung nach Gästezahl, Stornokosten, Kita-Essen nach Essenszahlen, fester Dauerauftrag, Rahmenverträge quartalsweise, Entwurf im Rechnungsexport, ZUGFeRD/XRechnung/PDF-Eingangsrechnungen |
 | hausverwaltung | WEG- und Mietverwaltung, Review 10, zwei Lieferungen (`gen/hausverwaltung.py`) | Miete, Hausgeld, Umlagen und Abrechnungsergebnisse ohne Rechnungsnummer (offene Posten als Sollstellung „Konto Sollart Zeitraum“), Jobcenter zahlt Teile, Kautionsraten, Vergütung vom Objektkonto aufs Geschäftskonto, neun Konten in drei Formaten (Sparkassen-CSV, VR-Umsatzanzeige, camt.053/052), Handwerkerrechnungen „c/o“ der Verwaltung |
+| verein | Sportverein (e. V., 562 Mitglieder, fünf Abteilungen), Review 11, zwei Lieferungen (`gen/verein.py`) | Mitgliedsbeiträge ohne Rechnung (offene Posten als Sollstellung „Mitgliedsnr. Sollart Zeitraum“), monatlich bis jährlich, Lastschrift (pain.008, Sammelgutschrift, Rücklastschriften mit Gebühr), Überweisung und bar, Beitragserhöhung zum 01.07. mit Differenz der Jahreszahler, Familienbeitrag, Austritte und Daueraufträge danach, Kurs- und Feriencampgebühren, Pacht ohne Rechnung, eigene Rechnungen (Sponsoring, Hallennutzung), Bank als MT940 (.sta), VR-CSV und Sparkasse CSV-MT940, Chef-Masche per Mail |
 
 Gemessen wird je Lieferung: offene Posten (richtig/zu viel/fehlend, Euro), überfällige Rechnungen,
 fertige Aufträge ohne Rechnung, Festpreis-Projekte deutlich über Budget, Geld ohne Rechnung, Einträge auf

@@ -65,6 +65,16 @@ def _first_date(spec: dict, recs: list[dict]) -> str | None:
     if len(full) < 2:
         return None
 
+    def middle(a):
+        ds = sorted(d for r in recs[:2000] if (d := as_date(r["data"].get(a["id"]))))
+        return ds[len(ds) // 2] if ds else None
+    mid = {a["id"]: middle(a) for a in full}
+    latest = max((d for d in mid.values() if d), default=None)
+    # a date decades before every other one (a birthday) is no step in the record's life
+    full = [a for a in full if not (mid[a["id"]] and latest and (latest - mid[a["id"]]).days > 3650)]
+    if len(full) < 2:
+        return full[0]["id"] if full else None
+
     def first_in(a) -> int:
         n = 0
         for r in recs[:2000]:
@@ -127,6 +137,10 @@ def money_attrs(spec: dict, recs: list[dict] | None = None) -> tuple[dict | None
     net = net or gross or ms[-1]
     gross = gross or net
     return net, gross
+
+
+def _money_of(spec: dict, recs: list[dict]) -> bool:
+    return money_attrs(spec, recs)[1] is not None
 
 
 def infer_processes(model: dict, records: dict, store=None, today: date | None = None):
@@ -441,6 +455,13 @@ def _infer_one(spec, recs, kids, records, mention_map, by_id, today, specs_of: d
                 if best is None or (lex, m) < best_m:
                     best, best_m = st, (lex, m)
         deadlines.append(dict(attr=a["id"], name=a["name"], step=best["id"] if best else None))
+    # the date a payment deadline belongs to ("Zahlbar bis" before "Ausgeglichen am") is the payment, whatever its
+    # heading: where no step says "bezahlt", the money – not the book's last update – decides it
+    from .payments import _pay_deadline
+    pay = _pay_deadline(dict(deadlines=deadlines))
+    payst = next((st for st in steps if pay and st["id"] == pay["step"] and st["source"] == "own"), None)
+    if payst and _money_of(spec, recs) and not any(fold(st["label"]) == PAID for st in steps):
+        payst["label"], payst["phrase"] = PAID, f"noch nicht {PAID}"
     # status: learned from the record's own dates (status and dates come from the same file)
     status = None
     best_status = None

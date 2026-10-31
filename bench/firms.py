@@ -144,7 +144,18 @@ def hausverwaltung(tmp: Path) -> list[dict]:
     return [dict(files=_files(out / d["folder"]), today=d["today"], truth=d) for d in t["deliveries"]]
 
 
+def verein(tmp: Path) -> list[dict]:
+    """A sports club nobody had seen (review 11): membership fees by direct debit, transfer or cash, monthly to yearly,
+    without invoices (open items are Sollstellungen "<Mitgliedsnr.> <Sollart> <Zeitraum>"), a fee increase in mid-year,
+    returned debits, course and camp fees, a lease, the club's own invoices; MT940, VR and Sparkasse CSV; twice."""
+    out = tmp / "verein"
+    subprocess.run([sys.executable, str(HERE / "gen" / "verein.py"), str(out)], check=True, capture_output=True)
+    t = json.loads((out / "truth.json").read_text(encoding="utf-8"))
+    return [dict(files=_files(out / d["folder"]), today=d["today"], truth=d) for d in t["deliveries"]]
+
+
 FIRMS = dict(demo=demo, brenner=brenner, agentur=agentur, handwerk=handwerk, musikschule=musikschule, maler=maler,
-             shop=shop, werkstatt=werkstatt, gebaeude=gebaeude, catering=catering, hausverwaltung=hausverwaltung)
+             shop=shop, werkstatt=werkstatt, gebaeude=gebaeude, catering=catering, hausverwaltung=hausverwaltung,
+             verein=verein)
 # every firm also runs with neutral file names (S1) and other headings (S2); the quick ones with both (S3)
 VARIED = ("demo", "maler", "musikschule")

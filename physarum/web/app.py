@@ -173,17 +173,18 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         ks.sort(key=lambda k: (pref.get(k.get("concept") or "", 3), -(k.get("salience") or 0)))
         open_amount = sum(g["amount"] or 0 for g in work if g["kind"] == "overdue" and g.get("step") == "bezahlt")
         open_items = None
-        by_type = defaultdict(list)
+        by_type = defaultdict(list)  # what is owed to the firm, in every list that holds claims – one total
         for e in rt.ledger.values():
-            if not e["outgoing"]:
+            if not e["outgoing"] and e["state"] in ("offen", "teilbezahlt") and e["open"] > 0:
                 by_type[e["type"]].append(e)
         if by_type:
-            tid, es = max(by_type.items(), key=lambda kv: len(kv[1]))
-            op = [e for e in es if e["state"] in ("offen", "teilbezahlt") and e["open"] > 0]
-            if op:
-                open_items = dict(type=tid, plural=rt.spec(tid)["plural"], amount=round(sum(e["open"] for e in op), 2),
-                                  n=sum(1 for e in op if e["state"] == "offen"),
-                                  partial=sum(1 for e in op if e["state"] == "teilbezahlt"), overdue=open_amount)
+            op = [e for es in by_type.values() for e in es]
+            tid = max(by_type, key=lambda t: sum(e["open"] for e in by_type[t]))  # the link: where most of it is
+            one = len(by_type) == 1
+            open_items = dict(type=tid, plural=rt.spec(tid)["plural"] if one else "Forderungen",
+                              name=rt.spec(tid)["name"] if one else "Forderung", amount=round(sum(e["open"] for e in op), 2),
+                              n=sum(1 for e in op if e["state"] == "offen"),
+                              partial=sum(1 for e in op if e["state"] == "teilbezahlt"), overdue=open_amount)
         allq = open_questions(store)
         pay_exact = [q for q in allq if q["kind"] == "payment_match" and q.get("exact")]
         qs = [q for q in allq if q["kind"] != "payment_match"][:3]

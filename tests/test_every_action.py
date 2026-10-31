@@ -215,6 +215,12 @@ class EveryAction(unittest.TestCase):
         self.done(self.post(j["undo"]["url"], j["undo"]["body"]))
         self.assertIn("Vorsicht:", self.get(f"/r/{x['rid']}").text)
 
+    def test_heute_asks_once_who_works_here(self):
+        c = TestClient(self.c.app)
+        self.assertIn("Wer arbeitet hier?", c.get("/").text)
+        c.post("/ich", data={"name": "Katrin"}, headers=SAME_ORIGIN, follow_redirects=False)
+        self.assertNotIn("Wer arbeitet hier?", c.get("/").text)
+
     def test_questions_can_wait_and_come_back(self):
         q = self.store.q1("SELECT id FROM questions WHERE status='open' ORDER BY id")
         if not q:

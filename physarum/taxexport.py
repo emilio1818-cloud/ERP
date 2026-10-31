@@ -179,6 +179,9 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
             continue
         incoming = bool(spec.get("incoming"))
         party = billing.party_attr(rt, spec)
+        if party is None and incoming:  # a supplier known only by the name its invoices give
+            from .reconcile import _incoming
+            party = next((pa for t, pa, *_ in _incoming(rt.model) if t["id"] == spec["id"]), None)
         proc = next((p for p in rt.model.get("processes", []) if p["type"] == spec["id"]), None)
         dattr = proc["start"]["attr"] if proc else next((a["id"] for a in spec["attrs"] if a["kind"] == "date"), None)
         payable, deduct = _payable_attrs(spec, proc or {})
@@ -191,8 +194,8 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
                 continue
             doc = billing.document(rt, rec)
             pv = rec["data"].get(party["id"]) if party else None
-            name = rt.title(pv) if isinstance(pv, int) else str(((rec.get("meta") or {}).get("raw") or {}).get(
-                party["id"] if party else "", "") or "")
+            name = rt.title(pv) if isinstance(pv, int) else str(pv or ((rec.get("meta") or {}).get("raw") or {}).get(
+                party["id"] if party else "", "") or "")  # a supplier known by its written name is still named
             e = rt.ledger.get(rec["id"]) or {}
             row = dict(rid=rec["id"], number=str(doc.get("number") or rt.title(rec["id"])), date=when, party=name,
                        party_rid=pv if isinstance(pv, int) else None, groups=[], gross=doc.get("gross"),
@@ -226,6 +229,9 @@ def collect(rt, von: date, bis: date, cfg: dict | None = None) -> dict:
                 row["after_down_payments"] = owed
             if incoming:
                 row["account"] = _assign(kreditors, _partner_key(row["party_rid"], name), None, KREDITOR_START, 100000)
+                if any(g["rate"] == 0.0 and g["net"] for g in row["groups"]):
+                    warn.append(f"{row['number']}: ohne Umsatzsteuer – bei § 13b schulden Sie die Steuer (Reverse Charge), "
+                                f"sonst Kleinunternehmer oder steuerfrei; bitte prüfen")
                 inc.append(row)
                 for g in row["groups"]:
                     v = vat_in.setdefault(g["rate"], [0.0, 0.0])
@@ -382,7 +388,8 @@ def books(data: dict) -> dict[str, bytes]:
         for rt_, (n, t) in sorted(data["vat_ist"].items(), key=lambda kv: -(kv[0] or -1)):
             rows.append([f"Umsätze {_pct(rt_)} (nach Zahlungseingang, Ist-Versteuerung)", _de(n), _de(t)])
     for rt_, (n, t) in sorted(data["vat_in"].items(), key=lambda kv: -(kv[0] or -1)):
-        rows.append([f"Vorsteuer aus Eingangsrechnungen {_pct(rt_)}", _de(n), _de(t)])
+        rows.append([f"Vorsteuer aus Eingangsrechnungen {_pct(rt_)}" if rt_ else
+                     "Eingangsrechnungen ohne Umsatzsteuer (§ 13b, Kleinunternehmer, steuerfrei – bitte prüfen)", _de(n), _de(t)])
     due = sum(t for _, t in (data["vat_ist"] if data["cfg"]["method"] == "ist" else data["vat_out"]).values()) - \
         sum(t for _, t in data["vat_in"].values())
     rows.append(["Vorläufige Zahllast (ohne Gewähr, ohne weitere Vorsteuer)", "", _de(due)])

@@ -112,8 +112,10 @@ def read(text: str | None, sender: str | None = None) -> dict | None:
     when = _INV_DATE.search(text)
     inv_date = _day(when.group(1)) if when else None
     net = next((_amount(m.group(1)) for m in _NET.finditer(text)), None)
-    tax = next((_amount(m.group(1)) for m in _TAX.finditer(text)
-                if not re.search(r"id\s?-?\s?nr|ident", m.group(0), re.I)), None)
+    taxes = [_amount(m.group(1)) for m in _TAX.finditer(text) if not re.search(r"id\s?-?\s?nr|ident", m.group(0), re.I)]
+    # the line whose amount closes net + tax = gross; a position that names "USt-VA" is no tax line
+    tax = next((t for t in taxes if t is not None and net is not None and abs(net + t - gross) <= 0.02),
+               taxes[0] if taxes else None)
     skonto = _SKONTO.search(text)
     net_by = _NET_BY.search(text)
     pay_by = [_day(m.group(1)) for m in _PAY_BY.finditer(text)]

@@ -606,6 +606,17 @@ class CraftFirm(unittest.TestCase):
         copy = read("\n".join(["KOPIE"] + letter))
         self.assertEqual((copy["seller"], copy["buyer"]), (inv["seller"], inv["buyer"]))
 
+    def test_a_position_that_names_ust_is_no_tax_line(self):
+        """Review 9: the tax adviser's own invoice lists "Finanzbuchhaltung (… USt-VA) 240,00" – that was read as the VAT."""
+        from physarum.pdfinvoice import read
+        inv = read("\n".join(["Steuerberatung Engel", "Theaterstraße 6 · 31141 Hildesheim · kanzlei@stb-engel.example",
+                               "Muster GmbH", "Rechnung Nr. 2026/0712", "Rechnungsdatum 31.07.2026",
+                               "1 Lohnbuchhaltung 07/2026 25 Abr. 16,50 412,50",
+                               "2 Finanzbuchhaltung 07/2026 (laufende Buchführung, USt-VA) 1 pauschal 240,00 240,00",
+                               "3 Auslagenpauschale 1 pauschal 20,00 20,00", "Summe netto 672,50", "zzgl. 19 % USt 127,78",
+                               "Rechnungsbetrag 800,28 €", "USt-IdNr. DE267331908"]))
+        self.assertEqual((inv["net"], inv["tax"], inv["gross"]), (672.5, 127.78, 800.28))
+
     def test_supplier_invoices_from_pdf_paid_twice_received_and_a_fraud(self):
         from email.message import EmailMessage
         today = date(2026, 10, 29)

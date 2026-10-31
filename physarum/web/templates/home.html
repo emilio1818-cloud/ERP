@@ -26,6 +26,13 @@
   </div>
 </div>
 
+{% if me == 'Benutzer' and work %}
+<form class="notice row between noprint" method="post" action="/ich" style="margin-bottom:14px; gap:8px; flex-wrap:wrap">
+  <span>Wer arbeitet hier? Ihr Name steht im Verlauf bei jeder Änderung, die Sie machen.</span>
+  <span class="row" style="gap:6px"><input name="name" placeholder="Ihr Name" aria-label="Ihr Name für das Änderungsprotokoll" style="width:12em"><button class="small">Merken</button></span>
+</form>
+{% endif %}
+
 {% if bank_until %}
 <div class="notice warn" style="margin-bottom:14px">
   {% if bank_until.day %}<b>Stand Ihrer Daten: Kontoauszug bis {{ display(bank_until.day, 'date') }}</b> (vor {{ bank_until.days }} Tagen). Was seitdem bezahlt wurde, sieht Physarum noch nicht – erst den aktuellen Kontoauszug <a href="/quellen#einwerfen">einwerfen</a>, dann erinnern oder berechnen.

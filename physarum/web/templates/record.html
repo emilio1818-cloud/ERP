@@ -124,6 +124,7 @@
 <section class="card" aria-label="Ablauf">
   <div class="row between"><h2>Ablauf</h2>
     {% if timeline.negative %}<span class="pill bad">beendet ({{ rec.data.get(status_attr.id) }})</span>{% endif %}</div>
+  {% if timeline.gap %}<p class="notice warn" style="margin:6px 0 10px">{{ timeline.gap }} – üblich ist eine Rechnung je Zeitraum.</p>{% endif %}
   <div class="timeline">
     {% for s in timeline.steps %}
     <div class="step {{ 'done' if s.done }} {{ 'late' if s.late }}">

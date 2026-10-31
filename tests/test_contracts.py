@@ -83,6 +83,12 @@ class Contracts(unittest.TestCase):
         self.assertEqual({x["title"]: x["reason"] for x in g["items"]},
                          {"V-02": "06/2026 ohne Rechnung", "V-05": "07/2026 ohne Rechnung"})
         self.assertEqual(g["kind"], "ready")                                   # money waiting to be asked for
+        from starlette.testclient import TestClient
+        from physarum.web.app import create_app
+        v02 = next(x["rid"] for x in g["items"] if x["title"] == "V-02")
+        page = TestClient(create_app(self.f.dir / "firma")).get(f"/r/{v02}").text
+        self.assertIn("zuletzt berechnet", page)                               # how far it is billed, not a chain
+        self.assertIn("06/2026 ohne Rechnung", page)
 
 
 if __name__ == "__main__":

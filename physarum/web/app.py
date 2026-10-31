@@ -31,7 +31,7 @@ from ..questions import CONSEQUENCES, hints, open_questions
 from ..runtime import Runtime
 from ..store import Store, dumps, loads, now_iso
 from ..text import fold, norm_name
-from ..values import as_date, display, event_date, fmt_number
+from ..values import as_date, display, event_date, fmt_number, parse_period
 from .. import billing, lexicon
 from ..payments import bank_allocations
 from . import views
@@ -719,6 +719,29 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
         start = as_date(data.get(proc["start"]["attr"]))
         steps = [dict(label=proc["start"]["label"], date=start, done=bool(start), kind="start", usual=None, due=None,
                       late=False, via=None, by_status=False)]
+        bill = next((s for s in proc["steps"] if s["source"] == "child" and fold(s["label"]) == "berechnet"
+                     and s.get("rel_kind") == "ref"), None)
+        bills = sorted((as_date(c["data"].get(s_attr)) or date.min, c["id"]) for c in rt.records.get(bill["type"], [])
+                       if c["data"].get(bill["rel_attr"]) == rec["id"] and not _void(c["id"])
+                       for s_attr in [bill["attr"]]) if bill else []
+        def period(rid):  # the service period an invoice names ("08/2026"), a month or more
+            c = rt.by_id[rid]
+            return next((sp for a in rt.spec(c["type"])["attrs"] if (sp := parse_period(c["data"].get(a["id"])))
+                         and (sp[1] - sp[0]).days >= 25), None)
+        if len({period(i) for d, i in bills} - {None}) >= 2:
+            # billed period by period (a contract): not a chain of steps, but how far it is billed
+            gap = next((x["reason"] for g in rt.work() if g["id"].endswith(":periods") for x in g["items"]
+                        if x["rid"] == rec["id"]), None)
+            steps.append(dict(label="zuletzt berechnet", date=bills[-1][0], done=True, via=bills[-1][1], due=None, late=bool(gap),
+                              usual=None, by_status=False))
+            ends = sorted(d for a in rt.spec(rec["type"])["attrs"] if a["kind"] in ("date", "datetime")
+                          and a["id"] != proc["start"]["attr"] and (d := as_date(data.get(a["id"]))) and d > bills[-1][0])
+            if ends:
+                steps.append(dict(label="endet", date=ends[0], done=ends[0] <= today, via=None, due=None, late=False,
+                                  usual=None, by_status=False))
+            status = proc.get("status")
+            return dict(steps=steps, next=None, gap=gap,
+                        negative=status and str(data.get(status["attr"])) in (status.get("negative") or []))
         nxt = None
         due_by_step = {d["step"]: d for d in proc["deadlines"] if d.get("step")}
         for st in proc["steps"]:

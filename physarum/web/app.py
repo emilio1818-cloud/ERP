@@ -1307,7 +1307,9 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             if case and billing.is_invoice(spec) and billing.billed_by_own_ref(rt, case, spec):
                 billing.link_case(rt, rid, case["id"], actor(request))
         except ops.OpError as e:
-            shown = {k: (int(v) if isinstance(v, str) and v.isdigit() and int(v) in rt.by_id else v) for k, v in raw.items()}
+            refs = {a["id"] for a in spec["attrs"] if a["kind"] == "ref"}
+            shown = {k: (int(v) if k in refs and isinstance(v, str) and v.isdigit() and int(v) in rt.by_id else v)
+                     for k, v in raw.items()}
             ctx = form_context(spec, shown, str(e), [lines[n] for n in sorted(lines)])
             ctx["case"] = case["id"] if case else None
             return page(request, "form.html", ctx, 400)

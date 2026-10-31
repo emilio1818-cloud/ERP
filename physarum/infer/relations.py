@@ -828,7 +828,10 @@ class MentionIndex:
 
     def whole(self, value: str) -> dict[tuple[int, int], tuple[TypeDraft, int, str]]:
         """The one record whose number the whole value is ("MV-06" in a column of references)."""
-        hits = self.keys.get(_compact(value)) or []
+        c = _compact(value)
+        if c.isdigit() and len(c) < 6:
+            return {}  # "10023" (a customer's order number) is no reference to customer 10023
+        hits = self.keys.get(c) or []
         return {(id(hits[0][0]), hits[0][1]): (hits[0][0], hits[0][1], "Nummer")} if len(hits) == 1 else {}
 
     def scan(self, text: str, names: bool = False) -> dict[tuple[int, int], tuple[TypeDraft, int, str]]:

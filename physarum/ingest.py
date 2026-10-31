@@ -899,9 +899,12 @@ def _read_xml(stem: str, data: bytes, d: Digest):
     from .einvoice import parse, to_tables
 
     root = fromstring(data)
-    camt = _camt_table(root, stem)
-    if camt is not None:
-        d.tables.append(camt)
+    if _camt_body(root) is not None:
+        camt = _camt_table(root, stem)
+        if camt is not None:
+            d.tables.append(camt)
+        else:
+            d.notes.append(f"{stem}: ein Kontoauszug ohne Buchungen")  # a day's statement with balances only
         return
     inv = parse(root)
     if inv and inv.get("number"):
@@ -917,6 +920,12 @@ def _read_xml(stem: str, data: bytes, d: Digest):
 
 
 _CAMT_BODY = {"BkToCstmrStmt", "BkToCstmrAcctRpt", "BkToCstmrDbtCdtNtfctn"}
+
+
+def _camt_body(root):
+    def loc(el):
+        return el.tag.rsplit("}", 1)[-1]
+    return next((x for x in root if loc(x) in _CAMT_BODY), None) if loc(root) == "Document" else None
 
 
 def _camt_table(root, stem: str) -> RawTable | None:
@@ -945,14 +954,15 @@ def _camt_table(root, stem: str) -> RawTable | None:
         except ValueError:
             return None
 
-    body = next((x for x in root if loc(x) in _CAMT_BODY), None) if loc(root) == "Document" else None
+    body = _camt_body(root)
     if body is None:
         return None
     cols = ["Buchungstag", "Valutadatum", "Buchungstext", "Verwendungszweck", "Zahlungspartner", "IBAN", "BIC", "Betrag",
             "Währung", "Kundenreferenz (End-to-End)", "Mandatsreferenz", "Gläubiger-ID"]
-    rows, owner, iban = [], None, None
+    rows, owner, iban, accounts = [], None, None, []
     for st in (x for x in body if loc(x) in ("Stmt", "Rpt", "Ntfctn")):
-        iban = iban or txt(st, "Acct", "Id", "IBAN")
+        acct = txt(st, "Acct", "Id", "IBAN") or txt(st, "Acct", "Id", "Othr", "Id")
+        iban = iban or acct
         owner = owner or txt(st, "Acct", "Ownr", "Nm")
         for e in (x for x in st if loc(x) == "Ntry"):
             if (txt(e, "Sts", "Cd") or txt(e, "Sts") or "BOOK") != "BOOK":
@@ -962,10 +972,13 @@ def _camt_table(root, stem: str) -> RawTable | None:
             value = day(txt(e, "ValDt", "Dt") or txt(e, "ValDt", "DtTm"))
             cur = first(e, "Amt")
             txs = [t for nd in e if loc(nd) == "NtryDtls" for t in nd if loc(t) == "TxDtls"] or [None]
+            # a batch that names no amount per transaction is one booking of its total (never n times the total)
+            lump = len(txs) > 1 and not any(txt(t, "Amt") or txt(t, "AmtDtls", "TxAmt", "Amt") for t in txs)
+            mine = []
             for tx in txs:
                 amt = (txt(tx, "Amt") or txt(tx, "AmtDtls", "TxAmt", "Amt")) if tx is not None else None
                 if amt is None or len(txs) == 1:
-                    amt = amt or txt(e, "Amt")
+                    amt = txt(e, "Amt") or amt  # one transaction: what was booked (after charges) is what moved
                 ind = txt(tx, "CdtDbtInd") if tx is not None else None
                 s = (-1 if ind == "DBIT" else 1) if ind in ("DBIT", "CRDT") else sign
                 side = "Dbtr" if s > 0 else "Cdtr"  # the other party: who paid us, whom we paid
@@ -985,11 +998,21 @@ def _camt_table(root, stem: str) -> RawTable | None:
                     money = round(s * float(amt), 2) if amt else None
                 except ValueError:
                     money = None
-                rows.append([booked, value, txt(tx, "AddtlTxInf") or txt(e, "AddtlNtryInf"), purpose or None, name, ib,
+                mine.append([booked, value, txt(tx, "AddtlTxInf") or txt(e, "AddtlNtryInf"), purpose or None, name, ib,
                              bic, money, cur.get("Ccy") if cur is not None else None, txt(tx, "Refs", "EndToEndId"),
                              txt(tx, "Refs", "MndtId"), creditor])
+            if lump:  # its parties and purposes all together – not the first one's, as if the total were theirs
+                same = [vs.pop() if len(vs := {r[i] for r in mine}) == 1 else None for i in range(len(cols))]
+                same[3] = " / ".join(dict.fromkeys(r[3] for r in mine if r[3])) or None
+                same[7] = mine[0][7]
+                mine = [same]
+            rows += mine
+            accounts += [acct] * len(mine)
     if not rows:
         return None
+    if len(set(accounts)) > 1:  # the statements of several accounts in one file: which account a booking is on
+        cols, rows = ["Auftragskonto"] + cols, [[a] + r for a, r in zip(accounts, rows)]
+        iban = None
     return RawTable(name=f"Kontoauszug {iban or stem}", columns=cols, rows=rows, lines=list(range(1, len(rows) + 1)),
                     meta={"format": "camt", "title": f"Kontoauszug {owner or ''} · IBAN {iban or ''}".strip()})
 

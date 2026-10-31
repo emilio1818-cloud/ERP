@@ -23,7 +23,9 @@ _COMPLAINT = ("reklamation", "reklamier", "beschwerde", "mangel", "maengel", "de
 def level_of(rec: dict, status=None) -> int:
     """The level the letters for this invoice have reached: logged here, or as the book's status says."""
     log = (rec.get("meta") or {}).get("dunning") or []
-    return max([x.get("level") or 1 for x in log] + [_SENT.get(fold(str(status or "")), 0)])
+    if log:  # record_sent writes the firm's word ("Mahnung") after any letter: it says nothing about the level
+        return max(x.get("level") or 1 for x in log)
+    return _SENT.get(fold(str(status or "")), 0)
 
 
 def sent_on(rec: dict) -> date | None:
@@ -56,7 +58,7 @@ def overdue_of(rt, party_rid: int, tid: str, today: date | None = None) -> list[
     maybe = rt.payment_proposals()
     st = (proc.get("status") or {}).get("attr")
     # what Heute says a letter has to wait for: the customer's mail that it is paid, a complaint, an objection
-    asks = {x["rid"]: x["hold"] for g in rt.work(today) if g["kind"] == "overdue" for x in g["items"] if x.get("hold")}
+    asks = {rid: m for g in rt.work(today) if g["kind"] == "overdue" for rid, m in (g.get("holds") or {}).items()}
     for r in rt.records.get(tid, []):
         if r["data"].get(proc["party"]) != party_rid:
             continue

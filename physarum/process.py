@@ -882,11 +882,14 @@ def _announced(mails: list[dict], risks: list[dict], model: dict, records: dict,
     risks = list(risks)
     for m in mails:
         named = [to for to, attr, k, how in outrefs.get(m["rid"], []) if to in by_id]
+        def still_open(rids):
+            return [rid for rid in dict.fromkeys(rids) if ((ledger or {}).get(rid) or {}).get("state") in ("offen", "teilbezahlt")]
         invs = [to for to in named if by_id[to]["type"] in parties]
-        if not invs:
-            who = {to for to in named if kinds.get(by_id[to]["type"]) == "master"}
-            invs = [r["id"] for t, pa in parties.items() for r in records.get(t, []) if r["data"].get(pa) in who]
-        invs = [rid for rid in dict.fromkeys(invs) if ((ledger or {}).get(rid) or {}).get("state") in ("offen", "teilbezahlt")]
+        if not still_open(invs):  # none named, or only paid ones: the supplier's open invoices
+            who = {to for to in named if kinds.get(by_id[to]["type"]) == "master"} | \
+                {by_id[i]["data"].get(parties[by_id[i]["type"]]) for i in invs}
+            invs += [r["id"] for t, pa in parties.items() for r in records.get(t, []) if r["data"].get(pa) in who]
+        invs = still_open(invs)
         own = next((x for x in risks if x["rid"] == m["rid"]), None)
         new = [rid for rid in invs if all(x["rid"] != rid for x in risks)]  # else in doubt for its own account
         if not invs and own is None:
@@ -1326,6 +1329,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             wait = reminded.get(sid) if kind == "overdue" else None
             groups.append(dict(id=f"{p['id']}:{sid}:{kind}", type=p["type"], kind=kind, severity=sev, title=head,
                                count=len(items), amount=total, items=items[:50], action=action,
+                               parties={x["rid"]: x["who"] for x in items} if kind == "overdue" else None,
                                top=kind == "payable" and sev == 2,  # a deadline before what is merely large
                                step=st["label"] if st else None,
                                explain=_explain(p, st, kind) + (f" {len(wait)} erinnert, Frist bis {max(wait).strftime('%d.%m.')} – "
@@ -1425,6 +1429,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
             if x["mail"] in ("claim", "complaint") and (x.get("invoice") or x.get("who")):
                 asks.setdefault(x.get("invoice") or ("who", x["who"]), x)
     for g in groups:
+        if g["kind"] == "overdue" and g.get("parties"):
+            g["holds"] = {rid: m["rid"] for rid, who in g["parties"].items()
+                          if (m := asks.get(rid) or asks.get(("who", who)))}
         for x in g["items"] if g["kind"] == "overdue" else []:
             m = asks.get(x["rid"]) or asks.get(("who", x.get("who")))
             if m:  # look before reminding
@@ -1438,8 +1445,10 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
     shown = {x["rid"] for g in periods for x in g["items"]}
     for g in groups if shown else []:  # a delivery note of an unbilled period is listed there, not twice
         if g["kind"] in ("late", "ready") and shown & {x["rid"] for x in g["items"]}:
+            gone = [x for x in g["items"] if x["rid"] in shown]
             g["items"] = [x for x in g["items"] if x["rid"] not in shown]
-            g["count"], g["amount"] = len(g["items"]), round(sum(x["money"] or 0 for x in g["items"]), 2)
+            g["count"] -= len(gone)
+            g["amount"] = round((g["amount"] or 0) - sum(x["money"] or 0 for x in gone), 2)
     groups = [g for g in groups if g["count"]] + periods
     groups += _threshold_work(model, records, title)
     groups += _rhythm_work(model, records, by_id, title, today)
@@ -1561,6 +1570,9 @@ def _period_work(model, records, by_id, title, today, outrefs, void) -> list[dic
         per = defaultdict(list)
         for c, r in linked:
             sp, d = span(r["data"].get(pattr)), as_date(r["data"].get(ip["start"]["attr"]))
+            m = r.get("meta") or {}
+            if not sp and (a0 := as_date(m.get("delivery"))) and (b0 := as_date(m.get("delivery_end"))) and (b0 - a0).days >= 25:
+                sp = (a0, b0)  # "Leistungszeitraum" from the issue dialog
             if sp and d:
                 per[c].append((sp[0], sp[1], d, r))
         if not per:
@@ -1568,11 +1580,18 @@ def _period_work(model, records, by_id, title, today, outrefs, void) -> list[dic
         since = min(d for rows in per.values() for a, b, d, r in rows)  # the first invoice the data holds
         units = [(s, *billing(s["type"])) for s in p["steps"] if s is not st and s["source"] == "child"
                  and s.get("rel_kind") == "ref"]
+        kids_of = {s["id"]: defaultdict(list) for s, up, ub in units if ub}
+        for s, up, ub in units:
+            for u in records.get(s["type"], []) if ub else []:
+                kids_of[s["id"]][u["data"].get(s["rel_attr"])].append(u)
         ks = {c: Counter(round((b - a).days / 30.4) for a, b, d, r in rows).most_common(1)[0][0] for c, rows in per.items()}
         recurring = Counter(ks[c] for c, rows in per.items() if len(rows) >= 2)
         items = []
+        sattr, neg = (p.get("status") or {}).get("attr"), set((p.get("status") or {}).get("negative") or [])
         for c, rows in per.items():
             case, k = by_id[c], ks[c]
+            if sattr and str(case["data"].get(sattr)) in neg:
+                continue  # "gekündigt", "inaktiv": nothing more to bill
             if k not in (1, 2, 3, 6, 12) or (len(rows) < 2 and recurring[k] < 3):
                 continue  # one invoice is a period of many only where others of its kind recur
             lag = timedelta(days=statistics.median((d - b).days for a, b, d, r in rows) + 10)
@@ -1592,7 +1611,8 @@ def _period_work(model, records, by_id, title, today, outrefs, void) -> list[dic
             tail = len(blocks)
             while tail and not blocks[tail - 1][1]:
                 tail -= 1
-            missing = [e for e, billed in (blocks[:tail] if len(blocks) - tail >= 2 else blocks) if not billed]
+            ended = len(blocks) - tail >= 2 and not (end and end >= today)  # its own end date says it runs on
+            missing = [e for e, billed in (blocks[:tail] if ended else blocks) if not billed]
             if not missing:
                 continue
             spans = [(e, add_months(e, k)) for e in missing]
@@ -1600,7 +1620,7 @@ def _period_work(model, records, by_id, title, today, outrefs, void) -> list[dic
             billed = {r["id"] for a, b, d, r in rows}
             waiting = []
             for s, up, ub in units:  # delivery notes the period's invoice bills: those are what waits
-                kids = [u for u in records.get(s["type"], []) if u["data"].get(s["rel_attr"]) == c] if ub else []
+                kids = kids_of[s["id"]].get(c, []) if ub else []
                 if ub and ub.get("rel_kind") == "own_ref" and any(u["data"].get(ub["rel_attr"]) in billed for u in kids):
                     waiting += [u for u in kids if not u["data"].get(ub["rel_attr"]) and any(
                         a <= (as_date(u["data"].get(up["start"]["attr"])) or date.min) < b for a, b in spans)]
@@ -1626,10 +1646,16 @@ def _period_work(model, records, by_id, title, today, outrefs, void) -> list[dic
 def _due_work(model, records, by_id, title, today) -> list[dict]:
     out = []
     specs = {t["id"]: t for t in model["types"]}
+    virtual = {(t["id"], a["id"]) for t in model["types"] for a in t["attrs"] if a.get("virtual")}
     for du in model.get("dues", []):
         spec = specs.get(du["type"])
         if not spec:
             continue
+        # the same round twice: the list's own "Nächste Wartung" and the one reckoned from the last visit and its
+        # interval – one group; the list's day where it has one, the reckoned day where it has none
+        own = [x["attr"] for x in model["dues"] if x is not du and x["type"] == du["type"] and du.get("done")
+               and x.get("done") == du["done"] and (du["type"], x["attr"]) not in virtual] \
+            if (du["type"], du["attr"]) in virtual else []
         party = next((a["id"] for a in spec["attrs"] if a["kind"] == "ref" and not a.get("hidden")), None)
         proc = next((x for x in model.get("processes", []) if x["type"] == du["type"]), None)
         closed = set(du.get("closed") or [])
@@ -1643,7 +1669,7 @@ def _due_work(model, records, by_id, title, today) -> list[dict]:
         for r in records.get(du["type"], []):
             v = r["data"].get(du["attr"])
             rg = due_range(v)
-            if not rg:
+            if not rg or any(due_range(r["data"].get(a)) for a in own):
                 continue
             start, end = rg
             done = as_date(r["data"].get(du["done"])) if du.get("done") else None
@@ -1688,6 +1714,12 @@ def _due_work(model, records, by_id, title, today) -> list[dict]:
             action = dict(kind="set_date", attr=du["done"], label=du["done_label"]) if du.get("done") else None
             explain = ((f"{late} davon schon überschritten. " if late else "") + "Termin aus Ihrer Liste"
                        + ("; mit „✓“ wird er als erledigt eingetragen." if action else "."))
+        twin = next((g for g in out if own and g["id"] in {f"due:{du['type']}:{a}" for a in own}), None)
+        if twin:  # into the group of the list's own day
+            twin["items"] = sorted(twin["items"] + items, key=lambda x: x["days"])[:50]
+            twin["count"] += len(items)
+            twin["severity"] = max(twin["severity"], 2 if late else 1)
+            continue
         out.append(dict(id=f"due:{du['type']}:{du['attr']}", type=du["type"], kind="due", severity=2 if late else 1,
                         title=_due_title(spec["plural"], du), count=len(items), amount=None,
                         items=items[:50], step=du.get("done_label"), action=action, explain=explain))

@@ -520,27 +520,6 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                                           if i == more else how, by_amount=bool(by_amount and (b, i) in by_amount)))
                 left -= take
         _net_overpayments(entries, links, {r["id"]: r["data"].get(key) for r in recs} if key else {}, when_of)
-        # money the owner entered by hand: cash, a cheque, an offset, a double payment paid back – next to what
-        # the bank says. A transfer entered before the statement came is the statement's payment once it shows.
-        for r in recs:
-            e = entries.get(r["id"])
-            for m in ((r.get("meta") or {}).get("cash") or []) if e else []:
-                amount, when, kind = as_number(m.get("amount")), as_date(m.get("date")), m.get("how")
-                if not amount or not when:
-                    continue
-                signed = round(-amount if kind == "erstattung" else amount, 2)
-                twin = next((x for x in e["payments"] if x.get("rid") and kind in _BANKED and not x.get("confirms")
-                             and abs(x["amount"] - signed) <= EPS), None)
-                if twin:
-                    twin["confirms"] = m.get("id")
-                    twin["how"] += f" – bestätigt Ihre Eintragung vom {when.strftime('%d.%m.')}"
-                    continue
-                if kind == "erstattung":
-                    e["refunded"] = e.get("refunded", 0.0) + amount
-                else:
-                    e["paid"] += amount
-                e["payments"].append(dict(rid=None, date=when, amount=signed, by_hand=m.get("id"),
-                                          how=f"{CASH_KINDS.get(kind, 'Zahlung')} (von Hand eingetragen)"))
         pool = iban_party = None
 
         def pool_of():  # bank lines that name no invoice, and the accounts that are a customer's: the account
@@ -560,6 +539,47 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                     iban_party.setdefault(iv, set(rids))
             return pool, iban_party
 
+        # money the owner entered by hand: cash, a cheque, an offset, a double payment paid back – next to what
+        # the bank says. A transfer entered before the statement came is the statement's payment once it shows.
+        for r in recs:
+            e = entries.get(r["id"])
+            for m in ((r.get("meta") or {}).get("cash") or []) if e else []:
+                amount, when, kind = as_number(m.get("amount")), as_date(m.get("date")), m.get("how")
+                if not amount or not when:
+                    continue
+                signed = round(-amount if kind == "erstattung" else amount, 2)
+                twin = next((x for x in e["payments"] if x.get("rid") and kind in _BANKED and not x.get("confirms")
+                             and abs(x["amount"] - signed) <= EPS  # only a line the store did not know when it was typed
+                             and x["rid"] > (m.get("upto") or 0)), None)
+                if twin:
+                    twin["confirms"] = m.get("id")
+                    twin["how"] += f" – bestätigt Ihre Eintragung vom {when.strftime('%d.%m.')}"
+                    continue
+                if kind in _BANKED and kind != "erstattung":
+                    # the transfer entered by hand, on a later statement without a number: that line, once
+                    pool_, iban_ = pool_of()
+                    key = round(amount, 2)
+                    keep = pool_.get(key, [])
+                    pool_[key] = [x for x in keep if x["rid"] > (m.get("upto") or 0)]
+                    if p.get("party"):
+                        hit = _listed_payment(model, pool_, iban_, amount, when, r, p, spec, by_id, window=(5, 14))
+                    else:  # a book without a customer list: the one such line in those days
+                        near = [x for x in pool_[key] if -5 <= (x["date"] - when).days <= 14]
+                        hit = near[0] if len(near) == 1 else None
+                    pool_[key] = [x for x in keep if x is not hit]
+                    if hit:
+                        claimed.add(hit["rid"])
+                        e["paid"] += amount
+                        e["payments"].append(dict(rid=hit["rid"], date=hit["date"], amount=signed, confirms=m.get("id"),
+                                                  how="Zahlung ohne Nummer – bestätigt Ihre Eintragung vom "
+                                                      f"{when.strftime('%d.%m.')}"))
+                        continue
+                if kind == "erstattung":
+                    e["refunded"] = e.get("refunded", 0.0) + amount
+                else:
+                    e["paid"] += amount
+                e["payments"].append(dict(rid=None, date=when, amount=signed, by_hand=m.get("id"),
+                                          how=f"{CASH_KINDS.get(kind, 'Zahlung')} (von Hand eingetragen)"))
         # the book's "erhalten" beyond what the bank shows: the customer's transfer without a number (a down
         # payment before the invoice), or money at the counter (cash, card)
         for r in recs:
@@ -601,11 +621,6 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
         for r in recs:
             e = entries.get(r["id"])
             if not e or any(x["how"] != "Erstattung" for x in e["payments"]):
-                continue
-            by_hand = as_date((r.get("meta") or {}).get("paid_by_hand"))
-            if by_hand:
-                e["paid"] = e["gross"]
-                e["payments"].append(dict(rid=None, date=by_hand, amount=e["gross"], how="von Hand eingetragen"))
                 continue
             ds = [as_date(r["data"].get(a)) for a in own_paid]
             ds = [d for d in ds if d]

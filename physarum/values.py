@@ -906,7 +906,7 @@ def parse_period(v) -> tuple[date, date] | None:
             a = date(int(m.group(3) or b.year), int(m.group(2)), int(m.group(1)))
             if a > b and not m.group(3):
                 a = a.replace(year=b.year - 1)  # "15.12.–14.01.2027"
-            return (a, b) if a <= b and (b - a).days <= 400 else None
+            return (a, b) if a <= b and (b - a).days <= 400 and 1900 < a.year and b.year < 2200 else None
         m = _PERIOD_NUM.match(s)
         if m:
             mo, y = int(m.group(1)), int(m.group(2))

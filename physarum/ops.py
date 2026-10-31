@@ -127,7 +127,7 @@ def eval_formula(rt, f: dict, data: dict):
     return None
 
 
-def apply_formulas(rt, spec: dict, data: dict, given: set) -> list[str]:
+def apply_formulas(rt, spec: dict, data: dict, given: set, free: set = frozenset()) -> list[str]:
     """Fill formula targets the user did not type. Returns the attribute ids that were computed."""
     done = []
     for _ in range(3):  # chains: MwSt from Netto, then Brutto from Netto + MwSt
@@ -136,7 +136,7 @@ def apply_formulas(rt, spec: dict, data: dict, given: set) -> list[str]:
                 continue
             if f.get("on_change") and data.get(f["attr"]) is not None and not set(f["args"]) & given:
                 continue  # "next maintenance" moves only when the maintenance is entered
-            if f["op"].startswith("date_") and data.get(f["attr"]) is not None:
+            if f["op"].startswith("date_") and data.get(f["attr"]) is not None and f["attr"] not in free:
                 continue  # an agreed date stays: a learned offset fills a gap, it does not move what was set
             v = eval_formula(rt, f, data)
             if v is not None and data.get(f["attr"]) != v:
@@ -412,7 +412,9 @@ def update(rt, rid: int, raw: dict, actor: str, note: str | None = None, kind: s
         raise OpError("; ".join(errors))
     if not given:
         return []
-    computed = apply_formulas(rt, spec, data, given) if not lock else []
+    was = (rec["meta"] or {})
+    free = set(was.get("computed") or []) | {aid for aid, x in (was.get("w") or {}).items() if x and x[0] == "auto"}
+    computed = apply_formulas(rt, spec, data, given, free) if not lock else []
     autos = _automations(rt, spec, rec["data"], data, given) + _step_taken_back(rt, spec, rec["data"], data, given)
     data = _clean(spec, data)
     ts = now_iso()
@@ -588,10 +590,16 @@ def record_payment(rt, rid: int, amount, when: str | None, how: str, actor: str)
         raise OpError("Bitte ein Datum angeben")
     if how not in CASH_KINDS:
         raise OpError("Unbekannte Zahlungsart")
+    if how == "erstattung":  # only what came in twice goes back (a stale page, a hand-made request: not more)
+        e = rt.ledger[rid]
+        over = round((e.get("paid") or 0) - (e.get("gross") or 0), 2)
+        if value > over + 0.005:
+            from .values import fmt_eur
+            raise OpError("Erstatten lässt sich nur, was zu viel gezahlt wurde" + (f" – hier {fmt_eur(over)}" if over > 0 else ""))
     meta = dict(rec["meta"] or {})
     cash = list(meta.get("cash") or [])
     entry = dict(id=max([m.get("id", 0) for m in cash] + [0]) + 1, amount=value, date=d.isoformat(), how=how,
-                 by=actor, ts=now_iso())
+                 by=actor, ts=now_iso(), upto=(rt.store.q1("SELECT MAX(id) m FROM records") or {"m": 0})["m"] or 0)
     cash.append(entry)
     meta["cash"] = cash
     with rt.store.tx() as c:
@@ -650,8 +658,17 @@ def assign_payment(rt, bank_rid: int, inv_rid: int, actor: str) -> bool:
 def revert(rt, rid: int, attrs: list[str], actor: str) -> list[str]:
     """Undo the last change of these attributes (the "Rückgängig" after a quick action)."""
     rt.ensure()
-    raw = {}
+    raw, to_file = {}, set()
+    rec0 = rt.store.record(rid)
+    spec0 = rt.spec(rec0["type"]) if rec0 else None
+    shadow = ((rec0 or {}).get("meta") or {}).get("shadow") or {}
     for aid in attrs:
+        if aid in shadow and spec0:
+            # a newer file stands behind the own value: undoing it gives the field to that file, not to an older one
+            a = next((x for x in spec0["attrs"] if x["id"] == aid), None)
+            raw[aid] = "" if shadow[aid][0] is None else (_to_input(a, shadow[aid][0]) if a else shadow[aid][0])
+            to_file.add(aid)
+            continue
         row = rt.store.q1("SELECT old FROM changes WHERE record_id=? AND attr=? ORDER BY id DESC LIMIT 1", (rid, aid))
         if row is not None:
             old = loads(row["old"]) if row["old"] else None
@@ -666,7 +683,7 @@ def revert(rt, rid: int, attrs: list[str], actor: str) -> list[str]:
     rec = rt.store.record(rid)
     meta = rec["meta"] or {}
     w = meta.get("w", {})
-    back = [aid for aid in changed if len(w.get(aid) or []) > 2 and rec["data"].get(aid) == w[aid][2]]
+    back = [aid for aid in changed if aid in to_file or (len(w.get(aid) or []) > 2 and rec["data"].get(aid) == w[aid][2])]
     if back:  # what the files said again: theirs again – the next delivery may change it
         for aid in back:
             w[aid] = ["import", w[aid][1]]

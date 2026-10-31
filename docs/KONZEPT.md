@@ -317,16 +317,16 @@ Neben den Prüfungen kamen dazu: Kündigungen ohne Vertragsnummer (Gebäudereini
 
 | Kennzahl (Prüfstand) | vorher | nachher |
 |---|---:|---:|
-| zehn Firmen der Runde 9: Geld / Heute | 0,884 / 0,844 | 0,884 / 0,844 |
+| zehn Firmen der Runde 9: Geld / Heute | 0,884 / 0,844 | 0,884 / 0,852 |
 | mit Hausverwaltung, elf Firmen: Geld richtig | 0,372 | 0,499 |
-| mit Hausverwaltung, elf Firmen: Heute-Aufgaben richtig | 0,450 | 0,570 |
+| mit Hausverwaltung, elf Firmen: Heute-Aufgaben richtig | 0,450 | 0,573 |
 | Hausverwaltung, Lieferung 1: offene Posten zu viel / überfällig zu viel | 129 / 37 | 57 / 0 |
 | Hausverwaltung, Lieferung 1: Einträge auf Heute | 221 | 108 |
 | Brenner: Einträge auf Heute | 280 | 238 |
 | gleiche offene Posten unter anderen Namen | 0,961 | 0,991 |
 | Listen gleich benannt | 0,696 | 0,698 |
 | Abstürze | 0 | 0 |
-| Zeilen Code | 19.707 | 20.035 |
-| Wort-Regeln / reguläre Ausdrücke | 767 / 179 | 784 / 183 |
+| Zeilen Code | 19.707 | 20.036 |
+| Wort-Regeln / reguläre Ausdrücke | 767 / 179 | 783 / 183 |
 
-„Vorher“ bei elf Firmen ist der Stand der Runde 9 mit der neuen Firma. Die Runde hat gut 300 Zeilen gekostet, zur Hälfte für die Fehler, die die Prüfung fand. Gestrichen wurde der Leser einer „bezahlt“-Markierung, die sich nicht mehr setzen ließ.
+„Vorher“ bei elf Firmen ist der Stand der Runde 9 mit der neuen Firma. Heute steigt bei den zehn Firmen, weil eine Bareinzahlung auch dann eigenes Geld ist, wenn das Wort nur im Buchungstext steht (Caterer). Die Runde hat gut 300 Zeilen gekostet, zur Hälfte für die Fehler, die die Prüfung fand. Gestrichen wurden der Leser einer „bezahlt“-Markierung, die sich nicht mehr setzen ließ, die zweite Reklamationsprüfung über Dokumente (die Mails tun das schon) und die zweite Rechnung der Wartefrist nach einem Brief.

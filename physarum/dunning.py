@@ -16,8 +16,6 @@ from .text import fold
 LEVELS = {1: "Zahlungserinnerung", 2: "1. Mahnung", 3: "2. Mahnung"}
 WAIT = 10  # days after a letter before the next one: the "zehn Tage nach Erhalt" the letters give
 _SENT = {"erinnert": 1, "zahlungserinnerung": 1, "gemahnt": 1, "mahnung": 2, "1. mahnung": 2, "2. mahnung": 3}
-_COMPLAINT = ("reklamation", "reklamier", "beschwerde", "mangel", "maengel", "defekt", "falsch geliefert",
-              "fehlt", "nicht erhalten", "storno", "gutschrift")
 
 
 def level_of(rec: dict, status=None) -> int:
@@ -34,17 +32,10 @@ def sent_on(rec: dict) -> date | None:
     return date.fromisoformat(log[-1]["date"]) if log else None
 
 
-def complaint(rt, rid: int) -> dict | None:
-    """A mail or document that names this invoice and sounds like a complaint – unless it was ticked off."""
-    done = rt.store.decisions("mail_done")
-    for frm, attr, kind, how in rt.backrefs.get(rid, []):
-        d = rt.by_id.get(frm)
-        if not d or d["type"] != "doc" or str(frm) in done:
-            continue
-        text = fold(" ".join(str(v) for v in d["data"].values() if isinstance(v, str))[:5000])
-        if any(w in text for w in _COMPLAINT):
-            return dict(rid=frm, title=rt.title(frm), date=d["data"].get("doc_date"))
-    return None
+def waits_until(rec: dict, today: date) -> date | None:
+    """While the last letter runs: the day the customer has until."""
+    sent = sent_on(rec)
+    return sent + timedelta(days=WAIT) if sent and (today - sent).days < WAIT else None
 
 
 def overdue_of(rt, party_rid: int, tid: str, today: date | None = None) -> list[dict]:
@@ -69,15 +60,13 @@ def overdue_of(rt, party_rid: int, tid: str, today: date | None = None) -> list[
         if not due or due >= today:
             continue
         lvl = level_of(r, r["data"].get(st) if st else None)
-        sent = sent_on(r)
-        wait = sent + timedelta(days=WAIT) if sent and (today - sent).days < WAIT else None
+        sent, wait = sent_on(r), waits_until(r, today)
         ask = rt.by_id.get(asks.get(r["id"]))
         out.append(dict(rid=r["id"], number=r["data"].get(spec.get("key")) or rt.title(r["id"]),
                         date=r["data"].get(proc["start"]["attr"]), due=due.isoformat(), due_how=e.get("due_how"),
                         gross=e["gross"], paid=e["paid"], open=e["open"], days=(today - due).days,
                         level=lvl if wait else min(lvl + 1, 3), sent=sent, wait=wait,
-                        complaint=complaint(rt, r["id"]) or (ask and dict(rid=ask["id"], title=rt.title(ask["id"]),
-                                                                          date=ask["data"].get("doc_date"))),
+                        complaint=ask and dict(rid=ask["id"], title=rt.title(ask["id"]), date=ask["data"].get("doc_date")),
                         maybe_paid=maybe.get(r["id"])))
     out.sort(key=lambda x: (x["due"], x["number"]))
     return out

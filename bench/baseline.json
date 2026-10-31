@@ -1,13 +1,13 @@
 {
  "summary": {
   "money": 0.499,
-  "heute": 0.57,
+  "heute": 0.573,
   "names": 0.991,
   "lists": 0.698,
   "schema_questions": 0,
   "errors": 0,
-  "lines": 20035,
-  "word_rules": 784,
+  "lines": 20036,
+  "word_rules": 783,
   "regexes": 183
  },
  "results": [
@@ -108,7 +108,7 @@
        "fn": 0
       }
      },
-     "seconds": 33.7,
+     "seconds": 38.0,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -193,7 +193,7 @@
        "fn": 1
       }
      },
-     "seconds": 39.8,
+     "seconds": 45.4,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -286,7 +286,7 @@
        "fn": 0
       }
      },
-     "seconds": 28.9,
+     "seconds": 33.3,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -374,7 +374,7 @@
        "fn": 0
       }
      },
-     "seconds": 31.4,
+     "seconds": 36.7,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -480,7 +480,7 @@
        "fn": 0
       }
      },
-     "seconds": 36.5,
+     "seconds": 42.8,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -568,7 +568,7 @@
        "fn": 1
       }
      },
-     "seconds": 43.0,
+     "seconds": 49.5,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -671,7 +671,7 @@
        "fn": 0
       }
      },
-     "seconds": 39.5,
+     "seconds": 47.4,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -756,7 +756,7 @@
        "fn": 1
       }
      },
-     "seconds": 47.4,
+     "seconds": 52.8,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -849,7 +849,7 @@
        "fn": 0
       }
      },
-     "seconds": 30.0,
+     "seconds": 31.2,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -937,7 +937,7 @@
        "fn": 0
       }
      },
-     "seconds": 32.4,
+     "seconds": 35.5,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -1031,7 +1031,7 @@
        "fn": 0
       }
      },
-     "seconds": 29.6,
+     "seconds": 31.6,
      "delivery": 1,
      "today": "2026-10-29"
     },
@@ -1120,7 +1120,7 @@
        "fn": 0
       }
      },
-     "seconds": 33.7,
+     "seconds": 38.7,
      "delivery": 2,
      "today": "2026-11-26"
     }
@@ -1195,7 +1195,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.1,
+     "seconds": 3.0,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1337,7 +1337,7 @@
        "fn": 0
       }
      },
-     "seconds": 6.2,
+     "seconds": 6.4,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -1422,7 +1422,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.2,
+     "seconds": 2.9,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -1740,7 +1740,7 @@
        "fn": 1
       }
      },
-     "seconds": 1.9,
+     "seconds": 2.2,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -1830,7 +1830,7 @@
        "fn": 2
       }
      },
-     "seconds": 2.0,
+     "seconds": 2.5,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -1922,7 +1922,7 @@
        "fn": 1
       }
      },
-     "seconds": 6.2,
+     "seconds": 6.6,
      "delivery": 1,
      "today": "2026-09-17"
     },
@@ -2006,7 +2006,7 @@
        "fn": 1
       }
      },
-     "seconds": 7.9,
+     "seconds": 8.2,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -2036,7 +2036,7 @@
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 9,
-     "heute_items": 38,
+     "heute_items": 37,
      "coverage": 0.892,
      "open": {
       "R-2026-0070": 2548.46,
@@ -2067,7 +2067,6 @@
      "receipts": [
       1010.0,
       1844.3,
-      2800.0,
       3060.0
      ],
      "eur_open": 31049.45,
@@ -2096,11 +2095,11 @@
       },
       "receipts": {
        "tp": 2,
-       "fp": 2,
+       "fp": 1,
        "fn": 1
       }
      },
-     "seconds": 3.7,
+     "seconds": 3.4,
      "delivery": 1,
      "today": "2026-09-18"
     },
@@ -2125,7 +2124,7 @@
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 11,
-     "heute_items": 35,
+     "heute_items": 34,
      "coverage": 0.896,
      "open": {
       "R-2026-0070": 1548.46,
@@ -2158,8 +2157,7 @@
      "receipts": [
       1010.0,
       1830.0,
-      3630.0,
-      3700.0
+      3630.0
      ],
      "eur_open": 44564.62,
      "score": {
@@ -2187,11 +2185,11 @@
       },
       "receipts": {
        "tp": 3,
-       "fp": 1,
+       "fp": 0,
        "fn": 0
       }
      },
-     "seconds": 3.3,
+     "seconds": 3.9,
      "delivery": 2,
      "today": "2026-10-30"
     }
@@ -2360,7 +2358,7 @@
        "fn": 2
       }
      },
-     "seconds": 7.3,
+     "seconds": 9.1,
      "delivery": 1,
      "today": "2026-09-18"
     },
@@ -2521,7 +2519,7 @@
        "fn": 1
       }
      },
-     "seconds": 6.8,
+     "seconds": 9.2,
      "delivery": 2,
      "today": "2026-10-30"
     }
@@ -2597,7 +2595,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.0,
+     "seconds": 3.8,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2672,7 +2670,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.5,
+     "seconds": 3.1,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2747,7 +2745,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.1,
+     "seconds": 3.7,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -2888,7 +2886,7 @@
        "fn": 0
       }
      },
-     "seconds": 6.1,
+     "seconds": 8.0,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -3030,7 +3028,7 @@
        "fn": 0
       }
      },
-     "seconds": 7.2,
+     "seconds": 7.3,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -3128,7 +3126,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.1,
+     "seconds": 3.1,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -3219,7 +3217,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.6,
+     "seconds": 3.5,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -3306,7 +3304,7 @@
        "fn": 0
       }
      },
-     "seconds": 2.6,
+     "seconds": 3.2,
      "delivery": 1,
      "today": "2026-09-16"
     },
@@ -3394,7 +3392,7 @@
        "fn": 0
       }
      },
-     "seconds": 3.5,
+     "seconds": 3.8,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -3468,7 +3466,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.0,
+     "seconds": 1.1,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -3542,7 +3540,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.6,
+     "seconds": 1.8,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -3616,7 +3614,7 @@
        "fn": 0
       }
      },
-     "seconds": 1.3,
+     "seconds": 1.7,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -3814,7 +3812,7 @@
        "fn": 0
       }
      },
-     "seconds": 0.2,
+     "seconds": 0.3,
      "delivery": 1,
      "today": "2026-10-29"
     }
@@ -3907,7 +3905,7 @@
        "fn": 1
       }
      },
-     "seconds": 2.2,
+     "seconds": 2.1,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -3997,7 +3995,7 @@
        "fn": 2
       }
      },
-     "seconds": 2.4,
+     "seconds": 2.5,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -4090,7 +4088,7 @@
        "fn": 1
       }
      },
-     "seconds": 2.6,
+     "seconds": 2.3,
      "delivery": 1,
      "today": "2026-09-15"
     },
@@ -4181,7 +4179,7 @@
        "fn": 2
       }
      },
-     "seconds": 2.6,
+     "seconds": 2.7,
      "delivery": 2,
      "today": "2026-10-28"
     }
@@ -4360,7 +4358,7 @@
        "fn": 1
       }
      },
-     "seconds": 8.3,
+     "seconds": 8.6,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -4536,7 +4534,7 @@
        "fn": 1
       }
      },
-     "seconds": 9.7,
+     "seconds": 10.6,
      "delivery": 2,
      "today": "2026-10-29"
     }
@@ -4566,7 +4564,7 @@
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 9,
-     "heute_items": 38,
+     "heute_items": 37,
      "coverage": 0.913,
      "open": {
       "R-2026-0070": 2548.46,
@@ -4597,7 +4595,6 @@
      "receipts": [
       1010.0,
       1844.3,
-      2800.0,
       3060.0
      ],
      "eur_open": 31049.45,
@@ -4626,11 +4623,11 @@
       },
       "receipts": {
        "tp": 2,
-       "fp": 2,
+       "fp": 1,
        "fn": 1
       }
      },
-     "seconds": 3.5,
+     "seconds": 3.7,
      "delivery": 1,
      "today": "2026-09-18"
     },
@@ -4655,7 +4652,7 @@
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 11,
-     "heute_items": 35,
+     "heute_items": 34,
      "coverage": 0.923,
      "open": {
       "R-2026-0070": 1548.46,
@@ -4688,8 +4685,7 @@
      "receipts": [
       1010.0,
       1830.0,
-      3630.0,
-      3700.0
+      3630.0
      ],
      "eur_open": 44564.62,
      "score": {
@@ -4717,11 +4713,11 @@
       },
       "receipts": {
        "tp": 3,
-       "fp": 1,
+       "fp": 0,
        "fn": 0
       }
      },
-     "seconds": 3.9,
+     "seconds": 4.2,
      "delivery": 2,
      "today": "2026-10-30"
     }
@@ -4752,7 +4748,7 @@
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 9,
-     "heute_items": 38,
+     "heute_items": 37,
      "coverage": 0.897,
      "open": {
       "R-2026-0070": 2548.46,
@@ -4783,7 +4779,6 @@
      "receipts": [
       1010.0,
       1844.3,
-      2800.0,
       3060.0
      ],
      "eur_open": 31049.45,
@@ -4812,11 +4807,11 @@
       },
       "receipts": {
        "tp": 2,
-       "fp": 2,
+       "fp": 1,
        "fn": 1
       }
      },
-     "seconds": 3.9,
+     "seconds": 4.0,
      "delivery": 1,
      "today": "2026-09-18"
     },
@@ -4842,7 +4837,7 @@
      "questions": 0,
      "schema_questions": 0,
      "heute_groups": 11,
-     "heute_items": 31,
+     "heute_items": 30,
      "coverage": 0.872,
      "open": {
       "R-2026-0070": 1548.46,
@@ -4867,8 +4862,7 @@
      "receipts": [
       1010.0,
       1830.0,
-      3630.0,
-      3700.0
+      3630.0
      ],
      "eur_open": 44564.62,
      "score": {
@@ -4896,11 +4890,11 @@
       },
       "receipts": {
        "tp": 3,
-       "fp": 1,
+       "fp": 0,
        "fn": 0
       }
      },
-     "seconds": 3.7,
+     "seconds": 3.9,
      "delivery": 2,
      "today": "2026-10-30"
     }
@@ -5072,7 +5066,7 @@
        "fn": 2
       }
      },
-     "seconds": 9.5,
+     "seconds": 10.2,
      "delivery": 1,
      "today": "2026-09-18"
     },
@@ -5230,7 +5224,7 @@
        "fn": 1
       }
      },
-     "seconds": 6.8,
+     "seconds": 7.6,
      "delivery": 2,
      "today": "2026-10-30"
     }
@@ -5399,7 +5393,7 @@
        "fn": 2
       }
      },
-     "seconds": 7.4,
+     "seconds": 8.4,
      "delivery": 1,
      "today": "2026-09-18"
     },

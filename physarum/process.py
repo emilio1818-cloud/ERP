@@ -17,7 +17,7 @@ from datetime import date, timedelta
 
 from . import lexicon
 from .billing import is_draft
-from .dunning import WAIT, sent_on
+from .dunning import waits_until
 from .text import fold, tokens
 from .values import add_months, as_date, due_range, event_date, fmt_eur, parse_period
 
@@ -870,6 +870,14 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
                          "zu denen noch nichts geschehen ist. Was erledigt ist, lässt sich abhaken.")], bank
 
 
+def _drop(g: dict, rids: set):
+    """Take items out of a group: its count and amount shrink by them (not to the fifty it shows)."""
+    gone = [x for x in g["items"] if x["rid"] in rids]
+    g["items"] = [x for x in g["items"] if x["rid"] not in rids]
+    g["count"] -= len(gone)
+    g["amount"] = round((g["amount"] or 0) - sum(x["money"] or 0 for x in gone), 2)
+
+
 def _announced(mails: list[dict], risks: list[dict], model: dict, records: dict, by_id: dict, outrefs: dict,
                ledger: dict | None, title) -> list[dict]:
     """A mail that announces a new bank account – the classic opening of invoice fraud – stands under
@@ -1223,9 +1231,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                                                                    reason=cut["text"] if cut else None,
                                                                    skonto=cut["days"] if cut else None))
                     break
-                sent = sent_on(r) if due and due < today and fold(st["label"]) == "bezahlt" else None
-                if sent and (today - sent).days < WAIT:
-                    reminded[st["id"]].append(sent + timedelta(days=WAIT))  # the customer has until then
+                until = waits_until(r, today) if due and due < today and fold(st["label"]) == "bezahlt" else None
+                if until:
+                    reminded[st["id"]].append(until)  # the customer has until then
                 elif due and due < today:
                     buckets[(st["id"], "overdue")].append(dict(rid=r["id"], days=(today - due).days, money=money,
                                                                due=due.isoformat(), paid=paid_part, due_how=due_how))
@@ -1410,8 +1418,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                 if x.get("reason"):
                     risky[x["rid"]]["reason"] += "; " + x["reason"]
             if held:  # never on the list of what to pay while the account is in doubt
-                g["items"] = [x for x in g["items"] if x["rid"] not in risky]
-                g["count"], g["amount"] = len(g["items"]), round(sum(x["money"] or 0 for x in g["items"]), 2)
+                _drop(g, set(risky))
                 g["explain"] += (f" {'Eine Rechnung steht' if len(held) == 1 else f'{len(held)} Rechnungen stehen'} "
                                  f"nicht hier, sondern unter „Vorsicht“.")
         groups = [g for g in groups if g["count"]]
@@ -1446,10 +1453,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
     shown = {x["rid"] for g in periods for x in g["items"]}
     for g in groups if shown else []:  # a delivery note of an unbilled period is listed there, not twice
         if g["kind"] in ("late", "ready") and shown & {x["rid"] for x in g["items"]}:
-            gone = [x for x in g["items"] if x["rid"] in shown]
-            g["items"] = [x for x in g["items"] if x["rid"] not in shown]
-            g["count"] -= len(gone)
-            g["amount"] = round((g["amount"] or 0) - sum(x["money"] or 0 for x in gone), 2)
+            _drop(g, shown)
     groups = [g for g in groups if g["count"]] + periods
     groups += _threshold_work(model, records, title)
     groups += _rhythm_work(model, records, by_id, title, today)

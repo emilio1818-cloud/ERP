@@ -107,9 +107,11 @@ def list_columns(spec: dict, limit: int | None = 7, pins: dict | None = None) ->
     (as of the last growth – between two feedings the list does not rearrange itself)."""
     pins = pins or {}
     pinned, unpinned = set(pins.get("pin") or []), set(pins.get("unpin") or [])
-    # a text filled on (nearly) every row is what the row is about: the purpose of a bank booking
+    # a text filled on (nearly) every row is what the row is about: the purpose of a bank booking (the first
+    # such text – a ticket's subject, not also its description)
     told = {a["id"] for a in spec["attrs"] if a.get("role") == "notes" and a["kind"] == "text"
             and (a.get("fill") or 0) >= 0.9 and spec["id"] != "doc"}
+    told = {next(a["id"] for a in spec["attrs"] if a["id"] in told)} if told else set()
     attrs = [a for a in spec["attrs"] if not a.get("hidden") and (a.get("role") != "notes" or a["id"] in told)
              and a["id"] not in unpinned]
     paid = any(a["id"] == "pay_state" for a in attrs)

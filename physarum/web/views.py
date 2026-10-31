@@ -107,7 +107,11 @@ def list_columns(spec: dict, limit: int | None = 7, pins: dict | None = None) ->
     (as of the last growth – between two feedings the list does not rearrange itself)."""
     pins = pins or {}
     pinned, unpinned = set(pins.get("pin") or []), set(pins.get("unpin") or [])
-    attrs = [a for a in spec["attrs"] if not a.get("hidden") and a.get("role") != "notes" and a["id"] not in unpinned]
+    # a text filled on (nearly) every row is what the row is about: the purpose of a bank booking
+    told = {a["id"] for a in spec["attrs"] if a.get("role") == "notes" and a["kind"] == "text"
+            and (a.get("fill") or 0) >= 0.9 and spec["id"] != "doc"}
+    attrs = [a for a in spec["attrs"] if not a.get("hidden") and (a.get("role") != "notes" or a["id"] in told)
+             and a["id"] not in unpinned]
     paid = any(a["id"] == "pay_state" for a in attrs)
     if paid:
         # the payment column says it with money; the stored status only on request
@@ -116,6 +120,8 @@ def list_columns(spec: dict, limit: int | None = 7, pins: dict | None = None) ->
     for k in (spec.get("key"), spec.get("title")):
         if k in sal:
             sal[k] = 10.0
+    for k in told & set(sal):
+        sal[k] = max(sal[k], 8.0)
     if spec["kind"] == "transaction":
         # a transaction is read by its date; an invoice also by when it falls due
         when = next((a["id"] for a in attrs if a["kind"] in ("date", "datetime") and a.get("role") != "due"), None)

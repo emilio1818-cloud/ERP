@@ -92,6 +92,19 @@ class Regrowth(unittest.TestCase):
         coffee = [r for r in live if "Kaffee" in r["data"]]
         self.assertEqual(len(coffee), 2)  # two equal bookings on one day stay two
 
+    def test_a_statement_is_as_current_as_its_newest_export(self):
+        head = "Buchungstag;Verwendungszweck;Zahlungspartner;Betrag"
+        rows = [(f"{d:02d}.09.2026", f"Zahlung {d}", f"Kunde {d}", f"{100 + d},00") for d in range(1, 16)]
+        title = "Umsätze Girokonto · Zeitraum: 01.09.2026 - {} · Kontostand vom {}: 1.234,56 EUR\n"
+        self.f.feed([("Umsaetze_2026.csv", title.format("15.09.2026", "15.09.2026").encode() + csv(head, rows))])
+        more = rows + [(f"{d:02d}.10.2026", f"Zahlung {d}", f"Kunde {d}", f"{200 + d},00") for d in range(1, 29)]
+        time.sleep(1)
+        self.f.feed([("Umsaetze_2026.csv", title.format("28.10.2026", "28.10.2026").encode() + csv(head, more))])
+        rt = self.f.rt()
+        bank = next(t for t in rt.model["types"] if t.get("concept") == "kontobewegung")
+        self.assertEqual(len(rt.records[bank["id"]]), 43)
+        self.assertEqual([m["asof"] for m in bank["members"]], ["2026-10-28"])   # not the first export's day
+
     def test_identical_keyless_rows_keep_their_ids(self):
         rows = [(f"{(i % 28) + 1:02d}.03.2026", f"Kartenzahlung {i}", f"-{20 + i},50") for i in range(30)]
         rows += [("05.03.2026", "Kaffee Automat", "-3,50")] * 2

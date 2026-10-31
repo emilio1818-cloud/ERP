@@ -5,6 +5,7 @@ import csv
 import io
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -121,6 +122,9 @@ def formed(fn):
         return await run_in_threadpool(fn, request, form)
     endpoint.__name__ = fn.__name__
     return endpoint
+
+
+_AMOUNT_Q = re.compile(r"^\s*-?(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2}|\d+\.\d{2})\s*(?:€|eur)?\s*$", re.I)
 
 
 def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool = False) -> Starlette:
@@ -367,7 +371,15 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
             ids = {r["record_id"] for r in store.q(sql + " LIMIT 5000", args)}
         except Exception:
             ids = set()
-        # titles of referenced records count too ("Hafenblick" finds the invoices of that customer)
+        # an amount ("1.059,10", "1059,10 €") finds what carries it: the invoice, the bank line, the payment
+        m = _AMOUNT_Q.match(q)
+        if m:
+            amount = float(m.group(1).replace(".", "").replace(",", ".") if "," in m.group(1) else m.group(1))
+            for t2, recs in rt.records.items():
+                spec = rt.spec(t2) if not tid or t2 == tid else None
+                money = [a["id"] for a in spec["attrs"] if a["kind"] == "money"] if spec else []
+                ids |= {r["id"] for r in recs if money and any(isinstance(r["data"].get(x), (int, float))
+                                                              and abs(abs(r["data"][x]) - amount) < 0.005 for x in money)}
         return ids
 
     def list_view(request: Request):
@@ -1418,7 +1430,7 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                     return 1 if all(w in t for w in words) else 2
                 ranks = {r["id"]: rank(r) for r in recs}
                 recs.sort(key=lambda r: ranks[r["id"]])  # stable: the date order stays within each rank
-                groups.append(dict(spec=spec, recs=recs[:25], n=len(recs), cols=views.list_columns(spec, 4),
+                groups.append(dict(spec=spec, recs=recs[:25], n=len(recs), cols=views.list_columns(spec, 6),
                                    best=min(ranks.values())))
             groups.sort(key=lambda g: (g["best"], g["spec"]["kind"] != "master", g["spec"]["kind"] == "line",
                                        -(g["spec"].get("salience") or 0)))

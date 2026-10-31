@@ -104,6 +104,22 @@ class EveryAction(unittest.TestCase):
         party = self.rt.records[kunde["id"]][0]["id"]
         self.get(f"/api/wie-letztes-mal?typ={self.spec('Auftrag')['id']}&partei={party}")
 
+    def test_an_amount_and_what_a_booking_was_for(self):
+        """An amount typed as it stands on the statement finds what carries it; the bank list says what each
+        booking was for."""
+        from urllib.parse import quote
+        from physarum.billing import money_fields
+        from physarum.web import views
+        inv = self.spec("Rechnung")
+        gross = money_fields(inv)["gross"]["id"]
+        rec = next(r for r in self.rt.records[inv["id"]] if (r["data"].get(gross) or 0) > 1000)
+        amount = f"{rec['data'][gross]:,.2f}".translate(str.maketrans(",.", ".,"))   # 1.059,10
+        for q in (amount, amount.replace(".", "") + " €"):
+            self.assertIn(str(rec["data"][inv["key"]]), self.get(f"/suche?q={quote(q)}").text, q)
+        bank = next(t for t in self.rt.model["types"] if t.get("concept") == "kontobewegung")
+        purpose = self.attr(bank, "Verwendungszweck")["id"]
+        self.assertIn(purpose, [c["id"] for c in views.list_columns(bank, 8)])
+
     def test_odd_requests_never_crash(self):
         """What a stale tab, a typo in the address or a half-sent form sends: an answer, never a crash."""
         for url in ("/api/wie-letztes-mal?typ=gibtsnicht&partei=abc", "/api/wie-letztes-mal", "/api/suche?typen=,,",

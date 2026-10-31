@@ -268,7 +268,7 @@ def merge_group(ts: list[dict]) -> dict:
         label = founder["name"]
     srcs = list(dict.fromkeys(t.get("source_name") for t in ts))
     # the list is as current as its newest version: its "Stand", its title (the founder only names it)
-    newest = max(ts, key=_rank) if len(ts) > 1 and key else founder
+    newest = max(ts, key=_rank) if len(ts) > 1 else founder  # also a statement without numbers
     meta = dict(founder.get("meta") or {})
     if newest is not founder:
         meta["title"] = (newest.get("meta") or {}).get("title") or meta.get("title")

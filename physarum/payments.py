@@ -1158,3 +1158,22 @@ def apply_to_records(model: dict, records: dict, entries: dict, today: date | No
                     state = "überfällig"
                 r["data"][PAY_STATE] = state
                 r["data"][PAY_OPEN] = e["open"]
+    # who owes how much: on the customer, the sum of their open invoices
+    owed: dict[int, float] = defaultdict(float)
+    for p in model.get("processes", []):
+        for r in records.get(p["type"], []) if p["type"] in types and p.get("party") else []:
+            e, who = entries.get(r["id"]), r["data"].get(p["party"])
+            if e and isinstance(who, int) and not e.get("outgoing") and e["state"] in ("offen", "teilbezahlt") and e["open"] > EPS:
+                owed[who] += e["open"]
+    for t in model["types"]:
+        if t["id"] in types or t.get("kind") != "master":
+            continue
+        rs = records.get(t["id"], [])
+        if not any(r["id"] in owed for r in rs) and not any(a["id"] == PAY_OPEN for a in t["attrs"]):
+            continue
+        if not any(a["id"] == PAY_OPEN for a in t["attrs"]):
+            t["attrs"].append(dict(id=PAY_OPEN, name="Offen", kind="money", role="money", fill=1.0, distinct=0, enum=None,
+                                   constant=False, hidden=False, sources=[], currency="EUR", virtual=dict(payments=True),
+                                   explain="die offenen Rechnungen, nach den Zahlungen im Kontoauszug"))
+        for r in rs:
+            r["data"][PAY_OPEN] = round(owed[r["id"]], 2) if r["id"] in owed else None

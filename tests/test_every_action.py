@@ -120,6 +120,19 @@ class EveryAction(unittest.TestCase):
         purpose = self.attr(bank, "Verwendungszweck")["id"]
         self.assertIn(purpose, [c["id"] for c in views.list_columns(bank, 8)])
 
+    def test_who_owes_how_much(self):
+        """The customer list says who owes how much: their open invoices, by the bank – and all of them."""
+        from physarum.web import views
+        kunde = self.spec("Kunde")
+        self.assertIn("pay_open", [c["id"] for c in views.list_columns(kunde, 8)])
+        owed = sum(r["data"].get("pay_open") or 0 for t in self.rt.model["types"] if t.get("kind") == "master"
+                   for r in self.rt.records.get(t["id"], []))
+        open_ = sum(e["open"] for e in self.rt.ledger.values()
+                    if not e.get("outgoing") and e["state"] in ("offen", "teilbezahlt") and e["open"] > 0.005)
+        self.assertGreater(owed, 0)
+        self.assertAlmostEqual(owed, open_, places=2)
+        self.assertIn("Offen", self.get(f"/t/{kunde['id']}").text)
+
     def test_odd_requests_never_crash(self):
         """What a stale tab, a typo in the address or a half-sent form sends: an answer, never a crash."""
         for url in ("/api/wie-letztes-mal?typ=gibtsnicht&partei=abc", "/api/wie-letztes-mal", "/api/suche?typen=,,",

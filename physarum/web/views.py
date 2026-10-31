@@ -138,6 +138,8 @@ def list_columns(spec: dict, limit: int | None = 7, pins: dict | None = None) ->
                 sal[g["id"]] = max(sal[g["id"]], 8.2)
     if paid:
         sal["pay_state"] = sal["pay_open"] = 9.0
+    elif "pay_open" in sal:
+        sal["pay_open"] = 9.0  # a customer list: who owes how much
     ranked = sorted(attrs, key=lambda a: (a["id"] not in pinned, -sal[a["id"]]))
     if limit is None:
         return ranked

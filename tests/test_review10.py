@@ -315,6 +315,59 @@ class Recount(unittest.TestCase):
         self.assertAlmostEqual(g2["amount"] or 0, (big["amount"] or 0) - (one["money"] or 0), places=2)
 
 
+class PropertyManager(unittest.TestCase):
+    """The office of review 10's property manager: its fee comes from the object's account to its own, a service-charge
+    statement can end in a credit, a month of fees is paid with one transfer naming a range."""
+
+    def setUp(self):
+        self.f = Firm()
+        self.addCleanup(self.f.close)
+
+    def test_a_transfer_between_two_accounts_of_the_dump_is_one_payment(self):
+        own, obj = "DE89370400440532013000", "DE02120300000000202051"
+        rows, mine, theirs = [], [], []
+        for i in range(12):
+            d, no, g = TODAY - timedelta(days=150 - 10 * i), f"RE-2026-{i + 1:04d}", f"{300 + 10 * i},00"
+            rows.append([no, de(d), "WEG Rosenhof", g, de(d + timedelta(days=14))])
+            purpose = f"Verwaltervergütung {no}"
+            mine.append([de(d + timedelta(days=5)), purpose, "WEG Rosenhof", obj, g])          # arrives on the office's
+            theirs.append([de(d + timedelta(days=6)), purpose, "Kerkhoff Hausverwaltung", own, "-" + g])  # leaves the WEG's
+        head = "Buchungstag;Verwendungszweck;Zahlungspartner;IBAN;Betrag"
+        self.f.feed([("Rechnungsausgang.csv", csv("Rechnungsnr;Datum;Kunde;Brutto;Fällig am", rows)),
+                     ("Umsaetze_Geschaeftskonto.csv", csv(head, mine)), ("Umsaetze_WEG_Rosenhof.csv", csv(head, theirs))])
+        rt = self.f.rt()
+        inv = _type(rt, "Rechnung")
+        states = {e["state"] for r, e in rt.ledger.items() if rt.by_id[r]["type"] == inv["id"]}
+        self.assertEqual(states, {"bezahlt"})                       # not paid and charged back
+
+    def test_a_credit_is_no_claim(self):
+        rows, bank = [], []
+        for i in range(10):
+            d, no = TODAY - timedelta(days=200 - 10 * i), f"BK-2025-{i + 1:03d}"
+            cost, pre = 1200 + 40 * i, (1300 if i % 3 == 0 else 1000)   # every third has paid more in advance
+            rows.append([no, de(d), f"Mieter {i}", f"{cost},00", f"{pre},00", de(d + timedelta(days=30))])
+            if cost > pre:
+                bank.append([de(d + timedelta(days=20)), f"Nachzahlung {no}", f"Mieter {i}", f"{cost - pre},00"])
+        self.f.feed([("BK-Abrechnung_2025.csv", csv("Abrechnung;Datum;Mieter;Kosten;Vorauszahlungen;Fällig am", rows)),
+                     ("Konto.csv", csv("Buchungstag;Verwendungszweck;Zahlungspartner;Betrag", bank))])
+        rt = self.f.rt()
+        owed = {rt.by_id[r]["data"].get(rt.spec(rt.by_id[r]["type"])["key"]): e["open"] for r, e in rt.ledger.items()}
+        self.assertEqual(owed["BK-2025-001"], 0.0)                 # 1300 paid in advance on costs of 1200
+        self.assertFalse([k for k, v in owed.items() if v > 0.005])
+
+    def test_one_transfer_for_a_range_of_invoices(self):
+        rows, bank = [], []
+        for i in range(12):
+            d, no = TODAY - timedelta(days=120 - 7 * i), f"RE-2026-{i + 1:04d}"
+            rows.append([no, de(d), "Eigentümer Albers", f"{200 + i},00", de(d + timedelta(days=14))])
+        bank.append([de(TODAY - timedelta(days=5)), "Entnahme Verwaltervergütung RE-2026-0001 bis RE-2026-0012",
+                     "Eigentümer Albers", f"{sum(200 + i for i in range(12))},00"])
+        self.f.feed([("Rechnungsausgang.csv", csv("Rechnungsnr;Datum;Kunde;Brutto;Fällig am", rows)),
+                     ("Konto.csv", csv("Buchungstag;Verwendungszweck;Zahlungspartner;Betrag", bank))])
+        rt = self.f.rt()
+        self.assertEqual({e["state"] for e in rt.ledger.values()}, {"bezahlt"})
+
+
 class CamtStatements(unittest.TestCase):
     HEAD = ('<?xml version="1.0" encoding="UTF-8"?><Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">'
             '<BkToCstmrStmt><GrpHdr><MsgId>1</MsgId></GrpHdr>')

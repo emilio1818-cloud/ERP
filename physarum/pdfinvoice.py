@@ -92,6 +92,29 @@ def _buyer(lines: list[str]) -> str | None:
     return None
 
 
+def _buyer_lines(lines: list[str]) -> list[str]:
+    """All lines of the address block: "WEG Rosenhof" / "c/o Kerkhoff Hausverwaltung GmbH" / street / town."""
+    head = next((i for i, ln in enumerate(lines[:20]) if _HEADING.match(ln)), None)
+    out = []
+    for ln in (lines[1:head] if head and head >= 2 else []):
+        cut = min((m.start() for rx in (_NUMBER, _INV_DATE, _THEIR_NO) if (m := rx.search(ln))), default=len(ln))
+        ln = ln[:cut].strip()
+        if ln and not _CONTACT.search(ln) and len(ln) <= 80:
+            out.append(ln)
+    return out
+
+
+# the recipient's agent in the address block: "c/o", "vertreten durch", "z. Hd."
+_AGENT = re.compile(r"^\s*(?:c\s*/\s*o\.?|care\s+of|vertreten\s+durch|vertr\.?\s*d(?:urch|\.)|z\.\s*hd\.?|zu\s+h(?:ä|ae)nden|"
+                    r"p\.\s*a\.?|per\s+adresse)\s*:?\s*", re.I)
+
+
+def agent_of(line: str | None) -> str | None:
+    """The party a recipient line names as its agent ("c/o Kerkhoff Hausverwaltung GmbH"), or None."""
+    m = _AGENT.match(line or "")
+    return line[m.end():].strip() or None if m else None
+
+
 def read(text: str | None, sender: str | None = None) -> dict | None:
     """The invoice in the e-invoice shape (see einvoice.parse), or None where the text is no invoice.
     `sender`: the mail address it came from, when it was attached to a mail."""
@@ -147,7 +170,7 @@ def read(text: str | None, sender: str | None = None) -> dict | None:
                 letterhead_mail=mails[0] if mails else None, iban=ibans[-1] if ibans else None,
                 order=order.group(1).strip() if order else None, net=abs(net) if net is not None else None,
                 tax=abs(tax) if tax is not None else None, gross=abs(gross), currency="EUR", lines=rows,
-                buyer=_buyer(lines), credit=credit, syntax="PDF",
+                buyer=_buyer(lines), buyer_lines=_buyer_lines(lines), credit=credit, syntax="PDF",
                 skonto_until=_day(skonto.group(1)) if skonto else None,
                 skonto_pct=_amount(skonto.group(2)) if skonto and "," in skonto.group(2)
                 else (float(skonto.group(2)) if skonto else None),
@@ -168,7 +191,8 @@ def to_tables(inv: dict, source_name: str):
     head.columns = head.columns + EXTRA_COLS
     head.rows = [head.rows[0] + [inv.get("skonto_until"), inv.get("skonto_pct"), inv.get("seller_mail")]]
     head.meta.update({"format": "PDF-Rechnung", "structured": "pdf-invoice-header", "source": source_name,
-                      "seller": inv.get("seller"), "buyer": inv.get("buyer"), "number": inv.get("number")})
+                      "seller": inv.get("seller"), "buyer": inv.get("buyer"), "buyer_lines": inv.get("buyer_lines") or [],
+                      "number": inv.get("number")})
     if lines is not None:
         lines.name = "Eingangsrechnungspositionen (PDF)"
         lines.meta.update({"format": "PDF-Rechnung", "structured": "pdf-invoice-lines",
@@ -201,8 +225,9 @@ def own_names(store, raw: list[dict]) -> set[str]:
     heads = [t["meta"] for t in raw if (t.get("meta") or {}).get("structured") in _HEADS]
     if len(heads) >= 3:
         on = Counter()
-        for m in heads:
-            for n in {norm(m.get("seller")), norm(m.get("buyer"))} - {""}:
+        for m in heads:  # the recipient's agent counts as recipient: "WEG Rosenhof, c/o Kerkhoff Hausverwaltung"
+            agents = {norm(agent_of(x)) for x in m.get("buyer_lines") or [] if agent_of(x)}
+            for n in {norm(m.get("seller")), norm(m.get("buyer"))} | agents - {""}:
                 on[n] += 1
         top = max(on.values(), default=0)
         best = [n for n, c in on.items() if c == top]
@@ -246,7 +271,10 @@ def received_only(store, raw: list[dict]) -> list[dict]:
         m = t.get("meta") or {}
         if m.get("structured") not in _HEADS:
             continue
-        to_us = own and m.get("buyer") and is_own(m.get("buyer"), own)  # a purchase list names its number too
+        # a purchase list names its number too; a property manager receives the invoices of the objects it manages
+        # "c/o" or "vertreten durch" itself: those are addressed to it as well
+        to_us = own and m.get("buyer") and (is_own(m.get("buyer"), own) or
+                                            any(is_own(agent_of(x), own) for x in m.get("buyer_lines") or []))
         if is_own(m.get("seller"), own) or (own and m.get("buyer") and not to_us) \
                 or (str(m.get("number") or "") in listed and not to_us):
             drop.add(t["id"])

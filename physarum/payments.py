@@ -357,7 +357,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                         if not isinstance(v, str):
                             continue
                         toks = _NUMBER_TOKEN.findall(v[:2000])
-                        found = [by_no.get(norm_key(tok)) for tok in toks]
+                        found = [by_no.get(norm_key(tok)) for tok in toks] + _number_range(v[:2000], by_no)
                         if plain:  # "Rg.Nr.31098": the number glued to its word
                             found += [by_no.get(m.group(0)) for tok in toks if (m := _GLUED.search(tok))]
                         if not any(i is not None for i in found):
@@ -412,8 +412,11 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                 continue
             # a final invoice after down payments: the customer owes what is left ("Zahlbetrag"), not the total
             owed = as_number(r["data"].get(payable)) if payable else None
+            surplus = None
             if owed is None and deduct and as_number(r["data"].get(deduct)):
                 owed = round(g - abs(as_number(r["data"].get(deduct))), 2)
+                if owed < -EPS:  # the advance payments exceed the total (a service-charge statement with a credit):
+                    surplus, owed = -owed, 0.0  # nothing is owed – the balance goes back
             if owed is not None and 0 <= owed < g - EPS:
                 g = owed
             cancelled = (st.get("attr") and str(r["data"].get(st["attr"])) in negative) or \
@@ -428,6 +431,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                                     skonto_ok=_skonto_agreed(model, by_id, p, r),
                                     credit=0.0, credits=[], credit_to=None, due=due, due_how=due_how,
                                     due_attr=rule["attr"] if rule else None)
+            if surplus:
+                entries[r["id"]]["notes"].append(f"Guthaben {fmt_eur(surplus)}: die Vorauszahlungen übersteigen den Betrag")
         # the PDF the customer got says what is owed when the book says something else (a typo in the list)
         for inv, (d, total) in _documents(records, by_no).items():
             e = entries.get(inv)
@@ -447,6 +452,8 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
             row = by_id[b]
             return as_date(row["data"].get(banks[row["type"]]["date"]["id"])) or date.min
 
+        for b in _transfer_twins(links, banks, by_id, ip["outgoing"]):
+            links.pop(b, None)  # the other side of a transfer between two accounts of the dump: counted once
         named_any = {i for invs in links.values() for i in invs}
         for b in sorted(links, key=lambda b: (when_of(b), b)):
             invs = links[b]
@@ -720,6 +727,60 @@ def _bank_pool(model, banks, records, by_id, taken: set, outgoing: bool) -> dict
                                               name=norm_name(name), iban=_iban_of(b, row), text=norm_name(text),
                                               dates={as_date(x) for x in _INVOICE_OF.findall(text)} - {None}))
     return pool
+
+
+_RANGE = re.compile(r"([A-Za-z0-9][A-Za-z0-9\-/_.]*?)(\d+)\s+bis\s+(?:(?:Nr\.?\s*)?([A-Za-z0-9][A-Za-z0-9\-/_.]*?[A-Za-z\-/_.]))?(\d+)"
+                    r"(?![\w\-/]|\.\d)", re.I)
+
+
+def _number_range(text: str, by_no: dict) -> list:
+    """"RE-2026-0147 bis RE-2026-0156" (or "bis 0156"): every invoice of the series in between, as far as the
+    book has them – one transfer for the invoices of a month, written as a range."""
+    out = []
+    for m in _RANGE.finditer(text):
+        pre, lo, pre2, hi = m.group(1), m.group(2), m.group(3) or m.group(1), m.group(4)
+        if norm_key(pre2) != norm_key(pre) or int(hi) <= int(lo) or int(hi) - int(lo) > 60:
+            continue
+        first, last = by_no.get(norm_key(pre + lo)), by_no.get(norm_key(pre + hi.zfill(len(lo))))
+        if first is None or last is None:
+            continue  # both ends must be invoices of the book
+        out += [i for n in range(int(lo), int(hi) + 1) if (i := by_no.get(norm_key(pre + str(n).zfill(len(lo))))) is not None]
+    return out
+
+
+def _transfer_twins(links: dict, banks: dict, by_id: dict, outgoing: bool) -> set[int]:
+    """Bank lines that are the far side of a transfer between two accounts whose statements are both in the dump:
+    the fee a property manager takes from the account of the object it manages arrives on its own account with the
+    same purpose, the same amount, within days – and leaves the other one. For the invoice that is one payment, not a
+    payment and a chargeback. A chargeback goes back to the account that paid (the same IBAN on both lines); here
+    each line names the other account."""
+    from .reconcile import bank_amount
+    rows = []
+    for b in links:
+        row = by_id.get(b)
+        bs = banks.get(row["type"]) if row else None
+        if not bs:
+            continue
+        amt = bank_amount(bs, row["data"])
+        when = as_date(row["data"].get(bs["date"]["id"]))
+        iv = _iban_of(bs, row)
+        text = " ".join(str(row["data"].get(a["id"]) or "") for a in bs["spec"]["attrs"]
+                        if a.get("role") == "notes" and a["kind"] == "text" and not a.get("hidden"))
+        if amt is None or not when or len(iv) < 15 or not text.strip():
+            continue
+        rows.append((b, amt, when, iv, " ".join(fold(text).split())))
+    keep_sign = -1 if outgoing else 1
+    twins = set()
+    for b, amt, when, iv, text in rows:
+        if amt * keep_sign >= 0:
+            continue
+        for c, amt2, when2, iv2, text2 in rows:
+            if c != b and amt2 * keep_sign > 0 and abs(abs(amt) - abs(amt2)) <= EPS and abs((when - when2).days) <= 3 \
+                    and iv != iv2 and min(len(text), len(text2)) >= 10 and (text in text2 or text2 in text) \
+                    and set(links[b]) & set(links[c]):  # one export puts the booking kind before the purpose
+                twins.add(b)
+                break
+    return twins
 
 
 def _iban_of(b: dict, row: dict) -> str:

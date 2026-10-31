@@ -134,7 +134,17 @@ def catering(tmp: Path) -> list[dict]:
     return [dict(files=_files(out / d["folder"]), today=d["today"], truth=d) for d in t["deliveries"]]
 
 
+def hausverwaltung(tmp: Path) -> list[dict]:
+    """A property management office nobody had seen (review 10): rents, Hausgeld, levies and annual results without
+    invoice numbers (open items are Sollstellungen "<Konto> <Sollart> <Zeitraum>"), the Jobcenter paying part of a rent,
+    deposits, own fee invoices taken from the object accounts, nine bank accounts in three formats; twice."""
+    out = tmp / "hausverwaltung"
+    subprocess.run([sys.executable, str(HERE / "gen" / "hausverwaltung.py"), str(out)], check=True, capture_output=True)
+    t = json.loads((out / "truth.json").read_text(encoding="utf-8"))
+    return [dict(files=_files(out / d["folder"]), today=d["today"], truth=d) for d in t["deliveries"]]
+
+
 FIRMS = dict(demo=demo, brenner=brenner, agentur=agentur, handwerk=handwerk, musikschule=musikschule, maler=maler,
-             shop=shop, werkstatt=werkstatt, gebaeude=gebaeude, catering=catering)
+             shop=shop, werkstatt=werkstatt, gebaeude=gebaeude, catering=catering, hausverwaltung=hausverwaltung)
 # every firm also runs with neutral file names (S1) and other headings (S2); the quick ones with both (S3)
 VARIED = ("demo", "maler", "musikschule")

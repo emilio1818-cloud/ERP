@@ -117,6 +117,8 @@ def _ubl(r, credit=False) -> dict:
         seller_zip=_text(r, sup + ["PostalAddress", "PostalZone"]),
         seller_city=_text(r, sup + ["PostalAddress", "CityName"]),
         buyer=_text(r, cus + ["PartyLegalEntity", "RegistrationName"]) or _text(r, cus + ["PartyName", "Name"]),
+        buyer_lines=[x for x in [_text(r, cus + ["PostalAddress", k]) for k in ("StreetName", "AdditionalStreetName")]
+                     + [_text(r, cus + ["Contact", "Name"])] if x],
         iban=_text(r, ["PaymentMeans", "PayeeFinancialAccount", "ID"]),
         order=_text(r, ["OrderReference", "ID"]),
         net=_num(_text(r, tot + ["TaxExclusiveAmount"])),
@@ -179,6 +181,8 @@ def _cii(r) -> dict:
         seller_zip=_text(agr, ["SellerTradeParty", "PostalTradeAddress", "PostcodeCode"]) if agr is not None else None,
         seller_city=_text(agr, ["SellerTradeParty", "PostalTradeAddress", "CityName"]) if agr is not None else None,
         buyer=_text(agr, ["BuyerTradeParty", "Name"]) if agr is not None else None,
+        buyer_lines=[x for x in (_text(agr, ["BuyerTradeParty", "PostalTradeAddress", k]) for k in ("LineOne", "LineTwo", "LineThree"))
+                     if x] if agr is not None else [],
         iban=_text(stl, ["SpecifiedTradeSettlementPaymentMeans", "PayeePartyCreditorFinancialAccount", "IBANID"]) if stl is not None else None,
         order=_text(agr, ["BuyerOrderReferencedDocument", "IssuerAssignedID"]) if agr is not None else None,
         net=_num(_text(stl, summ + ["TaxBasisTotalAmount"])) if stl is not None else None,
@@ -253,7 +257,7 @@ def to_tables(inv: dict, source_name: str):
                            inv["order"], _s(inv["net"], sign), _s(inv["tax"], sign), _s(inv["gross"], sign), art]],
                     lines=[1], meta={"format": f"E-Rechnung ({inv['syntax']})", "structured": "einvoice-header",
                                      "number_formats": {}, "seller": inv.get("seller"), "buyer": inv.get("buyer"),
-                                     "number": inv.get("number")})
+                                     "buyer_lines": inv.get("buyer_lines") or [], "number": inv.get("number")})
     rows = []
     for i, ln in enumerate(inv["lines"], start=1):
         rows.append([inv["number"], ln.get("pos") or str(i), ln.get("sku"), ln.get("name"), ln.get("qty"),

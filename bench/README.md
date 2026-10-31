@@ -24,6 +24,7 @@ python bench/run.py --save       # das Ergebnis wird die neue Basis (bench/basel
 | werkstatt | Kfz-Werkstatt, Review 7, zwei Lieferungen (`gen/werkstatt.py`) | Rechnungsnummern als reine Zahl, bar/EC bei Abholung, Versicherung kürzt, Gutschrift und Storno, eigene Rechnungs-PDFs |
 | gebaeude | Gebäudereinigung, Review 8, zwei Lieferungen (`gen/gebaeude.py`) | Sparkassen-CSV (CAMT), Monatsrechnungen je Vertrag, SEPA-Sammellastschrift mit Rücklastschriften, Hausverwaltung zahlt mehrere Objekte, eigene XRechnung, Briefbogen-PDFs |
 | catering | Catering und Veranstaltungen, Review 9, zwei Lieferungen (`gen/catering.py`) | Bank nur als camt.053 (ein XML je Tag, Monats-ZIPs), Kontowechsel, Anzahlungen ohne Rechnung, Schlussrechnung nach Gästezahl, Stornokosten, Kita-Essen nach Essenszahlen, fester Dauerauftrag, Rahmenverträge quartalsweise, Entwurf im Rechnungsexport, ZUGFeRD/XRechnung/PDF-Eingangsrechnungen |
+| hausverwaltung | WEG- und Mietverwaltung, Review 10, zwei Lieferungen (`gen/hausverwaltung.py`) | Miete, Hausgeld, Umlagen und Abrechnungsergebnisse ohne Rechnungsnummer (offene Posten als Sollstellung „Konto Sollart Zeitraum“), Jobcenter zahlt Teile, Kautionsraten, Vergütung vom Objektkonto aufs Geschäftskonto, neun Konten in drei Formaten (Sparkassen-CSV, VR-Umsatzanzeige, camt.053/052), Handwerkerrechnungen „c/o“ der Verwaltung |
 
 Gemessen wird je Lieferung: offene Posten (richtig/zu viel/fehlend, Euro), überfällige Rechnungen,
 fertige Aufträge ohne Rechnung, Festpreis-Projekte deutlich über Budget, Geld ohne Rechnung, Einträge auf

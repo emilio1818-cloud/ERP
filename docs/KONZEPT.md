@@ -121,6 +121,7 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 ## 7. Ehrliche Grenzen
 
 - Ohne Sprachmodell werden Rechnungs-PDFs gelesen wie E-Rechnungen (Nummer, Beträge, Fristen, Skonto, IBAN), Mails nach ihrem Anliegen eingeordnet (Bestellung, Bitte, Reklamation, Kündigung, „schon bezahlt“, neue Bankverbindung) und über der Tabelle Stehendes („Auftrag: A26-028“) übernommen. Anderer Freitext wird **verknüpft und durchsuchbar gemacht**, aber nicht in Datensätze zerlegt. Gescannte PDFs ohne Textebene liest Physarum nicht (kein OCR). Ein optionaler LLM-Baustein ist als Erweiterung vorgesehen.
+- Forderungen ohne Rechnung kennt Physarum noch nicht: Miete, Hausgeld, Umlagen, Kautionen oder Mitgliedsbeiträge, die ein Vertrag oder Beschluss Monat für Monat schuldet und die das Geld der Partei tilgt (Sollstellungen auf einem Personenkonto). Bei einer Hausverwaltung sind das 90 % des offenen Geldes; sichtbar sind nur ihre eigenen Rechnungen, die Handwerkerrechnungen und die Verträge. Konten mit fremden Inhabern im selben Ordner (Treuhand, WEG-Konten) trennt Physarum nicht nach Mandant; Umbuchungen zwischen ihnen erkennt es.
 - Physarum ist die **operative** Schicht und keine Finanzbuchhaltung. Die Steuerberatung bekommt einen DATEV-Buchungsstapel der Ausgangsrechnungen, die Bücher und die Belege; Aufwandskonten und Voranmeldung bleiben bei ihr.
 - Mehrbenutzerbetrieb und Rechte sind nur rudimentär vorhanden (Name im Änderungsprotokoll).
 - Heuristiken irren. Deshalb ist alles erklärbar, korrigierbar und umkehrbar, und die Originaldaten bleiben unangetastet.
@@ -135,7 +136,9 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - Ein vergangener Leistungstag (eine Veranstaltung) gilt nicht als „erledigt“: Fertige, nicht berechnete Veranstaltungen ohne Erledigt-Datum oder -Status meldet Physarum nicht.
 - Ein Entwurf ohne Nummer im Rechnungsexport eines anderen Programms zählt als offener Posten, und eine Teilzahlung, die nur das Buch kennt (aufs alte Konto, „teilbezahlt“ mit offenem Rest), zählt als ganz bezahlt.
 - Eine Anzahlung ohne eigene Rechnung, die die Schlussrechnung abzieht, verbindet Physarum nicht mit ihr; nach zwei Monaten steht sie nicht mehr unter „Geld erhalten – wofür?“.
-- Eigene Mails und solche, die schon beantwortet sind, stehen noch als Anliegen unter den Mails (Physarum liest den Mail-Faden nicht).
+- Eigene Mails und solche, die schon beantwortet sind, stehen noch als Anliegen unter den Mails (Physarum liest den Mail-Faden nicht). Mängel, Zahlungszusagen und Ratenbitten ordnet es nicht ein. Eine Kündigung ohne Vertragsnummer gehört zum einen laufenden Vertrag des Kunden; hat er mehrere, bleibt die Mail still.
+- Ein Vertrag ohne Ende und ohne Status, dessen letzte zwei Zeiträume fehlen, gilt als beendet; einen Monat lang steht er vorher als vergessener Zeitraum da. Ein Vertrag, für den noch nie eine Rechnung geschrieben wurde, steht nicht unter „nicht berechnet“.
+- Zwei Listen, die dieselbe Nummer führen, aber Verschiedenes meinen (Sollmieten und Betriebskostenergebnisse je Mieternummer), werden eine Liste; eine Spalte gleichen Namens mit verschiedener Bedeutung (Vorauszahlung im Monat oder im Jahr) gilt dann aus der neueren Datei.
 - Eine Kundendublette mit stark abweichendem Namen („Physiotherapie am Markt GbR“ / „Physio am Markt Brinkmann & Vogel GbR“), die nur das gleiche Konto, die gleiche Adresse und Telefonnummer verraten, fragt Physarum nicht ab. Ähnliche Namen fragt es ab.
 - Zahlt ein Kunde eine Rechnung doppelt, steht sie als „zu viel gezahlt“ bei der Rechnung, nicht unter „Geld erhalten – wofür?“.
 - Unter neutralen Dateinamen („export (3).csv“) ordnet Physarum die erste Lieferung eines Handwerksbetriebs schlechter (Stundenzettel je Monteur als eigene Listen); mit der zweiten Lieferung stimmt es wieder.
@@ -195,7 +198,7 @@ Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kann
 
 Nach sechs Runden fragte eine strategische Prüfung, ob das System noch das schlankeste ist, das den Auftrag erfüllt. Befund: Es wuchs nur noch, jede Runde fügte Regeln für die eine geprüfte Firma hinzu, und der Geldkern hing an den Wörtern „bezahlt“ und „fällig“. Seitdem gilt:
 
-- **Der Prüfstand ist die Belohnung.** Zehn Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Jede läuft zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
+- **Der Prüfstand ist die Belohnung.** Elf Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Jede läuft zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
 - **Die Stopp-Regel:** Eine Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
 - **Erst löschen.** Weg sind der Abgleich-Ablauf (zwei Wahrheiten für „bezahlt“), die Fragen zum Datenmodell (jetzt umkehrbare Hinweise an der Liste), doppelte Hilfsfunktionen, tote Funktionen und der Tero-Löser.
 
@@ -268,7 +271,7 @@ Aus ihrer Streichliste ist gestrichen, was die Inhaberin nur störte: die wander
 
 Die zweite Prüfung brachte eine Firma neuer Art: einen Caterer mit Veranstaltungen, Kita-Essen nach Essenszahlen und Rahmenverträgen. Seine Bank kam nur als camt.053, ein XML je Buchungstag. Physarum las das nicht und sagte es auch nicht – ohne Bank mahnte Heute bezahlte Rechnungen über 34.000 € an. Mit dem Leser für das Standardformat stimmen die offenen Posten fast. Dazu kam ein Zählfehler beim eigenen Firmennamen („& Events GmbH“), der alle Eingangsrechnungen verwarf.
 
-Die Lücke, die beide Prüfungen teilen, besteht die Stopp-Regel: Vertragszeiträume ohne Rechnung (Gebäudereinigung OB-107 und OB-132, Caterer MV-06 und das Quartal von RV-02). Physarum liest den Leistungszeitraum der Rechnungen (§ 14 UStG verlangt ihn) und lernt je Vertrag Takt und üblichen Tag. Ein fälliger Zeitraum ohne Rechnung steht unter „nicht berechnet“; rechnet er Lieferscheine ab, stehen diese dort. Damit der Caterer seine Verträge überhaupt findet, verweist eine Spalte „Referenz“ mit Nummern mehrerer Listen je Zeile auf den Datensatz, dessen ganze Nummer sie ist. Beim Brenner zeigt dieselbe Spalte jetzt, dass Termine Wartungsverträge betreffen, und Wartungen, die seit Monaten fällig und nie eingetragen sind, stehen jetzt auf Heute.
+Die Lücke, die beide Prüfungen teilen, besteht die Stopp-Regel: Vertragszeiträume ohne Rechnung (Gebäudereinigung OB-107 und OB-132, Caterer MV-06 und das Quartal von RV-02). Physarum liest den Leistungszeitraum der Rechnungen (§ 14 UStG verlangt ihn) und lernt je Vertrag Takt und üblichen Tag. Ein fälliger Zeitraum ohne Rechnung steht unter „nicht berechnet“; rechnet er Lieferscheine ab, stehen diese dort. Damit der Caterer seine Verträge überhaupt findet, verweist eine Spalte „Referenz“ mit Nummern mehrerer Listen je Zeile auf den Datensatz, dessen ganze Nummer sie ist. Beim Brenner zeigt dieselbe Spalte, dass Termine Wartungsverträge betreffen. (Dass dadurch seit Monaten fällige Wartungen auf Heute kamen, stimmte nicht: Runde 10 fand, dass sie dort schon standen – es waren Doppelungen.)
 
 Fünf Befunde des Caterers blieben nach der Stopp-Regel draußen (Abschnitt 7): der Entwurf im fremden Export, die Teilzahlung, die nur das Buch kennt, die Veranstaltung ohne Erledigt-Datum, die Anzahlung, die die Schlussrechnung abzieht, und eigene oder beantwortete Mails. Ein Fehlalarm ist neu und bewusst stehen geblieben: Die Schulferien des Caterers zeigt nur seine Essensliste, also meldet Physarum den August der Schule als Monat ohne Rechnung.
 
@@ -285,3 +288,45 @@ Fünf Befunde des Caterers blieben nach der Stopp-Regel draußen (Abschnitt 7): 
 | Wort-Regeln / reguläre Ausdrücke | 724 / 176 | 767 / 179 |
 
 Die Runde hat gut 400 Zeilen gekostet, fast alle für Dinge, die eine Inhaberin täglich anfasst (Mahnen, Zahlungen, Warnungen). Die neuen Wort-Regeln sind zum größten Teil Kennzeichen des Bankformats und die Mahnstufen-Wörter des Buchs. Gestrichen wurde, was nur Technik zeigte.
+
+**Runde 10** prüfte wieder von zwei Seiten. Eine Code-Prüfung las die Runde 9 gegen den Strich und belegte 19 Fehler mit Tests, vier davon Rückschritte. Eine von Hand eingetragene Rate „bestätigte“ die ältere, gleich hohe Kontozeile, und die Rechnung blieb offen. Nach der Zahlungserinnerung schlug der nächste Brief die 2. Mahnung vor. Ein berechnetes Fälligkeitsdatum blieb beim alten Rechnungsdatum stehen, und fünfstellige Bestellnummern galten als Verweis auf Kundennummern. Dazu kamen drei weitere Fehler:
+
+- Ein camt-Sammler ohne Einzelbeträge wurde n-fach gebucht.
+- Die Mahnsperre aus Kundenmails galt nur für die ersten 50 überfälligen Rechnungen.
+- Ein Leistungszeitraum im Jahr 9999 legte Heute lahm.
+
+Alle sind behoben, jeder als Test. Eine Überweisung, die man vorab einträgt, zählt jetzt auch dann einmal, wenn der Auszug sie ohne Nummer zeigt.
+
+Die Prüfung schaltete jede Regel der Runde 9 einzeln aus. Der Abgleich der Vertragszeiträume greift auf zwei Firmen, aber jede braucht einen eigenen Wegbereiter:
+
+- **Caterer:** ganze Nummern einer Referenzspalte als Verweis, Zeitraum-Schreibweisen wie „01.07.–30.09.2026“, Lieferscheine als das, was wartet.
+- **Gebäudereinigung:** „01/2026“ in „Unterhaltsreinigung lt. Vertrag 01/2026“ ist ein Teil der Wörter und kein Ding.
+
+Drei davon sind Werteverständnis und Verweissuche, keine Erkennungsregeln im Sinn der Stopp-Regel; sie bleiben. Die Lieferscheine bleiben als Streichkandidat markiert. Der Brenner-Nutzen, den Runde 9 nannte, waren Doppelungen: Seine 42 Wartungsverträge standen zweimal auf Heute, einmal aus der Spalte „Nächste Wartung“ und einmal aus letzter Wartung plus Intervall. Jetzt stehen sie einmal da.
+
+Die zweite Prüfung brachte eine Hausverwaltung: WEG- und Mietverwaltung, 14 Objekte, neun Bankkonten in drei Formaten, 40 Fallen. Für die Verwaltungsfirma selbst trägt Physarum nach vier Korrekturen:
+
+- Eine Umbuchung zwischen zwei Konten des Ordners ist eine Zahlung und keine Rücklastschrift. Vorher standen 37 eigene Vergütungsrechnungen über 12.890 € als „zurückgebucht“ da, mit Erinnern-Knopf.
+- Ein Guthaben ist keine Forderung. Vorher entstanden rund 91.000 € Scheinforderungen aus Betriebskostenabrechnungen.
+- Die Gegen-IBAN eines Auszugs ist die Spalte mit den meisten verschiedenen Werten, nicht das eigene Konto.
+- Eine Rechnung „c/o“ oder „vertreten durch“ geht an die Verwaltung. Vorher verwarf Physarum alle Handwerkerrechnungen.
+
+Was eine Hausverwaltung ausmacht, bildet Physarum nicht ab. Miete, Hausgeld, Umlagen und Kautionen sind Forderungen ohne Rechnung, Monat für Monat aus Vertrag oder Beschluss, und sie machen 90 % des offenen Geldes dieser Firma aus. Ein Prototyp des Prüfers erkennt die Sollliste allein aus den Zahlungen und findet 16 von 26 Rückständen. Er bleibt nach der Stopp-Regel draußen, bis eine zweite Firma Forderungen ohne Rechnung kennt, etwa ein Verein, eine Kita oder ein privater Vermieter. Ebenso draußen bleiben der Vertrag, für den nie eine Rechnung geschrieben wurde, und der eigene Lastschriftlauf als Nicht-Frage. Die Hausverwaltung ist die elfte Firma des Prüfstands. Ihr „Geld richtig“ ist strukturell gedeckelt, und genau das soll der Prüfstand zeigen.
+
+Neben den Prüfungen kamen dazu: Kündigungen ohne Vertragsnummer (Gebäudereinigung und Caterer), die Kontoliste mit Verwendungszweck und richtigem Stand, die Suche nach Beträgen, die Kundenliste mit „Offen“, das Einlesen in Alltagssprache und die Spaltenköpfe des Sparkassen-Exports.
+
+| Kennzahl (Prüfstand) | vorher | nachher |
+|---|---:|---:|
+| zehn Firmen der Runde 9: Geld / Heute | 0,884 / 0,844 | 0,884 / 0,844 |
+| mit Hausverwaltung, elf Firmen: Geld richtig | 0,372 | 0,499 |
+| mit Hausverwaltung, elf Firmen: Heute-Aufgaben richtig | 0,450 | 0,570 |
+| Hausverwaltung, Lieferung 1: offene Posten zu viel / überfällig zu viel | 129 / 37 | 57 / 0 |
+| Hausverwaltung, Lieferung 1: Einträge auf Heute | 221 | 108 |
+| Brenner: Einträge auf Heute | 280 | 238 |
+| gleiche offene Posten unter anderen Namen | 0,961 | 0,991 |
+| Listen gleich benannt | 0,696 | 0,698 |
+| Abstürze | 0 | 0 |
+| Zeilen Code | 19.707 | 20.035 |
+| Wort-Regeln / reguläre Ausdrücke | 767 / 179 | 784 / 183 |
+
+„Vorher“ bei elf Firmen ist der Stand der Runde 9 mit der neuen Firma. Die Runde hat gut 300 Zeilen gekostet, zur Hälfte für die Fehler, die die Prüfung fand. Gestrichen wurde der Leser einer „bezahlt“-Markierung, die sich nicht mehr setzen ließ.

@@ -57,14 +57,18 @@ def bank_specs(model: dict) -> list[dict]:
         if t["kind"] != "transaction" or t.get("incoming") or \
                 (t.get("concept") or "") in ("rechnung", "angebot", "auftrag", "bestellung", "einkauf", "gutschrift"):
             continue  # a supplier's invoice names an IBAN and an amount too – it is not a bank statement
-        iban = next((a for a in t["attrs"] if a["kind"] == "iban" and not a.get("hidden")), None)
+        # the other party's account, not the statement's own ("Auftragskonto" repeats; the partners' vary)
+        iban = max((a for a in t["attrs"] if a["kind"] == "iban" and not a.get("hidden")),
+                   key=lambda a: a.get("distinct") or 0, default=None)
         moneys = [a for a in t["attrs"] if a["kind"] == "money" and not a.get("hidden")]
         # the amount stands on every line; "Lastschrift Ursprungsbetrag" before it only on returns
         money = max(moneys, key=lambda a: a.get("fill") or 0) if moneys else None
         split = _split_amount(moneys)
         date_a = next((a for a in t["attrs"] if a["kind"] in ("date", "datetime") and not a.get("hidden")), None)
         purpose = any(set(tokens(a["name"])) & {"verwendungszweck", "zweck", "buchungstext", "purpose"} for a in t["attrs"])
-        if t.get("concept") == "kontobewegung" or (iban and money and date_a) or (purpose and money and date_a):
+        # a list keyed by its own numbers (tenants with their deposit account, amount and date) is no statement
+        if t.get("concept") == "kontobewegung" or (iban and money and date_a and not t.get("key")) or \
+                (purpose and money and date_a):
             if money and date_a:
                 party = next((a for a in t["attrs"] if a["kind"] == "ref"), None)
                 text = next((a for a in t["attrs"] if a.get("role") == "notes" and not a.get("hidden")), None)

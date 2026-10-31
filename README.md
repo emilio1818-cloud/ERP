@@ -90,10 +90,10 @@ e2e/screens.cjs    Playwright-Rundgang mit Screenshots
 python -m unittest discover -s tests -t .
 node e2e/screens.cjs http://127.0.0.1:8000 docs/screenshots   # bei laufendem Server, leere Firma
 node e2e/flow.cjs http://127.0.0.1:8000                       # Alltag: Rechnung, Zahlung, Mahnung
-python bench/run.py                                           # der Prüfstand, rund 6 Minuten
+python bench/run.py                                           # der Prüfstand, rund 8 Minuten
 ```
 
-Der **Prüfstand** (`bench/`, siehe [bench/README.md](bench/README.md)) ist der Maßstab jeder Änderung: zehn Firmen, die unabhängige Prüfer gebaut haben, wachsen an ihrem Liefertag und werden gegen das gemessen, was an diesem Tag wahr ist – offene Posten, überfällige Rechnungen, fertige Aufträge ohne Rechnung, Geld ohne Rechnung. Jede Firma läuft zusätzlich unter neutralen Dateinamen und anderen Spaltenüberschriften. Eine neue Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
+Der **Prüfstand** (`bench/`, siehe [bench/README.md](bench/README.md)) ist der Maßstab jeder Änderung: elf Firmen, die unabhängige Prüfer gebaut haben, wachsen an ihrem Liefertag und werden gegen das gemessen, was an diesem Tag wahr ist – offene Posten, überfällige Rechnungen, fertige Aufträge ohne Rechnung, Geld ohne Rechnung. Jede Firma läuft zusätzlich unter neutralen Dateinamen und anderen Spaltenüberschriften. Eine neue Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
 
 ## Rechnungen, Geld und Steuerberatung
 
@@ -111,5 +111,6 @@ Der **Prüfstand** (`bench/`, siehe [bench/README.md](bench/README.md)) ist der 
 - Keine Finanzbuchhaltung: Physarum liefert der Steuerberatung Buchungsstapel und Belege, bucht aber keine Aufwandskonten und erstellt keine Umsatzsteuer-Voranmeldung. Der DATEV-Export folgt dem veröffentlichten Format, ein Probe-Import bei der Steuerberatung gehört dazu.
 - Bezahlt ist, was der Kontoauszug sagt. Abrechnungen von Zahlungsanbietern (Klarna, PayPal, Stripe) zählen noch nicht als Nachweis für die einzelne Bestellung; bei einem Online-Shop bleiben so Bestellungen offen, die der Anbieter schon ausgezahlt hat.
 - Ein Dauerauftrag, der nach einer Preiserhöhung beim alten Betrag bleibt, wird nicht als Teilzahlung erkannt. Eine Pause, die nur eine Mengenliste zeigt (Schulferien in den Essenszahlen), meldet Physarum als Monat ohne Rechnung. Ein Leistungstag, der vorbei ist (eine Veranstaltung), gilt nicht als „erledigt“: Fertige, nicht berechnete Veranstaltungen ohne Erledigt-Datum meldet es nicht.
+- Forderungen ohne Rechnung – Miete, Hausgeld, Umlagen, Mitgliedsbeiträge, die ein Vertrag oder Beschluss Monat für Monat schuldet – kennt Physarum noch nicht. Bei einer Hausverwaltung sieht es die eigene Firma (Vergütung, Handwerkerrechnungen, Verträge), aber keine Mietrückstände.
 - Noch keine Benutzerrechte (der Name steht im Protokoll); gedacht für einen Rechner im Büro.
 - Heuristiken können irren. Deshalb ist alles erklärt („Wie Physarum Ihre Firma sieht“), korrigierbar und umkehrbar – auch Zusammenführungen auf Vermutung („Wieder trennen“) –, und die Originale bleiben unangetastet.

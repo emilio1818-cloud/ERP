@@ -252,6 +252,29 @@ def derive(rt, spec: dict, data: dict) -> tuple[dict, list[str]]:
                 out[lp["attr"]] = v
         elif as_number(v) is not None:
             out[lp["attr"]] = round(as_number(v) * lp.get("k", 1), 2)
+    # where nothing was learned: what the record it is made from says – the lists both point to, a customer
+    # it names who is one by now, the description and the price under the same heading (an order from its offer)
+    for a in spec["attrs"]:
+        src = rt.by_id.get(data.get(a["id"])) if a["kind"] == "ref" else None
+        if not src or src["type"] == spec["id"]:
+            continue
+        sattrs = (rt.spec(src["type"]) or {}).get("attrs", [])
+        for b in spec["attrs"]:
+            if b["id"] in out or data.get(b["id"]) not in (None, "") or b.get("virtual") or b["id"] == spec.get("key"):
+                continue
+            v = None
+            if b["kind"] == "ref" and b.get("ref") != src["type"]:
+                v = next((src["data"][c["id"]] for c in sattrs if c["kind"] == "ref" and c.get("ref") == b.get("ref")
+                          and isinstance(src["data"].get(c["id"]), int)), None)
+                if v is None:
+                    said = {fold(str(src["data"][c["id"]])) for c in sattrs if c["kind"] == "text" and src["data"].get(c["id"])}
+                    hits = [r["id"] for r in rt.records.get(b.get("ref"), []) if fold(rt.title(r["id"])) in said]
+                    v = hits[0] if len(hits) == 1 else None
+            elif (b["kind"] == "text" and b.get("role") == "name") or b["kind"] in ("money", "number"):
+                v = next((src["data"][c["id"]] for c in sattrs if c["kind"] == b["kind"] and fold(c["name"]) == fold(b["name"])
+                          and src["data"].get(c["id"]) not in (None, "")), None)
+            if v is not None:
+                out[b["id"]] = v
     if is_invoice(spec):
         mf = money_fields(spec)
         rec = dict(id=-1, type=spec["id"], data=dict(data, **out), meta={})

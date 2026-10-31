@@ -33,12 +33,12 @@ tfoot td{font-weight:700;border-bottom:0}@media print{.noprint{display:none}body
 {% if level == 1 %}<p>sicher ist es Ihrer Aufmerksamkeit entgangen: Für die folgenden Rechnungen haben wir noch keine (vollständige) Zahlung erhalten.</p>
 {% elif level == 2 %}<p>auf unsere Zahlungserinnerung haben wir leider noch keine Zahlung erhalten. Folgende Beträge sind weiterhin offen:</p>
 {% else %}<p>trotz Erinnerung und Mahnung sind die folgenden Beträge weiterhin offen. Bitte begleichen Sie sie bis spätestens zehn Tage nach Erhalt dieses Schreibens.</p>{% endif %}
-<table>
+<div style="overflow-x:auto"><table>
   <thead><tr><th>Rechnung</th><th>vom</th><th>fällig seit</th><th class="num">Betrag</th><th class="num">bezahlt</th><th class="num">offen</th></tr></thead>
   <tbody>{% for x in items %}<tr><td>{{ x.number }}</td><td>{{ display(x.date, 'date') if x.date else '' }}</td><td>{{ display(x.due, 'date') }}</td>
     <td class="num">{{ money(x.gross) }}</td><td class="num">{{ money(x.paid) if x.paid else '–' }}</td><td class="num">{{ money(x.open) }}</td></tr>{% endfor %}</tbody>
   <tfoot><tr><td colspan="5">Offen insgesamt</td><td class="num">{{ money(total) }}</td></tr></tfoot>
-</table>
+</table></div>
 <p>Bitte überweisen Sie {{ 'den Betrag' if items|length == 1 else 'die Beträge' }} unter Angabe der Rechnungsnummer{{ '' if items|length == 1 else 'n' }}{% if company.iban %} auf unser Konto IBAN {{ company.iban|iban }}{% if company.bic %} (BIC {{ company.bic }}){% endif %}{% if company.bank %} bei der {{ company.bank }}{% endif %}{% endif %}.
 Sollten Sie die Zahlung inzwischen veranlasst haben, betrachten Sie dieses Schreiben bitte als gegenstandslos.</p>
 <p>Mit freundlichen Grüßen<br><br>{{ company.name or '' }}</p>

@@ -740,6 +740,26 @@ class CraftFirm(unittest.TestCase):
         rt = self.f.rt()                                       # the old program's next export still says "offen":
         self.assertEqual(rt.by_id[overdue["RE-0021"]["rid"]]["data"][status], "gemahnt")   # the letter stands
 
+    def test_an_order_made_from_its_offer_starts_filled(self):
+        """Review 9: „+ Sonderauftrag“ at an offer took neither customer nor service nor price."""
+        from physarum import billing
+        offers = [[f"A-26-{i:03d}", f"{i + 1:02d}.03.2026", f"Kunde {i % 6}" if i % 3 else f"Familie Neu {i}",
+                   f"Arbeiten {i}", f"{400 + 10 * i},00", "angenommen" if i % 2 else "offen"] for i in range(14)]
+        orders = [[f"AU-{i:03d}", f"{i + 3:02d}.03.2026", f"K{i % 6}", f"A-26-{i:03d}",  # the order's text as agreed
+                   f"Arbeiten {i}" + (" und Zusatz" if i % 4 == 1 else ""), f"{400 + 10 * i},00"] for i in range(1, 14, 2)]
+        self.f.feed([("Kunden.csv", csv("Kd.-Nr.;Name;Ort", [[f"K{i}", f"Kunde {i}", "Bielefeld"] for i in range(6)])),
+                     ("Angebote.csv", csv("Angebot;Datum;Interessent;Leistung;Preis netto;Status", offers)),
+                     ("Auftraege.csv", csv("Auftrag;Datum;Kd.-Nr.;Angebot;Leistung;Preis netto", orders))])
+        rt = self.f.rt()
+        order, offer = _type(rt, "Auftrag"), _type(rt, "Angebot")
+        link = next(a["id"] for a in order["attrs"] if a["kind"] == "ref" and a.get("ref") == offer["id"])
+        new = next(r for r in rt.records[offer["id"]] if r["data"][offer["key"]] == "A-26-010")
+        vals, _ = billing.derive(rt, order, {link: new["id"]})
+        names = {a["id"]: a["name"] for a in order["attrs"]}
+        shown = {names[k]: rt.title(v) if isinstance(v, int) else v for k, v in vals.items()}
+        self.assertEqual((shown.get("Leistung"), shown.get("Preis netto")), ("Arbeiten 10", 500.0))
+        self.assertIn("Kunde 4", shown.values())                                   # the prospect is a customer
+
     def test_mails_that_wait_for_an_answer(self):
         from email.message import EmailMessage
 

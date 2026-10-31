@@ -6,10 +6,13 @@ ihren Lieferungen und dem, was an jedem Liefertag wahr ist. Physarum wächst jed
 dieselben Dinge: S1 neutrale Dateinamen, S2 andere Spaltenüberschriften; die schnellen auch S3 (beides).
 
 ```bash
-python bench/run.py              # alle Firmen, auch als S1 und S2 (rund 6 Minuten)
+python bench/run.py              # alle Firmen, auch als S1 und S2 (rund 8 Minuten)
 python bench/run.py demo maler   # nur diese
 python bench/run.py --s0         # nur unter eigenen Namen: der schnelle Blick beim Arbeiten
 python bench/run.py --save       # das Ergebnis wird die neue Basis (bench/baseline.json)
+python bench/diff.py             # was der letzte Lauf geändert hat, Zelle für Zelle (--without FIRMA …)
+python bench/one.py catering S0  # eine Firma, eine Variante: eine JSON-Zeile
+python bench/keep.py catering /tmp/cat && python -m physarum /tmp/cat --port 8800   # ansehen
 ```
 
 | Firma | Woher | Was sie prüft |

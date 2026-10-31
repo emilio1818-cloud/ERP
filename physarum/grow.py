@@ -43,6 +43,11 @@ class Progress:
             self.cb(msg, frac)
 
 
+def _n(k: int, one: str, many: str) -> str:
+    """'1 Zeile', '3 Zeilen'"""
+    return f"{k} {one if k == 1 else many}"
+
+
 # --- ingestion -----------------------------------------------------------------------------------
 
 MAX_INGEST_BYTES = 600 * 1024 * 1024
@@ -83,13 +88,12 @@ def ingest(store: Store, files: list[tuple[str, bytes]], actor: str | None = Non
                 continue
             store.save_digest(sid, d, c)
         if progress:
-            what = []
+            what = [_n(len(d.docs), "Dokument", "Dokumente")] if d.docs else []
             if d.tables:
-                what.append(f"{sum(len(t.rows) for t in d.tables)} Zeilen in {len(d.tables)} Tabelle(n)")
-            if d.docs:
-                what.append(f"{len(d.docs)} Dokument(e)")
+                rows = _n(sum(len(t.rows) for t in d.tables), "Zeile", "Zeilen")
+                what.append(f"darin {rows}" if d.docs else rows + (f" in {len(d.tables)} Tabellen" if len(d.tables) > 1 else ""))
             if d.attachments and not d.docs:
-                what.append(f"{len(d.attachments)} Datei(en) darin – werden einzeln gelesen")
+                what.append(_n(len(d.attachments), "Datei", "Dateien") + " darin – werden einzeln gelesen")
             progress(f"{name}: " + (", ".join(what) or "kein lesbarer Inhalt"))
         out.append(dict(id=sid, name=name, new=True, tables=len(d.tables), docs=len(d.docs), notes=d.notes))
         mail_from = next((x.sender for x in d.docs if x.kind == "email"), None)  # an invoice attached to a mail
@@ -171,7 +175,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     raw = merge_versions(received_only(store, [t for t in raw_tables if not (t["meta"] or {}).get("report")]))
     cov["rows_versions"] = sum((t.get("versions") or {}).get("dropped", 0) for t in raw)
     del raw_tables
-    progress(f"Lese {len(raw)} Tabellen …", 0.05)
+    progress(f"Lese {_n(len(raw), 'Tabelle', 'Tabellen')} …", 0.05)
     observations: list[Obs] = []
     table_meta = {}
     by_name = {t["name"]: t["id"] for t in raw}
@@ -204,7 +208,6 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
             if parent is not None:
                 o.links = [(t["meta"].get("parent_key"), f"T{parent}")]
         observations.extend(normalize(o, log))
-    progress(f"{len(observations)} Beobachtungen nach dem Herauslösen eingebetteter Dinge", 0.25)
 
     dec_types = {}
     for subj, val in store.decisions("same_type").items():
@@ -213,7 +216,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
             dec_types[frozenset(pair)] = val
     asks: list[dict] = []
     types = unify(observations, dec_types, log, asks)
-    progress(f"{len(types)} Arten von Dingen erkannt: " + ", ".join(t.plural for t in types[:12]), 0.4)
+    progress(f"{_n(len(types), 'Liste', 'Listen')} erkannt: " + ", ".join(t.plural for t in types[:12]), 0.4)
 
     with store.tx() as c:
         _assign_ids(store, types, c)
@@ -233,7 +236,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     for t in types:
         protos = build_protos(t)
         groups[id(t)] = resolve(t, protos, ent_dec, questions, log, stale=stale)
-    progress("Dubletten geprüft", 0.5)
+    progress("Doppelte Einträge geprüft", 0.5)
     # the reward: how much of what came in is now part of the firm's picture
     used = {tuple(tl) for gs in groups.values() for g in gs for tl in g.lines}
     cov["rows_used"] = len(used)
@@ -257,7 +260,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     asks = [a for a in asks if not (a.get("kind") == "relation" and (id(a["rel"].src), id(a["rel"].attr)) in taken)]
     mindex = MentionIndex(types, groups)
     mrels = discover_mentions(types, groups, mindex, taken, log, refs=rels)
-    progress(f"{len(rels)} Verweise und {len(mrels)} Erwähnungen gefunden", 0.6)
+    progress(f"{_n(len(rels) + len(mrels), 'Verbindung', 'Verbindungen')} zwischen den Listen gefunden", 0.6)
 
     derived = _lookup_copies(types, groups, rels)
     model = _build_model(store, types, groups, rels, mrels, derived, table_meta, log)
@@ -266,7 +269,9 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     with store.tx() as c:
         stats = _materialize(store, model, types, groups, rels, mrels, docs, mindex, c, actor, table_time)
     stats["coverage"] = cov
-    progress(f"{stats['records']} Datensätze geschrieben ({stats['new']} neu, {stats['changed']} geändert)", 0.75)
+    extra = [x for x in (f"{stats['new']} neu" if 0 < stats["new"] < stats["records"] else "",
+                         f"{stats['changed']} geändert" if stats["changed"] else "") if x]
+    progress(f"{_n(stats['records'], 'Eintrag', 'Einträge')} übernommen" + (f" ({', '.join(extra)})" if extra else ""), 0.75)
 
     from .behavior import infer_behavior
     from .physarum import grow_network
@@ -277,7 +282,7 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
     _learn(model, "Abläufe", lambda: infer_processes(model, records, store))
     _learn(model, "Namen nach dem Geld", lambda: _named_by_money(model, renames))
     _learn(model, "Netzwerk", lambda: grow_network(model, store))
-    progress("Formeln, Abläufe und Rückgrat gelernt", 0.9)
+    progress("Berechnungen und Abläufe gelernt", 0.9)
 
     from .reconcile import find_matches
     mention_map = defaultdict(lambda: defaultdict(list))
@@ -302,8 +307,9 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         _learn(model, "Zahlungen nach Betrag", lambda: led.update(pay_ledger(model, records, mention_map, untrusted=untrusted)))
         done = {id(m) for m in booked}
         matches = [m for m in matches if id(m) not in done]
-    progress(f"{len(booked)} Zahlungen ohne Rechnungsnummer über Betrag und Zahler zugeordnet, "
-             f"{len(matches)} zur Bestätigung", 0.92)
+    if booked or matches:
+        progress(f"{_n(len(booked), 'Zahlung', 'Zahlungen')} ohne Rechnungsnummer über Betrag und Zahler zugeordnet"
+                 + (f", {len(matches)} zum Bestätigen" if matches else ""), 0.92)
 
     from .questions import collect_questions
     with store.tx() as c:
@@ -314,7 +320,8 @@ def regrow(store: Store, progress: Progress | None = None, actor: str = "Physaru
         _owner_names(store, model)
         store.save_model(model, summary, c)
         store.kv_set("dirty", False, c)
-    progress(f"Fertig in {time.time() - t0:.1f} s. {nq} offene Fragen.", 1.0)
+    progress(f"Fertig in {time.time() - t0:.1f} s.".replace(".", ",", 1)
+             + (f" {_n(nq, 'Frage', 'Fragen')} an Sie." if nq else ""), 1.0)
     return summary
 
 

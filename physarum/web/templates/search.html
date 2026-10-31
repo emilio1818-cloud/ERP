@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Suche{% endblock %}
 {% block content %}
-<div class="pagehead"><div><h1>Suche</h1><p>Durchsucht alle Arten von Dingen, auch E-Mails und PDFs.</p></div></div>
+<div class="pagehead"><div><h1>Suche</h1><p>Durchsucht alle Listen, auch E-Mails und PDFs.</p></div></div>
 <form action="/suche" class="toolbar"><input type="search" name="q" value="{{ q }}" autofocus placeholder="Name, Nummer, E-Mail, Ort …" style="max-width:560px"><button class="primary">Suchen</button></form>
 {% if q and not groups %}<div class="card"><p class="muted">Nichts gefunden für „{{ q }}“.</p></div>{% endif %}
 {% for g in groups %}

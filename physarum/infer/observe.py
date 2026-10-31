@@ -366,10 +366,9 @@ _EN_HEADERS = {
     "beguenstigter zahlungspflichtiger": "Zahlungspartner", "auftraggeber empfaenger": "Zahlungspartner",
     "empfaenger auftraggeber": "Zahlungspartner", "name zahlungsbeteiligter": "Zahlungspartner",
     "kontonummer iban": "IBAN", "iban zahlungsbeteiligter": "IBAN", "waehrung": "Währung",
-    "postal code": "PLZ", "postcode": "PLZ", "street": "Straße", "display name": "Name", "start": "Beginn",
+    "postcode": "PLZ", "display name": "Name", "start": "Beginn",
     "end": "Ende", "resource ids": "Mitarbeiter", "resources": "Mitarbeiter", "short": "Kürzel",
-    "created": "Erstellt am", "updated at": "Geändert am", "reference": "Bezug", "price estimate amount": "Schätzpreis",
-    "amount": "Betrag", "currency": "Währung", "customer": "Kunde", "notes": "Notizen", "title": "Titel",
+    "updated at": "Geändert am", "reference": "Bezug", "price estimate amount": "Schätzpreis", "currency": "Währung",
     # ticket systems, CRMs and time trackers export in English
     "id": "ID", "subject": "Betreff", "description text": "Beschreibung", "priority": "Priorität", "source": "Quelle",
     "resolved at": "Gelöst am", "closed at": "Geschlossen am", "first responded at": "Erste Antwort am",

@@ -801,6 +801,10 @@ class CraftFirm(unittest.TestCase):
                                                             "für die Klimaanlage.")),
                      ("danke.eml", mail("Kunde 4 <post@kunde4.example>", "Danke für die Wartung", date(2026, 10, 7),
                                         "Herr Dreier war gestern da und hat die Therme gewartet. Alles bestens.")),
+                     ("kuendigung4.eml", mail("Kunde 4 <post@kunde4.example>", "Kündigung zum Jahresende", date(2026, 10, 12),
+                                              "hiermit kündige ich den Wartungsvertrag für unser Haus zum 31.12.2026.")),
+                     ("urlaub.eml", mail("Kunde 0 <post@kunde0.example>", "Urlaub", date(2026, 10, 19),
+                                         "wie angekündigt sind wir vom 02.11. an für zwei Wochen nicht im Haus.")),
                      ("bank.eml", mail("Buchhaltung <buchhaltung@gh-nord-hamburg.example>", "WICHTIG: neue Bankverbindung",
                                        date(2026, 10, 20), "Bitte überweisen Sie ab sofort nur noch auf unsere neue "
                                                            "Bankverbindung DE12500105170648489890."))])
@@ -808,7 +812,10 @@ class CraftFirm(unittest.TestCase):
         work = rt.work(today)
         g = next(g for g in work if g["kind"] == "mail")
         got = {x["title"]: x for x in g["items"]}
-        self.assertEqual(set(got), {"AW: Zahlungserinnerung RE-2026-0004", "Kündigung", "Rohrbruch – Danke!"})
+        self.assertEqual(set(got), {"AW: Zahlungserinnerung RE-2026-0004", "Kündigung", "Rohrbruch – Danke!",
+                                    "Kündigung zum Jahresende"})
+        self.assertIn("WV-0104 zum 31.12.", got["Kündigung zum Jahresende"]["reason"])   # the one contract Kunde 4 has
+        # "wie angekündigt" from Kunde 0, who has one contract too, cancels nothing
         # not the thanks, not the paid one – and the new bank account not among the mails but on top, as a risk
         risk = next(g for g in work if g["kind"] == "risk")
         self.assertEqual([x["title"] for x in risk["items"]], ["WICHTIG: neue Bankverbindung"])

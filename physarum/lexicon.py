@@ -9,6 +9,9 @@ import re
 
 from .text import fold, tokens
 
+# a cancellation in folded text: "kündigen", "Kündigung", "gekündigt" – not "wie angekündigt", not "Ankündigung"
+CANCELS = re.compile(r"\b(?:ge)?kuendig")
+
 # concept -> singular, plural, compound stem, kind, terms (folded; prefix match for terms ending in '*')
 CONCEPTS: dict[str, dict] = {
     "kunde": dict(sg="Kunde", pl="Kunden", stem="Kunden", kind="master",

@@ -11,6 +11,7 @@ import statistics
 from collections import Counter, defaultdict
 from datetime import date, timedelta
 
+from .lexicon import CANCELS
 from .text import fold, tokens
 from .values import add_months, as_date, as_number, interval_months, next_occurrence, parse_duration, parse_period
 
@@ -547,7 +548,7 @@ def recurring_due(rule: dict, r: dict, visit: date | None = None) -> tuple[str, 
         ends.append(as_date(r["data"].get(rule["end"])))
     if rule.get("status"):
         m = re.search(r"(\d{1,2}\.\d{1,2}\.\d{2,4})", str(r["data"].get(rule["status"]) or ""))
-        if m and "kuendig" in fold(str(r["data"].get(rule["status"]))):
+        if m and CANCELS.search(fold(str(r["data"].get(rule["status"])))):
             ends.append(as_date(m.group(1)))
     if any(e and a > e for e in ends):
         return None  # the contract has ended before

@@ -693,7 +693,6 @@ _MAIL_WANTS_INVOICE = ("rechnung schicken", "schicken sie uns bitte die rechnung
                        "bitte die rechnung", "rechnung zusenden", "rechnung senden", "rechnung zukommen")
 _MAIL_WANTS_VISIT = ("termin machen", "termin vereinbaren", "bitte termin", "bitte einen termin", "terminvorschlag",
                      "jemanden schicken", "vorbeikommen", "vorbei kommen", "termin geben")
-_MAIL_CANCELS = ("kuendige", "kuendigen", "kuendigung", "gekuendigt")
 _PAID_CLAIM = re.compile(r"\b(?:bereits|schon|haben\s+(?:wir|ich)|wurde|ist)\b(?:[^.\n]|\.(?=\d)){0,60}?"
                          r"\b(?:ueberwiesen|bezahlt|beglichen)\b")
 _SOME_DAY = re.compile(r"\b(\d{1,2}\.\d{1,2}\.(?:\d{4}|\d{2})?)")
@@ -745,6 +744,18 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
                 if which == "order":
                     answers["ask"].setdefault(pv, []).append(d)  # an order answers an inquiry too
     from .pdfinvoice import _NEW_BANK
+    contracts_of: dict[int, list[int]] = defaultdict(list)  # a customer's running contracts
+    for t in model["types"]:
+        if concept[t["id"]] != "vertrag":
+            continue
+        p = procs.get(t["id"]) or {}
+        pa = p.get("party") or next((a["id"] for a in t["attrs"] if a["kind"] == "ref"
+                                     and concept.get(a.get("ref") or "") == "kunde"), None)
+        neg = set((p.get("status") or {}).get("negative") or [])
+        sa = (p.get("status") or {}).get("attr")
+        for r in records.get(t["id"], []) if pa else []:
+            if isinstance(r["data"].get(pa), int) and not (sa and str(r["data"].get(sa)) in neg):
+                contracts_of[r["data"][pa]].append(r["id"])
     invoices_of: dict[int, list[date]] = {}  # an invoice for that customer since: the asked-for invoice is written
     for t in model["types"]:
         if concept[t["id"]] == "rechnung" and not t.get("incoming"):
@@ -787,16 +798,19 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
         party = next((m for m in masters if concept[by_id[m]["type"]] == "kunde"), None) or \
             next((m for m in masters if concept[by_id[m]["type"]] != "mitarbeiter"), None)
         contract = next((to for to in refs if concept[by_id[to]["type"]] == "vertrag"), None)
+        if contract is None and party is not None and lexicon.CANCELS.search(text):
+            mine = contracts_of.get(party, [])  # "kündigen wir den Vertrag für den Standort Daimlerring 5": theirs
+            contract = mine[0] if len(mine) == 1 else None
         subj = fold(subject)
         if claims:
             day = next((m.group(1) for m in _SOME_DAY.finditer(text[_PAID_CLAIM.search(text).start():][:120])), None)
             what = "claim"
             reason = (f"sagt am {when.strftime('%d.%m.')}, {title(invoice)} sei {('am ' + _short_day(day) + ' ') if day else ''}"
                       f"bezahlt – im Kontoauszug ist keine Zahlung zu finden")
-        elif contract and any(w in text for w in _MAIL_CANCELS):
+        elif contract and lexicon.CANCELS.search(text):
             what = "cancel"
             to_day = re.search(r"\bzum\s+(\d{1,2}\.\d{1,2}\.(?:\d{4}|\d{2})?)", text)
-            noted = any("kuendig" in fold(str(v)) for v in by_id[contract]["data"].values() if isinstance(v, str))
+            noted = any(lexicon.CANCELS.search(fold(v)) for v in by_id[contract]["data"].values() if isinstance(v, str))
             reason = (f"Kündigung {title(contract)}" + (f" zum {_short_day(to_day.group(1))}" if to_day else "")
                       + (" – in Ihrer Vertragsliste schon eingetragen; schriftlich bestätigt?" if noted
                          else " – noch nicht in der Vertragsliste"))

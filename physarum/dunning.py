@@ -105,6 +105,9 @@ def record_sent(rt, party_rid: int, tid: str, actor: str, today: date | None = N
             old = data.get(st["attr"]) if st else None
             if dun and old != dun and str(old) not in (st.get("negative") or []):
                 data[st["attr"]] = dun  # the status follows the letter (a step of the payment process)
+                prev = meta.setdefault("w", {}).get(st["attr"])  # Physarum's own step: the next export of the
+                base = old if prev is None or prev[0] == "import" else (prev[2] if len(prev) > 2 else None)
+                meta["w"][st["attr"]] = ["auto", ts, base]  # old program, still saying "offen", does not undo it
                 c.execute("INSERT INTO changes(record_id,ts,actor,kind,attr,old,new,note) VALUES(?,?,?,?,?,?,?,?)",
                           (x["rid"], ts, actor, "edit", st["attr"], dumps(old), dumps(dun), f"{LEVELS[x['level']]} versendet"))
             c.execute("UPDATE records SET data=?, meta=?, updated_at=? WHERE id=?", (dumps(data), dumps(meta), ts, x["rid"]))

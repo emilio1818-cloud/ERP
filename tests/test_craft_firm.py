@@ -734,6 +734,11 @@ class CraftFirm(unittest.TestCase):
         later = today + timedelta(days=dunning.WAIT)
         self.assertIn("RE-0021", [x["title"] for g in rt.work(later) if g["kind"] == "overdue" for x in g["items"]])
         self.assertEqual([x["level"] for x in dunning.overdue_of(rt, who["RE-0021"], inv["id"], later)], [2])
+        status = next(a["id"] for a in inv["attrs"] if a["name"] == "Status")
+        self.assertEqual(rt.by_id[overdue["RE-0021"]["rid"]]["data"][status], "gemahnt")
+        self.f.feed([("Rechnungen Export neu.csv", csv("Rechnungsnr;Datum;Kunde;Brutto;fällig am;Status", rows))])
+        rt = self.f.rt()                                       # the old program's next export still says "offen":
+        self.assertEqual(rt.by_id[overdue["RE-0021"]["rid"]]["data"][status], "gemahnt")   # the letter stands
 
     def test_mails_that_wait_for_an_answer(self):
         from email.message import EmailMessage

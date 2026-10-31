@@ -82,7 +82,7 @@ def coverage(rt) -> dict:
                 ex = ", ".join(f"„{k}“" for k, _ in examples.most_common(2))
                 dp = dative_plural(dst.get("plural", "Einträge"))
                 gaps.append(dict(weight=n_raw, href=f"/t/{spec['id']}",
-                                 text=f"{n_raw} {spec['plural']} nennen bei „{a['name']}“ etwas, das es unter den "
+                                 text=f"{n_raw} {spec['name'] + ' nennt' if n_raw == 1 else spec['plural'] + ' nennen'} bei „{a['name']}“ etwas, das es unter den "
                                       f"{dp} nicht gibt (z. B. {ex})",
                                  hint=f"Eine Liste mit diesen {dp} einwerfen – dann verbinden sie sich."))
     if total:

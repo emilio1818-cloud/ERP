@@ -539,7 +539,7 @@ class OrderNamesItsInvoice(unittest.TestCase):
         self.assertIn(f"/r/{rid}", self.client.get("/").text)                    # Heute: "Entwurf öffnen", no 2nd draft
         with self.assertRaises(billing.BillingError) as e:
             billing.issue(rt, rid, "Test")                                       # the old program numbered so far
-        self.assertIn("Ab jetzt schreiben Sie Rechnungen hier", str(e.exception))
+        self.assertIn("Ab jetzt schreibe ich Rechnungen hier", str(e.exception))
         number = billing.issue(rt, rid, "Test", here_ok=True)
         self.assertEqual(number, "2026-0020")                                    # after the last one of the book
         self.assertEqual(self.store.decisions("invoicing").get(tid), "hier")

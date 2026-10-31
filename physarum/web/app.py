@@ -547,7 +547,8 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                                   if isinstance(r["data"].get(qty["id"]), (int, float))
                                   and isinstance(r["data"].get(per_piece[0]["id"]), (int, float))), 2)
                 total_attr = dict(name=f"Summe (Menge × {per_piece[0]['name']})", currency=per_piece[0].get("currency"))
-            label = s2["plural"] if kind == "ref" else (f"Erwähnt in {s2['plural']}" if attr != "doc" else "Erwähnt in Dokumenten")
+            label = s2["plural"] if kind == "ref" else (f"Erwähnt in {lexicon.dative_plural(s2['plural'])}" if attr != "doc"
+                                                        else "Erwähnt in Dokumenten")
             shown = recs[:100] if lines else recs[:10]  # an invoice's positions in full; of 34 invoices the newest
             related.append(dict(spec=s2, attr=attr, kind=kind, recs=shown, n=len(recs), cols=cols, rel=relid,
                                 cond=cond.get(relid, 0.5 if kind == "ref" else 0.3), label=label, total=total,
@@ -741,10 +742,12 @@ def create_app(folder: str | Path, hosts: set[str] | None = None, any_ip: bool =
                         d = as_date(rt.by_id.get(x, {}).get("data", {}).get(s["attr"]))
                         if d and (when is None or d < when):
                             when, via = d, x
+            e = rt.ledger.get(rec["id"])
+            if e and fold(st["label"]) == "bezahlt":  # paid is what the money says, not its first transfer
+                when, via = (e["paid_date"], None) if e["state"] in ("bezahlt", "überzahlt", "verrechnet") else (None, None)
             dl = due_by_step.get(st["id"])
             due = as_date(data.get(dl["attr"])) if dl else None
             due_how = None
-            e = rt.ledger.get(rec["id"])
             if dl and not due and e and e.get("due_attr") == dl["attr"]:
                 due, due_how = e["due"], e["due_how"]  # the book has no due date: reckoned, and said so
             sattr = (proc.get("status") or {}).get("attr")

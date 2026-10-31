@@ -39,7 +39,7 @@
         {{ field(a, data.get(a.id), 'a_' ~ a.id, options) }}
         {% endif %}
         {% if hints and hints.get(a.id) %}<span class="hint">{{ hints[a.id] }}</span>
-        {% elif not (readonly and a.id in readonly) %}{% for f in formulas if f.attr == a.id %}<span class="hint">= {{ f.text.split(' = ', 1)[1] }}</span>{% endfor %}{% endif %}
+        {% elif not (readonly and a.id in readonly) %}{% for f in formulas if f.attr == a.id %}<span class="hint">{{ ('= ' ~ f.text.split(' = ', 1)[1]) if ' = ' in f.text else f.text }}</span>{% endfor %}{% endif %}
       </div>
       {% endfor %}
     </div>

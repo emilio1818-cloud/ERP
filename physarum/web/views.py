@@ -27,8 +27,12 @@ def fmt(rt, attr: dict, value, link: bool = True, short: bool = False) -> Markup
     k = attr["kind"]
     if k == "ref":
         if isinstance(value, int) and value in rt.by_id:
-            t = escape(rt.title(value))
-            return Markup(f'<a href="/r/{value}">{t}</a>') if link else Markup(t)
+            target = rt.by_id[value]
+            key = (rt.spec(target["type"]) or {}).get("key")
+            # a column of numbers ("Kd.-Nr.") shows the number it holds, linked to its record
+            shown = target["data"].get(key) if attr.get("role") == "id" and key and target["data"].get(key) else None
+            t = escape(str(shown) if shown is not None else rt.title(value))
+            return Markup(f'<a href="/r/{value}" title="{escape(rt.title(value))}">{t}</a>') if link else Markup(t)
         return Markup(f'{escape(str(value))} <span class="tag" title="Nicht verknüpft">?</span>')
     if k == "email":
         return Markup(f'<a href="mailto:{escape(value)}">{escape(value)}</a>') if link else Markup(escape(value))

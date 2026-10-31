@@ -45,5 +45,6 @@ Sollten Sie die Zahlung inzwischen veranlasst haben, betrachten Sie dieses Schre
 {% else %}
 <p class="muted">Keine überfällige Rechnung{% if held %} ohne Reklamation{% endif %} – nichts zu erinnern.</p>
 {% endif %}
+{% if company.register or company.manager or company.vat_id or company.tax_no %}<p style="margin-top:40px; padding-top:8px; border-top:1px solid #ccc; font-size:.75rem; color:#555">{{ company.name }}{% if company.register %} · {{ company.register }}{% endif %}{% if company.manager %} · Geschäftsführung: {{ company.manager }}{% endif %}{% if company.vat_id %} · USt-IdNr. {{ company.vat_id }}{% elif company.tax_no %} · Steuernummer {{ company.tax_no }}{% endif %}</p>{% endif %}
 <script src="/static/app.js"></script>
 </body></html>

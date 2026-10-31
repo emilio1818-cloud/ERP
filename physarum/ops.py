@@ -578,7 +578,8 @@ def record_payment(rt, rid: int, amount, when: str | None, how: str, actor: str)
         raise OpError("Hier lässt sich keine Zahlung eintragen")
     value = parse_number(amount) if isinstance(amount, str) else amount
     if not isinstance(value, (int, float)) or isinstance(value, bool):
-        raise OpError("Bitte einen Betrag angeben")
+        raise OpError(f"„{amount}“ ist kein Betrag – bitte so schreiben: 1059,10" if str(amount or "").strip()
+                      else "Bitte einen Betrag angeben")
     value = round(float(value), 2)
     if value <= 0:
         raise OpError("Der Betrag muss größer als null sein")

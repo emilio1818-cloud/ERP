@@ -105,6 +105,16 @@ class Payments(unittest.TestCase):
         self.assertEqual(e["state"], "überzahlt")
         self.assertTrue(any("doppelt" in n for n in e["notes"]))
 
+    def test_the_record_page_follows_the_money(self):
+        """Review 9: a part-paid invoice showed "bezahlt" as done and offered no reminder; a paid one offered it."""
+        from starlette.testclient import TestClient
+        from physarum.web.app import create_app
+        c = TestClient(create_app(self.tmp / "firma"))
+        part, paid = c.get(f"/r/{self.e(30)['rid']}").text, c.get(f"/r/{self.e(3)['rid']}").text
+        self.assertEqual(self.e(30)["state"], "teilbezahlt")
+        self.assertIn("Zahlungserinnerung", part)
+        self.assertNotIn("Zahlungserinnerung", paid)
+
     def test_chargeback_reopens(self):
         self.assertEqual(self.e(33)["state"], "offen")
 

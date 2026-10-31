@@ -274,7 +274,7 @@
     {% if src_files %}<p class="muted" style="font-size:.86rem">Aus: {% for s in src_files %}<a href="/quellen/{{ s.id }}/datei">{{ s.name }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
     <ul class="history">
       {% for c in changes %}
-      <li><span class="faint">{{ ago(c.ts) }}</span> · <b>{{ c.actor }}</b>:
+      <li><span class="faint">{{ ago(c.ts) }}</span> · <b>{{ c.source.name if c.kind == 'import' and c.source else c.actor }}</b>:
         {% if c.attr %}{{ c.attr.name }} {% if c.old is not none %}<span class="faint">{{ fmt(c.attr, c.old, link=False, short=True) }}</span> → {% endif %}{{ fmt(c.attr, c.new, link=False, short=True) }}{% if c.note %} <span class="faint">({{ c.note }})</span>{% endif %}
         {% else %}{{ c.note }}{% endif %}
         {% if c.kind in ('auto',) %}<span class="tag calc">automatisch</span>{% elif c.kind == 'storno' %}<span class="tag lock">Storno</span>{% elif c.kind == 'merge' %}<span class="tag guess">zusammengeführt</span>{% elif c.kind == 'conflict' %}<span class="tag guess">abweichend</span>{% elif c.kind == 'issue' %}<span class="tag lock">ausgestellt</span>{% endif %}

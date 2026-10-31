@@ -353,7 +353,7 @@ def recipient(rt, party_rid: int | None) -> dict:
                 # BT-10: a public buyer is reached by its Leitweg-ID (E-Rechnungsverordnung)
                 leitweg=next((str(d[a["id"]]).strip() for a in cs["attrs"] if "leitweg" in fold(a["name"])
                               and d.get(a["id"])), None),
-                salutation=salutation(cs, d, rt.title(cust["id"])))
+                salutation=salutation(cs, d, rt.title(cust["id"]), role("person")))
 
 
 _COUNTRIES = {"deutschland": "DE", "germany": "DE", "oesterreich": "AT", "austria": "AT", "schweiz": "CH",
@@ -382,12 +382,16 @@ _SALUTE = {"herr": "Sehr geehrter Herr", "hr": "Sehr geehrter Herr", "herrn": "S
            "fam": "Sehr geehrte Familie", "eheleute": "Sehr geehrte Familie"}
 
 
-def salutation(spec: dict, data: dict, name: str) -> str:
+def salutation(spec: dict, data: dict, name: str, person: str | None = None) -> str:
     """"Sehr geehrter Herr Schulze," – only where the customer list says "Herr" (a first name says nothing about
-    how someone wants to be addressed); a firm, or nothing said, is "Damen und Herren"."""
+    how someone wants to be addressed), or the firm's contact is written so ("Herr Bellini"); a firm without
+    one, or nothing said, is "Damen und Herren"."""
     anrede = next((str(data[a["id"]]) for a in spec["attrs"] if words(a["name"]) & {"anrede", "salutation", "titel"}
                    and isinstance(data.get(a["id"]), str)), "")
     lead = _SALUTE.get(fold(anrede).strip(" ."))
+    who = (person or "").split()
+    if not lead and len(who) >= 2 and _SALUTE.get(fold(who[0]).strip(" .")) and fold(who[0]).strip(" .") not in ("familie", "fam"):
+        return f"{_SALUTE[fold(who[0]).strip(' .')]} {' '.join(who[1:])},"  # "Frau Pastorin Lehnhoff"
     if not lead:
         return "Sehr geehrte Damen und Herren,"
     surname = next((str(data[a["id"]]) for a in spec["attrs"] if words(a["name"]) & {"nachname", "name1", "familienname",
@@ -625,9 +629,9 @@ def issue_problems(rt, spec: dict, rec: dict, delivery=None, tax_note: str | Non
         out.append("ein Status, der nicht „storniert“ ist")
     others = other_invoices(rt, spec, rec)
     if others and not extra_ok:
-        out.append(f"Bestätigung: Zu diesem Auftrag gibt es schon {', '.join(others)}")
+        out.append(f"Häkchen bei „trotzdem eine weitere Rechnung“ – zu diesem Auftrag gibt es schon {', '.join(others)}")
     if handover(rt, spec) and not here_ok:
-        out.append("Bestätigung: Ab jetzt schreiben Sie Rechnungen hier, nicht mehr im alten Programm")
+        out.append("Häkchen bei „Ab jetzt schreibe ich Rechnungen hier“ – sonst vergibt das alte Programm dieselbe Nummer")
     return out
 
 

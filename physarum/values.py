@@ -874,7 +874,8 @@ _PERIOD_NUM = re.compile(r"^(\d{1,2})\s*/\s*(\d{4})$")
 _PERIOD_TXT = re.compile(r"^([a-zäöü]+)\.?\s+(\d{4})$", re.I)
 _PERIOD_KW = re.compile(r"^(?:kw|kalenderwoche|woche|wk|cw|week)\s*\.?\s*(\d{1,2})\s*(?:[/.-]\s*|\s+)(\d{4})$", re.I)
 _PERIOD_Q = re.compile(r"^(?:q\s*([1-4])|([1-4])\s*\.\s*quartal)\s*(?:[/.-]\s*|\s+)?(\d{4})$", re.I)
-_PERIOD_SPAN = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{4})?\s*(?:[-–—]|bis)\s*(\d{1,2})\.(\d{1,2})\.(\d{4})$", re.I)
+_PERIOD_SPAN = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{2}(?:\d{2})?)?\s*(?:[-–—]|bis)\s*(\d{1,2})\.(\d{1,2})\.(\d{2}(?:\d{2})?)$",
+                          re.I)
 
 
 def _month_span(y: int, mo: int) -> tuple[date, date]:
@@ -889,7 +890,7 @@ def parse_period(v) -> tuple[date, date] | None:
     if v is None or isinstance(v, (int, float)):
         return None
     s = " ".join(str(v).strip().split())
-    if not s or len(s) > 24:
+    if not s or len(s) > 30:  # "01.07.2026 bis 30.09.2026"
         return None
     try:
         m = _PERIOD_KW.match(s)
@@ -902,8 +903,10 @@ def parse_period(v) -> tuple[date, date] | None:
             return _month_span(y, 3 * q - 2)[0], _month_span(y, 3 * q)[1]
         m = _PERIOD_SPAN.match(s)
         if m:
-            b = date(int(m.group(6)), int(m.group(5)), int(m.group(4)))
-            a = date(int(m.group(3) or b.year), int(m.group(2)), int(m.group(1)))
+            def year(g):  # "30.09.26"
+                return int(g) + 2000 if len(g) == 2 else int(g)
+            b = date(year(m.group(6)), int(m.group(5)), int(m.group(4)))
+            a = date(year(m.group(3)) if m.group(3) else b.year, int(m.group(2)), int(m.group(1)))
             if a > b and not m.group(3):
                 a = a.replace(year=b.year - 1)  # "15.12.–14.01.2027"
             return (a, b) if a <= b and (b - a).days <= 400 and 1900 < a.year and b.year < 2200 else None

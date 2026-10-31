@@ -636,7 +636,7 @@ def received_twice(model: dict, records: dict, outrefs: dict) -> dict[int, list[
 
 
 _KEYLIKE = re.compile(r"\b[A-Z]{1,4}-?\d{2,4}-\d{2,5}\b|\b[A-Z]{1,3}\d{2}-\d{3,4}\b")
-_OWN_MOVES = ("umbuchung", "uebertrag", "kontouebertrag", "eigene", "sparbuch", "tagesgeld")
+_OWN_MOVES = ("umbuchung", "uebertrag", "kontouebertrag", "eigene", "sparbuch", "tagesgeld", "bareinzahlung")
 
 
 def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict, today: date,
@@ -698,10 +698,11 @@ def unexplained_receipts(model: dict, records: dict, ledger: dict, titles: dict,
                     or (today - when).days > days or when > today or r["id"] in used or r["id"] in (pending or ()):
                 continue
             text = str(r["data"].get(b["text"]["id"]) or "") if b["text"] else ""
+            words = fold(" ".join(str(r["data"].get(a["id"]) or "") for a in b["spec"]["attrs"] if a["kind"] == "text"))
             who = who_of(b, r)
             mine = {norm(n) for n in own or ()}
             selves = sum(1 for v in r["data"].values() if isinstance(v, str) and mine and is_own(v, mine))
-            if any(w in fold(text) for w in _OWN_MOVES) or (mine and who and is_own(str(who), mine)) or selves >= 2:
+            if any(w in words for w in _OWN_MOVES) or (mine and who and is_own(str(who), mine)) or selves >= 2:
                 continue  # money from the firm to the firm: between its accounts, its collective debit, its cash
             if payer(b, r) in regular:
                 continue  # comes every week or month and never pays an invoice: a known income

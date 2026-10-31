@@ -785,14 +785,15 @@ def _mail_work(model: dict, records: dict, by_id: dict, title, today: date, outr
                         and not specs[by_id[to]["type"]].get("incoming")), None)
         entry = (ledger or {}).get(invoice) if invoice else None
         claims = bool(entry and entry["state"] in ("offen", "überfällig", "teilbezahlt") and _PAID_CLAIM.search(text))
-        if (today - when).days > _MAIL_DAYS and not claims:
-            continue  # an old mail – unless it says an invoice is paid that still is not
-        if _NEW_BANK.search(body) or _NEW_BANK.search(subject):
+        old = (today - when).days > _MAIL_DAYS
+        if _NEW_BANK.search(body) or _NEW_BANK.search(subject):  # holds the open invoices however old it is
             items.append(dict(rid=d["id"], title=subject or "E-Mail", party=None, days=(today - when).days, money=None,
-                              mail="bank", act=None, when=when.isoformat(),
+                              mail="bank", act=None, when=when.isoformat(), old=old,
                               reason=f"kündigt am {when.strftime('%d.%m.')} eine neue Bankverbindung an – vor jeder "
                                      f"Zahlung beim bekannten Ansprechpartner anrufen, nicht unter der Nummer aus der Mail"))
             continue
+        if old and not claims:
+            continue  # an old mail – unless it says an invoice is paid that still is not
         if any(concept[by_id[m]["type"]] == "lieferant" for m in masters):
             continue  # a supplier's mail is about our purchase, not a customer's wish (risks are checked elsewhere)
         party = next((m for m in masters if concept[by_id[m]["type"]] == "kunde"), None) or \
@@ -892,7 +893,7 @@ def _announced(mails: list[dict], risks: list[dict], model: dict, records: dict,
         invs = still_open(invs)
         own = next((x for x in risks if x["rid"] == m["rid"]), None)
         new = [rid for rid in invs if all(x["rid"] != rid for x in risks)]  # else in doubt for its own account
-        if not invs and own is None:
+        if not invs and own is None and not m.get("old"):  # an old one only for what is still open
             risks.append(dict(m, partner=None, mail=m["rid"]))
         if not new:
             continue
@@ -1626,7 +1627,8 @@ def _period_work(model, records, by_id, title, today, outrefs, void) -> list[dic
                         a <= (as_date(u["data"].get(up["start"]["attr"])) or date.min) < b for a, b in spans)]
             usual = statistics.median(_money(r, ip) or 0 for a, b, d, r in rows)
             items += [dict(rid=u["id"], title=title(u["id"]), days=(today - missing[0]).days, money=_money(u, procs[u["type"]]),
-                           period=True, reason=f"{title(c)} {when} – noch ohne Rechnung") for u in waiting] or \
+                           period=True, case=c,  # the invoice is the contract's ("+ Rechnung" opens it from there)
+                           reason=f"{title(c)} {when} – noch ohne Rechnung") for u in waiting] or \
                 [dict(rid=c, title=title(c), days=(today - missing[0]).days, money=round(usual * len(missing), 2),
                       party=title(pv) if isinstance(pv := case["data"].get(p.get("party")), int) and pv in by_id else None,
                       period=True, reason=f"{when} ohne Rechnung")]

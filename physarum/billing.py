@@ -595,7 +595,9 @@ def other_invoices(rt, spec: dict, rec: dict) -> list[str]:
                 m.get("storno_by") or str(r["data"].get(st.get("attr"))) in (st.get("negative") or []):
             continue
         out.append(str(r["data"].get(spec["key"]) or f"#{r['id']}"))
-    return out if len(out) == 1 else []
+    case = rt.by_id.get(oid)
+    series = ((rt.spec(case["type"]) or {}).get("concept") == "vertrag" if case else False) or len(out) >= 3
+    return [] if series else out  # a contract, or a case billed again and again: billed period by period
 
 
 TAX_NOTES = {

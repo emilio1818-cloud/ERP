@@ -197,6 +197,27 @@ class ContractPeriods(unittest.TestCase):
         self.assertEqual(re.search(r'name="a_%s"[^>]*value="([^"]*)"' % a["Zeitraum"], r.text).group(1), "0007")
 
 
+class FurtherInvoice(unittest.TestCase):
+    def test_a_third_invoice_for_one_order_is_asked_about_too(self):
+        from physarum.demo.generate import generate
+        f = Firm()
+        self.addCleanup(f.close)
+        res = generate(f.dir / "dump")
+        f.feed([(p.name, p.read_bytes()) for p in res["initial"]])
+        f.store.kv_set("company_profile", COMPANY)
+        rt = f.rt()
+        inv, order = _type(rt, "Rechnung"), _type(rt, "Auftrag")
+        oref = next(a for a in inv["attrs"] if a["name"] == "Auftrag")
+        billed = {r["data"].get(oref["id"]) for r in rt.records[inv["id"]]}
+        oid = next(r["id"] for r in rt.records[order["id"]] if r["id"] not in billed)
+        for _ in range(2):
+            rid = ops.create(f.rt(), inv["id"], {oref["id"]: str(oid)}, "T")
+            billing.issue(f.rt(), rid, "T", delivery="2026-10-01", extra_ok=True, here_ok=True)
+        third = ops.create(f.rt(), inv["id"], {oref["id"]: str(oid)}, "T")
+        rt = f.rt()
+        self.assertEqual(len(billing.other_invoices(rt, inv, rt.store.record(third))), 2)   # not only after one
+
+
 def mail(sender, subject, body, when):
     m = EmailMessage()
     m["From"], m["To"], m["Subject"] = sender, "buero@muster.example", subject
@@ -206,7 +227,7 @@ def mail(sender, subject, body, when):
 
 
 class AnnouncedAccount(unittest.TestCase):
-    def firm(self, body):
+    def firm(self, body, days=2):
         f = Firm()
         self.addCleanup(f.close)
         sup = [["L-1", "Brotzeit Großhandel GmbH", "buchhaltung@brotzeit-gh.de", "DE89370400440532013000"],
@@ -223,7 +244,7 @@ class AnnouncedAccount(unittest.TestCase):
                 ("Eingangsrechnungen.csv", csv("Rechnungsnr;Datum;Lieferant;Betrag;Fällig am", rows)),
                 ("Konto.csv", csv("Buchungstag;Verwendungszweck;Zahlungspartner;Betrag;IBAN", bank)),
                 ("neue_bank.eml", mail("Brotzeit Großhandel GmbH <buchhaltung@brotzeit-gh.de>", "Wichtig: neue Bankverbindung",
-                                       body, TODAY - timedelta(days=2)))])
+                                       body, TODAY - timedelta(days=days)))])
         rt = f.rt()
         inv = next(t for t in rt.model["types"] if t.get("incoming"))
         no = {r["id"]: r["data"].get(inv["key"]) for r in rt.records[inv["id"]]}
@@ -235,6 +256,11 @@ class AnnouncedAccount(unittest.TestCase):
     def test_a_mail_without_number_holds_the_suppliers_open_invoices(self):
         risk, open_l1 = self.firm("Sehr geehrte Damen und Herren,\nbitte beachten Sie unsere neue Bankverbindung: "
                                   "LT12 1000 0111 0100 1000. Bitte überweisen Sie ab sofort nur noch dorthin.\nMfG")
+        self.assertTrue(open_l1 and open_l1 <= risk)
+
+    def test_an_old_mail_still_holds_what_is_open(self):
+        risk, open_l1 = self.firm("Sehr geehrte Damen und Herren,\nbitte beachten Sie unsere neue Bankverbindung: "
+                                  "LT12 1000 0111 0100 1000. Bitte überweisen Sie ab sofort nur noch dorthin.\nMfG", days=45)
         self.assertTrue(open_l1 and open_l1 <= risk)
 
     def test_a_mail_naming_a_paid_invoice_still_holds_the_open_ones(self):

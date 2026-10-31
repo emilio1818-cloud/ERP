@@ -366,6 +366,7 @@ _EN_HEADERS = {
     "beguenstigter zahlungspflichtiger": "Zahlungspartner", "auftraggeber empfaenger": "Zahlungspartner",
     "empfaenger auftraggeber": "Zahlungspartner", "name zahlungsbeteiligter": "Zahlungspartner",
     "kontonummer iban": "IBAN", "iban zahlungsbeteiligter": "IBAN", "waehrung": "Währung",
+    "glaeubiger id": "Gläubiger-ID", "bic swift code": "BIC", "auslagenersatz ruecklastschrift": "Auslagenersatz Rücklastschrift",
     "postcode": "PLZ", "display name": "Name", "start": "Beginn",
     "end": "Ende", "resource ids": "Mitarbeiter", "resources": "Mitarbeiter", "short": "Kürzel",
     "updated at": "Geändert am", "reference": "Bezug", "price estimate amount": "Schätzpreis", "currency": "Währung",

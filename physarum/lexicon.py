@@ -157,6 +157,7 @@ ROLE_PHRASES: dict[str, str] = {
     "fulfillment status": "status", "financial status": "status", "payment status": "status",
     "lineitem price": "money", "lineitem quantity": "quantity", "lineitem name": "name",
     "billing name": "name", "shipping city": "city", "e mail": "email", "kontonummer iban": "iban",
+    "swift code": "bic",
     "beguenstigter zahlungspflichtiger": "name", "auftraggeber empfaenger": "name", "buchungstext": "category",
     "preis kg": "money", "summe eur": "money", "vk netto": "money", "created at": "date", "fulfilled at": "date",
     "customer since": "date", "bezahlt am": "date", "geliefert am": "date", "eingang am": "date",

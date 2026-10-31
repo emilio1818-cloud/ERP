@@ -432,6 +432,7 @@ def ledger(model: dict, records: dict, mention_refs: dict, today: date | None = 
                                     credit=0.0, credits=[], credit_to=None, due=due, due_how=due_how,
                                     due_attr=rule["attr"] if rule else None)
             if surplus:
+                entries[r["id"]]["surplus"] = round(surplus, 2)  # owed to the customer: a credit on its account
                 entries[r["id"]]["notes"].append(f"Guthaben {fmt_eur(surplus)}: die Vorauszahlungen übersteigen den Betrag")
         # the PDF the customer got says what is owed when the book says something else (a typo in the list)
         for inv, (d, total) in _documents(records, by_no).items():

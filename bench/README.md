@@ -32,11 +32,16 @@ python bench/keep.py catering /tmp/cat && python -m physarum /tmp/cat --port 880
 
 Gemessen wird je Lieferung: offene Posten (richtig/zu viel/fehlend, Euro), überfällige Rechnungen,
 fertige Aufträge ohne Rechnung, Festpreis-Projekte deutlich über Budget, Geld ohne Rechnung, Einträge auf
-Heute, Fragen (davon zum Datenmodell). Unter S1–S3 zudem, in jeder Lieferung: dieselben offenen Posten wie im
-Original, und heißen die Listen gleich?
+Heute, Fragen (davon zum Datenmodell) und „Geld erklärt“: welcher Anteil des Kontogelds (Summe der Beträge) durch
+einen Vorgang erklärt ist – eine Zahlung auf eine Rechnung, eine Sollstellung, eine eigene Bewegung. Dieses Maß braucht
+keine Wahrheit. Zusammengefasst wird „Geld richtig“ zweimal: über alle offenen Posten aller Firmen und als Mittel je
+Firma, damit eine Firma mit vielen Posten nicht allein entscheidet. Unter S1–S3 zudem, in jeder Lieferung: dieselben
+offenen Posten wie im Original, und heißen die Listen gleich?
 Dazu, was der Code kostet: Zeilen, Wort-Regeln (eine Bedingung, die ein Wort oder eine Wortliste prüft),
 reguläre Ausdrücke. „Listen gleich benannt“ misst nur, ob die Namen unter S1–S3 gleich bleiben, nicht ob sie
 gut sind.
 
-Die Regel: Ein Fund wird nur behoben, wenn die Lösung auf mindestens zwei Firmen greift und keine
-Kennzahl einer anderen Firma schlechter macht. Sonst ist er eine dokumentierte Grenze.
+Die Regel: Jede neue Bedingung auf Zellinhalte (Wortliste, Schwelle, Sonderfall) braucht mindestens zwei Firmen,
+bei denen sie messbar wirkt, und darf keine Kennzahl einer anderen Firma verschlechtern; ausgenommen sind nur Leser
+dokumentierter Standardformate und Absturzfehler. Sonst ist der Fund eine dokumentierte Grenze. Regeln, die nur bei
+einer Firma wirken, stehen auf Bewährung (`docs/KONZEPT.md`, Abschnitt 8.4).

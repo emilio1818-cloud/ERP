@@ -29,6 +29,8 @@ class Runtime:
         self.outrefs: dict[int, list] = {}
         self.pending_payments: dict[int, dict] = {}
         self.ledger: dict[int, dict] = {}
+        self.claims: dict[str, dict] = {}
+        self.claim_lines: set = set()
         self._work = None
         self._work_key = None
         self._net_at = 0.0
@@ -89,6 +91,12 @@ class Runtime:
                 self.ledger = ledger(self.model, self.records, self.mentions, untrusted=self.untrusted, by_amount=by_amount)
             except Exception:  # noqa: BLE001 - the pages must open even if the ledger cannot be built
                 self.ledger = {}
+            from .claims import recurring_claims
+            try:
+                res = recurring_claims(self.model, self.records, self.ledger)
+                self.claims, self.claim_lines = res["claims"], res["lines"]
+            except Exception:  # noqa: BLE001
+                self.claims, self.claim_lines = {}, set()
             apply_to_records(self.model, self.records, self.ledger)
             from .process import stock_now
             for rid, v in stock_now(self.model, self.records).items():
@@ -143,7 +151,7 @@ class Runtime:
         own = {n for n in (company(self.store).get("name"), guess_company(self).get("name")) if n}
         work = compute_work(self.model, self.active_records(), self.mentions, today, self.outrefs, self.titles,
                             pending_payments=pending, ledger=self.ledger,
-                            mails_done=set(self.store.decisions("mail_done")), own=own)
+                            mails_done=set(self.store.decisions("mail_done")), own=own, claims=self.claims, claim_lines=self.claim_lines)
         work += self.integrity()
         work += self.mail_payments()
         changed = self.bank_changes(today)

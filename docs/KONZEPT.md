@@ -64,6 +64,8 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - **Struktur aus Kompression:** Was in den Daten steckt, wird zum Modell.
 - **Relevanz aus Fluss:** Was benutzt wird und wo Geld und Fristen fließen, wird sichtbar.
 
+Für das Geld lässt sich der zweite Term direkt messen: Welcher Anteil des Kontogelds ist durch einen Vorgang erklärt (eine Rechnung, eine Sollstellung, eine Umbuchung)? Der Prüfstand zeigt ihn seit Runde 11 als „Geld erklärt“. Er braucht keine Wahrheit, also könnte jede Firma ihn für sich selbst sehen. Über die zwölf Prüffirmen liegt er bei einem Drittel: 57 % bei der Agentur, 15 % beim Verein. Was unerklärt bleibt, ist der nächste Hunger.
+
 ## 4. Prinzipien
 
 1. **Einwerfen statt Einrichten.** Es gibt eine Drop-Zone und keine Konfiguration.
@@ -115,13 +117,20 @@ Neben der Kompression wirkt eine zweite Kraft, wie beim Schleimpilz:
 - **Der Kontoauszug schließt Rechnungen von selbst.** Verweise werden auch in Freitext gefunden, etwa „RE-2026-0412“ im Verwendungszweck.
 - **Bezahlt ist, was das Geld sagt, nicht wie die Spalte heißt.** Der Kontoauszug wird an seinen Spalten erkannt (IBAN oder Verwendungszweck, Betrag, Buchungstag), nicht am Dateinamen. Ein Schritt, den Kontobuchungen belegen, ist „bezahlt“. Eine eigene Datumsspalte, die mit diesen Buchungen übereinstimmt, ist das Zahldatum, ob sie „Bezahlt am“ heißt oder „Ausgeglichen am“. Eine Liste, die der Kontoauszug bezahlt, ist eine Rechnung, und was auf sie verweist, ist „berechnet“. Sagt der Dateiname nichts („export (5).csv“), heißt die Liste nach ihrer Nummernspalte („Beleg-Nr“ – Belege) oder nach dem, was das Geld mit ihr macht (Rechnungen, Kontobewegungen), und ist dann in jeder Hinsicht eine Rechnung: Nummernkreis, Druck, E-Rechnung, Steuerberater-Export. Der Prüfstand rechnet dieselben Firmen unter anderen Datei- und Spaltennamen; die offenen Posten bleiben gleich.
 - **Geld, das zurückgeht, folgt dem Erhaltungssatz.** Eine Rücklastschrift macht eine Zahlung ganz rückgängig (oft mit der Gebühr der Bank obendrauf), die Rechnung ist wieder offen – auch wenn die Einziehung in einer Sammellastschrift steckte, die die Rechnung nicht nennt. Weniger als eine Zahlung zurück ist eine Erstattung: Das Erstattete ist nicht mehr geschuldet. Ein Skonto-Abzug, den das eigene Buch als bezahlt führt, ist angenommenes Skonto.
+- **Forderungen aus dem Zahlungsbild.** Miete, Hausgeld und Beiträge schuldet ein Vertrag oder Beschluss, keine Rechnung, und oft liegt keins von beiden bei. Physarum leitet die Sollstellungen aus den Zahlungen ab. Zahlen die Mitglieder einer Liste immer wieder einen ihrer Beträge, ist das eine Forderung: im Rhythmus der Zahlungsabstände, ab der ersten Zahlung, bis zu dem Ende, das die Liste nennt. Offen ist, was danach nicht kam.
 - **Formeln werden entdeckt, nicht programmiert.**
 - **Fragen nach Informationswert.** Statt eines Einrichtungsassistenten kommen die drei Fragen, deren Antwort am meisten klärt.
 
 ## 7. Ehrliche Grenzen
 
 - Ohne Sprachmodell werden Rechnungs-PDFs gelesen wie E-Rechnungen (Nummer, Beträge, Fristen, Skonto, IBAN), Mails nach ihrem Anliegen eingeordnet (Bestellung, Bitte, Reklamation, Kündigung, „schon bezahlt“, neue Bankverbindung) und über der Tabelle Stehendes („Auftrag: A26-028“) übernommen. Anderer Freitext wird **verknüpft und durchsuchbar gemacht**, aber nicht in Datensätze zerlegt. Gescannte PDFs ohne Textebene liest Physarum nicht (kein OCR). Ein optionaler LLM-Baustein ist als Erweiterung vorgesehen.
-- Forderungen ohne Rechnung kennt Physarum noch nicht: Miete, Hausgeld, Umlagen, Kautionen oder Mitgliedsbeiträge, die ein Vertrag oder Beschluss Monat für Monat schuldet und die das Geld der Partei tilgt (Sollstellungen auf einem Personenkonto). Bei einer Hausverwaltung sind das 90 % des offenen Geldes; sichtbar sind nur ihre eigenen Rechnungen, die Handwerkerrechnungen und die Verträge. Konten mit fremden Inhabern im selben Ordner (Treuhand, WEG-Konten) trennt Physarum nicht nach Mandant; Umbuchungen zwischen ihnen erkennt es.
+- Forderungen ohne Rechnung (Miete, Hausgeld, Beiträge) leitet Physarum aus den Zahlungen ab. Was es nicht zahlen sieht, kennt es nicht:
+  - Wer noch nie gezahlt hat, schuldet in seinen Augen nichts.
+  - Eine Erhöhung, die noch niemand gezahlt hat, bleibt unsichtbar.
+  - Bei Jahreszahlern zeigen die Auszüge zu wenige Zahlungen für einen Rhythmus.
+  - Bei einer Sammellastschrift zeigt die Bank eine Gutschrift je Lauf; die Einzelposten stehen nur in der pain.008-Datei. Beim Verein, wo die meisten per Lastschrift zahlen, findet Physarum so 4 von 57 offenen Posten, bei der Hausverwaltung 15 von 41.
+
+  Umlagen, Kautionen und Nachzahlungen ohne Rechnung kennt es nicht. Unter fremden Spaltennamen stehen bei der Hausverwaltung in der zweiten Lieferung vier falsche Rückstände. Konten mit fremden Inhabern im selben Ordner (Treuhand, WEG-Konten) trennt Physarum nicht nach Mandant; Umbuchungen zwischen ihnen erkennt es.
 - Physarum ist die **operative** Schicht und keine Finanzbuchhaltung. Die Steuerberatung bekommt einen DATEV-Buchungsstapel der Ausgangsrechnungen, die Bücher und die Belege; Aufwandskonten und Voranmeldung bleiben bei ihr.
 - Mehrbenutzerbetrieb und Rechte sind nur rudimentär vorhanden (Name im Änderungsprotokoll).
 - Heuristiken irren. Deshalb ist alles erklärbar, korrigierbar und umkehrbar, und die Originaldaten bleiben unangetastet.
@@ -199,7 +208,7 @@ Danach wurde in Runden geprüft, jedes Mal von Prüfern, die den Code nicht kann
 Nach sechs Runden fragte eine strategische Prüfung, ob das System noch das schlankeste ist, das den Auftrag erfüllt. Befund: Es wuchs nur noch, jede Runde fügte Regeln für die eine geprüfte Firma hinzu, und der Geldkern hing an den Wörtern „bezahlt“ und „fällig“. Seitdem gilt:
 
 - **Der Prüfstand ist die Belohnung.** Zwölf Firmen, die Prüfer gebaut haben, mit ihren Lieferungen und dem, was an jedem Tag wahr ist (`bench/`). Jede läuft zusätzlich unter neutralen Dateinamen und anderen Spaltennamen. Jede Änderung wird daran gemessen.
-- **Die Stopp-Regel:** Eine Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht.
+- **Die Stopp-Regel:** Eine Regel kommt nur hinein, wenn sie auf mindestens zwei Firmen greift und keine schlechter macht Seit Runde 11 gilt das für jede Bedingung auf Zellinhalte, wie auch immer sie heißt (Abschnitt 8.4).
 - **Erst löschen.** Weg sind der Abgleich-Ablauf (zwei Wahrheiten für „bezahlt“), die Fragen zum Datenmodell (jetzt umkehrbare Hinweise an der Liste), doppelte Hilfsfunktionen, tote Funktionen und der Tero-Löser.
 
 | Kennzahl (Prüfstand) | vorher | nachher |
@@ -330,3 +339,66 @@ Neben den Prüfungen kamen dazu: Kündigungen ohne Vertragsnummer (Gebäudereini
 | Wort-Regeln / reguläre Ausdrücke | 767 / 179 | 783 / 183 |
 
 „Vorher“ bei elf Firmen ist der Stand der Runde 9 mit der neuen Firma. Heute steigt bei den zehn Firmen, weil eine Bareinzahlung auch dann eigenes Geld ist, wenn das Wort nur im Buchungstext steht (Caterer). Die Runde hat gut 300 Zeilen gekostet, zur Hälfte für die Fehler, die die Prüfung fand. Gestrichen wurden der Leser einer „bezahlt“-Markierung, die sich nicht mehr setzen ließ, die zweite Reklamationsprüfung über Dokumente (die Mails tun das schon) und die zweite Rechnung der Wartefrist nach einem Brief.
+
+**Runde 11** brachte den zweiten Zeugen für die größte Lücke und eine strategische Prüfung.
+
+Ein Sportverein, den niemand kannte, hat 562 Mitglieder in fünf Abteilungen. Sie zahlen per Lastschrift, Überweisung oder bar, und zum 1. Juli steigen die Beiträge. Im Jahr entstehen rund 1.800 Forderungen, nur 33 davon sind Rechnungen. Wie bei der Hausverwaltung sah Physarum fast nichts davon. Aus der Prüfung kamen ein Leser für MT940-Kontoauszüge (Standardformat, wie camt) und vier Fehlerbehebungen:
+
+- Der Zahlername kam aus einer Spalte, die auf jeder Zeile gleich ist.
+- Ein Zahlungsschritt unter anderem Namen wurde nicht erkannt.
+- Ein Geburtsdatum galt als Beginn eines Ablaufs („576 Mitglieder seit März 1938“).
+- Die Kachel „Offene Posten“ rechnet jetzt über alle Forderungslisten.
+
+Die strategische Prüfung fragte, ob Physarum noch auf Kurs ist. Ihr Urteil: teilweise. „Alles reinkippen“ und „baut sich selbst“ gelingen für Firmen, die Rechnungen schreiben. Gewachsen ist aber vor allem der Code – seit Runde 7 rund 1.500 Zeilen und 90 Wort-Regeln –, nicht der Organismus:
+
+- Von 19 einzeln ausgeschalteten Mechanismen wirken 9 nur auf die Firma, für die sie gebaut wurden, 2 auf keine.
+- Der Prüfstand misst nur, ob offene Posten verstanden werden. Von Heute bewertet er gut ein Viertel, das Handeln gar nicht.
+- Das Flussnetz, das dem System den Namen gibt, ändert keine einzige Zelle.
+- Die Stopp-Regel hatte ein Schlupfloch: Was „Fehler“, „Leser“ oder „Wegbereiter“ hieß, kam mit einer Firma herein.
+
+Daraus folgt dreierlei.
+
+- **Forderungen ohne Rechnung** entstehen jetzt aus dem Zahlungsbild (`physarum/claims.py`). Eine Liste, deren Mitglieder einen ihrer Beträge immer wieder zahlen, ist eine Liste von Sollstellungen. Das Mitglied erkennt Physarum an seiner Nummer im Zweck, an seiner IBAN oder an seinem Namen. Den Rhythmus sagen die Abstände der Zahlungen: monatlich, vierteljährlich, halb- oder ganzjährlich. Geschuldet ist ab dem ersten gezahlten Zeitraum, solange die Auszüge reichen und das Mitglied nicht gegangen ist. Das Geld tilgt den genannten Zeitraum, sonst den ältesten (§ 366 BGB). Wechseln viele im selben Monat auf den Betrag der Liste, ist das eine Erhöhung: Ab dann gilt der neue Betrag, davor der alte. Wer danach noch den alten zahlt, schuldet die Differenz, aber nur, wenn die anderen vor der Erhöhung genau diesen Betrag zahlten. Nichts wird gefordert, wo keine Zahlung den Beginn belegt. Der Prototyp stammt vom Prüfer. Verallgemeinert auf Rhythmus und Erhöhung greift er bei beiden Firmen und verändert keine andere.
+- **Der Prüfstand misst mehr:** „Geld richtig“ auch je Firma, damit eine Firma mit vielen Forderungen nicht allein entscheidet, und „Geld erklärt“ (Abschnitt 3).
+- **Die Stopp-Regel gilt ohne Etikett**, mit Streichpflicht (Abschnitt 8.4). „Länger als üblich“ meldet nur noch, was auf einer Norm aus mindestens 20 Fällen beruht; beim Brenner standen 28 Aufträge an einer Norm aus 8.
+
+| Kennzahl (Prüfstand, zwölf Firmen) | vorher | nachher |
+|---|---:|---:|
+| Geld richtig | 0,419 | 0,546 |
+| Geld richtig je Firma (Mittel) | 0,761 | 0,780 |
+| Geld erklärt (je Firma, neu) | – | 0,344 |
+| Heute-Aufgaben richtig | 0,441 | 0,482 |
+| zehn Firmen ohne Sollstellungen: Geld / Heute | 0,884 / 0,852 | 0,884 / 0,852 |
+| Hausverwaltung, Lieferung 1: offene Posten richtig / zu viel / fehlend | 6 / 57 / 35 | 15 / 16 / 26 |
+| Hausverwaltung, Lieferung 2: offene Posten richtig / zu viel / fehlend | 2 / 61 / 29 | 10 / 19 / 21 |
+| Verein, Lieferung 1: offene Posten richtig / zu viel / fehlend | 3 / 1 / 54 | 4 / 1 / 53 |
+| Brenner: Einträge auf Heute | 238 | 210 |
+| gleiche offene Posten unter anderen Namen | 0,986 | 0,980 |
+| Listen gleich benannt | 0,693 | 0,693 |
+| Abstürze | 0 | 0 |
+| Zeilen Code | 20.157 | 20.566 |
+| Wort-Regeln / reguläre Ausdrücke | 786 / 190 | 800 / 195 |
+
+„Vorher“ ist der Stand nach dem ersten Teil der Runde: der Verein im Prüfstand, MT940 und die Fehler aus seiner Prüfung, die die elf bisherigen Firmen in jeder Zelle gleich ließen. Unter anderen Namen sinkt der Wert, weil die Hausverwaltung unter fremden Spaltennamen in der zweiten Lieferung vier falsche Rückstände zeigt. Die Runde hat gut 500 Zeilen gekostet, 400 davon für die Sollstellungen.
+
+Der Verein bleibt fast blind. Die meisten Mitglieder zahlen per Lastschrift, und deren Einzelposten stehen nur in der pain.008-Datei des Laufs. Physarum liest sie als Avis für Rechnungen, nicht als Zahlung eines Mitglieds. Das ist der nächste Schritt. Ebenfalls offen: „Geld als Futter“, also das Geld selbst als Nahrung – eine Grammatik, die jede Kontozeile durch einen Vorgang erklärt, und Heute als der Rest, den sie nicht erklärt. Sie wäre das, was das Flussnetz versprach, ist aber ein Umbau für eine eigene Runde.
+
+### 8.4 Regeln auf Bewährung
+
+Seit Runde 11 schaltet jede Runde die Regeln der letzten zwei Runden einzeln aus und misst den ganzen Prüfstand. Wirkt eine nur bei einer Firma, steht sie hier. Findet sich binnen zwei Runden kein zweiter Zeuge, wird sie gestrichen, und ihr Fall wird eine Grenze in Abschnitt 7. Den ersten Lauf machte der strategische Prüfer der Runde 11, über 19 Mechanismen aus allen Runden:
+
+| Regel | wirkt bei | seit Runde | Frist bis Runde |
+|---|---|---:|---:|
+| Budget überschritten (`_budget_work`) | Agentur | 3 | 13 |
+| Die PDF-Rechnung, die der Kunde bekam, sagt den Betrag, wenn das Buch etwas anderes sagt (`_documents`) | Handwerk | 4 | 13 |
+| Zwei Rechnungen, die das Buch kurz nacheinander als bezahlt führt, teilen sich eine Überweisung (`_listed_together`) | Handwerk | 4 | 13 |
+| Die Spalte „erhalten“ des Buchs zählt neben der Bank (`_received_attr`) | Werkstatt | 7 | 13 |
+| An der Kasse bezahlt und Tage später noch einmal überwiesen: zweimal bezahlt | Shop | 8 | 13 |
+| Ein abgeschnittener Sammelzweck bezahlt mit seinem Rest die nächste offene Rechnung (`_cut_off`) | Gebäudereinigung | 8 | 13 |
+| Eine Anzahlung auf Auftrag oder Angebot zahlt dessen Rechnung | Gebäudereinigung | 8 | 13 |
+| Die Umbuchung zwischen zwei Konten des Ordners ist eine Zahlung (`_transfer_twins`) | Hausverwaltung | 10 | 13 |
+| „RE-… bis RE-…“ im Zweck zahlt die Rechnungen dazwischen (`_number_range`) | Hausverwaltung | 10 | 13 |
+
+Ohne Wirkung im Prüfstand, nur durch einen Test belegt, sind der Sicherheitseinbehalt einer Schlussrechnung (`_retained`) und die eigene Kundennummer neben der Rechnungsnummer (ein Fehlerfall der Runde 8). Für beide gilt dieselbe Frist.
+
+Vier weitere wirken nur auf Heute-Einträge, die der Prüfstand nicht bewertet: Mails, fällige Termine, Hinweise und „länger als üblich“. Über sie kann er erst urteilen, wenn er Heute ganz bewertet.

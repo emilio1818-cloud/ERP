@@ -52,7 +52,8 @@ def main(argv: list[str]) -> int:
     for label, drop in (("alle", set()),) + ((("ohne " + ", ".join(sorted(without)), without),) if without else ()):
         sb = summary([b[k] for k in keys if k[0] not in drop])
         sl = summary([l[k] for k in keys if k[0] not in drop])
-        print(f"  {label}: " + ", ".join(f"{k} {sb[k]} → {sl[k]}" for k in ("money", "heute", "names", "lists")))
+        print(f"  {label}: " + ", ".join(f"{k} {sb.get(k)} → {sl.get(k)}" for k in ("money", "money_firms", "explained", "heute",
+                                                                                   "names", "lists")))
     print("  Code: " + ", ".join(f"{k} {base['summary'][k]} → {last['summary'][k]}" for k in ("lines", "word_rules", "regexes")))
     return 0
 

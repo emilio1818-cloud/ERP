@@ -1128,7 +1128,8 @@ def value_chains(model: dict, records: dict, mention_refs: dict, ledger: dict | 
 def compute_work(model: dict, records: dict, mention_refs: dict, today: date | None = None,
                  outrefs: dict | None = None, titles_in: dict | None = None,
                  pending_payments: dict | None = None, ledger: dict | None = None,
-                 mails_done: set | None = None, own: set | None = None) -> list[dict]:
+                 mails_done: set | None = None, own: set | None = None, claims: dict | None = None,
+                 claim_lines: set | None = None) -> list[dict]:
     """`own`: the firm's own names – money from itself is no question."""
     from .grow import record_title
 
@@ -1275,9 +1276,10 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                             rid=r["id"], days=waited, money=money, usual=st["median_days"], late=waited > limit,
                             reason=f"{title(gone[1])} storniert, noch keine neue" if gone else None))
                     elif waited > limit and waited < 1100 and not optional and not decided and not free and \
-                            not (due and due >= today and fold(st["label"]) != PAID):  # work planned for a later day
+                            st.get("n", 0) >= 20 and not (due and due >= today and fold(st["label"]) != PAID):
                         # claims become time-barred after three years; a step most cases never reach (an offer
-                        # that is never ordered) is nothing one waits for
+                        # that is never ordered) is nothing one waits for; "usual" rests on twenty cases at least
+                        # (four days from eight orders is no norm), and work planned for a later day waits for it
                         buckets[(st["id"], "late")].append(dict(rid=r["id"], days=waited, money=money,
                                                                 usual=st["median_days"]))
                     elif due and (due - today).days <= 3:
@@ -1424,8 +1426,9 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     x["reason"] = "; ".join(filter(None, [x.get("reason"), "zweimal eingegangen ("
                                                           + ", ".join(twice[x["rid"]]) + ") – nur einmal bezahlen"]))
         from .reconcile import unexplained_receipts
+        claimed = {x["rid"] for c in (claims or {}).values() for x in c["payments"] if x.get("rid")} | (claim_lines or set())
         got = unexplained_receipts(model, records, ledger or {}, tmap, today,
-                                   pending={x.get("bank") for x in (pending_payments or {}).values()}, own=own)
+                                   pending={x.get("bank") for x in (pending_payments or {}).values()} | claimed, own=own)
         if got:
             groups.append(dict(id="bank:unexplained", type=got and by_id[got[0]["rid"]]["type"], kind="receipt",
                                severity=2, title="Geld erhalten – wofür?", count=len(got),
@@ -1469,6 +1472,7 @@ def compute_work(model: dict, records: dict, mention_refs: dict, today: date | N
                     f"Kunde schreibt am {day}: „{m['title']}“ – erst klären"
                 x["hold"] = m["rid"]
     groups += mail
+    groups += _claim_work(model, claims or {}, title, today)
     groups += _due_work(model, records, by_id, title, today)
     periods = _period_work(model, records, by_id, title, today, outrefs, void)
     shown = {x["rid"] for g in periods for x in g["items"]}
@@ -1667,6 +1671,35 @@ def _period_work(model, records, by_id, title, today, outrefs, void) -> list[dic
                             if st["rel_kind"] == "ref" else None,
                             explain=f"Diese {spec['plural']} werden Zeitraum für Zeitraum berechnet; für die genannten "
                                     f"Zeiträume gibt es keine Rechnung, obwohl ihr üblicher Tag vorbei ist."))
+    return out
+
+
+def _claim_work(model, claims: dict, title, today) -> list[dict]:
+    """What a member owes without an invoice (rent, Hausgeld, a fee), member by member, the periods it is behind."""
+    specs = {t["id"]: t for t in model["types"]}
+    per = defaultdict(list)
+    for c in claims.values():
+        if c["open"] > 0.005 and c["due"] < today:
+            per[(c["type"], c["attr"])].append(c)
+    out = []
+    for (tid, aid), cs in per.items():
+        spec = specs[tid]
+        name = next(a["name"] for a in spec["attrs"] if a["id"] == aid)
+        by_member = defaultdict(list)
+        for c in cs:
+            by_member[c["member"]].append(c)
+        items = []
+        for m, ms in by_member.items():
+            ms.sort(key=lambda c: c["period"])
+            items.append(dict(rid=m, title=title(m), days=(today - ms[0]["due"]).days, money=round(sum(c["open"] for c in ms), 2),
+                              claims=[c["label"] for c in ms],
+                              reason=", ".join(c["when"] + (f" ({fmt_eur(c['open'])} von "
+                                               f"{fmt_eur(c['gross'])})" if c["paid"] > 0.005 else "") for c in ms) + " offen"))
+        items.sort(key=lambda x: -x["money"])
+        out.append(dict(id=f"claims:{tid}:{aid}", type=tid, kind="overdue", severity=3, title=f"{spec['plural']}: {name} – Rückstand",
+                        count=len(items), amount=round(sum(x["money"] for x in items), 2), items=items[:50], action=None,
+                        explain=f"Diese {spec['plural']} zahlen „{name}“ regelmäßig ohne Rechnung; für die genannten Zeiträume "
+                                f"fehlt das Geld ganz oder zum Teil. Gezählt wird ab dem ersten Zeitraum, in dem der Betrag gezahlt wurde."))
     return out
 
 

@@ -49,7 +49,15 @@ def summary(results: list[dict]) -> dict:
             for b, v in zip(base[r["firm"]]["deliveries"], r["deliveries"]):
                 inv.append((_jaccard(b["open"], v["open"]) + _jaccard(b["overdue"], v["overdue"])) / 2)
                 lists.append(_jaccard(b.get("lists", []), v.get("lists", [])))
+    # each firm counts once: a firm with many claims does not decide the number alone
+    per_firm = [sum(sc["tp"] for d in r["deliveries"] for k, sc in d["score"].items() if k == "open") /
+                max(1, sum(sc["tp"] + sc["fp"] + sc["fn"] for d in r["deliveries"] for k, sc in d["score"].items() if k == "open"))
+                for r in base.values() if any("open" in d["score"] for d in r["deliveries"])]
+    explained = [r["deliveries"][-1].get("explained") for r in base.values()]
+    explained = [x for x in explained if x is not None]
     return dict(money=round(money[0] / money[1], 3) if money[1] else None,
+                money_firms=round(sum(per_firm) / len(per_firm), 3) if per_firm else None,
+                explained=round(sum(explained) / len(explained), 3) if explained else None,
                 heute=round(tasks[0] / tasks[1], 3) if tasks[1] else None,
                 names=round(sum(inv) / len(inv), 3) if inv else None,
                 lists=round(sum(lists) / len(lists), 3) if lists else None,
@@ -91,14 +99,15 @@ def main(argv: list[str]) -> int:
     print(table(results))
     print()
     baseline = json.loads((HERE / "baseline.json").read_text()) if (HERE / "baseline.json").exists() else None
-    names = dict(money="Geld richtig", heute="Heute-Aufgaben richtig", names="gleich bei anderen Namen",
+    names = dict(money="Geld richtig", money_firms="Geld richtig je Firma", explained="Geld erklärt (je Firma)",
+                 heute="Heute-Aufgaben richtig", names="gleich bei anderen Namen",
                  lists="Listen gleich benannt",
                  schema_questions="Fragen zum Datenmodell", errors="Abstürze", lines="Zeilen Code",
                  word_rules="Wort-Regeln", regexes="reguläre Ausdrücke")
     for k, label in names.items():
         was = (baseline or {}).get("summary", {}).get(k)
-        delta = "" if was is None or s[k] is None else f"  (Basis {was})"
-        print(f"{label:28} {s[k]}{delta}")
+        delta = "" if was is None or s.get(k) is None else f"  (Basis {was})"
+        print(f"{label:28} {s.get(k)}{delta}")
     out = dict(summary=s, results=results)
     (HERE / "last.json").write_text(json.dumps(out, ensure_ascii=False, indent=1, default=str))
     if save:

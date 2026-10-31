@@ -39,16 +39,41 @@ def measure(rt: Runtime, truth: dict, today) -> dict:
     open_ = {keyed[rid]: round(e["open"], 2) for rid, e in rt.ledger.items()
              if rid in keyed and e["state"] in ("offen", "teilbezahlt") and e["open"] > 0.005}
     work = rt.work(today)
-    overdue = {keyed[x["rid"]] for g in work if g["kind"] == "overdue" for x in g["items"] if x.get("rid") in keyed}
+    overdue = {keyed[x["rid"]] for g in work if g["kind"] == "overdue" for x in g["items"] if x.get("rid") in keyed
+               and not x.get("claims")}
+    # prototype: claims without an invoice, named as the truth names them ("<account> <kind> <MM/YYYY>")
+    import re as _re
+    names = {}
+    for k in (truth.get("open") or {}):
+        mm = _re.match(r"^(\S+) .+ ((?:\d\d|Q[1-4]|H[12])/\d{4}|\d{4})$", k)
+        if mm:
+            names[(mm.group(1), mm.group(2))] = k
+    def cname(label):
+        mm = _re.match(r"^(\S+) .+ ((?:\d\d|Q[1-4]|H[12])/\d{4}|\d{4})$", label)
+        return names.get((mm.group(1), mm.group(2)), label) if mm else label
+    for c in getattr(rt, "claims", {}).values():
+        if c["open"] > 0.005:
+            open_[cname(c["label"])] = round(c["open"], 2)
+    overdue |= {cname(lb) for g in work if g["kind"] == "overdue" for x in g["items"] for lb in x.get("claims") or []}
     unbilled = {str(x["title"]) for g in work if g["kind"] == "ready" for x in g["items"]}
     over_budget = {str(x["title"]) for g in work if g["kind"] == "budget" for x in g["items"]}
     receipts = sorted(round(x["money"], 2) for g in work if g["kind"] == "receipt" for x in g["items"] if x.get("money"))
     qs = rt.store.q("SELECT kind FROM questions WHERE status='open'")
+    # money explained: the share of the euros on the statements that pays something Physarum knows – an invoice, a
+    # supplier's bill, a claim without invoice; needs no truth, so a firm could measure it itself
+    from physarum.reconcile import bank_amount, bank_specs
+    known = {x["rid"] for e in rt.ledger.values() for x in e.get("payments", []) if x.get("rid")}
+    known |= {x["rid"] for c in getattr(rt, "claims", {}).values() for x in c["payments"] if x.get("rid")}
+    known |= set(getattr(rt, "claim_lines", set()))
+    moved = [(r["id"], abs(v)) for b in bank_specs(rt.model) for r in rt.records.get(b["spec"]["id"], [])
+             if (v := bank_amount(b, r["data"]))]
+    total = sum(v for _r, v in moved)
     out = dict(types=len(rt.model["types"]), lists=sorted(t["plural"] for t in rt.model["types"]), questions=len(qs), schema_questions=sum(1 for q in qs if q["kind"] in SCHEMA),
                heute_groups=len(work), heute_items=sum(g["count"] for g in work if g.get("severity", 2) >= 2),
                coverage=round(coverage(rt).get("score", 0), 3), open=open_, overdue=sorted(overdue),
                unbilled=sorted(unbilled), over_budget=sorted(over_budget), receipts=receipts,
-               eur_open=round(sum(open_.values()), 2))
+               eur_open=round(sum(open_.values()), 2),
+               explained=round(sum(v for r, v in moved if r in known) / total, 3) if total else None)
     score = {}
     if truth.get("open") is not None:
         want = truth["open"]
